@@ -149,92 +149,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-29-use-operator-sdk/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-29-use-operator-sdk/" class="post-title-link" itemprop="url">operator-framework的使用和调查</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>准备用CRD做一个数据迁移的operator, 将不同结点的pvc迁移. 于是决定使用operator-sdk.</p>
-<p>operator-sdk能够自动生成operator相关代码, 并能够直接部署到k8s集群中, 使用起来还是相当方便的.</p>
-<p>operator-sdk需要搭配operator-lifecycle-manager来使用, 安装配置方法这里不做赘述, 可以参考官网,或者这篇文章:<a target="_blank" rel="noopener" href="https://devops.college/developing-kubernetes-operator-is-now-easy-with-operator-framework-d3194a7428ff">Developing Kubernetes Operator is now easy with Operator Framework</a></p>
-<p>operator的大体框架如下所示:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">A[operaotr] --&gt;|Watch|B[custom resource]</span><br><span class="line">A[operaotr] --&gt;|handler|F[Handler] </span><br><span class="line">F --&gt; E(All Resources)</span><br><span class="line">C(CRD) --&gt; A    </span><br><span class="line">D(Deployment) --&gt; A</span><br></pre></td></tr></table></figure>
-
-<p>通过operator-sdk可以自动生成 crd.yaml, operator.yaml, cr.yaml, rbac.yaml. 这些都需要手动部署到k8s. </p>
-<p>operator.yaml是最重要的一个. 里面包含handle逻辑和type结构, 它是你需要去实现和填充的业务逻辑, 理论上handle可以实现任何逻辑, 比如对修改apiserver中的某些资源内容, 或者创建新的资源, 或者起一个pod和job做一些hack的事情. </p>
-<p>做完这些就可以生成operator了, 他会build一个image, operator是一个deployment的, 它去拉这个image然后watch你定义的cr, 当你创建或者删除cr, 就会触发handle操作.	</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-07-02-golang-map/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -387,6 +301,92 @@
 <h4 id="Map-的删除"><a href="#Map-的删除" class="headerlink" title="Map 的删除"></a>Map 的删除</h4><p>删除的前面部分也是找到对应的key和value, 此处省略.</p>
 <figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapdelete</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> &#123;</span><br><span class="line"><span class="comment">// 查找位置, 省略</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的地址, 将地址变为nil</span></span><br><span class="line">				*(*unsafe.Pointer)(k) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的值, 清空key的值</span></span><br><span class="line">				typedmemclr(t.key, k)</span><br><span class="line">			&#125;</span><br><span class="line">			v := unsafe.Pointer(<span class="type">uintptr</span>(unsafe.Pointer(b)) + dataOffset + bucketCnt*<span class="type">uintptr</span>(t.keysize) + i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">    	<span class="comment">// 同理</span></span><br><span class="line">			<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">				*(*unsafe.Pointer)(v) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				typedmemclr(t.elem, v)</span><br><span class="line">			&#125;</span><br><span class="line">    		<span class="comment">//将tophash相应位置标记为空, kv数量-1.</span></span><br><span class="line">			b.tophash[i] = empty</span><br><span class="line">			h.count--</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-29-use-operator-sdk/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-06-29-use-operator-sdk/" class="post-title-link" itemprop="url">operator-framework的使用和调查</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>准备用CRD做一个数据迁移的operator, 将不同结点的pvc迁移. 于是决定使用operator-sdk.</p>
+<p>operator-sdk能够自动生成operator相关代码, 并能够直接部署到k8s集群中, 使用起来还是相当方便的.</p>
+<p>operator-sdk需要搭配operator-lifecycle-manager来使用, 安装配置方法这里不做赘述, 可以参考官网,或者这篇文章:<a target="_blank" rel="noopener" href="https://devops.college/developing-kubernetes-operator-is-now-easy-with-operator-framework-d3194a7428ff">Developing Kubernetes Operator is now easy with Operator Framework</a></p>
+<p>operator的大体框架如下所示:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">A[operaotr] --&gt;|Watch|B[custom resource]</span><br><span class="line">A[operaotr] --&gt;|handler|F[Handler] </span><br><span class="line">F --&gt; E(All Resources)</span><br><span class="line">C(CRD) --&gt; A    </span><br><span class="line">D(Deployment) --&gt; A</span><br></pre></td></tr></table></figure>
+
+<p>通过operator-sdk可以自动生成 crd.yaml, operator.yaml, cr.yaml, rbac.yaml. 这些都需要手动部署到k8s. </p>
+<p>operator.yaml是最重要的一个. 里面包含handle逻辑和type结构, 它是你需要去实现和填充的业务逻辑, 理论上handle可以实现任何逻辑, 比如对修改apiserver中的某些资源内容, 或者创建新的资源, 或者起一个pod和job做一些hack的事情. </p>
+<p>做完这些就可以生成operator了, 他会build一个image, operator是一个deployment的, 它去拉这个image然后watch你定义的cr, 当你创建或者删除cr, 就会触发handle操作.	</p>
 
       
     </div>
@@ -734,6 +734,97 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>docker run 的时候如果出现类似:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
+
+<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
+
+<p>修改后发现新的错误:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
+
+<p>网上查有如下回复:</p>
+<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
+
+<p>所以重启大法好…</p>
+<p>但是真正原因没搞清楚, 待更新.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-14-qos-in-k8s/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -948,7 +1039,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-04-08-sticky-bit/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -966,7 +1057,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
+          <a href="/2024/03/10/2018-04-08-sticky-bit/" class="post-title-link" itemprop="url">sticky-bit</a>
         </h2>
 
         <div class="post-meta-container">
@@ -985,7 +1076,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
         </span>
     </span>
 
@@ -999,129 +1090,27 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>docker run 的时候如果出现类似:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
+          <p>在linux的权限中, 发现不仅仅有rwx, 还有一个t, 如下所示:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">drwxrwxr-t   2 shentao shentao       4096  8月 24  2016 <span class="built_in">test</span>/</span><br></pre></td></tr></table></figure>
+<p>t只能加在最后一个组, 也就是其他组的权限中, 他的意思是sticky bit, 表示其他组成员不能对该文件进行删除和重命名操作, 这是为了防止某个文件无意被其他组的成员删除和重命名后导致owner找不到文件.</p>
+<p>添加的方式是:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> o+t <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
 
-<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
+<p>或者</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> +t <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
+<p>或者使用数字的方式, 在首位设置1</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> 1775 <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
 
-<p>修改后发现新的错误:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
+<p>结果如下:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ll <span class="built_in">test</span></span><br><span class="line">drwxrwxr-t   2 shentao shentao       4096  8月 24  2016 <span class="built_in">test</span>/</span><br></pre></td></tr></table></figure>
 
-<p>网上查有如下回复:</p>
-<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
+<p>移除方式如下</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> o-t <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
 
-<p>所以重启大法好…</p>
-<p>但是真正原因没搞清楚, 待更新.</p>
+<p>查看结果</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ll <span class="built_in">test</span></span><br><span class="line"></span><br><span class="line">drwxrwxr-x   2 shentao shentao       4096  8月 24  2016 <span class="built_in">test</span>/</span><br></pre></td></tr></table></figure>
 
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-03-22-microservices/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-03-22-microservices/" class="post-title-link" itemprop="url">初识微服务</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>星环讲座: 初识微服务</p>
-<p>主讲人: 吴伟</p>
-<p>三本书:</p>
-<ul>
-<li>Building Microservices</li>
-<li>微服务: 从设计到部署</li>
-<li>微服务设计</li>
-</ul>
-<p>大纲:</p>
-<ol>
-<li>什么是微服务</li>
-<li>核心概念</li>
-<li>开源微服务框架</li>
-<li>国内微服务产品</li>
-</ol>
-<h3 id="内容"><a href="#内容" class="headerlink" title="内容:"></a>内容:</h3><ol>
-<li>什么是微服务: 相互独立微小的组建, 能够相互合作: 在一组小的服务, 独立的进程, 通信机制, 基于业务, 独立部署, 没有集中式管理.</li>
-<li>为什么要做微服务: 单体服务膨胀太大, 代码太多, 开发太慢, 发布速度太慢, 新人学习成本太高.</li>
-<li>微服务目标: 敏捷迭代, 灵活扩展, 服务服用.</li>
-<li>微服务核心概念: api网关, 服务发现, 熔断, 限流, 降级, 配置中心, 自动化部署和测试, 日志监控和分部署追踪, 安全, 服务拆分, 服务接口定义, 有状态服务集群, 无状态服务<ul>
-<li>服务发现: 怎么找到另一个服务的地址. 通常使用服务中心或者服务代理.</li>
-<li>api网关: 对外统一接入访问; 内外协议转换(http -&gt; gRPC), 统一认证,监控,负载均衡,缓存; 智能路由: Kong, Nginx Plus, Traefik</li>
-<li>服务容错(熔断): 假设错误一定会发生, 想办法把损失降到最小: custom fallback, fail silent, fail fast. 超时与重试, 降级熔断, 连接隔离</li>
-<li>配置中心: 程序运行时动态调整行为的能力.</li>
-<li>自动化测试部署: CI&#x2F;CD 改动一行代码能够多久部署成功</li>
-<li>服务监控: 系统在做什么, 哪些组建流量比较大, 这个请求在哪个地方失败了, 哪个调用比较慢.</li>
-<li>安全: </li>
-<li>分布式事务: 每个服务解决一个问题, 要解决一个逻辑上的一致性.</li>
-</ul>
-</li>
-</ol>
-<p>cloud native &#x3D; container + CICD&#x2F;devops + microservice</p>
+<p>从这里也能看出, t是比x更高一个级别的权限, 即t包含了可执行权限, 只是不能delete和rename. 其次它与rw也不冲突.</p>
 
       
     </div>
@@ -1260,7 +1249,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-Istio/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-03-22-microservices/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1278,7 +1267,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-05-24-Istio/" class="post-title-link" itemprop="url">Istio</a>
+          <a href="/2024/03/10/2018-03-22-microservices/" class="post-title-link" itemprop="url">初识微服务</a>
         </h2>
 
         <div class="post-meta-container">
@@ -1311,20 +1300,38 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>Istio: 一个开源平台去链接， 管理和保障微服务： 分布式微服务代理。</p>
-<p>传统代理： 类似于一个线， 任何服务都经过这个代理。</p>
-<p>分布式代理： 代理运行在每个应用上，接管应用进出的流量并和统一的控制中心通信获取动态配置。</p>
-<p>微服务代理： service mesh: 互连的分布式代理。</p>
-<p>Istio: </p>
+          <p>星环讲座: 初识微服务</p>
+<p>主讲人: 吴伟</p>
+<p>三本书:</p>
+<ul>
+<li>Building Microservices</li>
+<li>微服务: 从设计到部署</li>
+<li>微服务设计</li>
+</ul>
+<p>大纲:</p>
 <ol>
-<li><p>Pilot: 基于http做流量的； </p>
-</li>
-<li><p>Ｍixer: 做数据统计， 授权认证</p>
-</li>
-<li><p>CA-Auth： 做安全认证</p>
+<li>什么是微服务</li>
+<li>核心概念</li>
+<li>开源微服务框架</li>
+<li>国内微服务产品</li>
+</ol>
+<h3 id="内容"><a href="#内容" class="headerlink" title="内容:"></a>内容:</h3><ol>
+<li>什么是微服务: 相互独立微小的组建, 能够相互合作: 在一组小的服务, 独立的进程, 通信机制, 基于业务, 独立部署, 没有集中式管理.</li>
+<li>为什么要做微服务: 单体服务膨胀太大, 代码太多, 开发太慢, 发布速度太慢, 新人学习成本太高.</li>
+<li>微服务目标: 敏捷迭代, 灵活扩展, 服务服用.</li>
+<li>微服务核心概念: api网关, 服务发现, 熔断, 限流, 降级, 配置中心, 自动化部署和测试, 日志监控和分部署追踪, 安全, 服务拆分, 服务接口定义, 有状态服务集群, 无状态服务<ul>
+<li>服务发现: 怎么找到另一个服务的地址. 通常使用服务中心或者服务代理.</li>
+<li>api网关: 对外统一接入访问; 内外协议转换(http -&gt; gRPC), 统一认证,监控,负载均衡,缓存; 智能路由: Kong, Nginx Plus, Traefik</li>
+<li>服务容错(熔断): 假设错误一定会发生, 想办法把损失降到最小: custom fallback, fail silent, fail fast. 超时与重试, 降级熔断, 连接隔离</li>
+<li>配置中心: 程序运行时动态调整行为的能力.</li>
+<li>自动化测试部署: CI&#x2F;CD 改动一行代码能够多久部署成功</li>
+<li>服务监控: 系统在做什么, 哪些组建流量比较大, 这个请求在哪个地方失败了, 哪个调用比较慢.</li>
+<li>安全: </li>
+<li>分布式事务: 每个服务解决一个问题, 要解决一个逻辑上的一致性.</li>
+</ul>
 </li>
 </ol>
-<p>Envoy： 微服务代理。</p>
+<p>cloud native &#x3D; container + CICD&#x2F;devops + microservice</p>
 
       
     </div>
