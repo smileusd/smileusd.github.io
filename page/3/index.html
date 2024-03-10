@@ -149,7 +149,7 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-Istio/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-04-08-sticky-bit/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -167,7 +167,7 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-05-24-Istio/" class="post-title-link" itemprop="url">Istio</a>
+          <a href="/2024/03/10/2018-04-08-sticky-bit/" class="post-title-link" itemprop="url">sticky-bit</a>
         </h2>
 
         <div class="post-meta-container">
@@ -186,7 +186,7 @@
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
         </span>
     </span>
 
@@ -200,20 +200,27 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>Istio: 一个开源平台去链接， 管理和保障微服务： 分布式微服务代理。</p>
-<p>传统代理： 类似于一个线， 任何服务都经过这个代理。</p>
-<p>分布式代理： 代理运行在每个应用上，接管应用进出的流量并和统一的控制中心通信获取动态配置。</p>
-<p>微服务代理： service mesh: 互连的分布式代理。</p>
-<p>Istio: </p>
-<ol>
-<li><p>Pilot: 基于http做流量的； </p>
-</li>
-<li><p>Ｍixer: 做数据统计， 授权认证</p>
-</li>
-<li><p>CA-Auth： 做安全认证</p>
-</li>
-</ol>
-<p>Envoy： 微服务代理。</p>
+          <p>在linux的权限中, 发现不仅仅有rwx, 还有一个t, 如下所示:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">drwxrwxr-t   2 shentao shentao       4096  8月 24  2016 <span class="built_in">test</span>/</span><br></pre></td></tr></table></figure>
+<p>t只能加在最后一个组, 也就是其他组的权限中, 他的意思是sticky bit, 表示其他组成员不能对该文件进行删除和重命名操作, 这是为了防止某个文件无意被其他组的成员删除和重命名后导致owner找不到文件.</p>
+<p>添加的方式是:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> o+t <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
+
+<p>或者</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> +t <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
+<p>或者使用数字的方式, 在首位设置1</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> 1775 <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
+
+<p>结果如下:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ll <span class="built_in">test</span></span><br><span class="line">drwxrwxr-t   2 shentao shentao       4096  8月 24  2016 <span class="built_in">test</span>/</span><br></pre></td></tr></table></figure>
+
+<p>移除方式如下</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> o-t <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ll <span class="built_in">test</span></span><br><span class="line"></span><br><span class="line">drwxrwxr-x   2 shentao shentao       4096  8月 24  2016 <span class="built_in">test</span>/</span><br></pre></td></tr></table></figure>
+
+<p>从这里也能看出, t是比x更高一个级别的权限, 即t包含了可执行权限, 只是不能delete和rename. 其次它与rw也不冲突.</p>
 
       
     </div>
@@ -591,96 +598,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2018/03/19/2018-03-19-go-lock-to-thread/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2018/03/19/2018-03-19-go-lock-to-thread/" class="post-title-link" itemprop="url">忽略掉一些奇怪的goroutine信息</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2018-03-19 18:55:19" itemprop="dateCreated datePublished" datetime="2018-03-19T18:55:19+08:00">2018-03-19</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar-check"></i>
-      </span>
-      <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2024-03-10 12:35:02" itemprop="dateModified" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>在跑自己的golang程序时遇到死锁, 查看stack, 发现一些奇怪的goroutinue:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">goroutine 17 [syscall, 12 minutes, locked to thread]:</span><br><span class="line">runtime.goexit()</span><br><span class="line">        /usr/local/go/src/runtime/asm_amd64.s:2086 +0x1</span><br><span class="line">        </span><br><span class="line">goroutine 20 [select, 12 minutes, locked to thread]:</span><br><span class="line">runtime.gopark(0xd067b8, 0x0, 0xc738c8, 0x6, 0x18, 0x2)</span><br><span class="line">        /usr/local/go/src/runtime/proc.go:259 +0xfd</span><br><span class="line">runtime.selectgoImpl(0xc420022f30, 0xc420022f1c, 0x0)</span><br><span class="line">        /usr/local/go/src/runtime/select.go:423 +0x1303</span><br><span class="line">runtime.selectgo(0xc420022f30)</span><br><span class="line">        /usr/local/go/src/runtime/select.go:238 +0x1c</span><br><span class="line">runtime.ensureSigM.func1()</span><br><span class="line">        /usr/local/go/src/runtime/signal1_unix.go:304 +0x28c</span><br><span class="line">runtime.goexit()</span><br><span class="line">        /usr/local/go/src/runtime/asm_amd64.s:2086 +0x1</span><br></pre></td></tr></table></figure>
-
-<p>这些goroutine显示: <code>locked to thread</code>, 但上网查找有回复说到, 这并不是一个真正的死锁, 而是正常的goroutine拿线程锁的过程. 可能调用了cgo或者runtime.LockOSThread. 这个问题可以忽略掉, 以防绕进死胡同.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">That is not a deadlock, at least not a deadlock in the Go program.  It </span><br><span class="line">is normal for a goroutine to be locked to a thread.  It can happen </span><br><span class="line">because of cgo, or because the code called runtime.LockOSThread.  It </span><br><span class="line">is not a problem.  The problem is that the thread has not made any </span><br><span class="line">progress for 214 minutes; what that is depends on what it is doing. </span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2018/03/19/2018-03-19-%E9%BB%91%E5%AE%A2%E4%B8%8E%E7%94%BB%E5%AE%B6/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -755,6 +672,96 @@
 <li>“做出优秀成果的人, 在做的过程中常常觉得自己做的不够好. 其他人看到他们的成果觉得棒极了, 而创造者本人看到的都是自己作品的缺陷. 这种视角的差异并非偶然, 因为只有对现状不满, 才会造就杰出的成果.”</li>
 <li>“一心让臣民行善的暴君可能是最专制的暴君. —-C.S.LEWIS (1898-1963, 英国小说家) “</li>
 </ul>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2018/03/19/2018-03-19-go-lock-to-thread/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2018/03/19/2018-03-19-go-lock-to-thread/" class="post-title-link" itemprop="url">忽略掉一些奇怪的goroutine信息</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2018-03-19 18:55:19" itemprop="dateCreated datePublished" datetime="2018-03-19T18:55:19+08:00">2018-03-19</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2024-03-10 12:35:02" itemprop="dateModified" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>在跑自己的golang程序时遇到死锁, 查看stack, 发现一些奇怪的goroutinue:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">goroutine 17 [syscall, 12 minutes, locked to thread]:</span><br><span class="line">runtime.goexit()</span><br><span class="line">        /usr/local/go/src/runtime/asm_amd64.s:2086 +0x1</span><br><span class="line">        </span><br><span class="line">goroutine 20 [select, 12 minutes, locked to thread]:</span><br><span class="line">runtime.gopark(0xd067b8, 0x0, 0xc738c8, 0x6, 0x18, 0x2)</span><br><span class="line">        /usr/local/go/src/runtime/proc.go:259 +0xfd</span><br><span class="line">runtime.selectgoImpl(0xc420022f30, 0xc420022f1c, 0x0)</span><br><span class="line">        /usr/local/go/src/runtime/select.go:423 +0x1303</span><br><span class="line">runtime.selectgo(0xc420022f30)</span><br><span class="line">        /usr/local/go/src/runtime/select.go:238 +0x1c</span><br><span class="line">runtime.ensureSigM.func1()</span><br><span class="line">        /usr/local/go/src/runtime/signal1_unix.go:304 +0x28c</span><br><span class="line">runtime.goexit()</span><br><span class="line">        /usr/local/go/src/runtime/asm_amd64.s:2086 +0x1</span><br></pre></td></tr></table></figure>
+
+<p>这些goroutine显示: <code>locked to thread</code>, 但上网查找有回复说到, 这并不是一个真正的死锁, 而是正常的goroutine拿线程锁的过程. 可能调用了cgo或者runtime.LockOSThread. 这个问题可以忽略掉, 以防绕进死胡同.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">That is not a deadlock, at least not a deadlock in the Go program.  It </span><br><span class="line">is normal for a goroutine to be locked to a thread.  It can happen </span><br><span class="line">because of cgo, or because the code called runtime.LockOSThread.  It </span><br><span class="line">is not a problem.  The problem is that the thread has not made any </span><br><span class="line">progress for 214 minutes; what that is depends on what it is doing. </span><br></pre></td></tr></table></figure>
+
 
       
     </div>
