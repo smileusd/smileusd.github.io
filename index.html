@@ -149,6 +149,134 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2023-12-15-what-is-wa-and-how-is-it-calculated/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2023-12-15-what-is-wa-and-how-is-it-calculated/" class="post-title-link" itemprop="url">what is wa and how is it calculated</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 13:00:55" itemprop="dateCreated datePublished" datetime="2024-03-10T13:00:55+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h3 id="Question-wa-usage"><a href="#Question-wa-usage" class="headerlink" title="Question: wa usage"></a>Question: wa usage</h3><p>When you run top, you can see the usage of wa. What does it means and how it calculated?</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_">%</span><span class="language-bash">Cpu(s):  0.1 us,  2.4 sy,  0.0 ni, 93.6 <span class="built_in">id</span>,  3.9 wa,  0.0 hi,  0.0 si,  0.0 st</span></span><br></pre></td></tr></table></figure>
+
+<p>Values related to processor utilization are displayed on the third line. They provide insight into exactly what the CPUs are doing.</p>
+<ul>
+<li><code>us</code> is the percent of time spent running user processes.</li>
+<li><code>sy</code> is the percent of time spent running the kernel.</li>
+<li><code>ni</code> is the percent of time spent running processes with manually configured <a target="_blank" rel="noopener" href="https://www.redhat.com/sysadmin/manipulate-process-priority">nice values</a>.</li>
+<li><code>id</code> is the percent of time idle (if high, CPU may be overworked).</li>
+<li><strong><code>wa</code> is the percent of wait time (if high, CPU is waiting for I&#x2F;O access).</strong></li>
+<li><code>hi</code> is the percent of time managing hardware interrupts.</li>
+<li><code>si</code> is the percent of time managing software interrupts.</li>
+<li><code>st</code> is the percent of virtual CPU time waiting for access to physical CPU.</li>
+</ul>
+<p>In the context of the <code>top</code> command in Unix-like operating systems, the “wa” field represents the percentage of time the CPU spends waiting for I&#x2F;O operations to complete. Specifically, it stands for “waiting for I&#x2F;O.”</p>
+<p>The calculation includes the time the CPU is idle while waiting for data to be read from or written to storage devices such as hard drives or SSDs. High values in the “wa” field may indicate that the system is spending a significant amount of time waiting for I&#x2F;O operations to complete, which could be a bottleneck if not addressed.</p>
+<p>The formula for calculating the “wa” value is as follows:</p>
+<p><strong><code>wa %=(Time spent waiting for I/O / Total CPU time)×100</code></strong></p>
+<p>Also we can use <code>vmstat 1</code> to watch the <code>wa</code> state in system, but it is the not the percent:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">vmstat 1</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st</span><br><span class="line"> 5  9      0 25994684     24 64404172    0    0     1    16    0    0  4  3 93  0  0</span><br><span class="line"> 0 10      0 25994436     24 64404172    0    0 342776 341104 63906 52162  2 10 83  4  3</span><br><span class="line"> 0 10      0 25994188     24 64404172    0    0 350392 350968 65593 52742  2 12 80  3  3</span><br><span class="line"> 1  9      0 25994188     24 64404172    0    0 342656 341128 63793 51367  2 11 80  3  4</span><br><span class="line"> 0 10      0 25994188     24 64404172    0    0 350760 350216 65439 52811  2 10 81  3  4</span><br><span class="line"> 5  8      0 25993940     24 64404172    0    0 355224 358952 66762 52421  2 10 80  3  5</span><br><span class="line"> 0 10      0 25993444     24 64404172    0    0 350536 350576 64998 52346  1 10 81  3  4</span><br><span class="line"> 1 10      0 25992948     24 64404172    0    0 348344 347912 64709 51990  1 11 81  3  4</span><br><span class="line"> 2 10      0 25992700     24 64404172    0    0 351944 349616 65443 51371  2 11 80  3  5</span><br><span class="line"> 0 10      0 26000764     24 64404172    0    0 343368 345000 64589 51969  2 12 80  3  4</span><br><span class="line"> 1  9      0 26000516     24 64404172    0    0 348976 352352 65800 53079  1  9 84  3  3</span><br><span class="line"> 1  9      0 26000516     24 64404172    0    0 345520 341800 63737 51454  1  8 84  3  3</span><br><span class="line"> 1  9      0 26000516     24 64404172    0    0 349192 352336 65719 52241  2  9 82  3  4</span><br><span class="line"> 1  9      0 26000516     24 64404172    0    0 352384 355696 66567 52232  2 11 80  3  4</span><br><span class="line"> 8  5      0 26000268     24 64404172    0    0 346368 345496 64541 52114  2 12 80  3  3</span><br><span class="line"> 0 10      0 26000020     24 64404172    0    0 340064 341296 63603 51670  2 11 81  3  2</span><br><span class="line"> 0  0      0 26007496     24 64399156    0    0 306736 306040 57770 46495  2 10 82  3  3</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  853 1480  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  871 1553  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  748 1430  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     2  731 1399  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  695 1319  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  743 1418  0  0 100  0  0</span><br></pre></td></tr></table></figure>
+
+ <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">Procs</span><br><span class="line">    r: The number of processes waiting for run time.</span><br><span class="line">    b: The number of processes in uninterruptible sleep.</span><br><span class="line">Memory</span><br><span class="line">    swpd: the amount of virtual memory used.</span><br><span class="line">    free: the amount of idle memory.</span><br><span class="line">    buff: the amount of memory used as buffers.</span><br><span class="line">    cache: the amount of memory used as cache.</span><br><span class="line">    inact: the amount of inactive memory. (-a option)</span><br><span class="line">    active: the amount of active memory. (-a option)</span><br><span class="line">Swap</span><br><span class="line">    si: Amount of memory swapped in from disk (/s).</span><br><span class="line">    so: Amount of memory swapped to disk (/s).</span><br><span class="line">IO</span><br><span class="line">    bi: Blocks received from a block device (blocks/s).</span><br><span class="line">    bo: Blocks sent to a block device (blocks/s).</span><br><span class="line">System</span><br><span class="line">    in: The number of interrupts per second, including the clock.</span><br><span class="line">    cs: The number of context switches per second.</span><br><span class="line">CPU</span><br><span class="line">    These are percentages of total CPU time.</span><br><span class="line">    us: Time spent running non-kernel code. (user time, including nice time)</span><br><span class="line">    sy: Time spent running kernel code. (system time)</span><br><span class="line">    id: Time spent idle. Prior to Linux 2.5.41, this includes IO-wait time.</span><br><span class="line">    wa: Time spent waiting for IO. Prior to Linux 2.5.41, included in idle.</span><br><span class="line">    st: Time stolen from a virtual machine. Prior to Linux 2.6.11, unknown.</span><br></pre></td></tr></table></figure>
+
+<p>In summary, a high “wa” value in the output of <code>top</code> suggests that your system is spending a considerable amount of time waiting for I&#x2F;O operations to be completed, which could impact overall system performance. Investigating and optimizing disk I&#x2F;O can be beneficial in such cases, possibly by improving disk performance, optimizing file systems, or identifying and addressing specific I&#x2F;O-intensive processes. We can use <code>iotop</code> to find the high io or slow io processes in system:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">Current DISK READ:     341.78 M/s | Current DISK WRITE:     340.53 M/s</span><br><span class="line">    TID  PRIO  USER     DISK READ  DISK WRITE  SWAPIN     IO&gt;    COMMAND</span><br><span class="line">3487445 be/4 root       34.44 M/s   33.36 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487446 be/4 root       33.40 M/s   34.27 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487447 be/4 root       34.10 M/s   33.78 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487448 be/4 root       32.21 M/s   31.64 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487449 be/4 root       34.22 M/s   34.44 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487450 be/4 root       34.46 M/s   34.33 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487451 be/4 root       34.17 M/s   34.21 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487452 be/4 root       33.05 M/s   32.95 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487453 be/4 root       34.23 M/s   34.74 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487454 be/4 root       37.51 M/s   36.79 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">      1 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  systemd --switched-root --system --deserialize 29</span><br><span class="line">      2 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  [kthreadd]</span><br><span class="line">      3 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  [rcu_gp]</span><br><span class="line">      4 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  [rcu_par_gp]</span><br><span class="line">      6 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  [kworker/0:0H-events_highpri]</span><br></pre></td></tr></table></figure>
+
+<h3 id="Code-tracing"><a href="#Code-tracing" class="headerlink" title="Code tracing"></a>Code tracing</h3><p>From strace the top command, the <code>wa</code>  value is get the status from <code>/proc/*/stat</code>. The <code>/proc/*/stat </code>is wrote by the proc ops and get the iowait time from <code>kernel_cpustat.cpustat[CPUTIME_IOWAIT]</code> accroding to the code <code>fs/proc/stat.c</code>. </p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">proc_ops</span> <span class="title">stat_proc_ops</span> =</span> &#123;</span><br><span class="line">	.proc_flags	= PROC_ENTRY_PERMANENT,</span><br><span class="line">	.proc_open	= stat_open,</span><br><span class="line">	.proc_read_iter	= seq_read_iter,</span><br><span class="line">	.proc_lseek	= seq_lseek,</span><br><span class="line">	.proc_release	= single_release,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> __init <span class="title function_">proc_stat_init</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	proc_create(<span class="string">&quot;stat&quot;</span>, <span class="number">0</span>, <span class="literal">NULL</span>, &amp;stat_proc_ops);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">stat_open</span><span class="params">(<span class="keyword">struct</span> inode *inode, <span class="keyword">struct</span> file *file)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span> size = <span class="number">1024</span> + <span class="number">128</span> * num_online_cpus();</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* minimum size to display an interrupt count : 2 bytes */</span></span><br><span class="line">	size += <span class="number">2</span> * nr_irqs;</span><br><span class="line">	<span class="keyword">return</span> single_open_size(file, show_stat, <span class="literal">NULL</span>, size);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">show_stat</span><span class="params">(<span class="keyword">struct</span> seq_file *p, <span class="type">void</span> *v)</span></span><br><span class="line">&#123;</span><br><span class="line">  ...</span><br><span class="line">  		iowait		+= get_iowait_time(&amp;kcpustat, i);</span><br><span class="line">	...</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> u64 <span class="title function_">get_iowait_time</span><span class="params">(<span class="keyword">struct</span> kernel_cpustat *kcs, <span class="type">int</span> cpu)</span></span><br><span class="line">&#123;</span><br><span class="line">	u64 iowait, iowait_usecs = <span class="number">-1ULL</span>;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (cpu_online(cpu))</span><br><span class="line">		iowait_usecs = get_cpu_iowait_time_us(cpu, <span class="literal">NULL</span>);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (iowait_usecs == <span class="number">-1ULL</span>)</span><br><span class="line">		<span class="comment">/* !NO_HZ or cpu offline so we can rely on cpustat.iowait */</span></span><br><span class="line">		iowait = kcs-&gt;cpustat[CPUTIME_IOWAIT];</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		iowait = iowait_usecs * NSEC_PER_USEC;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> iowait;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>In the Linux kernel, the calculation of the “wa” (waiting for I&#x2F;O) value that is reported by tools like <code>top</code> is handled within the kernel’s scheduler. The specific code responsible for updating the CPU usage statistics can be found in the <code>kernel/sched/cputime.c</code> file.</p>
+<p>One of the key functions related to this is <code>account_idle_time()</code>. </p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Account for idle time.</span></span><br><span class="line"><span class="comment"> * @cputime: the CPU time spent in idle wait</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">account_idle_time</span><span class="params">(u64 cputime)</span></span><br><span class="line">&#123;</span><br><span class="line">	u64 *cpustat = kcpustat_this_cpu-&gt;cpustat;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">rq</span> *<span class="title">rq</span> =</span> this_rq();</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (<span class="type">atomic_read</span>(&amp;rq-&gt;nr_iowait) &gt; <span class="number">0</span>)</span><br><span class="line">		cpustat[CPUTIME_IOWAIT] += cputime;</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		cpustat[CPUTIME_IDLE] += cputime;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">	u32 nr_iowait;		<span class="comment">/* number of blocked threads (waiting for I/O)    */</span></span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>This function is part of the kernel’s scheduler and is responsible for updating the various CPU time statistics, including the time spent waiting for I&#x2F;O. The function takes into account different CPU states, such as idle time and time spent waiting for I&#x2F;O.When The blocked threads with waiting for I&#x2F;O, the cpu time accumulated into CPUTIME_IOWAIT.</p>
+<p>Here is a basic outline of how the “wa” time is accounted for in the Linux kernel:</p>
+<ol>
+<li><strong>Idle time accounting:</strong> The kernel keeps track of the time the CPU spends in an idle state, waiting for tasks to execute.</li>
+<li><strong>I&#x2F;O wait time accounting:</strong> When a process is waiting for I&#x2F;O operations (such as reading or writing to a disk), the kernel accounts for this time in the appropriate CPU state, including the “wa” time.</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta"># block/fops.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">ssize_t</span> __blkdev_direct_IO(<span class="keyword">struct</span> kiocb *iocb, <span class="keyword">struct</span> iov_iter *iter,</span><br><span class="line">		<span class="type">unsigned</span> <span class="type">int</span> nr_pages)</span><br><span class="line">&#123;</span><br><span class="line">  ...</span><br><span class="line">  	<span class="keyword">for</span> (;;) &#123;</span><br><span class="line">		set_current_state(TASK_UNINTERRUPTIBLE);</span><br><span class="line">		<span class="keyword">if</span> (!READ_ONCE(dio-&gt;waiter))</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		blk_io_schedule();</span><br><span class="line">	&#125;</span><br><span class="line">	__set_current_state(TASK_RUNNING);</span><br><span class="line">  ...</span><br><span class="line">&#125;  </span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta"># block/blk-core.c</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">blk_io_schedule</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* Prevent hang_check timer from firing at us during very long I/O */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> timeout = sysctl_hung_task_timeout_secs * HZ / <span class="number">2</span>;</span><br><span class="line">	<span class="keyword">if</span> (timeout)</span><br><span class="line">		io_schedule_timeout(timeout);</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		io_schedule();</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL_GPL(blk_io_schedule);</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta"># kernel/sched/core.c</span></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * This task is about to go to sleep on IO. Increment rq-&gt;nr_iowait so</span></span><br><span class="line"><span class="comment"> * that process accounting knows that this is a task in IO wait state.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">long</span> __sched <span class="title function_">io_schedule_timeout</span><span class="params">(<span class="type">long</span> timeout)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> token;</span><br><span class="line">	<span class="type">long</span> ret;</span><br><span class="line"></span><br><span class="line">	token = io_schedule_prepare();</span><br><span class="line">	ret = schedule_timeout(timeout);</span><br><span class="line">	io_schedule_finish(token);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(io_schedule_timeout);</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">io_schedule_prepare</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> old_iowait = current-&gt;in_iowait;</span><br><span class="line"></span><br><span class="line">	current-&gt;in_iowait = <span class="number">1</span>;</span><br><span class="line">	blk_flush_plug(current-&gt;plug, <span class="literal">true</span>);</span><br><span class="line">	<span class="keyword">return</span> old_iowait;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">io_schedule_finish</span><span class="params">(<span class="type">int</span> token)</span></span><br><span class="line">&#123;</span><br><span class="line">	current-&gt;in_iowait = token;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">asmlinkage __visible <span class="type">void</span> __sched <span class="title function_">schedule</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span> *<span class="title">tsk</span> =</span> current;</span><br><span class="line"></span><br><span class="line">	sched_submit_work(tsk);</span><br><span class="line">	<span class="keyword">do</span> &#123;</span><br><span class="line">		preempt_disable();</span><br><span class="line">		__schedule(SM_NONE);</span><br><span class="line">		sched_preempt_enable_no_resched();</span><br><span class="line">	&#125; <span class="keyword">while</span> (need_resched());</span><br><span class="line">	sched_update_worker(tsk);</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(schedule);</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> __sched notrace __schedule(<span class="type">unsigned</span> <span class="type">int</span> sched_mode)</span><br><span class="line">&#123;</span><br><span class="line">  ...</span><br><span class="line">			<span class="keyword">if</span> (prev-&gt;in_iowait) &#123;</span><br><span class="line">				<span class="type">atomic_inc</span>(&amp;rq-&gt;nr_iowait);</span><br><span class="line">				delayacct_blkio_start();</span><br><span class="line">			&#125;</span><br><span class="line">  ...</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta"># kernel/time/timer.c</span></span><br><span class="line"><span class="type">signed</span> <span class="type">long</span> __sched <span class="title function_">schedule_timeout</span><span class="params">(<span class="type">signed</span> <span class="type">long</span> timeout)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">process_timer</span> <span class="title">timer</span>;</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> expire;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">switch</span> (timeout)</span><br><span class="line">	&#123;</span><br><span class="line">	<span class="keyword">case</span> MAX_SCHEDULE_TIMEOUT:</span><br><span class="line">		<span class="comment">/*</span></span><br><span class="line"><span class="comment">		 * These two special cases are useful to be comfortable</span></span><br><span class="line"><span class="comment">		 * in the caller. Nothing more. We could take</span></span><br><span class="line"><span class="comment">		 * MAX_SCHEDULE_TIMEOUT from one of the negative value</span></span><br><span class="line"><span class="comment">		 * but I&#x27; d like to return a valid offset (&gt;=0) to allow</span></span><br><span class="line"><span class="comment">		 * the caller to do everything it want with the retval.</span></span><br><span class="line"><span class="comment">		 */</span></span><br><span class="line">		schedule();</span><br><span class="line">		<span class="keyword">goto</span> out;</span><br><span class="line">      ...</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span></span><br><span class="line"><span class="title function_">try_to_wake_up</span><span class="params">(<span class="keyword">struct</span> task_struct *p, <span class="type">unsigned</span> <span class="type">int</span> state, <span class="type">int</span> wake_flags)</span></span><br><span class="line">&#123;</span><br><span class="line">  ...</span><br><span class="line">   <span class="keyword">if</span> (task_cpu(p) != cpu) &#123;</span><br><span class="line">		<span class="keyword">if</span> (p-&gt;in_iowait) &#123;</span><br><span class="line">			delayacct_blkio_end(p);</span><br><span class="line">			<span class="type">atomic_dec</span>(&amp;task_rq(p)-&gt;nr_iowait);</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		wake_flags |= WF_MIGRATED;</span><br><span class="line">		psi_ttwu_dequeue(p);</span><br><span class="line">		set_task_cpu(p, cpu);</span><br><span class="line">	&#125;</span><br><span class="line">  ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2023-12-15-blktrace-block-io-lifecycle/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -276,134 +404,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2023-12-15-wa-calculation/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2023-12-15-wa-calculation/" class="post-title-link" itemprop="url">what is wa annd how is it calculated</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:52:40" itemprop="dateCreated datePublished" datetime="2024-03-10T12:52:40+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h3 id="Question-wa-usage"><a href="#Question-wa-usage" class="headerlink" title="Question: wa usage"></a>Question: wa usage</h3><p>When you run top, you can see the usage of wa. What does it means and how it calculated?</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_">%</span><span class="language-bash">Cpu(s):  0.1 us,  2.4 sy,  0.0 ni, 93.6 <span class="built_in">id</span>,  3.9 wa,  0.0 hi,  0.0 si,  0.0 st</span></span><br></pre></td></tr></table></figure>
-
-<p>Values related to processor utilization are displayed on the third line. They provide insight into exactly what the CPUs are doing.</p>
-<ul>
-<li><code>us</code> is the percent of time spent running user processes.</li>
-<li><code>sy</code> is the percent of time spent running the kernel.</li>
-<li><code>ni</code> is the percent of time spent running processes with manually configured <a target="_blank" rel="noopener" href="https://www.redhat.com/sysadmin/manipulate-process-priority">nice values</a>.</li>
-<li><code>id</code> is the percent of time idle (if high, CPU may be overworked).</li>
-<li><strong><code>wa</code> is the percent of wait time (if high, CPU is waiting for I&#x2F;O access).</strong></li>
-<li><code>hi</code> is the percent of time managing hardware interrupts.</li>
-<li><code>si</code> is the percent of time managing software interrupts.</li>
-<li><code>st</code> is the percent of virtual CPU time waiting for access to physical CPU.</li>
-</ul>
-<p>In the context of the <code>top</code> command in Unix-like operating systems, the “wa” field represents the percentage of time the CPU spends waiting for I&#x2F;O operations to complete. Specifically, it stands for “waiting for I&#x2F;O.”</p>
-<p>The calculation includes the time the CPU is idle while waiting for data to be read from or written to storage devices such as hard drives or SSDs. High values in the “wa” field may indicate that the system is spending a significant amount of time waiting for I&#x2F;O operations to complete, which could be a bottleneck if not addressed.</p>
-<p>The formula for calculating the “wa” value is as follows:</p>
-<p><strong><code>wa %=(Time spent waiting for I/O / Total CPU time)×100</code></strong></p>
-<p>Also we can use <code>vmstat 1</code> to watch the <code>wa</code> state in system, but it is the not the percent:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">vmstat 1</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st</span><br><span class="line"> 5  9      0 25994684     24 64404172    0    0     1    16    0    0  4  3 93  0  0</span><br><span class="line"> 0 10      0 25994436     24 64404172    0    0 342776 341104 63906 52162  2 10 83  4  3</span><br><span class="line"> 0 10      0 25994188     24 64404172    0    0 350392 350968 65593 52742  2 12 80  3  3</span><br><span class="line"> 1  9      0 25994188     24 64404172    0    0 342656 341128 63793 51367  2 11 80  3  4</span><br><span class="line"> 0 10      0 25994188     24 64404172    0    0 350760 350216 65439 52811  2 10 81  3  4</span><br><span class="line"> 5  8      0 25993940     24 64404172    0    0 355224 358952 66762 52421  2 10 80  3  5</span><br><span class="line"> 0 10      0 25993444     24 64404172    0    0 350536 350576 64998 52346  1 10 81  3  4</span><br><span class="line"> 1 10      0 25992948     24 64404172    0    0 348344 347912 64709 51990  1 11 81  3  4</span><br><span class="line"> 2 10      0 25992700     24 64404172    0    0 351944 349616 65443 51371  2 11 80  3  5</span><br><span class="line"> 0 10      0 26000764     24 64404172    0    0 343368 345000 64589 51969  2 12 80  3  4</span><br><span class="line"> 1  9      0 26000516     24 64404172    0    0 348976 352352 65800 53079  1  9 84  3  3</span><br><span class="line"> 1  9      0 26000516     24 64404172    0    0 345520 341800 63737 51454  1  8 84  3  3</span><br><span class="line"> 1  9      0 26000516     24 64404172    0    0 349192 352336 65719 52241  2  9 82  3  4</span><br><span class="line"> 1  9      0 26000516     24 64404172    0    0 352384 355696 66567 52232  2 11 80  3  4</span><br><span class="line"> 8  5      0 26000268     24 64404172    0    0 346368 345496 64541 52114  2 12 80  3  3</span><br><span class="line"> 0 10      0 26000020     24 64404172    0    0 340064 341296 63603 51670  2 11 81  3  2</span><br><span class="line"> 0  0      0 26007496     24 64399156    0    0 306736 306040 57770 46495  2 10 82  3  3</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  853 1480  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  871 1553  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  748 1430  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     2  731 1399  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  695 1319  0  0 100  0  0</span><br><span class="line"> 0  0      0 26007588     24 64398828    0    0     0     0  743 1418  0  0 100  0  0</span><br></pre></td></tr></table></figure>
-
- <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">Procs</span><br><span class="line">    r: The number of processes waiting for run time.</span><br><span class="line">    b: The number of processes in uninterruptible sleep.</span><br><span class="line">Memory</span><br><span class="line">    swpd: the amount of virtual memory used.</span><br><span class="line">    free: the amount of idle memory.</span><br><span class="line">    buff: the amount of memory used as buffers.</span><br><span class="line">    cache: the amount of memory used as cache.</span><br><span class="line">    inact: the amount of inactive memory. (-a option)</span><br><span class="line">    active: the amount of active memory. (-a option)</span><br><span class="line">Swap</span><br><span class="line">    si: Amount of memory swapped in from disk (/s).</span><br><span class="line">    so: Amount of memory swapped to disk (/s).</span><br><span class="line">IO</span><br><span class="line">    bi: Blocks received from a block device (blocks/s).</span><br><span class="line">    bo: Blocks sent to a block device (blocks/s).</span><br><span class="line">System</span><br><span class="line">    in: The number of interrupts per second, including the clock.</span><br><span class="line">    cs: The number of context switches per second.</span><br><span class="line">CPU</span><br><span class="line">    These are percentages of total CPU time.</span><br><span class="line">    us: Time spent running non-kernel code. (user time, including nice time)</span><br><span class="line">    sy: Time spent running kernel code. (system time)</span><br><span class="line">    id: Time spent idle. Prior to Linux 2.5.41, this includes IO-wait time.</span><br><span class="line">    wa: Time spent waiting for IO. Prior to Linux 2.5.41, included in idle.</span><br><span class="line">    st: Time stolen from a virtual machine. Prior to Linux 2.6.11, unknown.</span><br></pre></td></tr></table></figure>
-
-<p>In summary, a high “wa” value in the output of <code>top</code> suggests that your system is spending a considerable amount of time waiting for I&#x2F;O operations to be completed, which could impact overall system performance. Investigating and optimizing disk I&#x2F;O can be beneficial in such cases, possibly by improving disk performance, optimizing file systems, or identifying and addressing specific I&#x2F;O-intensive processes. We can use <code>iotop</code> to find the high io or slow io processes in system:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">Current DISK READ:     341.78 M/s | Current DISK WRITE:     340.53 M/s</span><br><span class="line">    TID  PRIO  USER     DISK READ  DISK WRITE  SWAPIN     IO&gt;    COMMAND</span><br><span class="line">3487445 be/4 root       34.44 M/s   33.36 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487446 be/4 root       33.40 M/s   34.27 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487447 be/4 root       34.10 M/s   33.78 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487448 be/4 root       32.21 M/s   31.64 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487449 be/4 root       34.22 M/s   34.44 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487450 be/4 root       34.46 M/s   34.33 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487451 be/4 root       34.17 M/s   34.21 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487452 be/4 root       33.05 M/s   32.95 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487453 be/4 root       34.23 M/s   34.74 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">3487454 be/4 root       37.51 M/s   36.79 M/s  ?unavailable?  fio -filename=/mnt/hostroot/var/mnt/testfile -direct=1 -iodepth 64 -thread -rw=randrw -ioengine=libaio -bs=8k -size=20G -numjobs=10 -group_reporting --runtime=100 -name=mytest</span><br><span class="line">      1 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  systemd --switched-root --system --deserialize 29</span><br><span class="line">      2 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  [kthreadd]</span><br><span class="line">      3 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  [rcu_gp]</span><br><span class="line">      4 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  [rcu_par_gp]</span><br><span class="line">      6 be/4 root        0.00 B/s    0.00 B/s  ?unavailable?  [kworker/0:0H-events_highpri]</span><br></pre></td></tr></table></figure>
-
-<h3 id="Code-tracing"><a href="#Code-tracing" class="headerlink" title="Code tracing"></a>Code tracing</h3><p>From strace the top command, the <code>wa</code>  value is get the status from <code>/proc/*/stat</code>. The <code>/proc/*/stat </code>is wrote by the proc ops and get the iowait time from <code>kernel_cpustat.cpustat[CPUTIME_IOWAIT]</code> accroding to the code <code>fs/proc/stat.c</code>. </p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">proc_ops</span> <span class="title">stat_proc_ops</span> =</span> &#123;</span><br><span class="line">	.proc_flags	= PROC_ENTRY_PERMANENT,</span><br><span class="line">	.proc_open	= stat_open,</span><br><span class="line">	.proc_read_iter	= seq_read_iter,</span><br><span class="line">	.proc_lseek	= seq_lseek,</span><br><span class="line">	.proc_release	= single_release,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> __init <span class="title function_">proc_stat_init</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	proc_create(<span class="string">&quot;stat&quot;</span>, <span class="number">0</span>, <span class="literal">NULL</span>, &amp;stat_proc_ops);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">stat_open</span><span class="params">(<span class="keyword">struct</span> inode *inode, <span class="keyword">struct</span> file *file)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span> size = <span class="number">1024</span> + <span class="number">128</span> * num_online_cpus();</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* minimum size to display an interrupt count : 2 bytes */</span></span><br><span class="line">	size += <span class="number">2</span> * nr_irqs;</span><br><span class="line">	<span class="keyword">return</span> single_open_size(file, show_stat, <span class="literal">NULL</span>, size);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">show_stat</span><span class="params">(<span class="keyword">struct</span> seq_file *p, <span class="type">void</span> *v)</span></span><br><span class="line">&#123;</span><br><span class="line">  ...</span><br><span class="line">  		iowait		+= get_iowait_time(&amp;kcpustat, i);</span><br><span class="line">	...</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> u64 <span class="title function_">get_iowait_time</span><span class="params">(<span class="keyword">struct</span> kernel_cpustat *kcs, <span class="type">int</span> cpu)</span></span><br><span class="line">&#123;</span><br><span class="line">	u64 iowait, iowait_usecs = <span class="number">-1ULL</span>;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (cpu_online(cpu))</span><br><span class="line">		iowait_usecs = get_cpu_iowait_time_us(cpu, <span class="literal">NULL</span>);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (iowait_usecs == <span class="number">-1ULL</span>)</span><br><span class="line">		<span class="comment">/* !NO_HZ or cpu offline so we can rely on cpustat.iowait */</span></span><br><span class="line">		iowait = kcs-&gt;cpustat[CPUTIME_IOWAIT];</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		iowait = iowait_usecs * NSEC_PER_USEC;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> iowait;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<p>In the Linux kernel, the calculation of the “wa” (waiting for I&#x2F;O) value that is reported by tools like <code>top</code> is handled within the kernel’s scheduler. The specific code responsible for updating the CPU usage statistics can be found in the <code>kernel/sched/cputime.c</code> file.</p>
-<p>One of the key functions related to this is <code>account_idle_time()</code>. </p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Account for idle time.</span></span><br><span class="line"><span class="comment"> * @cputime: the CPU time spent in idle wait</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">account_idle_time</span><span class="params">(u64 cputime)</span></span><br><span class="line">&#123;</span><br><span class="line">	u64 *cpustat = kcpustat_this_cpu-&gt;cpustat;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">rq</span> *<span class="title">rq</span> =</span> this_rq();</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (<span class="type">atomic_read</span>(&amp;rq-&gt;nr_iowait) &gt; <span class="number">0</span>)</span><br><span class="line">		cpustat[CPUTIME_IOWAIT] += cputime;</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		cpustat[CPUTIME_IDLE] += cputime;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">	u32 nr_iowait;		<span class="comment">/* number of blocked threads (waiting for I/O)    */</span></span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<p>This function is part of the kernel’s scheduler and is responsible for updating the various CPU time statistics, including the time spent waiting for I&#x2F;O. The function takes into account different CPU states, such as idle time and time spent waiting for I&#x2F;O.When The blocked threads with waiting for I&#x2F;O, the cpu time accumulated into CPUTIME_IOWAIT.</p>
-<p>Here is a basic outline of how the “wa” time is accounted for in the Linux kernel:</p>
-<ol>
-<li><strong>Idle time accounting:</strong> The kernel keeps track of the time the CPU spends in an idle state, waiting for tasks to execute.</li>
-<li><strong>I&#x2F;O wait time accounting:</strong> When a process is waiting for I&#x2F;O operations (such as reading or writing to a disk), the kernel accounts for this time in the appropriate CPU state, including the “wa” time.</li>
-</ol>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta"># block/fops.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">ssize_t</span> __blkdev_direct_IO(<span class="keyword">struct</span> kiocb *iocb, <span class="keyword">struct</span> iov_iter *iter,</span><br><span class="line">		<span class="type">unsigned</span> <span class="type">int</span> nr_pages)</span><br><span class="line">&#123;</span><br><span class="line">  ...</span><br><span class="line">  	<span class="keyword">for</span> (;;) &#123;</span><br><span class="line">		set_current_state(TASK_UNINTERRUPTIBLE);</span><br><span class="line">		<span class="keyword">if</span> (!READ_ONCE(dio-&gt;waiter))</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		blk_io_schedule();</span><br><span class="line">	&#125;</span><br><span class="line">	__set_current_state(TASK_RUNNING);</span><br><span class="line">  ...</span><br><span class="line">&#125;  </span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta"># block/blk-core.c</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">blk_io_schedule</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* Prevent hang_check timer from firing at us during very long I/O */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> timeout = sysctl_hung_task_timeout_secs * HZ / <span class="number">2</span>;</span><br><span class="line">	<span class="keyword">if</span> (timeout)</span><br><span class="line">		io_schedule_timeout(timeout);</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		io_schedule();</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL_GPL(blk_io_schedule);</span><br></pre></td></tr></table></figure>
-
-
-
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta"># kernel/sched/core.c</span></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * This task is about to go to sleep on IO. Increment rq-&gt;nr_iowait so</span></span><br><span class="line"><span class="comment"> * that process accounting knows that this is a task in IO wait state.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">long</span> __sched <span class="title function_">io_schedule_timeout</span><span class="params">(<span class="type">long</span> timeout)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> token;</span><br><span class="line">	<span class="type">long</span> ret;</span><br><span class="line"></span><br><span class="line">	token = io_schedule_prepare();</span><br><span class="line">	ret = schedule_timeout(timeout);</span><br><span class="line">	io_schedule_finish(token);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(io_schedule_timeout);</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">io_schedule_prepare</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> old_iowait = current-&gt;in_iowait;</span><br><span class="line"></span><br><span class="line">	current-&gt;in_iowait = <span class="number">1</span>;</span><br><span class="line">	blk_flush_plug(current-&gt;plug, <span class="literal">true</span>);</span><br><span class="line">	<span class="keyword">return</span> old_iowait;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">io_schedule_finish</span><span class="params">(<span class="type">int</span> token)</span></span><br><span class="line">&#123;</span><br><span class="line">	current-&gt;in_iowait = token;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">asmlinkage __visible <span class="type">void</span> __sched <span class="title function_">schedule</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span> *<span class="title">tsk</span> =</span> current;</span><br><span class="line"></span><br><span class="line">	sched_submit_work(tsk);</span><br><span class="line">	<span class="keyword">do</span> &#123;</span><br><span class="line">		preempt_disable();</span><br><span class="line">		__schedule(SM_NONE);</span><br><span class="line">		sched_preempt_enable_no_resched();</span><br><span class="line">	&#125; <span class="keyword">while</span> (need_resched());</span><br><span class="line">	sched_update_worker(tsk);</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(schedule);</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> __sched notrace __schedule(<span class="type">unsigned</span> <span class="type">int</span> sched_mode)</span><br><span class="line">&#123;</span><br><span class="line">  ...</span><br><span class="line">			<span class="keyword">if</span> (prev-&gt;in_iowait) &#123;</span><br><span class="line">				<span class="type">atomic_inc</span>(&amp;rq-&gt;nr_iowait);</span><br><span class="line">				delayacct_blkio_start();</span><br><span class="line">			&#125;</span><br><span class="line">  ...</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta"># kernel/time/timer.c</span></span><br><span class="line"><span class="type">signed</span> <span class="type">long</span> __sched <span class="title function_">schedule_timeout</span><span class="params">(<span class="type">signed</span> <span class="type">long</span> timeout)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">process_timer</span> <span class="title">timer</span>;</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> expire;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">switch</span> (timeout)</span><br><span class="line">	&#123;</span><br><span class="line">	<span class="keyword">case</span> MAX_SCHEDULE_TIMEOUT:</span><br><span class="line">		<span class="comment">/*</span></span><br><span class="line"><span class="comment">		 * These two special cases are useful to be comfortable</span></span><br><span class="line"><span class="comment">		 * in the caller. Nothing more. We could take</span></span><br><span class="line"><span class="comment">		 * MAX_SCHEDULE_TIMEOUT from one of the negative value</span></span><br><span class="line"><span class="comment">		 * but I&#x27; d like to return a valid offset (&gt;=0) to allow</span></span><br><span class="line"><span class="comment">		 * the caller to do everything it want with the retval.</span></span><br><span class="line"><span class="comment">		 */</span></span><br><span class="line">		schedule();</span><br><span class="line">		<span class="keyword">goto</span> out;</span><br><span class="line">      ...</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span></span><br><span class="line"><span class="title function_">try_to_wake_up</span><span class="params">(<span class="keyword">struct</span> task_struct *p, <span class="type">unsigned</span> <span class="type">int</span> state, <span class="type">int</span> wake_flags)</span></span><br><span class="line">&#123;</span><br><span class="line">  ...</span><br><span class="line">   <span class="keyword">if</span> (task_cpu(p) != cpu) &#123;</span><br><span class="line">		<span class="keyword">if</span> (p-&gt;in_iowait) &#123;</span><br><span class="line">			delayacct_blkio_end(p);</span><br><span class="line">			<span class="type">atomic_dec</span>(&amp;task_rq(p)-&gt;nr_iowait);</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		wake_flags |= WF_MIGRATED;</span><br><span class="line">		psi_ttwu_dequeue(p);</span><br><span class="line">		set_task_cpu(p, cpu);</span><br><span class="line">	&#125;</span><br><span class="line">  ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2024-03-06-IOCost-model-impact-cpu-soft-lockup/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -498,6 +498,141 @@
 <p><a target="_blank" rel="noopener" href="https://www.spinics.net/lists/stable/msg669695.html"><em>https://www.spinics.net/lists/stable/msg669695.html</em></a></p>
 <p>In this patch, the fix is using <em>spin_lock_irqsave</em> to replace <em>spin_lock_irq</em> in the function of “<em>adjust_inuse_and_calc_cost</em>” to block the irq when unlocked.</p>
 <p>We will cherry-pick the patch into our 5.15 kernel.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-repair-thinpool/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
+<ol>
+<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>repair meta and active pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>active pool</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
+
+<p>Below are the steps which happen while running the consistency check:</p>
+<ol>
+<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
+<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
+</ol>
+<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
+
+<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
+<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
+<ol>
+<li><p>create temporary small LV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>replace pool’s metadata volume with this tempLV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>(say ‘y’ to swap)</p>
+<ol>
+<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
+<p>so create:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
+
+<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
+<ol>
+<li><p>swap deactivated repaired volume back to your thin-pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>try to activate pool - if it doesn’t work report more problems.</p>
+<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
+<ol>
+<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Repair thin pool with lvconvert –repair.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Check and repair file system with fsck.</p>
+</li>
+</ol>
+</li>
+</ol>
+</li>
+</ol>
 
       
     </div>
@@ -665,223 +800,6 @@
 <li>[4] dm-raid, <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt">https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt</a></li>
 <li>[5] How To Create RAID Arrays with mdadm on Ubuntu 16.04, <a target="_blank" rel="noopener" href="https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04">https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04</a></li>
 </ul>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-repair-thinpool/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
-<ol>
-<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>repair meta and active pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>active pool</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
-
-<p>Below are the steps which happen while running the consistency check:</p>
-<ol>
-<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
-<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
-</ol>
-<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
-
-<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
-<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
-<ol>
-<li><p>create temporary small LV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>replace pool’s metadata volume with this tempLV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>(say ‘y’ to swap)</p>
-<ol>
-<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
-<p>so create:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
-
-<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
-<ol>
-<li><p>swap deactivated repaired volume back to your thin-pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>try to activate pool - if it doesn’t work report more problems.</p>
-<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
-<ol>
-<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Repair thin pool with lvconvert –repair.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Check and repair file system with fsck.</p>
-</li>
-</ol>
-</li>
-</ol>
-</li>
-</ol>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-lvconvert-down/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-lvconvert-down/" class="post-title-link" itemprop="url">lvconvert-down</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>记录一个kernel bug.</p>
-<p>在组建中调用了lvconvert生成存储池, 但是测试告诉我过程失败并且机器重启了, 通过抓kdump生成以下日志:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">[  983.179047] BUG kmalloc-256(4:099fef32f6df55082271a9ab572acec8251aa754a14a60444d7ce4cb110be56f) (Tainted: G    B          ------------ T): Objects remaining in kmalloc-256(4:099fef32f6df55082271a9ab572acec8251aa754a14a60444d7ce4cb110be56f</span><br><span class="line">[  983.179890] -----------------------------------------------------------------------------</span><br><span class="line"></span><br><span class="line">[  983.180762] INFO: Slab 0xffffea000cae8840 objects=16 used=9 fp=0xffff88032ba21b00 flags=0x2fffff00000080</span><br><span class="line">[  983.181181] CPU: 3 PID: 25070 Comm: lvconvert Tainted: G    B          ------------ T 3.10.0-327.el7.x86_64 #1</span><br><span class="line">[  983.181182] Hardware name: Red Hat KVM, BIOS 0.5.1 01/01/2011</span><br><span class="line">[  983.181183]  ffffea000cae8840 00000000c255adbf ffff88018d43baa8 ffffffff816351f1</span><br><span class="line">[  983.181186]  ffff88018d43bb80 ffffffff811beac4 0000000000000020 ffff88018d43bb90</span><br><span class="line">[  983.181188]  ffff88018d43bb40 656a624f00000000 616d657220737463 6e6920676e696e69</span><br><span class="line">[  983.181190] Call Trace:</span><br><span class="line">[  983.181195]  [&lt;ffffffff816351f1&gt;] dump_stack+0x19/0x1b</span><br><span class="line">[  983.181203]  [&lt;ffffffff811beac4&gt;] slab_err+0xb4/0xe0</span><br><span class="line">[  983.181206]  [&lt;ffffffff811c1f33&gt;] ? __kmalloc+0x1f3/0x230</span><br><span class="line">[  983.181208]  [&lt;ffffffff811c316b&gt;] ? kmem_cache_close+0x12b/0x2f0</span><br><span class="line">[  983.181210]  [&lt;ffffffff811c318c&gt;] kmem_cache_close+0x14c/0x2f0</span><br><span class="line">[  983.181212]  [&lt;ffffffff811c35c4&gt;] __kmem_cache_shutdown+0x14/0x80</span><br><span class="line">[  983.181215]  [&lt;ffffffff8118ceaf&gt;] kmem_cache_destroy+0x3f/0xe0</span><br><span class="line">[  983.181217]  [&lt;ffffffff811d4949&gt;] kmem_cache_destroy_memcg_children+0x89/0xb0</span><br><span class="line">[  983.181221]  [&lt;ffffffff8118ce84&gt;] kmem_cache_destroy+0x14/0xe0</span><br><span class="line">[  983.181231]  [&lt;ffffffff8121705e&gt;] bioset_free+0xce/0x110</span><br><span class="line">[  983.181250]  [&lt;ffffffffa0002fa0&gt;] __dm_destroy+0x1b0/0x340 [dm_mod]</span><br><span class="line">[  983.181257]  [&lt;ffffffffa00047e3&gt;] dm_destroy+0x13/0x20 [dm_mod]</span><br><span class="line">[  983.181263]  [&lt;ffffffffa000a34e&gt;] dev_remove+0x11e/0x180 [dm_mod]</span><br><span class="line">[  983.181268]  [&lt;ffffffffa000a230&gt;] ? dev_suspend+0x250/0x250 [dm_mod]</span><br><span class="line">[  983.181274]  [&lt;ffffffffa000aa25&gt;] ctl_ioctl+0x255/0x500 [dm_mod]</span><br><span class="line">[  983.181278]  [&lt;ffffffff81271b94&gt;] ? SYSC_semtimedop+0x264/0xd10</span><br><span class="line">[  983.181287]  [&lt;ffffffffa000ace3&gt;] dm_ctl_ioctl+0x13/0x20 [dm_mod]</span><br><span class="line">[  983.181289]  [&lt;ffffffff811f1ef5&gt;] do_vfs_ioctl+0x2e5/0x4c0</span><br><span class="line">[  983.181292]  [&lt;ffffffff811e05ee&gt;] ? ____fput+0xe/0x10</span><br><span class="line">[  983.181294]  [&lt;ffffffff811f2171&gt;] SyS_ioctl+0xa1/0xc0</span><br><span class="line">[  983.181298]  [&lt;ffffffff81645909&gt;] system_call_fastpath+0x16/0x1b</span><br></pre></td></tr></table></figure>
-
-<p>看起来是lvconvert过程中缓存分配出现错误, 查到这一步基本无从下手了, 只能google搜索. 在docker项目中发现有相似的情况<a target="_blank" rel="noopener" href="https://github.com/moby/moby/issues/29879">https://github.com/moby/moby/issues/29879</a>, 出问题的三个网址都是3.10的kernel, 回到说是kernel问题, 升到4.16.7-1.el7.elrepo.x86_64没有问题.</p>
 
       
     </div>
@@ -1098,7 +1016,7 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-go-sort/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-lvconvert-down/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1116,7 +1034,7 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-go-sort/" class="post-title-link" itemprop="url">go-sort</a>
+          <a href="/2024/03/10/2018-10-12-lvconvert-down/" class="post-title-link" itemprop="url">lvconvert-down</a>
         </h2>
 
         <div class="post-meta-container">
@@ -1135,7 +1053,7 @@
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
         </span>
     </span>
 
@@ -1149,18 +1067,11 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>Go排序实现在&#x2F;src&#x2F;go4.org&#x2F;sort&#x2F;sort.go中.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">func Sort(data Interface) &#123;</span><br><span class="line">	n := data.Len()</span><br><span class="line">	if fs, ok := data.(*funcs); ok &#123;</span><br><span class="line">		quickSort_func(fs.lessSwap, 0, n, maxDepth(n))</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		quickSort(data, 0, n, maxDepth(n))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func quickSort(data Interface, a, b, maxDepth int) &#123;</span><br><span class="line">	for b-a &gt; 12 &#123; // Use ShellSort for slices &lt;= 12 elements</span><br><span class="line">		if maxDepth == 0 &#123;</span><br><span class="line">			heapSort(data, a, b)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line">		maxDepth--</span><br><span class="line">		mlo, mhi := doPivot(data, a, b)</span><br><span class="line">		// Avoiding recursion on the larger subproblem guarantees</span><br><span class="line">		// a stack depth of at most lg(b-a).</span><br><span class="line">		if mlo-a &lt; b-mhi &#123;</span><br><span class="line">			quickSort(data, a, mlo, maxDepth)</span><br><span class="line">			a = mhi // i.e., quickSort(data, mhi, b)</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			quickSort(data, mhi, b, maxDepth)</span><br><span class="line">			b = mlo // i.e., quickSort(data, a, mlo)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if b-a &gt; 1 &#123;</span><br><span class="line">		// Do ShellSort pass with gap 6</span><br><span class="line">		// It could be written in this simplified form cause b-a &lt;= 12</span><br><span class="line">		for i := a + 6; i &lt; b; i++ &#123;</span><br><span class="line">			if data.Less(i, i-6) &#123;</span><br><span class="line">				data.Swap(i, i-6)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		insertionSort(data, a, b)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line">// Insertion sort</span><br><span class="line">func insertionSort(data Interface, a, b int) &#123;</span><br><span class="line">	for i := a + 1; i &lt; b; i++ &#123;</span><br><span class="line">		for j := i; j &gt; a &amp;&amp; data.Less(j, j-1); j-- &#123;</span><br><span class="line">			data.Swap(j, j-1)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <p>记录一个kernel bug.</p>
+<p>在组建中调用了lvconvert生成存储池, 但是测试告诉我过程失败并且机器重启了, 通过抓kdump生成以下日志:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">[  983.179047] BUG kmalloc-256(4:099fef32f6df55082271a9ab572acec8251aa754a14a60444d7ce4cb110be56f) (Tainted: G    B          ------------ T): Objects remaining in kmalloc-256(4:099fef32f6df55082271a9ab572acec8251aa754a14a60444d7ce4cb110be56f</span><br><span class="line">[  983.179890] -----------------------------------------------------------------------------</span><br><span class="line"></span><br><span class="line">[  983.180762] INFO: Slab 0xffffea000cae8840 objects=16 used=9 fp=0xffff88032ba21b00 flags=0x2fffff00000080</span><br><span class="line">[  983.181181] CPU: 3 PID: 25070 Comm: lvconvert Tainted: G    B          ------------ T 3.10.0-327.el7.x86_64 #1</span><br><span class="line">[  983.181182] Hardware name: Red Hat KVM, BIOS 0.5.1 01/01/2011</span><br><span class="line">[  983.181183]  ffffea000cae8840 00000000c255adbf ffff88018d43baa8 ffffffff816351f1</span><br><span class="line">[  983.181186]  ffff88018d43bb80 ffffffff811beac4 0000000000000020 ffff88018d43bb90</span><br><span class="line">[  983.181188]  ffff88018d43bb40 656a624f00000000 616d657220737463 6e6920676e696e69</span><br><span class="line">[  983.181190] Call Trace:</span><br><span class="line">[  983.181195]  [&lt;ffffffff816351f1&gt;] dump_stack+0x19/0x1b</span><br><span class="line">[  983.181203]  [&lt;ffffffff811beac4&gt;] slab_err+0xb4/0xe0</span><br><span class="line">[  983.181206]  [&lt;ffffffff811c1f33&gt;] ? __kmalloc+0x1f3/0x230</span><br><span class="line">[  983.181208]  [&lt;ffffffff811c316b&gt;] ? kmem_cache_close+0x12b/0x2f0</span><br><span class="line">[  983.181210]  [&lt;ffffffff811c318c&gt;] kmem_cache_close+0x14c/0x2f0</span><br><span class="line">[  983.181212]  [&lt;ffffffff811c35c4&gt;] __kmem_cache_shutdown+0x14/0x80</span><br><span class="line">[  983.181215]  [&lt;ffffffff8118ceaf&gt;] kmem_cache_destroy+0x3f/0xe0</span><br><span class="line">[  983.181217]  [&lt;ffffffff811d4949&gt;] kmem_cache_destroy_memcg_children+0x89/0xb0</span><br><span class="line">[  983.181221]  [&lt;ffffffff8118ce84&gt;] kmem_cache_destroy+0x14/0xe0</span><br><span class="line">[  983.181231]  [&lt;ffffffff8121705e&gt;] bioset_free+0xce/0x110</span><br><span class="line">[  983.181250]  [&lt;ffffffffa0002fa0&gt;] __dm_destroy+0x1b0/0x340 [dm_mod]</span><br><span class="line">[  983.181257]  [&lt;ffffffffa00047e3&gt;] dm_destroy+0x13/0x20 [dm_mod]</span><br><span class="line">[  983.181263]  [&lt;ffffffffa000a34e&gt;] dev_remove+0x11e/0x180 [dm_mod]</span><br><span class="line">[  983.181268]  [&lt;ffffffffa000a230&gt;] ? dev_suspend+0x250/0x250 [dm_mod]</span><br><span class="line">[  983.181274]  [&lt;ffffffffa000aa25&gt;] ctl_ioctl+0x255/0x500 [dm_mod]</span><br><span class="line">[  983.181278]  [&lt;ffffffff81271b94&gt;] ? SYSC_semtimedop+0x264/0xd10</span><br><span class="line">[  983.181287]  [&lt;ffffffffa000ace3&gt;] dm_ctl_ioctl+0x13/0x20 [dm_mod]</span><br><span class="line">[  983.181289]  [&lt;ffffffff811f1ef5&gt;] do_vfs_ioctl+0x2e5/0x4c0</span><br><span class="line">[  983.181292]  [&lt;ffffffff811e05ee&gt;] ? ____fput+0xe/0x10</span><br><span class="line">[  983.181294]  [&lt;ffffffff811f2171&gt;] SyS_ioctl+0xa1/0xc0</span><br><span class="line">[  983.181298]  [&lt;ffffffff81645909&gt;] system_call_fastpath+0x16/0x1b</span><br></pre></td></tr></table></figure>
 
-<p>quickSort和quickSort_func基本相同, 子不过自己定义的比较方法, 这里不在赘述.</p>
-<p>可以看到主体是quickSort, 所以不保证稳定排序, 当数据量小于等于12时. 退化为希尔排序, 但希尔排序只做了一次gap为6, 之后再次退化为了简单插入排序. 这部分实现非常简单, i从前往后, j从i往前, 每次比较j-1和j, 将小的换到前面.</p>
-<p>当数据量大于12时, 根据maxDepth是否为0决定使用对排序还是使用快速排序, maxDepth计算:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">// maxDepth returns a threshold at which quicksort should switch</span><br><span class="line">// to heapsort. It returns 2*ceil(lg(n+1)).</span><br><span class="line">func maxDepth(n int) int &#123;</span><br><span class="line">	var depth int</span><br><span class="line">	for i := n; i &gt; 0; i &gt;&gt;= 1 &#123;</span><br><span class="line">		depth++</span><br><span class="line">	&#125;</span><br><span class="line">	return depth * 2</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>返回的是目前树高度的2倍. 每进行一轮快速排序的partition(doPivot), 这个数值就减1, 当减为0, 此时认为数据已经比较有序, 如果数据长度依然大于12, 改为堆排序效率更高.</p>
-<p>这里先看快速排序的主体部分, 再来看堆排序的实现. partition是快排的思想核心, 他实现在doPivot中:</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">doPivot</span><span class="params">(data Interface, lo, hi <span class="type">int</span>)</span></span> (midlo, midhi <span class="type">int</span>) &#123;</span><br><span class="line">	m := lo + (hi-lo)/<span class="number">2</span> <span class="comment">// 避免整数溢出</span></span><br><span class="line">	<span class="keyword">if</span> hi-lo &gt; <span class="number">40</span> &#123; 如果长度大于<span class="number">40</span>, 使用Tukey ninther法</span><br><span class="line">		<span class="comment">// Tukey&#x27;s ``Ninther,&#x27;&#x27; median of three medians of three.</span></span><br><span class="line">		s := (hi - lo) / <span class="number">8</span></span><br><span class="line">		medianOfThree(data, lo, lo+s, lo+<span class="number">2</span>*s)</span><br><span class="line">		medianOfThree(data, m, m-s, m+s)</span><br><span class="line">		medianOfThree(data, hi<span class="number">-1</span>, hi<span class="number">-1</span>-s, hi<span class="number">-1</span><span class="number">-2</span>*s)</span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// medianOfThree 保证lo, m hi-1三个值是从小到大的</span></span><br><span class="line">	medianOfThree(data, lo, m, hi<span class="number">-1</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Invariants are:</span></span><br><span class="line">	<span class="comment">//	data[lo] = pivot (set up by ChoosePivot)</span></span><br><span class="line">	<span class="comment">//	data[lo &lt; i &lt; a] &lt; pivot</span></span><br><span class="line">	<span class="comment">//	data[a &lt;= i &lt; b] &lt;= pivot</span></span><br><span class="line">	<span class="comment">//	data[b &lt;= i &lt; c] unexamined</span></span><br><span class="line">	<span class="comment">//	data[c &lt;= i &lt; hi-1] &gt; pivot</span></span><br><span class="line">	<span class="comment">//	data[hi-1] &gt;= pivot</span></span><br><span class="line">	pivot := lo</span><br><span class="line">	a, c := lo+<span class="number">1</span>, hi<span class="number">-1</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 找到第一个比起始值点大的Index</span></span><br><span class="line">	<span class="keyword">for</span> ; a &lt; c &amp;&amp; data.Less(a, pivot); a++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line">	b := a</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; !data.Less(pivot, b); b++ &#123; <span class="comment">// data[b] &lt;= pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; data.Less(pivot, c<span class="number">-1</span>); c-- &#123; <span class="comment">// data[c-1] &gt; pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> b &gt;= c &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// data[b] &gt; pivot; data[c-1] &lt;= pivot</span></span><br><span class="line">		data.Swap(b, c<span class="number">-1</span>)</span><br><span class="line">		b++</span><br><span class="line">		c--</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// If hi-c&lt;3 then there are duplicates (by property of median of nine).</span></span><br><span class="line">	<span class="comment">// Let be a bit more conservative, and set border to 5.</span></span><br><span class="line">	protect := hi-c &lt; <span class="number">5</span></span><br><span class="line">	<span class="keyword">if</span> !protect &amp;&amp; hi-c &lt; (hi-lo)/<span class="number">4</span> &#123;</span><br><span class="line">		<span class="comment">// Lets test some points for equality to pivot</span></span><br><span class="line">		dups := <span class="number">0</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(pivot, hi<span class="number">-1</span>) &#123; <span class="comment">// data[hi-1] = pivot</span></span><br><span class="line">			data.Swap(c, hi<span class="number">-1</span>)</span><br><span class="line">			c++</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> !data.Less(b<span class="number">-1</span>, pivot) &#123; <span class="comment">// data[b-1] = pivot</span></span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// m-lo = (hi-lo)/2 &gt; 6</span></span><br><span class="line">		<span class="comment">// b-lo &gt; (hi-lo)*3/4-1 &gt; 8</span></span><br><span class="line">		<span class="comment">// ==&gt; m &lt; b ==&gt; data[m] &lt;= pivot</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(m, pivot) &#123; <span class="comment">// data[m] = pivot</span></span><br><span class="line">			data.Swap(m, b<span class="number">-1</span>)</span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// if at least 2 points are equal to pivot, assume skewed distribution</span></span><br><span class="line">		protect = dups &gt; <span class="number">1</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> protect &#123;</span><br><span class="line">		<span class="comment">// Protect against a lot of duplicates</span></span><br><span class="line">		<span class="comment">// Add invariant:</span></span><br><span class="line">		<span class="comment">//	data[a &lt;= i &lt; b] unexamined</span></span><br><span class="line">		<span class="comment">//	data[b &lt;= i &lt; c] = pivot</span></span><br><span class="line">		<span class="keyword">for</span> &#123;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; !data.Less(b<span class="number">-1</span>, pivot); b-- &#123; <span class="comment">// data[b] == pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; data.Less(a, pivot); a++ &#123; <span class="comment">// data[a] &lt; pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> a &gt;= b &#123;</span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// data[a] == pivot; data[b-1] &lt; pivot</span></span><br><span class="line">			data.Swap(a, b<span class="number">-1</span>)</span><br><span class="line">			a++</span><br><span class="line">			b--</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// Swap pivot into middle</span></span><br><span class="line">	data.Swap(pivot, b<span class="number">-1</span>)</span><br><span class="line">	<span class="keyword">return</span> b - <span class="number">1</span>, c</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// medianOfThree moves the median of the three values data[m0], data[m1], data[m2] into data[m1].</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">medianOfThree</span><span class="params">(data Interface, m1, m0, m2 <span class="type">int</span>)</span></span> &#123;</span><br><span class="line">	<span class="comment">// sort 3 elements</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">		data.Swap(m1, m0)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// data[m0] &lt;= data[m1]</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m2, m1) &#123;</span><br><span class="line">		data.Swap(m2, m1)</span><br><span class="line">		<span class="comment">// data[m0] &lt;= data[m2] &amp;&amp; data[m1] &lt; data[m2]</span></span><br><span class="line">		<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">			data.Swap(m1, m0)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 保证 data[m0] &lt;= data[m1] &lt;= data[m2]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
+<p>看起来是lvconvert过程中缓存分配出现错误, 查到这一步基本无从下手了, 只能google搜索. 在docker项目中发现有相似的情况<a target="_blank" rel="noopener" href="https://github.com/moby/moby/issues/29879">https://github.com/moby/moby/issues/29879</a>, 出问题的三个网址都是3.10的kernel, 回到说是kernel问题, 升到4.16.7-1.el7.elrepo.x86_64没有问题.</p>
 
       
     </div>
@@ -1429,6 +1340,95 @@
 <li><a target="_blank" rel="noopener" href="https://segmentfault.com/a/1190000008323952">https://segmentfault.com/a/1190000008323952</a></li>
 <li><a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-cpu">https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-cpu</a></li>
 </ol>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-go-sort/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-go-sort/" class="post-title-link" itemprop="url">go-sort</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>Go排序实现在&#x2F;src&#x2F;go4.org&#x2F;sort&#x2F;sort.go中.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">func Sort(data Interface) &#123;</span><br><span class="line">	n := data.Len()</span><br><span class="line">	if fs, ok := data.(*funcs); ok &#123;</span><br><span class="line">		quickSort_func(fs.lessSwap, 0, n, maxDepth(n))</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		quickSort(data, 0, n, maxDepth(n))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func quickSort(data Interface, a, b, maxDepth int) &#123;</span><br><span class="line">	for b-a &gt; 12 &#123; // Use ShellSort for slices &lt;= 12 elements</span><br><span class="line">		if maxDepth == 0 &#123;</span><br><span class="line">			heapSort(data, a, b)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line">		maxDepth--</span><br><span class="line">		mlo, mhi := doPivot(data, a, b)</span><br><span class="line">		// Avoiding recursion on the larger subproblem guarantees</span><br><span class="line">		// a stack depth of at most lg(b-a).</span><br><span class="line">		if mlo-a &lt; b-mhi &#123;</span><br><span class="line">			quickSort(data, a, mlo, maxDepth)</span><br><span class="line">			a = mhi // i.e., quickSort(data, mhi, b)</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			quickSort(data, mhi, b, maxDepth)</span><br><span class="line">			b = mlo // i.e., quickSort(data, a, mlo)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if b-a &gt; 1 &#123;</span><br><span class="line">		// Do ShellSort pass with gap 6</span><br><span class="line">		// It could be written in this simplified form cause b-a &lt;= 12</span><br><span class="line">		for i := a + 6; i &lt; b; i++ &#123;</span><br><span class="line">			if data.Less(i, i-6) &#123;</span><br><span class="line">				data.Swap(i, i-6)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		insertionSort(data, a, b)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line">// Insertion sort</span><br><span class="line">func insertionSort(data Interface, a, b int) &#123;</span><br><span class="line">	for i := a + 1; i &lt; b; i++ &#123;</span><br><span class="line">		for j := i; j &gt; a &amp;&amp; data.Less(j, j-1); j-- &#123;</span><br><span class="line">			data.Swap(j, j-1)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>quickSort和quickSort_func基本相同, 子不过自己定义的比较方法, 这里不在赘述.</p>
+<p>可以看到主体是quickSort, 所以不保证稳定排序, 当数据量小于等于12时. 退化为希尔排序, 但希尔排序只做了一次gap为6, 之后再次退化为了简单插入排序. 这部分实现非常简单, i从前往后, j从i往前, 每次比较j-1和j, 将小的换到前面.</p>
+<p>当数据量大于12时, 根据maxDepth是否为0决定使用对排序还是使用快速排序, maxDepth计算:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">// maxDepth returns a threshold at which quicksort should switch</span><br><span class="line">// to heapsort. It returns 2*ceil(lg(n+1)).</span><br><span class="line">func maxDepth(n int) int &#123;</span><br><span class="line">	var depth int</span><br><span class="line">	for i := n; i &gt; 0; i &gt;&gt;= 1 &#123;</span><br><span class="line">		depth++</span><br><span class="line">	&#125;</span><br><span class="line">	return depth * 2</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>返回的是目前树高度的2倍. 每进行一轮快速排序的partition(doPivot), 这个数值就减1, 当减为0, 此时认为数据已经比较有序, 如果数据长度依然大于12, 改为堆排序效率更高.</p>
+<p>这里先看快速排序的主体部分, 再来看堆排序的实现. partition是快排的思想核心, 他实现在doPivot中:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">doPivot</span><span class="params">(data Interface, lo, hi <span class="type">int</span>)</span></span> (midlo, midhi <span class="type">int</span>) &#123;</span><br><span class="line">	m := lo + (hi-lo)/<span class="number">2</span> <span class="comment">// 避免整数溢出</span></span><br><span class="line">	<span class="keyword">if</span> hi-lo &gt; <span class="number">40</span> &#123; 如果长度大于<span class="number">40</span>, 使用Tukey ninther法</span><br><span class="line">		<span class="comment">// Tukey&#x27;s ``Ninther,&#x27;&#x27; median of three medians of three.</span></span><br><span class="line">		s := (hi - lo) / <span class="number">8</span></span><br><span class="line">		medianOfThree(data, lo, lo+s, lo+<span class="number">2</span>*s)</span><br><span class="line">		medianOfThree(data, m, m-s, m+s)</span><br><span class="line">		medianOfThree(data, hi<span class="number">-1</span>, hi<span class="number">-1</span>-s, hi<span class="number">-1</span><span class="number">-2</span>*s)</span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// medianOfThree 保证lo, m hi-1三个值是从小到大的</span></span><br><span class="line">	medianOfThree(data, lo, m, hi<span class="number">-1</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Invariants are:</span></span><br><span class="line">	<span class="comment">//	data[lo] = pivot (set up by ChoosePivot)</span></span><br><span class="line">	<span class="comment">//	data[lo &lt; i &lt; a] &lt; pivot</span></span><br><span class="line">	<span class="comment">//	data[a &lt;= i &lt; b] &lt;= pivot</span></span><br><span class="line">	<span class="comment">//	data[b &lt;= i &lt; c] unexamined</span></span><br><span class="line">	<span class="comment">//	data[c &lt;= i &lt; hi-1] &gt; pivot</span></span><br><span class="line">	<span class="comment">//	data[hi-1] &gt;= pivot</span></span><br><span class="line">	pivot := lo</span><br><span class="line">	a, c := lo+<span class="number">1</span>, hi<span class="number">-1</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 找到第一个比起始值点大的Index</span></span><br><span class="line">	<span class="keyword">for</span> ; a &lt; c &amp;&amp; data.Less(a, pivot); a++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line">	b := a</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; !data.Less(pivot, b); b++ &#123; <span class="comment">// data[b] &lt;= pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; data.Less(pivot, c<span class="number">-1</span>); c-- &#123; <span class="comment">// data[c-1] &gt; pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> b &gt;= c &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// data[b] &gt; pivot; data[c-1] &lt;= pivot</span></span><br><span class="line">		data.Swap(b, c<span class="number">-1</span>)</span><br><span class="line">		b++</span><br><span class="line">		c--</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// If hi-c&lt;3 then there are duplicates (by property of median of nine).</span></span><br><span class="line">	<span class="comment">// Let be a bit more conservative, and set border to 5.</span></span><br><span class="line">	protect := hi-c &lt; <span class="number">5</span></span><br><span class="line">	<span class="keyword">if</span> !protect &amp;&amp; hi-c &lt; (hi-lo)/<span class="number">4</span> &#123;</span><br><span class="line">		<span class="comment">// Lets test some points for equality to pivot</span></span><br><span class="line">		dups := <span class="number">0</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(pivot, hi<span class="number">-1</span>) &#123; <span class="comment">// data[hi-1] = pivot</span></span><br><span class="line">			data.Swap(c, hi<span class="number">-1</span>)</span><br><span class="line">			c++</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> !data.Less(b<span class="number">-1</span>, pivot) &#123; <span class="comment">// data[b-1] = pivot</span></span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// m-lo = (hi-lo)/2 &gt; 6</span></span><br><span class="line">		<span class="comment">// b-lo &gt; (hi-lo)*3/4-1 &gt; 8</span></span><br><span class="line">		<span class="comment">// ==&gt; m &lt; b ==&gt; data[m] &lt;= pivot</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(m, pivot) &#123; <span class="comment">// data[m] = pivot</span></span><br><span class="line">			data.Swap(m, b<span class="number">-1</span>)</span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// if at least 2 points are equal to pivot, assume skewed distribution</span></span><br><span class="line">		protect = dups &gt; <span class="number">1</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> protect &#123;</span><br><span class="line">		<span class="comment">// Protect against a lot of duplicates</span></span><br><span class="line">		<span class="comment">// Add invariant:</span></span><br><span class="line">		<span class="comment">//	data[a &lt;= i &lt; b] unexamined</span></span><br><span class="line">		<span class="comment">//	data[b &lt;= i &lt; c] = pivot</span></span><br><span class="line">		<span class="keyword">for</span> &#123;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; !data.Less(b<span class="number">-1</span>, pivot); b-- &#123; <span class="comment">// data[b] == pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; data.Less(a, pivot); a++ &#123; <span class="comment">// data[a] &lt; pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> a &gt;= b &#123;</span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// data[a] == pivot; data[b-1] &lt; pivot</span></span><br><span class="line">			data.Swap(a, b<span class="number">-1</span>)</span><br><span class="line">			a++</span><br><span class="line">			b--</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// Swap pivot into middle</span></span><br><span class="line">	data.Swap(pivot, b<span class="number">-1</span>)</span><br><span class="line">	<span class="keyword">return</span> b - <span class="number">1</span>, c</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// medianOfThree moves the median of the three values data[m0], data[m1], data[m2] into data[m1].</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">medianOfThree</span><span class="params">(data Interface, m1, m0, m2 <span class="type">int</span>)</span></span> &#123;</span><br><span class="line">	<span class="comment">// sort 3 elements</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">		data.Swap(m1, m0)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// data[m0] &lt;= data[m1]</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m2, m1) &#123;</span><br><span class="line">		data.Swap(m2, m1)</span><br><span class="line">		<span class="comment">// data[m0] &lt;= data[m2] &amp;&amp; data[m1] &lt; data[m2]</span></span><br><span class="line">		<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">			data.Swap(m1, m0)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 保证 data[m0] &lt;= data[m1] &lt;= data[m2]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 
       
     </div>

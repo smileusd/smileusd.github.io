@@ -235,198 +235,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-ceph/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-ceph/" class="post-title-link" itemprop="url">ceph introduction</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/architecture/" itemprop="url" rel="index"><span itemprop="name">architecture</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>ceph相当庞大, 准备用一个系列来学习, 先来看看基础的架构和基本概念.</p>
-<h4 id="基本架构"><a href="#基本架构" class="headerlink" title="基本架构"></a>基本架构</h4><p><a target="_blank" rel="noopener" href="http://docs.ceph.com/docs/master/_images/stack.png"><img src="http://docs.ceph.com/docs/master/_images/stack.png" alt="ceph_arcihitecture"></a></p>
-<p>ceph提供对象, 块,和文件系统存储, 它也支持直接使用librados库做存储开发. 在底层都要通过<a target="_blank" rel="noopener" href="https://ceph.com/wp-content/uploads/2016/08/weil-rados-pdsw07.pdf">RADOS</a>服务, 它是可靠的分布式对象存储服务. 也就是说无论上层对外提供的是何种类型的服务, ceph最终都将它转换成二进制对象进行存储.</p>
-<h5 id="可扩展性和高可用性"><a href="#可扩展性和高可用性" class="headerlink" title="可扩展性和高可用性"></a>可扩展性和高可用性</h5><p>一个ceph存储集群包括两种类型的Daemon:</p>
-<ol>
-<li>ceph monitor: 维护一个集群map的副本. ceph monitor是高可用的.</li>
-<li>ceph osd daemon: 检查自己的状态和其他osd的状态, 然后发送给monitor. ceph client和ceph osd daemon都使用<a target="_blank" rel="noopener" href="https://ceph.com/wp-content/uploads/2016/08/weil-crush-sc06.pdf">CRUSH算法</a>有效计算数据位置信息, 而不是依赖于一个中心化的查询表.</li>
-</ol>
-<p>Ceph OSD Daemon将所有数据以对象的形式保存在一个扁平的命名空间(而不是树形结构). 一个对象有一个全局唯一的ID号, 二进制数据和元数据(key&#x2F;value键值对组成). 对象的语意完全由ceph客户端决定.</p>
-<p><a target="_blank" rel="noopener" href="http://docs.ceph.com/docs/master/_images/ditaa-ae8b394e1d31afd181408bab946ca4a216ca44b7.png"><img src="http://docs.ceph.com/docs/master/_images/ditaa-ae8b394e1d31afd181408bab946ca4a216ca44b7.png" alt="数据结构"></a></p>
-<p>ceph消除了中心化的gateway, 让Ceph client直接与ceph osd daemon交互, ceph osd daemon将数据在不同的ceph 节点 创建对象的副本, 保证数据的可用性.</p>
-<h5 id="集群map"><a href="#集群map" class="headerlink" title="集群map"></a>集群map</h5><ol>
-<li><p>monitor map: 包含集群fsid, 位置, 命名地址和每个monitor的端口. epoch表示版本, 通过ceph mon dump查看</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@ceph-1 ~]# ceph mon dump</span><br><span class="line">dumped monmap epoch 1</span><br><span class="line">epoch 1</span><br><span class="line">fsid a6af0fa0-0e86-4685-920a-6e999c83ba8f</span><br><span class="line">last_changed 2018-07-09 15:07:50.144554</span><br><span class="line">created 2018-07-09 15:07:50.144554</span><br><span class="line">0: 10.0.11.9:6789/0 mon.ceph-1</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>OSD map: 包含集群fsid. a list of pools, replica sizes, PG numbers, a list of OSDs and their status (e.g., <code>up</code>, <code>in</code>).</p>
-</li>
-<li><p>The PG map: 包含PG version, its time stamp, the last OSD map epoch, the full ratios, and details on each placement group such as the PG ID, the Up Set, the Acting Set, the state of the PG (e.g., <code>active + clean</code>), and data usage statistics for each pool</p>
-</li>
-<li><p>The CRUSH map: 存储设备列表, 失败的Domain, 已经写入数据的水平路由规则.</p>
-</li>
-<li><p>The MDS Map: Contains the current MDS map epoch, when the map was created, and the last time it changed</p>
-</li>
-</ol>
-<h4 id="Ceph-Crush"><a href="#Ceph-Crush" class="headerlink" title="Ceph Crush"></a>Ceph Crush</h4><blockquote>
-<p>那么问题来了，把一份数据存到一群Server中分几步？</p>
-</blockquote>
-<p>Ceph的答案是：两步。</p>
-<ol>
-<li>计算PG</li>
-<li>计算OSD</li>
-</ol>
-<h5 id="计算PG"><a href="#计算PG" class="headerlink" title="计算PG"></a>计算PG</h5><p>在Ceph中，一切皆对象。</p>
-<p>那么用什么来区分两个对象呢？<strong>对象名</strong>。也就是说，每个不同的对象都有不一样的对象名。于是，开篇的问题就变成了：</p>
-<blockquote>
-<p>把一个对象存到一群Server中分几步？</p>
-</blockquote>
-<p>这里的一群Server，由Ceph组织成一个集群，这个集群由若干的磁盘组成，也就是由若干的OSD组成。于是，继续简化问题：</p>
-<blockquote>
-<p>把一个对象存到一堆OSD中分几步?</p>
-</blockquote>
-<h4 id="Ceph中的逻辑层"><a href="#Ceph中的逻辑层" class="headerlink" title="Ceph中的逻辑层"></a>Ceph中的逻辑层</h4><p>Ceph为了保存一个对象，对上构建了一个逻辑层，也就是池(pool)，用于保存对象.</p>
-<p>Pool再一次进行了细分，即将一个pool划分为若干的PG(归置组 Placement Group)，这类似于棋盘上的方格，所有的方格构成了整个棋盘，也就是说所有的PG构成了一个pool。</p>
-<p>现在需要解决的问题是，对象怎么知道要保存到哪个PG上，假定这里我们的pool名叫rbd，共有256个PG，给每个PG编个号分别叫做<code>0x0, 0x1, ...0xF, 0x10, 0x11... 0xFE, 0xFF</code>。</p>
-<p>要解决这个问题，我们先看看我们拥有什么，1，不同的对象名。2，不同的PG编号。这里就可以引入Ceph的计算方法了 : HASH。</p>
-<p>对于对象名分别为<code>bar</code>和<code>foo</code>的两个对象，对他们的对象名进行计算即:</p>
-<ul>
-<li>HASH(‘bar’) &#x3D; 0x3E0A4162</li>
-<li>HASH(‘foo’) &#x3D; 0x7FE391A0</li>
-<li>HASH(‘bar’) &#x3D; 0x3E0A4162</li>
-</ul>
-<p>对于一个同样的对象名，计算出来的结果永远都是一样的.</p>
-<p>有了这个输出，我们使用小学就会的方法：求余数！用随机数除以PG的总数256，得到的余数一定会落在[0x0, 0xFF]之间，也就是这256个PG中的某一个：</p>
-<ul>
-<li>0x3E0A4162 % 0xFF &#x3D;&#x3D;&#x3D;&gt; 0x62</li>
-<li>0x7FE391A0 % 0xFF &#x3D;&#x3D;&#x3D;&gt; 0xA0</li>
-</ul>
-<p>于是乎，对象<code>bar</code>保存到编号为<code>0x62</code>的PG中，对象<code>foo</code>保存到编号为<code>0xA0</code>的PG中。</p>
-<p>所以每个对象自有名字开始，他们要保存到的PG就已经确定了。那么爱思考的小明同学就会提出一个问题，难道不管对象的高矮胖瘦都是一样的使用这种方法计算PG吗，答案是，YES! 也就是说Ceph不区分对象的真实大小内容以及任何形式的格式，只认对象名。毕竟当对象数达到百万级时，对象的分布从宏观上来看还是平均的。</p>
-<p>这里给出更Ceph一点的说明，实际上在Ceph中，存在着多个pool，每个pool里面存在着若干的PG，如果两个pool里面的PG编号相同，Ceph怎么区分呢? 于是乎，Ceph对每个pool进行了编号，比如刚刚的rbd池，给予编号0，再建一个pool就给予编号1，那么在Ceph里，PG的实际编号是由<code>pool_id+.+PG_id</code>组成的，也就是说，刚刚的<code>bar</code>对象会保存在<code>0.62</code>这个PG里，<code>foo</code>这个对象会保存在<code>0.A0</code>这个PG里。其他池里的PG名称可能为<code>1.12f, 2.aa1,10.aa1</code>等。</p>
-<h4 id="Ceph中的物理层"><a href="#Ceph中的物理层" class="headerlink" title="Ceph中的物理层"></a>Ceph中的物理层</h4><p>理解了刚刚的逻辑层，我们再看一下Ceph里的物理层，对下，也就是我们若干的服务器上的磁盘，通常，Ceph将一个磁盘看作一个OSD(实际上，OSD是管理一个磁盘的程序)，于是物理层由若干的OSD组成，我们的最终目标是将对象保存到磁盘上，在逻辑层里，对象是保存到PG里面的，那么现在的任务就是<code>打通PG和OSD之间的隧道</code>。PG相当于一堆余数相同的对象的组合，PG把这一部分对象打了个包，现在我们需要把很多的包平均的安放在各个OSD上，这就是CRUSH算法所要做的事情：<code>CRUSH计算PG-&gt;OSD的映射关系</code>。</p>
-<p>加上刚刚的对象映射到PG的方法，我们将开篇的两步表示成如下的两个计算公式：</p>
-<ul>
-<li>池ID + HASH(‘对象名’) % pg_num &#x3D;&#x3D;&#x3D;&gt; PG_ID</li>
-<li>CRUSH(PG_ID) &#x3D;&#x3D;&#x3D;&gt; OSD</li>
-</ul>
-<p>在讨论CRUSH算法之前，我们来做一点思考，可以发现，上面两个计算公式有点类似，为何我们不把</p>
-<ul>
-<li><code>CRUSH(PG_ID) ===&gt; OSD</code><br>改为</li>
-<li><code>HASH(PG_ID) %OSD_num ===&gt; OSD</code></li>
-</ul>
-<p>我可以如下几个由此假设带来的副作用：</p>
-<ul>
-<li>如果挂掉一个OSD，<code>OSD_num-1</code>，于是所有的<code>PG % OSD_num</code>的余数都会变化，也就是说这个PG保存的磁盘发生了变化，对这最简单的解释就是，这个PG上的数据要从一个磁盘全部迁移到另一个磁盘上去，一个优秀的存储架构应当在磁盘损坏时使得数据迁移量降到最低，CRUSH可以做到。(这一点一致性哈希也能做到)</li>
-<li>如果保存多个副本，我们希望得到多个OSD结果的输出，HASH只能获得一个，但是CRUSH可以获得任意多个。</li>
-<li>如果增加OSD的数量，OSD_num增大了，同样会导致PG在OSD之间的胡乱迁移，但是CRUSH可以保证数据向新增机器均匀的扩散。</li>
-</ul>
-<p>所以HASH只适用于一对一的映射关系计算，并且两个映射组合(对象名和PG总数)不能变化，因此这里的假设不适用于PG-&gt;OSD的映射计算。因此，这里开始引入CRUSH算法。</p>
-<h4 id="CRUSH算法"><a href="#CRUSH算法" class="headerlink" title="CRUSH算法"></a>CRUSH算法</h4><p>首先来看我们要做什么：</p>
-<ul>
-<li>把已有的PG_ID映射到OSD上，有了映射关系就可以把一个PG保存到一个磁盘上。</li>
-<li>如果我们想保存三个副本，可以把一个PG映射到三个不同的OSD上，这三个OSD上保存着一模一样的PG内容。</li>
-</ul>
-<p>再来看我们有了什么：</p>
-<ul>
-<li>互不相同的PG_ID。</li>
-<li>如果给OSD也编个号，那么就有了互不相同的OSD_ID。</li>
-<li>每个OSD最大的不同的就是它们的容量，即4T还是800G的容量，我们将每个OSD的容量又称为OSD的权重(weight)，规定4T权重为4，800G为0.8，也就是以T为单位的值。</li>
-</ul>
-<p>现在问题转化为：如何将PG_ID映射到有各自权重的OSD上。这里我直接使用CRUSH里面采取的<code>Straw</code>算法，翻译过来就是抽签，说白了就是挑个最长的签，这里的签指的是OSD的权重。</p>
-<ul>
-<li>CRUSH_HASH( PG_ID, OSD_ID, r ) &#x3D;&#x3D;&#x3D;&gt; draw</li>
-<li>( draw &amp;0xffff ) * osd_weight &#x3D;&#x3D;&#x3D;&gt; osd_straw</li>
-<li>pick up high_osd_straw</li>
-</ul>
-<p>第一行，我们姑且把r当做一个常数，第一行实际上就做了搓一搓的事情:将PG_ID, OSD_ID和r一起当做CRUSH_HASH的输入，求出一个十六进制输出，这和HASH(对象名)完全类似，只是多了两个输入。所以需要强调的是，对于相同的三个输入，计算得出的<code>draw</code>的值是一定相同的。</p>
-<p>这个<code>draw</code>到底有啥用？其实，CRUSH希望得到一个随机数，也就是这里的<code>draw</code>，然后拿这个随机数去乘以OSD的权重，这样把随机数和OSD的权重搓在一起，就得到了每个OSD的实际签长，而且每个签都不一样长(极大概率)，就很容易从中挑一个最长的。</p>
-<p>说白了，CRUSH希望<code>随机</code>挑一个OSD出来，但是还要满足权重越大的OSD被挑中的概率越大，为了达到随机的目的，它在挑之前让每个OSD都拿着自己的权重乘以一个随机数，再取乘积最大的那个。那么这里我们再定个小目标：挑个一亿次！从宏观来看，同样是乘以一个随机数，在样本容量足够大之后，这个随机数对挑中的结果不再有影响，起决定性影响的是OSD的权重，也就是说，OSD的权重越大，宏观来看被挑中的概率越大。</p>
-<p>如果看到这里你已经被搅晕了，那让我再简单梳理下PG选择一个OSD时做的事情：</p>
-<ul>
-<li>给出一个PG_ID，作为CRUSH_HASH的输入。</li>
-<li>CRUSH_HASH(PG_ID, OSD_ID, r) 得出一个随机数(重点是随机数，不是HASH)。</li>
-<li>对于所有的OSD用他们的权重乘以每个OSD_ID对应的随机数，得到乘积。</li>
-<li>选出乘积最大的OSD。</li>
-<li>这个PG就会保存到这个OSD上。</li>
-</ul>
-<p>现在趁热打铁，解决一个PG映射到多个OSD的问题，还记得那个常量<code>r</code>吗？我们把<code>r+1</code>，再求一遍随机数，再去乘以每个OSD的权重，再去选出乘积最大的OSD，如果和之前的OSD编号不一样，那么就选中它，如果和之前的OSD编号一样的话，那么再把<code>r+2</code>，再次选一次，直到选出我们需要的三个不一样编号的OSD为止！</p>
-<p>当然实际选择过程还要稍微复杂一点，我这里只是用最简单的方法来解释CRUSH在选择OSD的时候所做的事情。</p>
-<p>基于这样的结构选择OSD，我们提出了新的要求：</p>
-<ul>
-<li>一共选出三个OSD。</li>
-<li>这三个OSD需要都位于一个row下面。</li>
-<li>每个cabinet内至多有一个OSD。</li>
-</ul>
-<p>这样的要求，如果用上一节的CRUSH选OSD的方法，不能满足二三两个要求，因为OSD的分布是随机的。</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-07-02-golang-map/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -605,7 +413,7 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-k8s-schedule/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-ceph/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -623,7 +431,7 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-05-24-k8s-schedule/" class="post-title-link" itemprop="url">k8s-schedule</a>
+          <a href="/2024/03/10/2018-10-12-ceph/" class="post-title-link" itemprop="url">ceph introduction</a>
         </h2>
 
         <div class="post-meta-container">
@@ -642,7 +450,7 @@
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+          <a href="/categories/architecture/" itemprop="url" rel="index"><span itemprop="name">architecture</span></a>
         </span>
     </span>
 
@@ -656,149 +464,121 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <h4 id="Labels-and-Selectors"><a href="#Labels-and-Selectors" class="headerlink" title="Labels and Selectors"></a>Labels and Selectors</h4><ol>
-<li><p>label<br>  label是k8s中所有资源都有的一个域, 他是一个<key>&#x3D;<value>对, 表示这个资源具有某种特定属性, key必须不能重复. 这样user和其他资源可以通过label来选择具有这种属性的资源集合.</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">&quot;metadata&quot;:</span> &#123;</span><br><span class="line">  <span class="attr">&quot;labels&quot;:</span> &#123;</span><br><span class="line">    <span class="string">&quot;key1&quot;</span> <span class="string">:</span> <span class="string">&quot;value1&quot;</span>,</span><br><span class="line">    <span class="string">&quot;key2&quot;</span> <span class="string">:</span> <span class="string">&quot;value2&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>  label的key有两个段,分别是前缀和名称, 通过’&#x2F;‘分开. 名称字段必须少于63个字符, 必须以’[a-z0-9A-Z]’, ‘-‘, ‘.’, ‘_’和数字 开头和结尾.前缀是可选的, 一旦指定, 不能超过253个字符. label的value指和key中的名称要求一样.</p>
+          <p>ceph相当庞大, 准备用一个系列来学习, 先来看看基础的架构和基本概念.</p>
+<h4 id="基本架构"><a href="#基本架构" class="headerlink" title="基本架构"></a>基本架构</h4><p><a target="_blank" rel="noopener" href="http://docs.ceph.com/docs/master/_images/stack.png"><img src="http://docs.ceph.com/docs/master/_images/stack.png" alt="ceph_arcihitecture"></a></p>
+<p>ceph提供对象, 块,和文件系统存储, 它也支持直接使用librados库做存储开发. 在底层都要通过<a target="_blank" rel="noopener" href="https://ceph.com/wp-content/uploads/2016/08/weil-rados-pdsw07.pdf">RADOS</a>服务, 它是可靠的分布式对象存储服务. 也就是说无论上层对外提供的是何种类型的服务, ceph最终都将它转换成二进制对象进行存储.</p>
+<h5 id="可扩展性和高可用性"><a href="#可扩展性和高可用性" class="headerlink" title="可扩展性和高可用性"></a>可扩展性和高可用性</h5><p>一个ceph存储集群包括两种类型的Daemon:</p>
+<ol>
+<li>ceph monitor: 维护一个集群map的副本. ceph monitor是高可用的.</li>
+<li>ceph osd daemon: 检查自己的状态和其他osd的状态, 然后发送给monitor. ceph client和ceph osd daemon都使用<a target="_blank" rel="noopener" href="https://ceph.com/wp-content/uploads/2016/08/weil-crush-sc06.pdf">CRUSH算法</a>有效计算数据位置信息, 而不是依赖于一个中心化的查询表.</li>
+</ol>
+<p>Ceph OSD Daemon将所有数据以对象的形式保存在一个扁平的命名空间(而不是树形结构). 一个对象有一个全局唯一的ID号, 二进制数据和元数据(key&#x2F;value键值对组成). 对象的语意完全由ceph客户端决定.</p>
+<p><a target="_blank" rel="noopener" href="http://docs.ceph.com/docs/master/_images/ditaa-ae8b394e1d31afd181408bab946ca4a216ca44b7.png"><img src="http://docs.ceph.com/docs/master/_images/ditaa-ae8b394e1d31afd181408bab946ca4a216ca44b7.png" alt="数据结构"></a></p>
+<p>ceph消除了中心化的gateway, 让Ceph client直接与ceph osd daemon交互, ceph osd daemon将数据在不同的ceph 节点 创建对象的副本, 保证数据的可用性.</p>
+<h5 id="集群map"><a href="#集群map" class="headerlink" title="集群map"></a>集群map</h5><ol>
+<li><p>monitor map: 包含集群fsid, 位置, 命名地址和每个monitor的端口. epoch表示版本, 通过ceph mon dump查看</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@ceph-1 ~]# ceph mon dump</span><br><span class="line">dumped monmap epoch 1</span><br><span class="line">epoch 1</span><br><span class="line">fsid a6af0fa0-0e86-4685-920a-6e999c83ba8f</span><br><span class="line">last_changed 2018-07-09 15:07:50.144554</span><br><span class="line">created 2018-07-09 15:07:50.144554</span><br><span class="line">0: 10.0.11.9:6789/0 mon.ceph-1</span><br></pre></td></tr></table></figure>
 </li>
-<li><p>Selectors的使用<br>通过api中使用 -l 来选择特定集合的objects: <code>$ kubectl get pods -l &#39;environment in (production, qa)&#39;</code></p>
+<li><p>OSD map: 包含集群fsid. a list of pools, replica sizes, PG numbers, a list of OSDs and their status (e.g., <code>up</code>, <code>in</code>).</p>
+</li>
+<li><p>The PG map: 包含PG version, its time stamp, the last OSD map epoch, the full ratios, and details on each placement group such as the PG ID, the Up Set, the Acting Set, the state of the PG (e.g., <code>active + clean</code>), and data usage statistics for each pool</p>
+</li>
+<li><p>The CRUSH map: 存储设备列表, 失败的Domain, 已经写入数据的水平路由规则.</p>
+</li>
+<li><p>The MDS Map: Contains the current MDS map epoch, when the map was created, and the last time it changed</p>
 </li>
 </ol>
-<p>一些k8s资源, 比如Service and ReplicationController 会有selector字段, 用来选择pod.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">selector:</span><br><span class="line">    component: redis</span><br></pre></td></tr></table></figure>
-
-<p>基于相等的匹配和基于集合的匹配:<br>  <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">selector:</span></span><br><span class="line"><span class="attr">matchLabels:</span></span><br><span class="line">  <span class="attr">component:</span> <span class="string">redis</span></span><br><span class="line"><span class="attr">matchExpressions:</span></span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">tier</span>, <span class="attr">operator:</span> <span class="string">In</span>, <span class="attr">values:</span> [<span class="string">cache</span>]&#125;</span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">environment</span>, <span class="attr">operator:</span> <span class="string">NotIn</span>, <span class="attr">values:</span> [<span class="string">dev</span>]&#125;</span><br></pre></td></tr></table></figure><br>   注意区分概念, label永远都是key&#x3D;value, 多个label在一起能组成一个集合, 类似map. 只有selector有集合的操作, label本身就是一个&lt;k,v&gt; 对, 没有<k in v>这样的label.<br>   集合方式有四种operator: In, NotIn, Exist, DoesNotExist. <code>&#123;key: tier, operator: In, values: [cache]&#125;</code>这条表达式等价于matchLabels中的: <code>tier: cache</code>.<br>   必须满足所有的selector表达式, 才算匹配.<br>   Job, Deployment, Replica Set, and Daemon Set都是支持基于集合的匹配.</p>
-<ol start="3">
-<li>nodeSelector<br>  nodeSelector用于选择某个node, 再次之前, 需要在node上添加label: <code>kubectl label nodes &lt;node-name&gt; &lt;label-key&gt;=&lt;label-value&gt;</code>. 然后在pod中配置相应的nodeSelector, 就能保证pod调度到符合语义的node:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">env:</span> <span class="string">test</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">  <span class="attr">nodeSelector:</span></span><br><span class="line">    <span class="attr">disktype:</span> <span class="string">ssd</span></span><br></pre></td></tr></table></figure>
-k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">kubernetes.io/hostname</span><br><span class="line">failure-domain.beta.kubernetes.io/zone</span><br><span class="line">failure-domain.beta.kubernetes.io/region</span><br><span class="line">beta.kubernetes.io/instance-type</span><br><span class="line">beta.kubernetes.io/os</span><br><span class="line">beta.kubernetes.io/arch</span><br></pre></td></tr></table></figure></li>
+<h4 id="Ceph-Crush"><a href="#Ceph-Crush" class="headerlink" title="Ceph Crush"></a>Ceph Crush</h4><blockquote>
+<p>那么问题来了，把一份数据存到一群Server中分几步？</p>
+</blockquote>
+<p>Ceph的答案是：两步。</p>
+<ol>
+<li>计算PG</li>
+<li>计算OSD</li>
 </ol>
-<h4 id="Affinity"><a href="#Affinity" class="headerlink" title="Affinity"></a>Affinity</h4><p>nodeSelector是比较简单的pod选择节点的方式, k8s提供了affinity&#x2F;anti-affinity用来更复杂的提供节点选择方案. 他有两种: node affinity 和 inter-pod affinity&#x2F;anti-affinity:</p>
+<h5 id="计算PG"><a href="#计算PG" class="headerlink" title="计算PG"></a>计算PG</h5><p>在Ceph中，一切皆对象。</p>
+<p>那么用什么来区分两个对象呢？<strong>对象名</strong>。也就是说，每个不同的对象都有不一样的对象名。于是，开篇的问题就变成了：</p>
+<blockquote>
+<p>把一个对象存到一群Server中分几步？</p>
+</blockquote>
+<p>这里的一群Server，由Ceph组织成一个集群，这个集群由若干的磁盘组成，也就是由若干的OSD组成。于是，继续简化问题：</p>
+<blockquote>
+<p>把一个对象存到一堆OSD中分几步?</p>
+</blockquote>
+<h4 id="Ceph中的逻辑层"><a href="#Ceph中的逻辑层" class="headerlink" title="Ceph中的逻辑层"></a>Ceph中的逻辑层</h4><p>Ceph为了保存一个对象，对上构建了一个逻辑层，也就是池(pool)，用于保存对象.</p>
+<p>Pool再一次进行了细分，即将一个pool划分为若干的PG(归置组 Placement Group)，这类似于棋盘上的方格，所有的方格构成了整个棋盘，也就是说所有的PG构成了一个pool。</p>
+<p>现在需要解决的问题是，对象怎么知道要保存到哪个PG上，假定这里我们的pool名叫rbd，共有256个PG，给每个PG编个号分别叫做<code>0x0, 0x1, ...0xF, 0x10, 0x11... 0xFE, 0xFF</code>。</p>
+<p>要解决这个问题，我们先看看我们拥有什么，1，不同的对象名。2，不同的PG编号。这里就可以引入Ceph的计算方法了 : HASH。</p>
+<p>对于对象名分别为<code>bar</code>和<code>foo</code>的两个对象，对他们的对象名进行计算即:</p>
 <ul>
-<li><p>node affinity<br>nodeAffinity与nodeSelector相似, 也是基于label, 包括两种类型, 可以分别理解为’hard’和’soft’, 一个强制要求, 一个尽可能要求. </p>
+<li>HASH(‘bar’) &#x3D; 0x3E0A4162</li>
+<li>HASH(‘foo’) &#x3D; 0x7FE391A0</li>
+<li>HASH(‘bar’) &#x3D; 0x3E0A4162</li>
+</ul>
+<p>对于一个同样的对象名，计算出来的结果永远都是一样的.</p>
+<p>有了这个输出，我们使用小学就会的方法：求余数！用随机数除以PG的总数256，得到的余数一定会落在[0x0, 0xFF]之间，也就是这256个PG中的某一个：</p>
 <ul>
-<li>requiredDuringSchedulingIgnoredDuringExecution: hard类型</li>
-<li>preferredDuringSchedulingIgnoredDuringExecution: soft类型<br>内容和label selector基本一致:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">nodeAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">        <span class="attr">nodeSelectorTerms:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">kubernetes.io/e2e-az-name</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az1</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az2</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">        <span class="attr">preference:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">another-node-label-key</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">another-node-label-value</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
-<code>weight</code> 是1-100.</li>
+<li>0x3E0A4162 % 0xFF &#x3D;&#x3D;&#x3D;&gt; 0x62</li>
+<li>0x7FE391A0 % 0xFF &#x3D;&#x3D;&#x3D;&gt; 0xA0</li>
 </ul>
-</li>
-<li><p>pod affinity<br>  podAffinity&#x2F;podAnti-Affinity是比较已经调度到节点上的pod而不是看node本身. 他也有两种类型hard和soft:</p>
+<p>于是乎，对象<code>bar</code>保存到编号为<code>0x62</code>的PG中，对象<code>foo</code>保存到编号为<code>0xA0</code>的PG中。</p>
+<p>所以每个对象自有名字开始，他们要保存到的PG就已经确定了。那么爱思考的小明同学就会提出一个问题，难道不管对象的高矮胖瘦都是一样的使用这种方法计算PG吗，答案是，YES! 也就是说Ceph不区分对象的真实大小内容以及任何形式的格式，只认对象名。毕竟当对象数达到百万级时，对象的分布从宏观上来看还是平均的。</p>
+<p>这里给出更Ceph一点的说明，实际上在Ceph中，存在着多个pool，每个pool里面存在着若干的PG，如果两个pool里面的PG编号相同，Ceph怎么区分呢? 于是乎，Ceph对每个pool进行了编号，比如刚刚的rbd池，给予编号0，再建一个pool就给予编号1，那么在Ceph里，PG的实际编号是由<code>pool_id+.+PG_id</code>组成的，也就是说，刚刚的<code>bar</code>对象会保存在<code>0.62</code>这个PG里，<code>foo</code>这个对象会保存在<code>0.A0</code>这个PG里。其他池里的PG名称可能为<code>1.12f, 2.aa1,10.aa1</code>等。</p>
+<h4 id="Ceph中的物理层"><a href="#Ceph中的物理层" class="headerlink" title="Ceph中的物理层"></a>Ceph中的物理层</h4><p>理解了刚刚的逻辑层，我们再看一下Ceph里的物理层，对下，也就是我们若干的服务器上的磁盘，通常，Ceph将一个磁盘看作一个OSD(实际上，OSD是管理一个磁盘的程序)，于是物理层由若干的OSD组成，我们的最终目标是将对象保存到磁盘上，在逻辑层里，对象是保存到PG里面的，那么现在的任务就是<code>打通PG和OSD之间的隧道</code>。PG相当于一堆余数相同的对象的组合，PG把这一部分对象打了个包，现在我们需要把很多的包平均的安放在各个OSD上，这就是CRUSH算法所要做的事情：<code>CRUSH计算PG-&gt;OSD的映射关系</code>。</p>
+<p>加上刚刚的对象映射到PG的方法，我们将开篇的两步表示成如下的两个计算公式：</p>
 <ul>
-<li>requiredDuringSchedulingIgnoredDuringExecution: hard</li>
-<li>preferredDuringSchedulingIgnoredDuringExecution: soft</li>
+<li>池ID + HASH(‘对象名’) % pg_num &#x3D;&#x3D;&#x3D;&gt; PG_ID</li>
+<li>CRUSH(PG_ID) &#x3D;&#x3D;&#x3D;&gt; OSD</li>
 </ul>
-</li>
+<p>在讨论CRUSH算法之前，我们来做一点思考，可以发现，上面两个计算公式有点类似，为何我们不把</p>
+<ul>
+<li><code>CRUSH(PG_ID) ===&gt; OSD</code><br>改为</li>
+<li><code>HASH(PG_ID) %OSD_num ===&gt; OSD</code></li>
 </ul>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">podAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">labelSelector:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">S1</span></span><br><span class="line">        <span class="attr">topologyKey:</span> <span class="string">failure-domain.beta.kubernetes.io/zone</span></span><br><span class="line">    <span class="attr">podAntiAffinity:</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">100</span></span><br><span class="line">        <span class="attr">podAffinityTerm:</span></span><br><span class="line">          <span class="attr">labelSelector:</span></span><br><span class="line">            <span class="attr">matchExpressions:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">              <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">              <span class="attr">values:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">S2</span></span><br><span class="line">          <span class="attr">topologyKey:</span> <span class="string">kubernetes.io/hostname</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
-
-<h4 id="Taints-and-Tolerations"><a href="#Taints-and-Tolerations" class="headerlink" title="Taints and Tolerations"></a>Taints and Tolerations</h4><p>affinity是站在pod的角度, 而taints是站在node的角度, </p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key=value:NoSchedule</span><br></pre></td></tr></table></figure>
-<p>这个命令将node1加了一个taint, 表示无法调度, 除非你有相应的toleration:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
-<p>这两个tolerations都能匹配那个taint. operator默认是<code>Equal</code><br>一个空的tolerations匹配所有的taint:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
-<p>以下这个tolerations匹配所有key为<code>key</code>的taints:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
-
-<p>effect有两种： NoExecute和ＮoSchedule， 如果加了NoExecute， 那么所有不匹配的pod将会立即被evicted掉， 如果加了Noschedule, 那么只是Pod无法被调度， 已经调度的Ｐod不受影响。NoExecute还可以指定一个可选的域<code>tolerationSeconds</code>， 表示尽管匹配了taint可以不被立即evicted掉, 但在一定时间之后就会被evicted掉。</p>
-<p>通过<code>kubectl taint nodes node1 key:NoSchedule-</code> 取消taint</p>
-<h5 id="更有意思的是多个taint和多个tolerations的情况"><a href="#更有意思的是多个taint和多个tolerations的情况" class="headerlink" title="更有意思的是多个taint和多个tolerations的情况."></a>更有意思的是多个taint和多个tolerations的情况.</h5><p>例如创建三个taint:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key1=value1:NoSchedule</span><br><span class="line">kubectl taint nodes node1 key1=value1:NoExecute</span><br><span class="line">kubectl taint nodes node1 key2=value2:NoSchedule</span><br></pre></td></tr></table></figure>
-<p>一个pod拥有两个tolerations：</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoExecute&quot;</span></span><br></pre></td></tr></table></figure>
-<p>该pod没有匹配所有的taint, 因此他不能被调度到这个节点， 但如果调度了，他不会被移除， 因为他只有第三个<code>NoSchedule</code>的taint不匹配。</p>
-<h5 id="注意"><a href="#注意" class="headerlink" title="注意"></a>注意</h5><p>在1.6之后， 官方加了一些内置的taint， 他会将pod evctied掉：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">node.kubernetes.io/not-ready: notready.</span><br><span class="line">node.alpha.kubernetes.io/unreachable: Unknown</span><br><span class="line">node.kubernetes.io/out-of-disk: Node becomes out of disk.</span><br><span class="line">node.kubernetes.io/memory-pressure: Node has memory pressure.</span><br><span class="line">node.kubernetes.io/disk-pressure: Node has disk pressure.</span><br><span class="line">node.kubernetes.io/network-unavailable: Node’s network is unavailable.</span><br><span class="line">node.cloudprovider.kubernetes.io/uninitialized: When kubelet is started with “external” cloud provider, it sets this taint on a node to mark it as unusable. When a controller from the cloud-controller-manager initializes this node, kubelet removes this taint.</span><br></pre></td></tr></table></figure>
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>docker run 的时候如果出现类似:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
-
-<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
-
-<p>修改后发现新的错误:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
-
-<p>网上查有如下回复:</p>
-<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
-
-<p>所以重启大法好…</p>
-<p>但是真正原因没搞清楚, 待更新.</p>
+<p>我可以如下几个由此假设带来的副作用：</p>
+<ul>
+<li>如果挂掉一个OSD，<code>OSD_num-1</code>，于是所有的<code>PG % OSD_num</code>的余数都会变化，也就是说这个PG保存的磁盘发生了变化，对这最简单的解释就是，这个PG上的数据要从一个磁盘全部迁移到另一个磁盘上去，一个优秀的存储架构应当在磁盘损坏时使得数据迁移量降到最低，CRUSH可以做到。(这一点一致性哈希也能做到)</li>
+<li>如果保存多个副本，我们希望得到多个OSD结果的输出，HASH只能获得一个，但是CRUSH可以获得任意多个。</li>
+<li>如果增加OSD的数量，OSD_num增大了，同样会导致PG在OSD之间的胡乱迁移，但是CRUSH可以保证数据向新增机器均匀的扩散。</li>
+</ul>
+<p>所以HASH只适用于一对一的映射关系计算，并且两个映射组合(对象名和PG总数)不能变化，因此这里的假设不适用于PG-&gt;OSD的映射计算。因此，这里开始引入CRUSH算法。</p>
+<h4 id="CRUSH算法"><a href="#CRUSH算法" class="headerlink" title="CRUSH算法"></a>CRUSH算法</h4><p>首先来看我们要做什么：</p>
+<ul>
+<li>把已有的PG_ID映射到OSD上，有了映射关系就可以把一个PG保存到一个磁盘上。</li>
+<li>如果我们想保存三个副本，可以把一个PG映射到三个不同的OSD上，这三个OSD上保存着一模一样的PG内容。</li>
+</ul>
+<p>再来看我们有了什么：</p>
+<ul>
+<li>互不相同的PG_ID。</li>
+<li>如果给OSD也编个号，那么就有了互不相同的OSD_ID。</li>
+<li>每个OSD最大的不同的就是它们的容量，即4T还是800G的容量，我们将每个OSD的容量又称为OSD的权重(weight)，规定4T权重为4，800G为0.8，也就是以T为单位的值。</li>
+</ul>
+<p>现在问题转化为：如何将PG_ID映射到有各自权重的OSD上。这里我直接使用CRUSH里面采取的<code>Straw</code>算法，翻译过来就是抽签，说白了就是挑个最长的签，这里的签指的是OSD的权重。</p>
+<ul>
+<li>CRUSH_HASH( PG_ID, OSD_ID, r ) &#x3D;&#x3D;&#x3D;&gt; draw</li>
+<li>( draw &amp;0xffff ) * osd_weight &#x3D;&#x3D;&#x3D;&gt; osd_straw</li>
+<li>pick up high_osd_straw</li>
+</ul>
+<p>第一行，我们姑且把r当做一个常数，第一行实际上就做了搓一搓的事情:将PG_ID, OSD_ID和r一起当做CRUSH_HASH的输入，求出一个十六进制输出，这和HASH(对象名)完全类似，只是多了两个输入。所以需要强调的是，对于相同的三个输入，计算得出的<code>draw</code>的值是一定相同的。</p>
+<p>这个<code>draw</code>到底有啥用？其实，CRUSH希望得到一个随机数，也就是这里的<code>draw</code>，然后拿这个随机数去乘以OSD的权重，这样把随机数和OSD的权重搓在一起，就得到了每个OSD的实际签长，而且每个签都不一样长(极大概率)，就很容易从中挑一个最长的。</p>
+<p>说白了，CRUSH希望<code>随机</code>挑一个OSD出来，但是还要满足权重越大的OSD被挑中的概率越大，为了达到随机的目的，它在挑之前让每个OSD都拿着自己的权重乘以一个随机数，再取乘积最大的那个。那么这里我们再定个小目标：挑个一亿次！从宏观来看，同样是乘以一个随机数，在样本容量足够大之后，这个随机数对挑中的结果不再有影响，起决定性影响的是OSD的权重，也就是说，OSD的权重越大，宏观来看被挑中的概率越大。</p>
+<p>如果看到这里你已经被搅晕了，那让我再简单梳理下PG选择一个OSD时做的事情：</p>
+<ul>
+<li>给出一个PG_ID，作为CRUSH_HASH的输入。</li>
+<li>CRUSH_HASH(PG_ID, OSD_ID, r) 得出一个随机数(重点是随机数，不是HASH)。</li>
+<li>对于所有的OSD用他们的权重乘以每个OSD_ID对应的随机数，得到乘积。</li>
+<li>选出乘积最大的OSD。</li>
+<li>这个PG就会保存到这个OSD上。</li>
+</ul>
+<p>现在趁热打铁，解决一个PG映射到多个OSD的问题，还记得那个常量<code>r</code>吗？我们把<code>r+1</code>，再求一遍随机数，再去乘以每个OSD的权重，再去选出乘积最大的OSD，如果和之前的OSD编号不一样，那么就选中它，如果和之前的OSD编号一样的话，那么再把<code>r+2</code>，再次选一次，直到选出我们需要的三个不一样编号的OSD为止！</p>
+<p>当然实际选择过程还要稍微复杂一点，我这里只是用最简单的方法来解释CRUSH在选择OSD的时候所做的事情。</p>
+<p>基于这样的结构选择OSD，我们提出了新的要求：</p>
+<ul>
+<li>一共选出三个OSD。</li>
+<li>这三个OSD需要都位于一个row下面。</li>
+<li>每个cabinet内至多有一个OSD。</li>
+</ul>
+<p>这样的要求，如果用上一节的CRUSH选OSD的方法，不能满足二三两个要求，因为OSD的分布是随机的。</p>
 
       
     </div>
@@ -1039,7 +819,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1057,7 +837,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/" class="post-title-link" itemprop="url">shell bash 类型和搜索机制</a>
+          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
         </h2>
 
         <div class="post-meta-container">
@@ -1076,7 +856,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
         </span>
     </span>
 
@@ -1090,41 +870,258 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     
     
     <div class="post-body" itemprop="articleBody">
-          <h3 id="问题描述"><a href="#问题描述" class="headerlink" title="问题描述"></a>问题描述</h3><p>今天在执行一个命令是遇到一个which路径与实际执行不同步的问题, 如下:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">which</span> ss-local</span><br><span class="line">/usr/local/bin/ss-local</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ /usr/local/bin/ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 2.5.6 with OpenSSL 1.0.1f 6 Jan 2014</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 3.1.3</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ /usr/bin/ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 3.1.3</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+          <p>docker run 的时候如果出现类似:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
 
-<p>which 现实路径是&#x2F;usr&#x2F;local&#x2F;bin&#x2F;ss-local, 但实际执行的路径却是&#x2F;usr&#x2F;bin&#x2F;ss-local. 查看which的文档, 发现which是按顺序搜索PATH环境变量来查找的:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">echo</span> <span class="variable">$PATH</span></span><br><span class="line">/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/local/go/bin:/usr/local/go/bin:/home/shentao/gopath//bin:/opt/idea-IC-145.1617.8/bin:/usr/local/go/bin:/home/shentao/gopath//bin:/opt/idea-IC-145.1617.8/bin:/usr/local/go/bin</span><br></pre></td></tr></table></figure>
+<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
 
-<p>所以最先在&#x2F;usr&#x2F;local&#x2F;bin中找到.</p>
-<h3 id="问题解决"><a href="#问题解决" class="headerlink" title="问题解决"></a>问题解决</h3><p>于是去调查了下bash的执行过程和顺序. 得到了答案. <a target="_blank" rel="noopener" href="https://crashingdaily.wordpress.com/2008/04/21/hashing-the-executables-a-look-at-hash-and-type/">https://crashingdaily.wordpress.com/2008/04/21/hashing-the-executables-a-look-at-hash-and-type/</a></p>
-<p>原来在每一次执行过程中shell都会有一个hash table作为cache将调用过的可执行命令存入hash table, 这样再下次调用的时候就可以直接从缓存中读取, 而不用每次去搜索PATH. 我们通过type命令可以查看:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">type</span> ss-local</span><br><span class="line">ss-local is hashed (/usr/bin/ss-local)</span><br></pre></td></tr></table></figure>
+<p>修改后发现新的错误:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
 
-<p>可以通过hash命令删除:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">hash</span> -d ss-local</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 2.5.6 with OpenSSL 1.0.1f 6 Jan 2014</span><br></pre></td></tr></table></figure>
+<p>网上查有如下回复:</p>
+<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
 
-<h3 id="知识回顾"><a href="#知识回顾" class="headerlink" title="知识回顾"></a>知识回顾</h3><p>我们再来回顾下关于bash 的一些知识:</p>
-<h4 id="关于bash可以执行的类型"><a href="#关于bash可以执行的类型" class="headerlink" title="关于bash可以执行的类型"></a>关于bash可以执行的类型</h4><ul>
-<li><p>Aliases: An alias is a word that is mapped to a certain string, 命令的别名.</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">alias</span> nmapp=<span class="string">&quot;nmap -Pn -A --osscan-limit&quot;</span></span><br><span class="line">$ nmapp 192.168.0.1</span><br></pre></td></tr></table></figure>
+<p>所以重启大法好…</p>
+<p>但是真正原因没搞清楚, 待更新.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-k8s-schedule/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-05-24-k8s-schedule/" class="post-title-link" itemprop="url">k8s-schedule</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h4 id="Labels-and-Selectors"><a href="#Labels-and-Selectors" class="headerlink" title="Labels and Selectors"></a>Labels and Selectors</h4><ol>
+<li><p>label<br>  label是k8s中所有资源都有的一个域, 他是一个<key>&#x3D;<value>对, 表示这个资源具有某种特定属性, key必须不能重复. 这样user和其他资源可以通过label来选择具有这种属性的资源集合.</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">&quot;metadata&quot;:</span> &#123;</span><br><span class="line">  <span class="attr">&quot;labels&quot;:</span> &#123;</span><br><span class="line">    <span class="string">&quot;key1&quot;</span> <span class="string">:</span> <span class="string">&quot;value1&quot;</span>,</span><br><span class="line">    <span class="string">&quot;key2&quot;</span> <span class="string">:</span> <span class="string">&quot;value2&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>  label的key有两个段,分别是前缀和名称, 通过’&#x2F;‘分开. 名称字段必须少于63个字符, 必须以’[a-z0-9A-Z]’, ‘-‘, ‘.’, ‘_’和数字 开头和结尾.前缀是可选的, 一旦指定, 不能超过253个字符. label的value指和key中的名称要求一样.</p>
 </li>
-<li><p>Functions:  A function contains shell commands, and acts very much like a small script. 用function定义一个函数:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> gcc &#123; <span class="built_in">echo</span> “just a <span class="built_in">test</span> <span class="keyword">for</span> gcc”; &#125;</span><br></pre></td></tr></table></figure>
+<li><p>Selectors的使用<br>通过api中使用 -l 来选择特定集合的objects: <code>$ kubectl get pods -l &#39;environment in (production, qa)&#39;</code></p>
 </li>
-<li><p>Builtins: 内置函数, cd之类的</p>
+</ol>
+<p>一些k8s资源, 比如Service and ReplicationController 会有selector字段, 用来选择pod.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">selector:</span><br><span class="line">    component: redis</span><br></pre></td></tr></table></figure>
+
+<p>基于相等的匹配和基于集合的匹配:<br>  <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">selector:</span></span><br><span class="line"><span class="attr">matchLabels:</span></span><br><span class="line">  <span class="attr">component:</span> <span class="string">redis</span></span><br><span class="line"><span class="attr">matchExpressions:</span></span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">tier</span>, <span class="attr">operator:</span> <span class="string">In</span>, <span class="attr">values:</span> [<span class="string">cache</span>]&#125;</span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">environment</span>, <span class="attr">operator:</span> <span class="string">NotIn</span>, <span class="attr">values:</span> [<span class="string">dev</span>]&#125;</span><br></pre></td></tr></table></figure><br>   注意区分概念, label永远都是key&#x3D;value, 多个label在一起能组成一个集合, 类似map. 只有selector有集合的操作, label本身就是一个&lt;k,v&gt; 对, 没有<k in v>这样的label.<br>   集合方式有四种operator: In, NotIn, Exist, DoesNotExist. <code>&#123;key: tier, operator: In, values: [cache]&#125;</code>这条表达式等价于matchLabels中的: <code>tier: cache</code>.<br>   必须满足所有的selector表达式, 才算匹配.<br>   Job, Deployment, Replica Set, and Daemon Set都是支持基于集合的匹配.</p>
+<ol start="3">
+<li>nodeSelector<br>  nodeSelector用于选择某个node, 再次之前, 需要在node上添加label: <code>kubectl label nodes &lt;node-name&gt; &lt;label-key&gt;=&lt;label-value&gt;</code>. 然后在pod中配置相应的nodeSelector, 就能保证pod调度到符合语义的node:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">env:</span> <span class="string">test</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">  <span class="attr">nodeSelector:</span></span><br><span class="line">    <span class="attr">disktype:</span> <span class="string">ssd</span></span><br></pre></td></tr></table></figure>
+k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">kubernetes.io/hostname</span><br><span class="line">failure-domain.beta.kubernetes.io/zone</span><br><span class="line">failure-domain.beta.kubernetes.io/region</span><br><span class="line">beta.kubernetes.io/instance-type</span><br><span class="line">beta.kubernetes.io/os</span><br><span class="line">beta.kubernetes.io/arch</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="Affinity"><a href="#Affinity" class="headerlink" title="Affinity"></a>Affinity</h4><p>nodeSelector是比较简单的pod选择节点的方式, k8s提供了affinity&#x2F;anti-affinity用来更复杂的提供节点选择方案. 他有两种: node affinity 和 inter-pod affinity&#x2F;anti-affinity:</p>
+<ul>
+<li><p>node affinity<br>nodeAffinity与nodeSelector相似, 也是基于label, 包括两种类型, 可以分别理解为’hard’和’soft’, 一个强制要求, 一个尽可能要求. </p>
+<ul>
+<li>requiredDuringSchedulingIgnoredDuringExecution: hard类型</li>
+<li>preferredDuringSchedulingIgnoredDuringExecution: soft类型<br>内容和label selector基本一致:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">nodeAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">        <span class="attr">nodeSelectorTerms:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">kubernetes.io/e2e-az-name</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az1</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az2</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">        <span class="attr">preference:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">another-node-label-key</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">another-node-label-value</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
+<code>weight</code> 是1-100.</li>
+</ul>
 </li>
-<li><p>Keywords: Keywords are like builtins, with the main difference being that special parsing rules apply to them. For example, [ is a Bash builtin, while [[ is a Bash keyword. They are both used for testing stuff. [[ is a keyword rather than a builtin and is therefore able to offer an extended test: </p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ [ a &lt; b ]</span><br><span class="line">-bash: b: No such file or directory</span><br><span class="line">$ [[ a &lt; b ]]</span><br></pre></td></tr></table></figure>
-<p>第一个&lt; 是重定向, 第二个加了[[的关键词之后 &lt; 成了小于号.</p>
-</li>
-<li><p>Executables: (Executables may also be called <em>external commands</em> or <em>applications</em>.) Executables are commonly invoked by typing only their name. This can be done because a pre-defined variable makes known to Bash a list of common, executable, file paths. This variable is called <code>PATH</code>. 外部命令, 也就是PATH中找到的那些命令</p>
-</li>
-<li><p>Script: 脚本. 比如test.sh</p>
+<li><p>pod affinity<br>  podAffinity&#x2F;podAnti-Affinity是比较已经调度到节点上的pod而不是看node本身. 他也有两种类型hard和soft:</p>
+<ul>
+<li>requiredDuringSchedulingIgnoredDuringExecution: hard</li>
+<li>preferredDuringSchedulingIgnoredDuringExecution: soft</li>
+</ul>
 </li>
 </ul>
-<h4 id="关于bash的搜索顺序总结"><a href="#关于bash的搜索顺序总结" class="headerlink" title="关于bash的搜索顺序总结"></a>关于bash的搜索顺序总结</h4><p>bash搜索的顺序是: 当前路径和绝对路径的目录-&gt;alias-&gt;keyword-&gt;function-&gt;built-in-&gt;Executables, Script(hash)-&gt;Executables, Script($PATH)</p>
-<h4 id="相关命令"><a href="#相关命令" class="headerlink" title="相关命令"></a>相关命令</h4><p>bash, hash, type, which, alias, function</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">podAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">labelSelector:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">S1</span></span><br><span class="line">        <span class="attr">topologyKey:</span> <span class="string">failure-domain.beta.kubernetes.io/zone</span></span><br><span class="line">    <span class="attr">podAntiAffinity:</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">100</span></span><br><span class="line">        <span class="attr">podAffinityTerm:</span></span><br><span class="line">          <span class="attr">labelSelector:</span></span><br><span class="line">            <span class="attr">matchExpressions:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">              <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">              <span class="attr">values:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">S2</span></span><br><span class="line">          <span class="attr">topologyKey:</span> <span class="string">kubernetes.io/hostname</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="Taints-and-Tolerations"><a href="#Taints-and-Tolerations" class="headerlink" title="Taints and Tolerations"></a>Taints and Tolerations</h4><p>affinity是站在pod的角度, 而taints是站在node的角度, </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key=value:NoSchedule</span><br></pre></td></tr></table></figure>
+<p>这个命令将node1加了一个taint, 表示无法调度, 除非你有相应的toleration:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
+<p>这两个tolerations都能匹配那个taint. operator默认是<code>Equal</code><br>一个空的tolerations匹配所有的taint:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
+<p>以下这个tolerations匹配所有key为<code>key</code>的taints:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>effect有两种： NoExecute和ＮoSchedule， 如果加了NoExecute， 那么所有不匹配的pod将会立即被evicted掉， 如果加了Noschedule, 那么只是Pod无法被调度， 已经调度的Ｐod不受影响。NoExecute还可以指定一个可选的域<code>tolerationSeconds</code>， 表示尽管匹配了taint可以不被立即evicted掉, 但在一定时间之后就会被evicted掉。</p>
+<p>通过<code>kubectl taint nodes node1 key:NoSchedule-</code> 取消taint</p>
+<h5 id="更有意思的是多个taint和多个tolerations的情况"><a href="#更有意思的是多个taint和多个tolerations的情况" class="headerlink" title="更有意思的是多个taint和多个tolerations的情况."></a>更有意思的是多个taint和多个tolerations的情况.</h5><p>例如创建三个taint:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key1=value1:NoSchedule</span><br><span class="line">kubectl taint nodes node1 key1=value1:NoExecute</span><br><span class="line">kubectl taint nodes node1 key2=value2:NoSchedule</span><br></pre></td></tr></table></figure>
+<p>一个pod拥有两个tolerations：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoExecute&quot;</span></span><br></pre></td></tr></table></figure>
+<p>该pod没有匹配所有的taint, 因此他不能被调度到这个节点， 但如果调度了，他不会被移除， 因为他只有第三个<code>NoSchedule</code>的taint不匹配。</p>
+<h5 id="注意"><a href="#注意" class="headerlink" title="注意"></a>注意</h5><p>在1.6之后， 官方加了一些内置的taint， 他会将pod evctied掉：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">node.kubernetes.io/not-ready: notready.</span><br><span class="line">node.alpha.kubernetes.io/unreachable: Unknown</span><br><span class="line">node.kubernetes.io/out-of-disk: Node becomes out of disk.</span><br><span class="line">node.kubernetes.io/memory-pressure: Node has memory pressure.</span><br><span class="line">node.kubernetes.io/disk-pressure: Node has disk pressure.</span><br><span class="line">node.kubernetes.io/network-unavailable: Node’s network is unavailable.</span><br><span class="line">node.cloudprovider.kubernetes.io/uninitialized: When kubelet is started with “external” cloud provider, it sets this taint on a node to mark it as unusable. When a controller from the cloud-controller-manager initializes this node, kubelet removes this taint.</span><br></pre></td></tr></table></figure>
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-03-22-microservices/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-03-22-microservices/" class="post-title-link" itemprop="url">初识微服务</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>星环讲座: 初识微服务</p>
+<p>主讲人: 吴伟</p>
+<p>三本书:</p>
+<ul>
+<li>Building Microservices</li>
+<li>微服务: 从设计到部署</li>
+<li>微服务设计</li>
+</ul>
+<p>大纲:</p>
+<ol>
+<li>什么是微服务</li>
+<li>核心概念</li>
+<li>开源微服务框架</li>
+<li>国内微服务产品</li>
+</ol>
+<h3 id="内容"><a href="#内容" class="headerlink" title="内容:"></a>内容:</h3><ol>
+<li>什么是微服务: 相互独立微小的组建, 能够相互合作: 在一组小的服务, 独立的进程, 通信机制, 基于业务, 独立部署, 没有集中式管理.</li>
+<li>为什么要做微服务: 单体服务膨胀太大, 代码太多, 开发太慢, 发布速度太慢, 新人学习成本太高.</li>
+<li>微服务目标: 敏捷迭代, 灵活扩展, 服务服用.</li>
+<li>微服务核心概念: api网关, 服务发现, 熔断, 限流, 降级, 配置中心, 自动化部署和测试, 日志监控和分部署追踪, 安全, 服务拆分, 服务接口定义, 有状态服务集群, 无状态服务<ul>
+<li>服务发现: 怎么找到另一个服务的地址. 通常使用服务中心或者服务代理.</li>
+<li>api网关: 对外统一接入访问; 内外协议转换(http -&gt; gRPC), 统一认证,监控,负载均衡,缓存; 智能路由: Kong, Nginx Plus, Traefik</li>
+<li>服务容错(熔断): 假设错误一定会发生, 想办法把损失降到最小: custom fallback, fail silent, fail fast. 超时与重试, 降级熔断, 连接隔离</li>
+<li>配置中心: 程序运行时动态调整行为的能力.</li>
+<li>自动化测试部署: CI&#x2F;CD 改动一行代码能够多久部署成功</li>
+<li>服务监控: 系统在做什么, 哪些组建流量比较大, 这个请求在哪个地方失败了, 哪个调用比较慢.</li>
+<li>安全: </li>
+<li>分布式事务: 每个服务解决一个问题, 要解决一个逻辑上的一致性.</li>
+</ul>
+</li>
+</ol>
+<p>cloud native &#x3D; container + CICD&#x2F;devops + microservice</p>
 
       
     </div>
@@ -1249,7 +1246,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-03-22-microservices/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-Istio/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1267,7 +1264,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-03-22-microservices/" class="post-title-link" itemprop="url">初识微服务</a>
+          <a href="/2024/03/10/2018-05-24-Istio/" class="post-title-link" itemprop="url">Istio</a>
         </h2>
 
         <div class="post-meta-container">
@@ -1300,38 +1297,20 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>星环讲座: 初识微服务</p>
-<p>主讲人: 吴伟</p>
-<p>三本书:</p>
-<ul>
-<li>Building Microservices</li>
-<li>微服务: 从设计到部署</li>
-<li>微服务设计</li>
-</ul>
-<p>大纲:</p>
+          <p>Istio: 一个开源平台去链接， 管理和保障微服务： 分布式微服务代理。</p>
+<p>传统代理： 类似于一个线， 任何服务都经过这个代理。</p>
+<p>分布式代理： 代理运行在每个应用上，接管应用进出的流量并和统一的控制中心通信获取动态配置。</p>
+<p>微服务代理： service mesh: 互连的分布式代理。</p>
+<p>Istio: </p>
 <ol>
-<li>什么是微服务</li>
-<li>核心概念</li>
-<li>开源微服务框架</li>
-<li>国内微服务产品</li>
-</ol>
-<h3 id="内容"><a href="#内容" class="headerlink" title="内容:"></a>内容:</h3><ol>
-<li>什么是微服务: 相互独立微小的组建, 能够相互合作: 在一组小的服务, 独立的进程, 通信机制, 基于业务, 独立部署, 没有集中式管理.</li>
-<li>为什么要做微服务: 单体服务膨胀太大, 代码太多, 开发太慢, 发布速度太慢, 新人学习成本太高.</li>
-<li>微服务目标: 敏捷迭代, 灵活扩展, 服务服用.</li>
-<li>微服务核心概念: api网关, 服务发现, 熔断, 限流, 降级, 配置中心, 自动化部署和测试, 日志监控和分部署追踪, 安全, 服务拆分, 服务接口定义, 有状态服务集群, 无状态服务<ul>
-<li>服务发现: 怎么找到另一个服务的地址. 通常使用服务中心或者服务代理.</li>
-<li>api网关: 对外统一接入访问; 内外协议转换(http -&gt; gRPC), 统一认证,监控,负载均衡,缓存; 智能路由: Kong, Nginx Plus, Traefik</li>
-<li>服务容错(熔断): 假设错误一定会发生, 想办法把损失降到最小: custom fallback, fail silent, fail fast. 超时与重试, 降级熔断, 连接隔离</li>
-<li>配置中心: 程序运行时动态调整行为的能力.</li>
-<li>自动化测试部署: CI&#x2F;CD 改动一行代码能够多久部署成功</li>
-<li>服务监控: 系统在做什么, 哪些组建流量比较大, 这个请求在哪个地方失败了, 哪个调用比较慢.</li>
-<li>安全: </li>
-<li>分布式事务: 每个服务解决一个问题, 要解决一个逻辑上的一致性.</li>
-</ul>
+<li><p>Pilot: 基于http做流量的； </p>
+</li>
+<li><p>Ｍixer: 做数据统计， 授权认证</p>
+</li>
+<li><p>CA-Auth： 做安全认证</p>
 </li>
 </ol>
-<p>cloud native &#x3D; container + CICD&#x2F;devops + microservice</p>
+<p>Envoy： 微服务代理。</p>
 
       
     </div>
