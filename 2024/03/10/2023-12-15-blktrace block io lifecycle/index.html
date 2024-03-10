@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Question: trace the life of IO by blktrace&#x2F;blkparseblktrace blkparse Investigate the blktrace implementation to understand the trace hook of the blk IO stack? blktrace to parse the block ioblktra">
+<meta property="og:type" content="article">
+<meta property="og:title" content="blktrace block io lifecycle">
+<meta property="og:url" content="http://example.com/2024/03/10/2023-12-15-blktrace%20block%20io%20lifecycle/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Question: trace the life of IO by blktrace&#x2F;blkparseblktrace blkparse Investigate the blktrace implementation to understand the trace hook of the blk IO stack? blktrace to parse the block ioblktra">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://s3.bmp.ovh/imgs/2021/09/09b73ed1c3ac78a1.webp">
+<meta property="og:image" content="https://pic2.zhimg.com/80/v2-5b898fe018554749f56c270e77261a4d_1440w.webp">
+<meta property="article:published_time" content="2024-03-10T04:46:14.000Z">
+<meta property="article:modified_time" content="2024-03-10T04:46:14.000Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="linux">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://s3.bmp.ovh/imgs/2021/09/09b73ed1c3ac78a1.webp">
+
+
+<link rel="canonical" href="http://example.com/2024/03/10/2023-12-15-blktrace%20block%20io%20lifecycle/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"http://example.com/2024/03/10/2023-12-15-blktrace%20block%20io%20lifecycle/","path":"2024/03/10/2023-12-15-blktrace block io lifecycle/","title":"blktrace block io lifecycle"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>blktrace block io lifecycle | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#Question-trace-the-life-of-IO-by-blktrace-blkparse"><span class="nav-number">1.</span> <span class="nav-text">Question: trace the life of IO by blktrace&#x2F;blkparse</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#blktrace-to-parse-the-block-io"><span class="nav-number">2.</span> <span class="nav-text">blktrace to parse the block io</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#ACTION-IDENTIFIERS"><span class="nav-number">2.1.</span> <span class="nav-text">ACTION IDENTIFIERS</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Main-data-structure-in-block-layer"><span class="nav-number">3.</span> <span class="nav-text">Main data structure in block layer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#code-flow-in-block-layer"><span class="nav-number">4.</span> <span class="nav-text">code flow in block layer</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">27</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2023-12-15-blktrace%20block%20io%20lifecycle/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="blktrace block io lifecycle | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          blktrace block io lifecycle
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:46:14" itemprop="dateCreated datePublished" datetime="2024-03-10T12:46:14+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h3 id="Question-trace-the-life-of-IO-by-blktrace-blkparse"><a href="#Question-trace-the-life-of-IO-by-blktrace-blkparse" class="headerlink" title="Question: trace the life of IO by blktrace&#x2F;blkparse"></a>Question: trace the life of IO by blktrace&#x2F;blkparse</h3><p><a target="_blank" rel="noopener" href="https://linux.die.net/man/8/blktrace">blktrace</a></p>
+<p><a target="_blank" rel="noopener" href="https://linux.die.net/man/1/blkparse">blkparse</a></p>
+<p>Investigate the blktrace implementation to understand the trace hook of the blk IO stack?</p>
+<h3 id="blktrace-to-parse-the-block-io"><a href="#blktrace-to-parse-the-block-io" class="headerlink" title="blktrace to parse the block io"></a>blktrace to parse the block io</h3><p><code>blktrace</code> explores the Linux kernel tracepoint infrastructure to track requests in-flight through the block I&#x2F;O stack. It traces everything that goes through to block devices, while observing timing information. </p>
+<p>First we using <code>dd</code> command to make a write IO (the read IO is the same). </p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// write to a file with direct io by dd command</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash"><span class="built_in">dd</span> <span class="keyword">if</span>=/dev/zero of=testfile bs=16k count=1024000 oflag=direct</span></span><br><span class="line">1024000+0 records in</span><br><span class="line">1024000+0 records out</span><br><span class="line">16777216000 bytes (17 GB, 16 GiB) copied, 111.433 s, 151 MB/s</span><br></pre></td></tr></table></figure>
+
+<p>Using<code>blktrace</code> and <code>blkparse</code> analize results:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">blktrace -d /dev/vda -o res</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">blkparse -i res</span></span><br><span class="line">device  </span><br><span class="line">252,0   10        3     0.000238760       0  C  WS 49724200 + 32 [0]</span><br><span class="line">252,0    0       17     0.000261770 3418552  A  WS 48720712 + 32 &lt;- (253,0) 48718664</span><br><span class="line">252,0    0       18     0.000262000 3418552  A  WS 49724232 + 32 &lt;- (252,3) 48720712</span><br><span class="line">252,0    0       19     0.000262192 3418552  Q  WS 49724232 + 32 [dd]</span><br><span class="line">252,0    0       20     0.000263132 3418552  G  WS 49724232 + 32 [dd]</span><br><span class="line">252,0    0       21     0.000263335 3418552  P   N [dd]</span><br><span class="line">252,0    0       22     0.000263494 3418552  U   N [dd] 1</span><br><span class="line">252,0    0       23     0.000263719 3418552  I  WS 49724232 + 32 [dd]</span><br><span class="line">252,0    0       24     0.000264296 3418552  D  WS 49724232 + 32 [dd]</span><br><span class="line">252,0   10        4     0.000341566       0  C  WS 49724232 + 32 [0]</span><br><span class="line">252,0    0       25     0.000366914 3418552  A  WS 48720744 + 32 &lt;- (253,0) 48718696</span><br><span class="line">252,0    0       26     0.000367235 3418552  A  WS 49724264 + 32 &lt;- (252,3) 48720744</span><br><span class="line">252,0    0       27     0.000367410 3418552  Q  WS 49724264 + 32 [dd]</span><br><span class="line">252,0    0       28     0.000368423 3418552  G  WS 49724264 + 32 [dd]</span><br><span class="line">252,0    0       29     0.000368612 3418552  P   N [dd]</span><br><span class="line">252,0    0       30     0.000368797 3418552  U   N [dd] 1</span><br><span class="line">252,0    0       31     0.000369036 3418552  I  WS 49724264 + 32 [dd]</span><br><span class="line">252,0    0       32     0.000369730 3418552  D  WS 49724264 + 32 [dd]</span><br><span class="line">252,0   10        5     0.000453876       0  C  WS 49724264 + 32 [0]</span><br><span class="line">...</span><br><span class="line">252,0   10    91033     2.279081418 3405085  C  WS 50399976 + 32 [0]</span><br><span class="line">252,0   10   232460     5.618988454 3405085  C  WS 51349952 + 32 [0]</span><br><span class="line">252,0   10   318363     8.424729857 3405085  C  WM 39888904 + 16 [0]</span><br><span class="line">252,0   10   318364     8.424732534 3405085  C  WM 267886593 + 1 [0]</span><br><span class="line">252,0   10   318365     8.424734981 3405085  C  WM 267886600 + 16 [0]</span><br><span class="line">252,0   10   318366     8.424737948 3405085  C  WM 267925376 + 32 [0]</span><br><span class="line">252,0   10   318367     8.424750755 3405085  C  WM 267924512 + 32 [0]</span><br><span class="line"></span><br><span class="line">...</span><br><span class="line">Total (res):</span><br><span class="line"> Reads Queued:           0,        0KiB  Writes Queued:       70567,     1128MiB</span><br><span class="line"> Read Dispatches:        3,        0KiB  Write Dispatches:    70559,     1128MiB</span><br><span class="line"> Reads Requeued:         0               Writes Requeued:         0</span><br><span class="line"> Reads Completed:        3,        0KiB  Writes Completed:    70563,     1128MiB</span><br><span class="line"> Read Merges:            0,        0KiB  Write Merges:            6,       24KiB</span><br><span class="line"> IO unplugs:         70545               Timer unplugs:           0</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">tracing 267886608</span></span><br><span class="line">252,0    6       71     8.424115456   585  A  WM 267886608 + 8 &lt;- (252,3) 266883088</span><br><span class="line">252,0    6       72     8.424115630   585  Q  WM 267886608 + 8 [xfsaild/dm-0]</span><br><span class="line">252,0    6       73     8.424115962   585  M  WM 267886608 + 8 [xfsaild/dm-0]</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">tracing 4555007</span></span><br><span class="line">252,0    9        2     8.423915195 3374227  A WFSM 4555007 + 31 &lt;- (252,3) 3551487</span><br><span class="line">252,0    9        3     8.423915869 3374227  Q WFSM 4555007 + 31 [kworker/9:4]</span><br><span class="line">252,0    9        4     8.423918485 3374227  G WFSM 4555007 + 31 [kworker/9:4]</span><br><span class="line">252,0    9        5     8.423927401   240  D WSM 4555007 + 31 [kworker/9:1H]</span><br><span class="line">252,0   10   318350     8.424051685     0  C WSM 4555007 + 31 [0]</span><br><span class="line">252,0   10   318353     8.424169747     0  C WSM 4555007 [0]</span><br></pre></td></tr></table></figure>
+
+<p>![*Screenshot 2023-12-25 at 13.37.09*](&#x2F;Users&#x2F;tashen&#x2F;Library&#x2F;Application Support&#x2F;typora-user-images&#x2F;Screenshot 2023-12-25 at 13.37.09.png)</p>
+<h4 id="ACTION-IDENTIFIERS"><a href="#ACTION-IDENTIFIERS" class="headerlink" title="ACTION IDENTIFIERS"></a>ACTION IDENTIFIERS</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">The following table shows the various actions which may be</span><br><span class="line">       output:</span><br><span class="line"></span><br><span class="line">       A      IO was remapped to a different device</span><br><span class="line"></span><br><span class="line">       B      IO bounced</span><br><span class="line"></span><br><span class="line">       C      IO completion</span><br><span class="line"></span><br><span class="line">       D      IO issued to driver</span><br><span class="line"></span><br><span class="line">       F      IO front merged with request on queue</span><br><span class="line"></span><br><span class="line">       G      Get request</span><br><span class="line"></span><br><span class="line">       I      IO inserted onto request queue</span><br><span class="line"></span><br><span class="line">       M      IO back merged with request on queue</span><br><span class="line"></span><br><span class="line">       P      Plug request</span><br><span class="line"></span><br><span class="line">       Q      IO handled by request queue code</span><br><span class="line"></span><br><span class="line">       S      Sleep request</span><br><span class="line"></span><br><span class="line">       T      Unplug due to timeout</span><br><span class="line"></span><br><span class="line">       U      Unplug request</span><br><span class="line"></span><br><span class="line">       X      Split</span><br></pre></td></tr></table></figure>
+
+<p>The result is long and there only paste few of them. I try to trace an different sectors and behaviors of block layer.</p>
+<p><code>blkparse</code> command still hard to know the total metrics and statistics, so we can use <code>btt</code> to see the statistic of whole table and picture, this is the part of results:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">blkparse -q -i res   -d sda.blk.bin</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">btt -i sda.blk.bin</span></span><br><span class="line"></span><br><span class="line">==================== All Devices ====================</span><br><span class="line"></span><br><span class="line">            ALL           MIN           AVG           MAX           N</span><br><span class="line">--------------- ------------- ------------- ------------- -----------</span><br><span class="line"></span><br><span class="line">Q2Q               0.000001441   0.000119382   0.802839654       70564</span><br><span class="line">Q2G               0.000000497   0.000000797   0.000025123       70559</span><br><span class="line">G2I               0.000000406   0.000000654   0.000128249       70558</span><br><span class="line">Q2M               0.000000133   0.000000271   0.000000631           6</span><br><span class="line">I2D               0.000000411   0.000000663   0.000017267       70558</span><br><span class="line">M2D               0.000031518   0.000071988   0.000116699           6</span><br><span class="line">D2C               0.000064651   0.000079818   0.002640604       70565</span><br><span class="line">Q2C               0.000066315   0.000081939   0.002643331       70565</span><br><span class="line"></span><br><span class="line">==================== Device Overhead ====================</span><br><span class="line"></span><br><span class="line">       DEV |       Q2G       G2I       Q2M       I2D       D2C</span><br><span class="line">---------- | --------- --------- --------- --------- ---------</span><br><span class="line"> (252,  0) |   0.9723%   0.7983%   0.0000%   0.8096%  97.4121%</span><br><span class="line">---------- | --------- --------- --------- --------- ---------</span><br><span class="line">   Overall |   0.9723%   0.7983%   0.0000%   0.8096%  97.4121%</span><br><span class="line"></span><br><span class="line">==================== Device Merge Information ====================</span><br><span class="line"></span><br><span class="line">       DEV |       #Q       #D   Ratio |   BLKmin   BLKavg   BLKmax    Total</span><br><span class="line">---------- | -------- -------- ------- | -------- -------- -------- --------</span><br><span class="line"> (252,  0) |    70565    70559     1.0 |        1       31       32  2257605</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Q-------&gt;G------------&gt;I---------&gt;M-------------------&gt;D-----------------------------&gt;C</span><br><span class="line">|-Q time-|-Insert time-|</span><br><span class="line">|--------- merge time ------------|-merge with other IO|</span><br><span class="line">|----------------scheduler time time-------------------|---driver,adapter,storagetime--|</span><br><span class="line"></span><br><span class="line">|----------------------- await time in iostat output ----------------------------------|</span><br></pre></td></tr></table></figure>
+
+<p>Q2Q — time between requests sent to the block layer </p>
+<p>Q2G — time from a block I&#x2F;O is queued to the time it gets a request allocated for it</p>
+<p>G2I — time from a request is allocated to the time it is inserted into the device’s queue </p>
+<p>Q2M — time from a block I&#x2F;O is queued to the time it gets merged with an existing request </p>
+<p>I2D — time from a request is inserted into the device’s queue to the time it is actually issued to the device (time the I&#x2F;O is “idle” on the request queue)</p>
+<p>M2D — time from  a block I&#x2F;O is merged with an exiting request until the request is issued to the device </p>
+<p>D2C — service time of the request by the device (time the I&#x2F;O is “active” in the driver and on the device)</p>
+<p>Q2C — total time spent in the block layer  for a request</p>
+<p>Actually the blktrace’s implement is using various linux kernel tracepoint to trace different phase of IO. Here are some of the key tracepoints used by <code>blktrace</code>:</p>
+<ol>
+<li><code>block_rq_insert</code>: This tracepoint is hit when a request is inserted into the request queue.(Q)</li>
+<li><code>block_rq_issue</code>: This tracepoint is hit when a request is issued to the device.(I)</li>
+<li><code>block_rq_complete</code>: This tracepoint is hit when a request is completed.(C)</li>
+<li><code>block_bio_queue</code>: This tracepoint is hit when a bio is queued.(Q)</li>
+<li><code>block_bio_backmerge</code>: This tracepoint is hit when a bio is being merged with the last bio in the request.</li>
+<li><code>block_bio_frontmerge</code>: This tracepoint is hit when a bio is being merged with the first bio in the request.</li>
+<li><code>block_bio_bounce</code>: This tracepoint is hit when a bio is bounced.</li>
+<li><code>block_getrq</code>: This tracepoint is hit when get_request() is called to allocate a request.</li>
+<li><code>block_sleeprq</code>: This tracepoint is hit when a process is going to sleep waiting for a request to be available.</li>
+<li><code>block_plug</code>: This tracepoint is hit when a plug is inserted into the request queue.</li>
+<li><code>block_unplug</code>: This tracepoint is hit when a plug is removed from the request queue.</li>
+</ol>
+<h3 id="Main-data-structure-in-block-layer"><a href="#Main-data-structure-in-block-layer" class="headerlink" title="Main data structure in block layer"></a>Main data structure in block layer</h3><p>To deepdiv the block layer, i read the code and finding as followes:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * main unit of I/O for the block layer and lower layers (ie drivers and</span></span><br><span class="line"><span class="comment"> * stacking drivers)</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bio</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">bio</span>		*<span class="title">bi_next</span>;</span>	<span class="comment">/* request queue link */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">block_device</span>	*<span class="title">bi_bdev</span>;</span></span><br><span class="line">  <span class="type">unsigned</span> <span class="type">long</span>       bi_rw; <span class="comment">/* read or write */</span></span><br><span class="line">  ...</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span>		*<span class="title">bi_io_vec</span>;</span>	<span class="comment">/* the actual vec list */</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">bvec_iter</span>	<span class="title">bi_iter</span>;</span></span><br><span class="line"></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * struct bio_vec - a contiguous range of physical memory addresses</span></span><br><span class="line"><span class="comment"> * @bv_page:   First page associated with the address range.</span></span><br><span class="line"><span class="comment"> * @bv_len:    Number of bytes in the address range.</span></span><br><span class="line"><span class="comment"> * @bv_offset: Start of the address range relative to the start of @bv_page.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * The following holds for a bvec if n * PAGE_SIZE &lt; bv_offset + bv_len:</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> *   nth_page(@bv_page, n) == @bv_page + n</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * This holds because page_is_mergeable() checks the above property.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">page</span>	*<span class="title">bv_page</span>;</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>	bv_len;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>	bv_offset;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bvec_iter</span> &#123;</span></span><br><span class="line">	<span class="type">sector_t</span>		bi_sector;	<span class="comment">/* device address in 512 byte</span></span><br><span class="line"><span class="comment">						   sectors */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>		bi_size;	<span class="comment">/* residual I/O count */</span></span><br><span class="line"></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>		bi_idx;		<span class="comment">/* current index into bvl_vec */</span></span><br><span class="line"></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>            bi_bvec_done;	<span class="comment">/* number of bytes completed in</span></span><br><span class="line"><span class="comment">						   current bvec */</span></span><br><span class="line">&#125; __packed;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">block_device</span> &#123;</span></span><br><span class="line">	<span class="type">sector_t</span>		bd_start_sect;</span><br><span class="line">	<span class="type">sector_t</span>		bd_nr_sectors;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">gendisk</span> *	<span class="title">bd_disk</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> *	<span class="title">bd_queue</span>;</span></span><br><span class="line">  <span class="type">bool</span>			bd_has_submit_bio;</span><br><span class="line">  ...</span><br><span class="line">&#125; __randomize_layout;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Try to put the fields that are referenced together in the same cacheline.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * If you modify this structure, make sure to update blk_rq_init() and</span></span><br><span class="line"><span class="comment"> * especially blk_mq_rq_ctx_init() to take care of the added fields.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">request</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> *<span class="title">q</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">bio</span> *<span class="title">bio</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">bio</span> *<span class="title">biotail</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">queuelist</span>;</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">request</span> *<span class="title">rq_next</span>;</span></span><br><span class="line">	&#125;;</span><br><span class="line">	<span class="class"><span class="keyword">enum</span> <span class="title">mq_rq_state</span> <span class="title">state</span>;</span></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * The hash is used inside the scheduler, and killed once the</span></span><br><span class="line"><span class="comment">	 * request reaches the dispatch list. The ipi_list is only used</span></span><br><span class="line"><span class="comment">	 * to queue the request for softirq completion, which is long</span></span><br><span class="line"><span class="comment">	 * after the request has been unhashed (and even removed from</span></span><br><span class="line"><span class="comment">	 * the dispatch list).</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">hlist_node</span> <span class="title">hash</span>;</span>	<span class="comment">/* merge hash */</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">llist_node</span> <span class="title">ipi_list</span>;</span></span><br><span class="line">	&#125;;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * The rb_node is only used inside the io scheduler, requests</span></span><br><span class="line"><span class="comment">	 * are pruned when moved to the dispatch queue. So let the</span></span><br><span class="line"><span class="comment">	 * completion_data share space with the rb_node.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">rb_node</span> <span class="title">rb_node</span>;</span>	<span class="comment">/* sort/lookup */</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span> <span class="title">special_vec</span>;</span></span><br><span class="line">		<span class="type">void</span> *completion_data;</span><br><span class="line">	&#125;;</span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * completion callback.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	rq_end_io_fn *end_io;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request</span>		*<span class="title">last_merge</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">elevator_queue</span>	*<span class="title">elevator</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">rq_qos</span>		*<span class="title">rq_qos</span>;</span></span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ops</span>	*<span class="title">mq_ops</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">queue_limits</span>	<span class="title">limits</span>;</span></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * for flush operations</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">blk_flush_queue</span>	*<span class="title">fq</span>;</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * struct blk_mq_hw_ctx - State for a hardware queue facing the hardware</span></span><br><span class="line"><span class="comment"> * block device</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_hw_ctx</span> &#123;</span></span><br><span class="line">	<span class="comment">/**</span></span><br><span class="line"><span class="comment">	 * @queue: Pointer to the request queue that owns this hardware context.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span>	*<span class="title">queue</span>;</span></span><br><span class="line">  	<span class="comment">/**</span></span><br><span class="line"><span class="comment">	 * @dispatch_busy: Number used by blk_mq_update_dispatch_busy() to</span></span><br><span class="line"><span class="comment">	 * decide if the hw_queue is busy using Exponential Weighted Moving</span></span><br><span class="line"><span class="comment">	 * Average algorithm.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>		dispatch_busy;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://s3.bmp.ovh/imgs/2021/09/09b73ed1c3ac78a1.webp" alt="bio逻辑架构"></p>
+<h3 id="code-flow-in-block-layer"><a href="#code-flow-in-block-layer" class="headerlink" title="code flow in block layer"></a>code flow in block layer</h3><p><img src="https://pic2.zhimg.com/80/v2-5b898fe018554749f56c270e77261a4d_1440w.webp" alt="img"></p>
+<p>Bio -&gt;  Request -&gt; plug request list -&gt; staging request queue in sheduler -&gt; hardware request queue</p>
+<p>![Screenshot 2023-12-25 at 13.54.30](&#x2F;Users&#x2F;tashen&#x2F;Library&#x2F;Application Support&#x2F;typora-user-images&#x2F;Screenshot 2023-12-25 at 13.54.30.png)</p>
+<p>![Screenshot 2023-12-25 at 13.57.23](&#x2F;Users&#x2F;tashen&#x2F;Library&#x2F;Application Support&#x2F;typora-user-images&#x2F;Screenshot 2023-12-25 at 13.57.23.png)</p>
+<p>These pictures records the total main code and function flow from the filessystem to block layer and to driver layder. It also prints the tracepoint mapping to the acation in output of the blktrace  where they trace from. By these tracepoint, we can understand the block io process flow more clearly. </p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/linux/" rel="tag"># linux</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2024/03/10/2018-10-12-raid/" rel="prev" title="raid">
+                  <i class="fa fa-angle-left"></i> raid
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2024/03/10/2023-12-15-wa%20calculation/" rel="next" title="">
+                   <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2024</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
