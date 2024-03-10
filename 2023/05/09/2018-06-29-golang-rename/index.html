@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>记一次疑云重重的kubelet延迟很高的问题 | Hexo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="最近在调查一个kubernetes中发现Kubelet的pods目录: 1&#x2F;var&#x2F;lib&#x2F;kubelet&#x2F;pods&#x2F;xxx&#x2F;volumes&#x2F; 下出现了大量的包含”deleting~” 的目录: 12345678910111213141516171819202122&#x2F;var&#x2F;lib&#x2F;kubelet&#x2F;pods&#x2F;612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c&#x2F;volumes&#x2F;">
+<meta property="og:type" content="article">
+<meta property="og:title" content="记一次疑云重重的kubelet延迟很高的问题">
+<meta property="og:url" content="http://example.com/2023/05/09/2018-06-29-golang-rename/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="最近在调查一个kubernetes中发现Kubelet的pods目录: 1&#x2F;var&#x2F;lib&#x2F;kubelet&#x2F;pods&#x2F;xxx&#x2F;volumes&#x2F; 下出现了大量的包含”deleting~” 的目录: 12345678910111213141516171819202122&#x2F;var&#x2F;lib&#x2F;kubelet&#x2F;pods&#x2F;612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c&#x2F;volumes&#x2F;">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2023-05-09T12:01:06.798Z">
+<meta property="article:modified_time" content="2023-05-09T12:01:06.798Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="kubernetes">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<meta name="generator" content="Hexo 7.1.1"></head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">Hexo</a>
+      </h1>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS Feed"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="Search"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://example.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main"><article id="post-2018-06-29-golang-rename" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/2023/05/09/2018-06-29-golang-rename/" class="article-date">
+  <time class="dt-published" datetime="2023-05-09T12:01:06.798Z" itemprop="datePublished">2023-05-09</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/cloud/">cloud</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="p-name article-title" itemprop="headline name">
+      记一次疑云重重的kubelet延迟很高的问题
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <p>最近在调查一个kubernetes中发现Kubelet的pods目录:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/xxx/volumes/</span><br></pre></td></tr></table></figure>
+<p>下出现了大量的包含”deleting~” 的目录:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~859156558</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~912994645</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~096627888</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~361944655</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~827756898</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~850958169</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~435144420</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~573873907</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~817019830</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~300298653</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~414447192</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~453118423</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~634999626</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~329196065</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~705907980</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~060876539</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~371568670</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~473777381</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~852926720</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~911951455</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~221614642</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~643761641</span><br></pre></td></tr></table></figure>
+<p>导致每次reconciler将这些多余的”deleting~”加入到”ActualOfWorld”中, 然后触发大量的Umount操作, 使得reconciler很久才Loop一次, 现象就是pod create和delete都变得非常得慢.<br>一. 一开始, 我发现自己写的plugin中使用了pkg&#x2F;volume&#x2F;volume.go中的RenameDirectory函数, 函数如下:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">RenameDirectory</span><span class="params">(oldPath, newName <span class="type">string</span>)</span></span> (<span class="type">string</span>, <span class="type">error</span>) &#123;</span><br><span class="line">	newPath, err := ioutil.TempDir(filepath.Dir(oldPath), newName)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// os.Rename call fails on windows (https://github.com/golang/go/issues/14527)</span></span><br><span class="line">	<span class="comment">// Replacing with copyFolder to the newPath and deleting the oldPath directory</span></span><br><span class="line">	<span class="keyword">if</span> runtime.GOOS == <span class="string">&quot;windows&quot;</span> &#123;</span><br><span class="line">		err = copyFolder(oldPath, newPath)</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			glog.Errorf(<span class="string">&quot;Error copying folder from: %s to: %s with error: %v&quot;</span>, oldPath, newPath, err)</span><br><span class="line">			<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">		&#125;</span><br><span class="line">		os.RemoveAll(oldPath)</span><br><span class="line">		<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	err = os.Rename(oldPath, newPath)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+<p>在每次删除目录时, 并不是直接删除, 而是先创建一个随机的空目录, 然后将原目录rename到随机目录, 最后再将这个随机目录删除掉.<br>看似没有什么问题, 但不巧的是, 在golang1.8之后, os.Rename的实现发生了变化</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">rename</span><span class="params">(oldname, newname <span class="type">string</span>)</span></span> <span class="type">error</span> &#123;</span><br><span class="line">	fi, err := Lstat(newname)</span><br><span class="line">	<span class="keyword">if</span> err == <span class="literal">nil</span> &amp;&amp; fi.IsDir() &#123;</span><br><span class="line">		<span class="comment">// There are two independent errors this function can return:</span></span><br><span class="line">		<span class="comment">// one for a bad oldname, and one for a bad newname.</span></span><br><span class="line">		<span class="comment">// At this point we&#x27;ve determined the newname is bad.</span></span><br><span class="line">		<span class="comment">// But just in case oldname is also bad, prioritize returning</span></span><br><span class="line">		<span class="comment">// the oldname error because that&#x27;s what we did historically.</span></span><br><span class="line">		<span class="keyword">if</span> _, err := Lstat(oldname); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">if</span> pe, ok := err.(*PathError); ok &#123;</span><br><span class="line">				err = pe.Err</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, syscall.EEXIST&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">//------------------------版本分割线1.8</span></span><br><span class="line">	err = syscall.Rename(oldname, newname)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在虚线以上是go1.8之后新加的内容, 如果rename之后的目录存在, 就会打印”File Exits”错误, 这样就会创建大量的”deleting~”目录. 相关修改和讨论在<a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/issues/43534">Bugs in EmptyDir Teardown path</a>.</p>
+<p>以为问题就这样解决了, 然而不是, 我检查了版本, 使用的是1.7.4, 同时查看了日志, 并没有打印”FILE Exist”的log, 而是打印了”device or resource busy”. 通过多种测试, 发现rename操作无论是进程占用还是进程对文件的读写, 都不会导致device busy问题. 这说明我找到了出问题的地方, 却没找到背后的原因. </p>
+<p>二. 如果rename没有返回错误, 那么只能是之后的remove操作返回的错误. 然而却有几个疑点:</p>
+<ol>
+<li>查看rename出来的deleting目录中都是空目录, 里面并没有数据</li>
+<li>手动可以remove掉这些目录</li>
+<li>原目录并没有消失, 而是存在且有大量的正在更新的数据.</li>
+</ol>
+<p>​    显然问题比我想象的更加复杂. 有一个可能的解释是在我操作delete之后由于太长时间没有删掉导致Kubelet直接暴力删除了这个pod, statefulset又重启了新的pod, 原来的container虽然删掉但相应的namespaces中依然有应用程序在读写, 这种情况导致remove busy, 而且数据在更新.</p>
+<p>这些问题要调查起来都很费力. 显然直接删掉rename逻辑可以解决这个问题, 于是不再追究.</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://example.com/2023/05/09/2018-06-29-golang-rename/" data-id="cltl065h4001in8l4gx3sb7lg" data-title="记一次疑云重重的kubelet延迟很高的问题" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kubernetes/" rel="tag">kubernetes</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+    <a href="/2023/05/09/2018-07-02-golang-map/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Newer</strong>
+      <div class="article-nav-title">
+        
+          golang map 内存布局和原理
+        
+      </div>
+    </a>
+  
+  
+    <a href="/2023/05/09/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">shell bash 类型和搜索机制</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/architecture/">architecture</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/cloud/">cloud</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/coding/">coding</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/notes/">notes</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/storage/">storage</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/system/">system</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tags</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/algorithm/" rel="tag">algorithm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/ceph/" rel="tag">ceph</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/container/" rel="tag">container</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/docker/" rel="tag">docker</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/git/" rel="tag">git</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/golang/" rel="tag">golang</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/kubernetes/" rel="tag">kubernetes</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/linux/" rel="tag">linux</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/literature/" rel="tag">literature</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/lvm/" rel="tag">lvm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/microservice/" rel="tag">microservice</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/raid/" rel="tag">raid</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tag Cloud</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/algorithm/" style="font-size: 12.5px;">algorithm</a> <a href="/tags/ceph/" style="font-size: 10px;">ceph</a> <a href="/tags/container/" style="font-size: 12.5px;">container</a> <a href="/tags/docker/" style="font-size: 10px;">docker</a> <a href="/tags/git/" style="font-size: 10px;">git</a> <a href="/tags/golang/" style="font-size: 17.5px;">golang</a> <a href="/tags/kubernetes/" style="font-size: 20px;">kubernetes</a> <a href="/tags/linux/" style="font-size: 15px;">linux</a> <a href="/tags/literature/" style="font-size: 12.5px;">literature</a> <a href="/tags/lvm/" style="font-size: 10px;">lvm</a> <a href="/tags/microservice/" style="font-size: 12.5px;">microservice</a> <a href="/tags/raid/" style="font-size: 10px;">raid</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Archives</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2024/03/">March 2024</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2023/12/">December 2023</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2023/05/">May 2023</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/03/">March 2018</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2024/03/07/2024-03-06%20IOCost%20model%20impact%20cpu%20soft%20lockup/">(no title)</a>
+          </li>
+        
+          <li>
+            <a href="/2023/12/15/2023-12-15-wa%20calculation/">(no title)</a>
+          </li>
+        
+          <li>
+            <a href="/2023/05/09/2018-10-12-raid/">raid</a>
+          </li>
+        
+          <li>
+            <a href="/2023/05/09/2018-10-12-repair-thinpool/">repair-thinpool</a>
+          </li>
+        
+          <li>
+            <a href="/2023/05/09/2018-10-12-go-sort/">go-sort</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2024 John Doe<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>

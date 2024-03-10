@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>qos-in-k8s | Hexo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="​    一直感觉对kubernetes中的qos是一个盲点, 借着复习下scheduler的一些资源调度策略来学习下k8s中的qos策略, 然后再辐射到一般性的qos策略. 动机:k8s 用非常简单的方式分配资源. 用户能够指定容器的资源限制. 比如一个用户能够指定某个container 只能使用1GB的内存. scheduler通过资源限制去调度容器. 如果某个节点的内存只有4GB, 那个一个">
+<meta property="og:type" content="article">
+<meta property="og:title" content="qos-in-k8s">
+<meta property="og:url" content="http://example.com/2023/05/09/2018-06-14-qos-in-k8s/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="​    一直感觉对kubernetes中的qos是一个盲点, 借着复习下scheduler的一些资源调度策略来学习下k8s中的qos策略, 然后再辐射到一般性的qos策略. 动机:k8s 用非常简单的方式分配资源. 用户能够指定容器的资源限制. 比如一个用户能够指定某个container 只能使用1GB的内存. scheduler通过资源限制去调度容器. 如果某个节点的内存只有4GB, 那个一个">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2023-05-09T12:01:06.797Z">
+<meta property="article:modified_time" content="2023-05-09T12:01:06.797Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="kubernetes">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<meta name="generator" content="Hexo 7.1.1"></head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">Hexo</a>
+      </h1>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS Feed"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="Search"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://example.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main"><article id="post-2018-06-14-qos-in-k8s" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/2023/05/09/2018-06-14-qos-in-k8s/" class="article-date">
+  <time class="dt-published" datetime="2023-05-09T12:01:06.797Z" itemprop="datePublished">2023-05-09</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/cloud/">cloud</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="p-name article-title" itemprop="headline name">
+      qos-in-k8s
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <p>​    一直感觉对kubernetes中的qos是一个盲点, 借着复习下scheduler的一些资源调度策略来学习下k8s中的qos策略, 然后再辐射到一般性的qos策略.</p>
+<h3 id="动机"><a href="#动机" class="headerlink" title="动机:"></a>动机:</h3><p>k8s 用非常简单的方式分配资源. 用户能够指定容器的资源限制. 比如一个用户能够指定某个container 只能使用1GB的内存. scheduler通过资源限制去调度容器. 如果某个节点的内存只有4GB, 那个一个有5Gb请求的容器就将不能调度到这个节点. 目前, k8s不能保证容器在一个超卖的系统中运行稳定. </p>
+<p>目前的实现中, 如果用户指定limts给所有的container, 那么集群资源的利用率将会非常低下. 因为容器往往无法充分使用用户指定的那些资源. 一个可能的方式是不指定limits, 这样container就可以无限制的使用, 但是如果这些container无限制的使用资源, 就可能使得指定了limits的容器由于机器资源不够而被杀掉. 这是用户不愿意看到的, 他们希望自己指定了某个大小, 那么启动之后系统就应该保证这个容器的顺利运行. </p>
+<p>qos机制就是在节点资源超卖的环境下, 通过提供不同级别的保证来满足资源的需求. 容器可以用request请求一个最小资源, request与limit不同, container可以使用超过request的值. best-effort级别的container相当于request为0的container. Best-effort container只使用那些其他container没有使用的资源, 可以用于资源清理(这个没看懂). </p>
+<h3 id="Request-and-limits"><a href="#Request-and-limits" class="headerlink" title="Request and limits"></a>Request and limits</h3><p>对于每种资源, container可以指定request和limits, 0 &lt;&#x3D; request &lt;&#x3D; limit &lt;&#x3D; infinity. 如果container成功调度, 意味着container能够保证至少有request的值的资源. container不能超过limit的值. 而request 和 limit 如何执行要看资源是compressible还是incompressible.</p>
+<h4 id="Compressible-Resource-Guarantees"><a href="#Compressible-Resource-Guarantees" class="headerlink" title="Compressible Resource Guarantees"></a>Compressible Resource Guarantees</h4><ul>
+<li>目前只有cpu</li>
+<li>container至少得到request的cpu请求</li>
+<li>剩余的cpu会按照cpu request比例分配给container. 比如container A request 60%, container B request 30%. 假设两个container都尝试拿到更多的cpu, 那么剩余的10%将按照2:1的比例分配.</li>
+<li>如果超过limits, Containers 会被节流(不是被杀死).</li>
+</ul>
+<h4 id="Incompressible-Resouce-Guarantees"><a href="#Incompressible-Resouce-Guarantees" class="headerlink" title="Incompressible Resouce Guarantees"></a>Incompressible Resouce Guarantees</h4><ul>
+<li>目前只有内存. (我认为本地存储也在这一类)</li>
+<li>Containers能够得到request的大小, 如果超过这个大小, 它们可能会被杀掉(如果其他container需要内存), 但是如果containers消耗的少于request值, 他们不会被删除(除非系统任务或者daemonset需要更多的内存)</li>
+<li>Containers会被杀掉如果他们使用了超过limit的内存.</li>
+</ul>
+<h4 id="Kubelet-admission-策略"><a href="#Kubelet-admission-策略" class="headerlink" title="Kubelet admission 策略"></a>Kubelet admission 策略</h4><p>kubelet通过统计containers的request来确保系统资源不会被超载.</p>
+<h3 id="QoS-分级"><a href="#QoS-分级" class="headerlink" title="QoS 分级"></a>QoS 分级</h3><h4 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h4><p>k8s Qos 分成三个等级:</p>
+<ul>
+<li>Guaranteed</li>
+<li>Burstable</li>
+<li>BestEffort</li>
+</ul>
+<p>理论上QoS与limit, request应该是互不干扰的, 但实际上他们的联系非常紧密. QoS class不是自己设置的, 而是在创建pod的时候, 根据limit和request系统自动确认的.</p>
+<h4 id="Guaranteed"><a href="#Guaranteed" class="headerlink" title="Guaranteed"></a>Guaranteed</h4><p>这是级别最高的, 他的触发条件是:</p>
+<ul>
+<li>每个pod中container必须有内存的limit和request, 而且必须相同</li>
+<li>每个pod中cpu必须有内存的limit和request, 而且必须相同</li>
+</ul>
+<p>效果: 这些containers是最高优先级</p>
+<p>注意: 如果设置了limit没有设置request, 系统将会自动填充request跟limit相同.</p>
+<p>####Burstable </p>
+<p>这个的触发条件是:</p>
+<ul>
+<li>pod不满足Guaranteed</li>
+<li>pod中至少一个container有内存或者cpu的请求.</li>
+</ul>
+<p>效果: 能够保证request的请求, 但是不保证limit, 如果超出request请求的内存大小, 发生oom时可能会被杀死.</p>
+<h4 id="BestEffort"><a href="#BestEffort" class="headerlink" title="BestEffort"></a>BestEffort</h4><p>触发条件: 很明显, 没有指定任何request和limit或者值都是0就是BestEffort级别.</p>
+<p>效果: 这些containers没有请求资源保障, 会被认为是最低优先级的, 如果系统发生oom, 他们会被首先杀死. 他们只会使用集群中没有被使用的那部分资源.</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>所以k8s的qos主要是通过两方面: request,limit 和 qos class来实现的. 这两方面又有很多交叉的地方. 而且在面对不同的资源的时候, 他们的策略是不一样的.</p>
+<h3 id="Storage-QoS"><a href="#Storage-QoS" class="headerlink" title="Storage QoS"></a>Storage QoS</h3><p>由于k8s中没有关于存储的qos机制, 于是关于存储的qos, 查看了一些文档.</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://example.com/2023/05/09/2018-06-14-qos-in-k8s/" data-id="cltl065h4001fn8l49hf8c71p" data-title="qos-in-k8s" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kubernetes/" rel="tag">kubernetes</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+    <a href="/2023/05/09/2018-06-07-docker-mountflags/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Newer</strong>
+      <div class="article-nav-title">
+        
+          docker-mountflags
+        
+      </div>
+    </a>
+  
+  
+    <a href="/2023/05/09/2018-03-21-git-submodule-problem/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">git出现fatal: Pathspec &#39;xxx&#39; is in submodule &#39;xxx&#39;的解决方法</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/architecture/">architecture</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/cloud/">cloud</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/coding/">coding</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/notes/">notes</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/storage/">storage</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/system/">system</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tags</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/algorithm/" rel="tag">algorithm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/ceph/" rel="tag">ceph</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/container/" rel="tag">container</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/docker/" rel="tag">docker</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/git/" rel="tag">git</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/golang/" rel="tag">golang</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/kubernetes/" rel="tag">kubernetes</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/linux/" rel="tag">linux</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/literature/" rel="tag">literature</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/lvm/" rel="tag">lvm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/microservice/" rel="tag">microservice</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/raid/" rel="tag">raid</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tag Cloud</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/algorithm/" style="font-size: 12.5px;">algorithm</a> <a href="/tags/ceph/" style="font-size: 10px;">ceph</a> <a href="/tags/container/" style="font-size: 12.5px;">container</a> <a href="/tags/docker/" style="font-size: 10px;">docker</a> <a href="/tags/git/" style="font-size: 10px;">git</a> <a href="/tags/golang/" style="font-size: 17.5px;">golang</a> <a href="/tags/kubernetes/" style="font-size: 20px;">kubernetes</a> <a href="/tags/linux/" style="font-size: 15px;">linux</a> <a href="/tags/literature/" style="font-size: 12.5px;">literature</a> <a href="/tags/lvm/" style="font-size: 10px;">lvm</a> <a href="/tags/microservice/" style="font-size: 12.5px;">microservice</a> <a href="/tags/raid/" style="font-size: 10px;">raid</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Archives</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2024/03/">March 2024</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2023/12/">December 2023</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2023/05/">May 2023</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/03/">March 2018</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2024/03/07/2024-03-06%20IOCost%20model%20impact%20cpu%20soft%20lockup/">(no title)</a>
+          </li>
+        
+          <li>
+            <a href="/2023/12/15/2023-12-15-wa%20calculation/">(no title)</a>
+          </li>
+        
+          <li>
+            <a href="/2023/05/09/2018-10-12-raid/">raid</a>
+          </li>
+        
+          <li>
+            <a href="/2023/05/09/2018-10-12-repair-thinpool/">repair-thinpool</a>
+          </li>
+        
+          <li>
+            <a href="/2023/05/09/2018-10-12-go-sort/">go-sort</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2024 John Doe<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>
