@@ -112,7 +112,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">30</span>
+          <span class="site-state-item-count">28</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
@@ -208,278 +208,6 @@
 
 <p>发现Docker比较卡, 于是清理了大量的images, 删掉了所有未运行的container, 再清理了系统缓存, 问题解决了, 但深层次的问题没弄清楚, 尽管清了缓存, 但是清完其实缓存差距不大, docker 也没有显示资源问题, 另外一个点就是, 只有这个image是进不去的, 其他的Images是可以run -it的, 而且在做<code>COPY . /go/src/github.com/transwarp/warpdrive/</code>这一步时间等的比较长.</p>
 <p><a target="_blank" rel="noopener" href="https://github.com/opencontainers/runc/issues/1130">https://github.com/opencontainers/runc/issues/1130</a> 记录了相关的问题, 说runc的问题.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-go-sort/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-go-sort/" class="post-title-link" itemprop="url">go-sort</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>Go排序实现在&#x2F;src&#x2F;go4.org&#x2F;sort&#x2F;sort.go中.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">func Sort(data Interface) &#123;</span><br><span class="line">	n := data.Len()</span><br><span class="line">	if fs, ok := data.(*funcs); ok &#123;</span><br><span class="line">		quickSort_func(fs.lessSwap, 0, n, maxDepth(n))</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		quickSort(data, 0, n, maxDepth(n))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func quickSort(data Interface, a, b, maxDepth int) &#123;</span><br><span class="line">	for b-a &gt; 12 &#123; // Use ShellSort for slices &lt;= 12 elements</span><br><span class="line">		if maxDepth == 0 &#123;</span><br><span class="line">			heapSort(data, a, b)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line">		maxDepth--</span><br><span class="line">		mlo, mhi := doPivot(data, a, b)</span><br><span class="line">		// Avoiding recursion on the larger subproblem guarantees</span><br><span class="line">		// a stack depth of at most lg(b-a).</span><br><span class="line">		if mlo-a &lt; b-mhi &#123;</span><br><span class="line">			quickSort(data, a, mlo, maxDepth)</span><br><span class="line">			a = mhi // i.e., quickSort(data, mhi, b)</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			quickSort(data, mhi, b, maxDepth)</span><br><span class="line">			b = mlo // i.e., quickSort(data, a, mlo)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if b-a &gt; 1 &#123;</span><br><span class="line">		// Do ShellSort pass with gap 6</span><br><span class="line">		// It could be written in this simplified form cause b-a &lt;= 12</span><br><span class="line">		for i := a + 6; i &lt; b; i++ &#123;</span><br><span class="line">			if data.Less(i, i-6) &#123;</span><br><span class="line">				data.Swap(i, i-6)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		insertionSort(data, a, b)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line">// Insertion sort</span><br><span class="line">func insertionSort(data Interface, a, b int) &#123;</span><br><span class="line">	for i := a + 1; i &lt; b; i++ &#123;</span><br><span class="line">		for j := i; j &gt; a &amp;&amp; data.Less(j, j-1); j-- &#123;</span><br><span class="line">			data.Swap(j, j-1)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>quickSort和quickSort_func基本相同, 子不过自己定义的比较方法, 这里不在赘述.</p>
-<p>可以看到主体是quickSort, 所以不保证稳定排序, 当数据量小于等于12时. 退化为希尔排序, 但希尔排序只做了一次gap为6, 之后再次退化为了简单插入排序. 这部分实现非常简单, i从前往后, j从i往前, 每次比较j-1和j, 将小的换到前面.</p>
-<p>当数据量大于12时, 根据maxDepth是否为0决定使用对排序还是使用快速排序, maxDepth计算:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">// maxDepth returns a threshold at which quicksort should switch</span><br><span class="line">// to heapsort. It returns 2*ceil(lg(n+1)).</span><br><span class="line">func maxDepth(n int) int &#123;</span><br><span class="line">	var depth int</span><br><span class="line">	for i := n; i &gt; 0; i &gt;&gt;= 1 &#123;</span><br><span class="line">		depth++</span><br><span class="line">	&#125;</span><br><span class="line">	return depth * 2</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>返回的是目前树高度的2倍. 每进行一轮快速排序的partition(doPivot), 这个数值就减1, 当减为0, 此时认为数据已经比较有序, 如果数据长度依然大于12, 改为堆排序效率更高.</p>
-<p>这里先看快速排序的主体部分, 再来看堆排序的实现. partition是快排的思想核心, 他实现在doPivot中:</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">doPivot</span><span class="params">(data Interface, lo, hi <span class="type">int</span>)</span></span> (midlo, midhi <span class="type">int</span>) &#123;</span><br><span class="line">	m := lo + (hi-lo)/<span class="number">2</span> <span class="comment">// 避免整数溢出</span></span><br><span class="line">	<span class="keyword">if</span> hi-lo &gt; <span class="number">40</span> &#123; 如果长度大于<span class="number">40</span>, 使用Tukey ninther法</span><br><span class="line">		<span class="comment">// Tukey&#x27;s ``Ninther,&#x27;&#x27; median of three medians of three.</span></span><br><span class="line">		s := (hi - lo) / <span class="number">8</span></span><br><span class="line">		medianOfThree(data, lo, lo+s, lo+<span class="number">2</span>*s)</span><br><span class="line">		medianOfThree(data, m, m-s, m+s)</span><br><span class="line">		medianOfThree(data, hi<span class="number">-1</span>, hi<span class="number">-1</span>-s, hi<span class="number">-1</span><span class="number">-2</span>*s)</span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// medianOfThree 保证lo, m hi-1三个值是从小到大的</span></span><br><span class="line">	medianOfThree(data, lo, m, hi<span class="number">-1</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Invariants are:</span></span><br><span class="line">	<span class="comment">//	data[lo] = pivot (set up by ChoosePivot)</span></span><br><span class="line">	<span class="comment">//	data[lo &lt; i &lt; a] &lt; pivot</span></span><br><span class="line">	<span class="comment">//	data[a &lt;= i &lt; b] &lt;= pivot</span></span><br><span class="line">	<span class="comment">//	data[b &lt;= i &lt; c] unexamined</span></span><br><span class="line">	<span class="comment">//	data[c &lt;= i &lt; hi-1] &gt; pivot</span></span><br><span class="line">	<span class="comment">//	data[hi-1] &gt;= pivot</span></span><br><span class="line">	pivot := lo</span><br><span class="line">	a, c := lo+<span class="number">1</span>, hi<span class="number">-1</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 找到第一个比起始值点大的Index</span></span><br><span class="line">	<span class="keyword">for</span> ; a &lt; c &amp;&amp; data.Less(a, pivot); a++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line">	b := a</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; !data.Less(pivot, b); b++ &#123; <span class="comment">// data[b] &lt;= pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; data.Less(pivot, c<span class="number">-1</span>); c-- &#123; <span class="comment">// data[c-1] &gt; pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> b &gt;= c &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// data[b] &gt; pivot; data[c-1] &lt;= pivot</span></span><br><span class="line">		data.Swap(b, c<span class="number">-1</span>)</span><br><span class="line">		b++</span><br><span class="line">		c--</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// If hi-c&lt;3 then there are duplicates (by property of median of nine).</span></span><br><span class="line">	<span class="comment">// Let be a bit more conservative, and set border to 5.</span></span><br><span class="line">	protect := hi-c &lt; <span class="number">5</span></span><br><span class="line">	<span class="keyword">if</span> !protect &amp;&amp; hi-c &lt; (hi-lo)/<span class="number">4</span> &#123;</span><br><span class="line">		<span class="comment">// Lets test some points for equality to pivot</span></span><br><span class="line">		dups := <span class="number">0</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(pivot, hi<span class="number">-1</span>) &#123; <span class="comment">// data[hi-1] = pivot</span></span><br><span class="line">			data.Swap(c, hi<span class="number">-1</span>)</span><br><span class="line">			c++</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> !data.Less(b<span class="number">-1</span>, pivot) &#123; <span class="comment">// data[b-1] = pivot</span></span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// m-lo = (hi-lo)/2 &gt; 6</span></span><br><span class="line">		<span class="comment">// b-lo &gt; (hi-lo)*3/4-1 &gt; 8</span></span><br><span class="line">		<span class="comment">// ==&gt; m &lt; b ==&gt; data[m] &lt;= pivot</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(m, pivot) &#123; <span class="comment">// data[m] = pivot</span></span><br><span class="line">			data.Swap(m, b<span class="number">-1</span>)</span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// if at least 2 points are equal to pivot, assume skewed distribution</span></span><br><span class="line">		protect = dups &gt; <span class="number">1</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> protect &#123;</span><br><span class="line">		<span class="comment">// Protect against a lot of duplicates</span></span><br><span class="line">		<span class="comment">// Add invariant:</span></span><br><span class="line">		<span class="comment">//	data[a &lt;= i &lt; b] unexamined</span></span><br><span class="line">		<span class="comment">//	data[b &lt;= i &lt; c] = pivot</span></span><br><span class="line">		<span class="keyword">for</span> &#123;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; !data.Less(b<span class="number">-1</span>, pivot); b-- &#123; <span class="comment">// data[b] == pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; data.Less(a, pivot); a++ &#123; <span class="comment">// data[a] &lt; pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> a &gt;= b &#123;</span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// data[a] == pivot; data[b-1] &lt; pivot</span></span><br><span class="line">			data.Swap(a, b<span class="number">-1</span>)</span><br><span class="line">			a++</span><br><span class="line">			b--</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// Swap pivot into middle</span></span><br><span class="line">	data.Swap(pivot, b<span class="number">-1</span>)</span><br><span class="line">	<span class="keyword">return</span> b - <span class="number">1</span>, c</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// medianOfThree moves the median of the three values data[m0], data[m1], data[m2] into data[m1].</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">medianOfThree</span><span class="params">(data Interface, m1, m0, m2 <span class="type">int</span>)</span></span> &#123;</span><br><span class="line">	<span class="comment">// sort 3 elements</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">		data.Swap(m1, m0)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// data[m0] &lt;= data[m1]</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m2, m1) &#123;</span><br><span class="line">		data.Swap(m2, m1)</span><br><span class="line">		<span class="comment">// data[m0] &lt;= data[m2] &amp;&amp; data[m1] &lt; data[m2]</span></span><br><span class="line">		<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">			data.Swap(m1, m0)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 保证 data[m0] &lt;= data[m1] &lt;= data[m2]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-k8s-cgroup/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-k8s-cgroup/" class="post-title-link" itemprop="url">k8s-cgroup</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>问题:</p>
-<ol>
-<li>k8s中cpu的request和limit中设置”0.5”和”100m”表示什么意思?</li>
-<li>一个4核8线程的cpu, 设置cpu为”1”的limit实际的限制多少?</li>
-<li>cpu中request和limit使用上有什么区别?</li>
-<li>cgroup中是如何限制的?</li>
-</ol>
-<h4 id="Linux-Cgroup"><a href="#Linux-Cgroup" class="headerlink" title="Linux Cgroup"></a>Linux Cgroup</h4><p>众所周知, kubernetes和docker中对cpu, memory进行了使用限制, 用于内存和cpu的资源使用隔离. 而底层使用的是linux cgroup技术. 内存比较简单, 本文主要讲cpu的cgroup.</p>
-<p>在cgroup里面，跟CPU相关的子系统有<a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/cgroup-v1/cpusets.txt">cpusets</a>、<a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/cgroup-v1/cpuacct.txt">cpuacct</a>和<a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt">cpu</a>。</p>
-<p>其中cpuset主要用于设置CPU的亲和性，可以限制cgroup中的进程只能在指定的CPU上运行，或者不能在指定的CPU上运行，同时cpuset还能设置内存的亲和性。设置亲和性一般只在比较特殊的情况才用得着，所以这里不做介绍。</p>
-<p>cpuacct包含当前cgroup所使用的CPU的统计信息，信息量较少，有兴趣可以去看看它的文档，这里不做介绍。</p>
-<p>本篇只介绍<a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-cpu#sect-cfs">cpu子系统</a>，包括怎么限制cgroup的CPU使用上限及相对于其它cgroup的相对值。</p>
-<h5 id="创建子cgroup"><a href="#创建子cgroup" class="headerlink" title="创建子cgroup"></a>创建子cgroup</h5><p>在ubuntu下，systemd已经帮我们mount好了cpu子系统，我们只需要在相应的目录下创建子目录就可以了</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">#从这里的输出可以看到，cpuset被挂载在了/sys/fs/cgroup/cpuset，</span><br><span class="line">#而cpu和cpuacct一起挂载到了/sys/fs/cgroup/cpu,cpuacct下面</span><br><span class="line">dev@ubuntu:~$ mount|grep cpu</span><br><span class="line">cgroup on /sys/fs/cgroup/cpuset type cgroup (rw,nosuid,nodev,noexec,relatime,cpuset)</span><br><span class="line">cgroup on /sys/fs/cgroup/cpu,cpuacct type cgroup (rw,nosuid,nodev,noexec,relatime,cpu,cpuacct)</span><br><span class="line"></span><br><span class="line">#进入/sys/fs/cgroup/cpu,cpuacct并创建子cgroup</span><br><span class="line">dev@ubuntu:~$ cd /sys/fs/cgroup/cpu,cpuacct</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct$ sudo mkdir test</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct$ cd test</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ ls</span><br><span class="line">cgroup.clone_children  cpuacct.stat   cpuacct.usage_percpu  cpu.cfs_quota_us  cpu.stat           tasks</span><br><span class="line">cgroup.procs           cpuacct.usage  cpu.cfs_period_us     cpu.shares        notify_on_release</span><br></pre></td></tr></table></figure>
-
-<p>我们只需要关注cpu.开头的文件</p>
-<h5 id="cpu-subsystem"><a href="#cpu-subsystem" class="headerlink" title="cpu subsystem"></a>cpu subsystem</h5><p>cpu子系统调度cpu到cgroups中, 目前有两种调度策略:</p>
-<ul>
-<li><em>Completely Fair Scheduler (CFS)</em> —-将cpu时间划分成合适的份额, 按比例和权重分配给cgroup.cfs可以设置相对权重和绝对权重, 目前k8s用的是这个调度策略.</li>
-<li><em>Real-Time scheduler (RT)</em> —RT调度器与CFS中的绝对权重控制相似, 不过仅用于实时任务. 可以在运行时进行实时调整参数.</li>
-</ul>
-<ol>
-<li>Completely Fair Scheduler (CFS):</li>
-</ol>
-<ul>
-<li><p>强制绝对控制参数:</p>
-<p>cpu.cfs_period_us &amp; cpu.cfs_quota_us</p>
-</li>
-</ul>
-<p> cfs_period_us用来配置时间周期长度，cfs_quota_us用来配置当前cgroup在设置的周期长度内所能使用的CPU时间数，两个文件配合起来设置CPU的使用上限。两个文件的单位都是微秒（us），cfs_period_us的取值范围为1毫秒（ms）到1秒（s），cfs_quota_us的取值大于1ms即可，如果cfs_quota_us的值为-1（默认值），表示不受cpu时间的限制。下面是几个例子：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">1.限制只能使用1个CPU（每250ms能使用250ms的CPU时间）</span><br><span class="line">    # echo 250000 &gt; cpu.cfs_quota_us /* quota = 250ms */</span><br><span class="line">    # echo 250000 &gt; cpu.cfs_period_us /* period = 250ms */</span><br><span class="line"></span><br><span class="line">2.限制使用2个CPU（内核）（每500ms能使用1000ms的CPU时间，即使用两个内核）</span><br><span class="line">    # echo 1000000 &gt; cpu.cfs_quota_us /* quota = 1000ms */</span><br><span class="line">    # echo 500000 &gt; cpu.cfs_period_us /* period = 500ms */</span><br><span class="line"></span><br><span class="line">3.限制使用1个CPU的20%（每50ms能使用10ms的CPU时间，即使用一个CPU核心的20%）</span><br><span class="line">    # echo 10000 &gt; cpu.cfs_quota_us /* quota = 10ms */</span><br><span class="line">    # echo 50000 &gt; cpu.cfs_period_us /* period = 50ms */</span><br></pre></td></tr></table></figure>
-
-<p> cpu.stat:</p>
-<p>包含了下面三项统计结果</p>
-<ul>
-<li>nr_periods： 表示过去了多少个cpu.cfs_period_us里面配置的时间周期</li>
-<li>nr_throttled： 在上面的这些周期中，有多少次是受到了限制（即cgroup中的进程在指定的时间周期中用光了它的配额）</li>
-<li>throttled_time: cgroup中的进程被限制使用CPU持续了多长时间(纳秒)</li>
-<li>相对控制参数: cpu.shares</li>
-</ul>
-<p>shares用来设置CPU的相对值，并且是针对所有的CPU（内核），默认值是1024，假如系统中有两个cgroup，分别是A和B，A的shares值是1024，B的shares值是512，那么A将获得1024&#x2F;(1204+512)&#x3D;66%的CPU资源，而B将获得33%的CPU资源。shares有两个特点：</p>
-<ul>
-<li>如果A不忙，没有使用到66%的CPU时间，那么剩余的CPU时间将会被系统分配给B，即B的CPU使用率可以超过33%</li>
-<li>如果添加了一个新的cgroup C，且它的shares值是1024，那么A的限额变成了1024&#x2F;(1204+512+1024)&#x3D;40%，B的变成了20%</li>
-</ul>
-<p>从上面两个特点可以看出：</p>
-<ul>
-<li>在闲的时候，shares基本上不起作用，只有在CPU忙的时候起作用，这是一个优点。</li>
-<li>由于shares是一个绝对值，需要和其它cgroup的值进行比较才能得到自己的相对限额，而在一个部署很多容器的机器上，cgroup的数量是变化的，所以这个限额也是变化的，自己设置了一个高的值，但别人可能设置了一个更高的值，所以这个功能没法精确的控制CPU使用率。</li>
-</ul>
-<ol start="2">
-<li>Real-Time scheduler (RT):</li>
-</ol>
-<p>cpu.rt_period_us: 周期时间, us, 同cfs</p>
-<p>cpu.rt_runtime_us: 最长持续周期, us. 例如设置rt_runtime_us &#x3D; 200000, rt_period_us &#x3D; 1000000, 这就是说如果node有2cpu, 那么每秒钟占用时间就是2*0.2 &#x3D; 0.4s. 这个也是绝对时间.</p>
-<h5 id="运行事例"><a href="#运行事例" class="headerlink" title="运行事例:"></a>运行事例:</h5><p>以cfs为例.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">#继续使用上面创建的子cgroup： test</span><br><span class="line">#设置只能使用1个cpu的20%的时间</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ sudo sh -c &quot;echo 50000 &gt; cpu.cfs_period_us&quot;</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ sudo sh -c &quot;echo 10000 &gt; cpu.cfs_quota_us&quot;</span><br><span class="line"></span><br><span class="line">#将当前bash加入到该cgroup</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ echo $$</span><br><span class="line">5456</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ sudo sh -c &quot;echo 5456 &gt; cgroup.procs&quot;</span><br><span class="line"></span><br><span class="line">#在bash中启动一个死循环来消耗cpu，正常情况下应该使用100%的cpu（即消耗一个内核）</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ while :; do echo test &gt; /dev/null; done</span><br><span class="line"></span><br><span class="line">#--------------------------重新打开一个shell窗口----------------------</span><br><span class="line">#通过top命令可以看到5456的CPU使用率为20%左右，说明被限制住了</span><br><span class="line">#不过这时系统的%us+%sy在10%左右，那是因为我测试的机器上cpu是双核的，</span><br><span class="line">#所以系统整体的cpu使用率为10%左右</span><br><span class="line">dev@ubuntu:~$ top</span><br><span class="line">Tasks: 139 total,   2 running, 137 sleeping,   0 stopped,   0 zombie</span><br><span class="line">%Cpu(s):  5.6 us,  6.2 sy,  0.0 ni, 88.2 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st</span><br><span class="line">KiB Mem :   499984 total,    15472 free,    81488 used,   403024 buff/cache</span><br><span class="line">KiB Swap:        0 total,        0 free,        0 used.   383332 avail Mem</span><br><span class="line"></span><br><span class="line">  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND</span><br><span class="line"> 5456 dev       20   0   22640   5472   3524 R  20.3  1.1   0:04.62 bash</span><br><span class="line"></span><br><span class="line">#这时可以看到被限制的统计结果</span><br><span class="line">dev@ubuntu:~$ cat /sys/fs/cgroup/cpu,cpuacct/test/cpu.stat</span><br><span class="line">nr_periods 1436</span><br><span class="line">nr_throttled 1304</span><br><span class="line">throttled_time 51542291833</span><br></pre></td></tr></table></figure>
-
-<h4 id="kubernetes-资源控制机制"><a href="#kubernetes-资源控制机制" class="headerlink" title="kubernetes 资源控制机制"></a>kubernetes 资源控制机制</h4><p>kubernetes使用runc作为runtime, runc中通过cpuGroup对cpu子系统的的调度进行设置. 其中Set()用于初始设置, Apply()方法用于动态更改设置, . 原理就是往上述的指定文件写入相应条目和数字. 没有什么可说的.</p>
-<p>内存的Set():</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">func (s *MemoryGroup) Set(path string, cgroup *configs.Cgroup) error &#123;</span><br><span class="line">	if err := setMemoryAndSwap(path, cgroup); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if cgroup.Resources.KernelMemory != 0 &#123;</span><br><span class="line">		if err := setKernelMemory(path, cgroup.Resources.KernelMemory); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if cgroup.Resources.MemoryReservation != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;memory.soft_limit_in_bytes&quot;, strconv.FormatInt(cgroup.Resources.MemoryReservation, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if cgroup.Resources.KernelMemoryTCP != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;memory.kmem.tcp.limit_in_bytes&quot;, strconv.FormatInt(cgroup.Resources.KernelMemoryTCP, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.OomKillDisable &#123;</span><br><span class="line">		if err := writeFile(path, &quot;memory.oom_control&quot;, &quot;1&quot;); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.MemorySwappiness == nil || int64(*cgroup.Resources.MemorySwappiness) == -1 &#123;</span><br><span class="line">		return nil</span><br><span class="line">	&#125; else if *cgroup.Resources.MemorySwappiness &lt;= 100 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;memory.swappiness&quot;, strconv.FormatUint(*cgroup.Resources.MemorySwappiness, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		return fmt.Errorf(&quot;invalid value:%d. valid memory swappiness range is 0-100&quot;, *cgroup.Resources.MemorySwappiness)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>内存Apply():</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">func (s *MemoryGroup) Apply(d *cgroupData) (err error) &#123;</span><br><span class="line">	path, err := d.path(&quot;memory&quot;)</span><br><span class="line">	if err != nil &amp;&amp; !cgroups.IsNotFound(err) &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125; else if path == &quot;&quot; &#123;</span><br><span class="line">		return nil</span><br><span class="line">	&#125;</span><br><span class="line">	if memoryAssigned(d.config) &#123;</span><br><span class="line">		if _, err := os.Stat(path); os.IsNotExist(err) &#123;</span><br><span class="line">			if err := os.MkdirAll(path, 0755); err != nil &#123;</span><br><span class="line">				return err</span><br><span class="line">			&#125;</span><br><span class="line">			// 只有内核内存可以动态设置</span><br><span class="line">			if err := EnableKernelMemoryAccounting(path); err != nil &#123;</span><br><span class="line">				return err</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	...</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func EnableKernelMemoryAccounting(path string) error &#123;</span><br><span class="line">	// Check if kernel memory is enabled</span><br><span class="line">	// We have to limit the kernel memory here as it won&#x27;t be accounted at all</span><br><span class="line">	// until a limit is set on the cgroup and limit cannot be set once the</span><br><span class="line">	// cgroup has children, or if there are already tasks in the cgroup.</span><br><span class="line">	for _, i := range []int64&#123;1, -1&#125; &#123;</span><br><span class="line">		if err := setKernelMemory(path, i); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>cpu的Set():</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">func (s *CpuGroup) Set(path string, cgroup *configs.Cgroup) error &#123;</span><br><span class="line">    // 设置CFS </span><br><span class="line">	if cgroup.Resources.CpuShares != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.shares&quot;, strconv.FormatUint(cgroup.Resources.CpuShares, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.CpuPeriod != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.cfs_period_us&quot;, strconv.FormatUint(cgroup.Resources.CpuPeriod, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.CpuQuota != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.cfs_quota_us&quot;, strconv.FormatInt(cgroup.Resources.CpuQuota, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	// 设置RT</span><br><span class="line">	if err := s.SetRtSched(path, cgroup); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func (s *CpuGroup) SetRtSched(path string, cgroup *configs.Cgroup) error &#123;</span><br><span class="line">	if cgroup.Resources.CpuRtPeriod != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.rt_period_us&quot;, strconv.FormatUint(cgroup.Resources.CpuRtPeriod, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.CpuRtRuntime != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.rt_runtime_us&quot;, strconv.FormatInt(cgroup.Resources.CpuRtRuntime, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>cpu的Apply() 只能设置RT:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">func (s *CpuGroup) Apply(d *cgroupData) error &#123;</span><br><span class="line">	// We always want to join the cpu group, to allow fair cpu scheduling</span><br><span class="line">	// on a container basis</span><br><span class="line">	path, err := d.path(&quot;cpu&quot;)</span><br><span class="line">	if err != nil &amp;&amp; !cgroups.IsNotFound(err) &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line">	return s.ApplyDir(path, d.config, d.pid)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func (s *CpuGroup) ApplyDir(path string, cgroup *configs.Cgroup, pid int) error &#123;</span><br><span class="line">	// This might happen if we have no cpu cgroup mounted.</span><br><span class="line">	// Just do nothing and don&#x27;t fail.</span><br><span class="line">	if path == &quot;&quot; &#123;</span><br><span class="line">		return nil</span><br><span class="line">	&#125;</span><br><span class="line">	if err := os.MkdirAll(path, 0755); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line">	// We should set the real-Time group scheduling settings before moving</span><br><span class="line">	// in the process because if the process is already in SCHED_RR mode</span><br><span class="line">	// and no RT bandwidth is set, adding it will fail.</span><br><span class="line">	if err := s.SetRtSched(path, cgroup); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line">	// because we are not using d.join we need to place the pid into the procs file</span><br><span class="line">	// unlike the other subsystems</span><br><span class="line">	if err := cgroups.WriteCgroupProc(path, pid); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h5 id="K8s-Limits-Request-代码分析"><a href="#K8s-Limits-Request-代码分析" class="headerlink" title="K8s Limits &amp; Request 代码分析"></a>K8s Limits &amp; Request 代码分析</h5><p>k8s中管理cgroup的结构体在k8s.io&#x2F;kubernetes&#x2F;pkg&#x2F;kubelet&#x2F;cm&#x2F;cgroup_manager_linux.go中:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">// cgroupManagerImpl implements the CgroupManager interface.</span><br><span class="line">// Its a stateless object which can be used to</span><br><span class="line">// update,create or delete any number of cgroups</span><br><span class="line">// It uses the Libcontainer raw fs cgroup manager for cgroup management.</span><br><span class="line">type cgroupManagerImpl struct &#123;</span><br><span class="line">	// subsystems holds information about all the</span><br><span class="line">	// mounted cgroup subsystems on the node</span><br><span class="line">	subsystems *CgroupSubsystems</span><br><span class="line">	// simplifies interaction with libcontainer and its cgroup managers</span><br><span class="line">	adapter *libcontainerAdapter</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>来看下Update方法:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line">// Update updates the cgroup with the specified Cgroup Configuration</span><br><span class="line">func (m *cgroupManagerImpl) Update(cgroupConfig *CgroupConfig) error &#123;</span><br><span class="line">	...</span><br><span class="line">	// 提取cgroup资源参数</span><br><span class="line">	resourceConfig := cgroupConfig.ResourceParameters</span><br><span class="line">	resources := m.toResources(resourceConfig)</span><br><span class="line"></span><br><span class="line">	cgroupPaths := m.buildCgroupPaths(cgroupConfig.Name)</span><br><span class="line"></span><br><span class="line">	// 获得cgroupfs的位置.</span><br><span class="line">	abstractCgroupFsName := string(cgroupConfig.Name)</span><br><span class="line">	abstractParent := CgroupName(path.Dir(abstractCgroupFsName))</span><br><span class="line">	abstractName := CgroupName(path.Base(abstractCgroupFsName))</span><br><span class="line"></span><br><span class="line">	driverParent := m.adapter.adaptName(abstractParent, false)</span><br><span class="line">	driverName := m.adapter.adaptName(abstractName, false)</span><br><span class="line"></span><br><span class="line">	// 获取systemd的绝对位置</span><br><span class="line">	if m.adapter.cgroupManagerType == libcontainerSystemd &#123;</span><br><span class="line">		driverName = m.adapter.adaptName(cgroupConfig.Name, false)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	// 初始化cgroup配置</span><br><span class="line">	libcontainerCgroupConfig := &amp;libcontainerconfigs.Cgroup&#123;</span><br><span class="line">		Name:      driverName,</span><br><span class="line">		Parent:    driverParent,</span><br><span class="line">		Resources: resources,</span><br><span class="line">		Paths:     cgroupPaths,</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    // 设置cgroup配置</span><br><span class="line">	if err := setSupportedSubsystems(libcontainerCgroupConfig); err != nil &#123;</span><br><span class="line">		return fmt.Errorf(&quot;failed to set supported cgroup subsystems for cgroup %v: %v&quot;, cgroupConfig.Name, err)</span><br><span class="line">	&#125;</span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>先看下参数是如何提取的:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">func (m *cgroupManagerImpl) toResources(resourceConfig *ResourceConfig) *libcontainerconfigs.Resources &#123;</span><br><span class="line">	resources := &amp;libcontainerconfigs.Resources&#123;&#125;</span><br><span class="line">	if resourceConfig == nil &#123;</span><br><span class="line">		return resources</span><br><span class="line">	&#125;</span><br><span class="line">	if resourceConfig.Memory != nil &#123;</span><br><span class="line">		resources.Memory = *resourceConfig.Memory</span><br><span class="line">	&#125;</span><br><span class="line">	if resourceConfig.CpuShares != nil &#123;</span><br><span class="line">		resources.CpuShares = *resourceConfig.CpuShares</span><br><span class="line">	&#125;</span><br><span class="line">	if resourceConfig.CpuQuota != nil &#123;</span><br><span class="line">		resources.CpuQuota = *resourceConfig.CpuQuota</span><br><span class="line">	&#125;</span><br><span class="line">	if resourceConfig.CpuPeriod != nil &#123;</span><br><span class="line">		resources.CpuPeriod = *resourceConfig.CpuPeriod</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	// huge page参数提取, 略过</span><br><span class="line">	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.HugePages) &#123;</span><br><span class="line">    ...</span><br><span class="line">	return resources</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>在来看看CpuShare, CpuQuota, 和CpuPeriod都来字哪里:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line">// ResourceConfigForPod takes the input pod and outputs the cgroup resource config.</span><br><span class="line">func ResourceConfigForPod(pod *v1.Pod) *ResourceConfig &#123;</span><br><span class="line">	// sum requests and limits.</span><br><span class="line">	reqs, limits := resource.PodRequestsAndLimits(pod)</span><br><span class="line"></span><br><span class="line">	cpuRequests := int64(0)</span><br><span class="line">	cpuLimits := int64(0)</span><br><span class="line">	memoryLimits := int64(0)</span><br><span class="line">	if request, found := reqs[v1.ResourceCPU]; found &#123;</span><br><span class="line">		cpuRequests = request.MilliValue()</span><br><span class="line">	&#125;</span><br><span class="line">	if limit, found := limits[v1.ResourceCPU]; found &#123;</span><br><span class="line">		cpuLimits = limit.MilliValue()</span><br><span class="line">	&#125;</span><br><span class="line">	if limit, found := limits[v1.ResourceMemory]; found &#123;</span><br><span class="line">		memoryLimits = limit.Value()</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	// convert to CFS values</span><br><span class="line">	cpuShares := MilliCPUToShares(cpuRequests)</span><br><span class="line">	cpuQuota, cpuPeriod := MilliCPUToQuota(cpuLimits)</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">// MilliCPUToShares converts the milliCPU to CFS shares.</span><br><span class="line">func MilliCPUToShares(milliCPU int64) uint64 &#123;</span><br><span class="line">	if milliCPU == 0 &#123;</span><br><span class="line">		// Docker converts zero milliCPU to unset, which maps to kernel default</span><br><span class="line">		// for unset: 1024. Return 2 here to really match kernel default for</span><br><span class="line">		// zero milliCPU.</span><br><span class="line">		return MinShares</span><br><span class="line">	&#125;</span><br><span class="line">	// Conceptually (milliCPU / milliCPUToCPU) * sharesPerCPU, but factored to improve rounding.</span><br><span class="line">	shares := (milliCPU * SharesPerCPU) / MilliCPUToCPU</span><br><span class="line">	if shares &lt; MinShares &#123;</span><br><span class="line">		return MinShares</span><br><span class="line">	&#125;</span><br><span class="line">	return uint64(shares)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">// MilliCPUToQuota converts milliCPU to CFS quota and period values.</span><br><span class="line">func MilliCPUToQuota(milliCPU int64) (quota int64, period uint64) &#123;</span><br><span class="line">	// CFS quota is measured in two values:</span><br><span class="line">	//  - cfs_period_us=100ms (the amount of time to measure usage across)</span><br><span class="line">	//  - cfs_quota=20ms (the amount of cpu time allowed to be used across a period)</span><br><span class="line">	// so in the above example, you are limited to 20% of a single CPU</span><br><span class="line">	// for multi-cpu environments, you just scale equivalent amounts</span><br><span class="line"></span><br><span class="line">	if milliCPU == 0 &#123;</span><br><span class="line">		return</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	// we set the period to 100ms by default</span><br><span class="line">	period = QuotaPeriod</span><br><span class="line"></span><br><span class="line">	// we then convert your milliCPU to a value normalized over a period</span><br><span class="line">	quota = (milliCPU * QuotaPeriod) / MilliCPUToCPU</span><br><span class="line"></span><br><span class="line">	// quota needs to be a minimum of 1ms.</span><br><span class="line">	if quota &lt; MinQuotaPeriod &#123;</span><br><span class="line">		quota = MinQuotaPeriod</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">const (</span><br><span class="line">	// Taken from lmctfy https://github.com/google/lmctfy/blob/master/lmctfy/controllers/cpu_controller.cc</span><br><span class="line">	MinShares     = 2</span><br><span class="line">	SharesPerCPU  = 1024</span><br><span class="line">	MilliCPUToCPU = 1000</span><br><span class="line"></span><br><span class="line">	// 100000 is equivalent to 100ms</span><br><span class="line">	QuotaPeriod    = 100000</span><br><span class="line">	MinQuotaPeriod = 1000</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
-
-<p>设置的代码:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">func setSupportedSubsystems(cgroupConfig *libcontainerconfigs.Cgroup) error &#123;</span><br><span class="line">	for _, sys := range getSupportedSubsystems() &#123;</span><br><span class="line">		if _, ok := cgroupConfig.Paths[sys.Name()]; !ok &#123;</span><br><span class="line">			return fmt.Errorf(&quot;Failed to find subsystem mount for subsystem: %v&quot;, sys.Name())</span><br><span class="line">		&#125;</span><br><span class="line">        // 调用前面的cgroup.Set()方法</span><br><span class="line">		if err := sys.Set(cgroupConfig.Paths[sys.Name()], cgroupConfig); err != nil &#123;</span><br><span class="line">			return fmt.Errorf(&quot;Failed to set config for supported subsystems : %v&quot;, err)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>代码很明显了:</p>
-<p>Request -&gt; cpu.shares</p>
-<p>Limits -&gt; cpu.quota(CFS或者RT)</p>
-<p>QuotaPeriod 为100ms</p>
-<p>所以当Request设置0.5(0.5 <em>1024&#x3D;512), 等价于设置500m(500</em> 1024&#x2F;1000&#x3D;512), 也就是512.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[root@tdc-tester04 ~]# cat /sys/fs/cgroup/cpu/kubepods/burstable/pod4de91174-9002-11e8-a663-ac1f6b83dd66/1cbc69fd7756efdcba38d11a57acab5cdbe0b9b2e5eef2a9e86e3c6c8850b1a1/cpu.shares </span><br><span class="line">512</span><br></pre></td></tr></table></figure>
-
-<p>当Limit设置1(1 <em>1000</em> 100000&#x2F;1000&#x3D;100000), 等价于1000m(1000 * 100000 &#x2F; 1000 &#x3D; 100000 ), 也就是quota&#x3D;100000, period&#x3D;100000.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[root@tdc-tester04 ~]# cat /sys/fs/cgroup/cpu/kubepods/burstable/pod4de91174-9002-11e8-a663-ac1f6b83dd66/1cbc69fd7756efdcba38d11a57acab5cdbe0b9b2e5eef2a9e86e3c6c8850b1a1/cpu.cfs_quota_us </span><br><span class="line">100000</span><br><span class="line">[root@tdc-tester04 ~]# cat /sys/fs/cgroup/cpu/kubepods/burstable/pod4de91174-9002-11e8-a663-ac1f6b83dd66/1cbc69fd7756efdcba38d11a57acab5cdbe0b9b2e5eef2a9e86e3c6c8850b1a1/cpu.cfs_period_us </span><br><span class="line">100000</span><br></pre></td></tr></table></figure>
-
-<p>至此所有路走通.</p>
-<h4 id="值得注意的点"><a href="#值得注意的点" class="headerlink" title="值得注意的点"></a>值得注意的点</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">The CPU resource is measured in cpu units. One cpu, in Kubernetes, is equivalent to:</span><br><span class="line"></span><br><span class="line">    1 AWS vCPU</span><br><span class="line">    1 GCP Core</span><br><span class="line">    1 Azure vCore</span><br><span class="line">    1 Hyperthread on a bare-metal Intel processor with Hyperthreading</span><br></pre></td></tr></table></figure>
-
-<p>从文档来看所以4核8线程对k8s来讲就是8核.</p>
-<p>如果只设置了request没有设置limit, 意味着一个pod可以任意使用node资源, 如果没有其他pod创建. 如果集群管理员设置了<a target="_blank" rel="noopener" href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.11/#limitrange-v1-core/">LimitRange</a>, 那么当pod没有设置limit的时候就会使用LimitRange里设置的值作为默认.</p>
-<h4 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h4><ol>
-<li><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/#what-if-you-specify-a-container-s-request-but-not-its-limit">https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/#what-if-you-specify-a-container-s-request-but-not-its-limit</a></li>
-<li><a target="_blank" rel="noopener" href="https://segmentfault.com/a/1190000008323952">https://segmentfault.com/a/1190000008323952</a></li>
-<li><a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-cpu">https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-cpu</a></li>
-</ol>
 
       
     </div>
@@ -962,6 +690,216 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>docker run 的时候如果出现类似:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
+
+<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
+
+<p>修改后发现新的错误:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
+
+<p>网上查有如下回复:</p>
+<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
+
+<p>所以重启大法好…</p>
+<p>但是真正原因没搞清楚, 待更新.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-14-qos-in-k8s/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-06-14-qos-in-k8s/" class="post-title-link" itemprop="url">qos-in-k8s</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>​    一直感觉对kubernetes中的qos是一个盲点, 借着复习下scheduler的一些资源调度策略来学习下k8s中的qos策略, 然后再辐射到一般性的qos策略.</p>
+<h3 id="动机"><a href="#动机" class="headerlink" title="动机:"></a>动机:</h3><p>k8s 用非常简单的方式分配资源. 用户能够指定容器的资源限制. 比如一个用户能够指定某个container 只能使用1GB的内存. scheduler通过资源限制去调度容器. 如果某个节点的内存只有4GB, 那个一个有5Gb请求的容器就将不能调度到这个节点. 目前, k8s不能保证容器在一个超卖的系统中运行稳定. </p>
+<p>目前的实现中, 如果用户指定limts给所有的container, 那么集群资源的利用率将会非常低下. 因为容器往往无法充分使用用户指定的那些资源. 一个可能的方式是不指定limits, 这样container就可以无限制的使用, 但是如果这些container无限制的使用资源, 就可能使得指定了limits的容器由于机器资源不够而被杀掉. 这是用户不愿意看到的, 他们希望自己指定了某个大小, 那么启动之后系统就应该保证这个容器的顺利运行. </p>
+<p>qos机制就是在节点资源超卖的环境下, 通过提供不同级别的保证来满足资源的需求. 容器可以用request请求一个最小资源, request与limit不同, container可以使用超过request的值. best-effort级别的container相当于request为0的container. Best-effort container只使用那些其他container没有使用的资源, 可以用于资源清理(这个没看懂). </p>
+<h3 id="Request-and-limits"><a href="#Request-and-limits" class="headerlink" title="Request and limits"></a>Request and limits</h3><p>对于每种资源, container可以指定request和limits, 0 &lt;&#x3D; request &lt;&#x3D; limit &lt;&#x3D; infinity. 如果container成功调度, 意味着container能够保证至少有request的值的资源. container不能超过limit的值. 而request 和 limit 如何执行要看资源是compressible还是incompressible.</p>
+<h4 id="Compressible-Resource-Guarantees"><a href="#Compressible-Resource-Guarantees" class="headerlink" title="Compressible Resource Guarantees"></a>Compressible Resource Guarantees</h4><ul>
+<li>目前只有cpu</li>
+<li>container至少得到request的cpu请求</li>
+<li>剩余的cpu会按照cpu request比例分配给container. 比如container A request 60%, container B request 30%. 假设两个container都尝试拿到更多的cpu, 那么剩余的10%将按照2:1的比例分配.</li>
+<li>如果超过limits, Containers 会被节流(不是被杀死).</li>
+</ul>
+<h4 id="Incompressible-Resouce-Guarantees"><a href="#Incompressible-Resouce-Guarantees" class="headerlink" title="Incompressible Resouce Guarantees"></a>Incompressible Resouce Guarantees</h4><ul>
+<li>目前只有内存. (我认为本地存储也在这一类)</li>
+<li>Containers能够得到request的大小, 如果超过这个大小, 它们可能会被杀掉(如果其他container需要内存), 但是如果containers消耗的少于request值, 他们不会被删除(除非系统任务或者daemonset需要更多的内存)</li>
+<li>Containers会被杀掉如果他们使用了超过limit的内存.</li>
+</ul>
+<h4 id="Kubelet-admission-策略"><a href="#Kubelet-admission-策略" class="headerlink" title="Kubelet admission 策略"></a>Kubelet admission 策略</h4><p>kubelet通过统计containers的request来确保系统资源不会被超载.</p>
+<h3 id="QoS-分级"><a href="#QoS-分级" class="headerlink" title="QoS 分级"></a>QoS 分级</h3><h4 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h4><p>k8s Qos 分成三个等级:</p>
+<ul>
+<li>Guaranteed</li>
+<li>Burstable</li>
+<li>BestEffort</li>
+</ul>
+<p>理论上QoS与limit, request应该是互不干扰的, 但实际上他们的联系非常紧密. QoS class不是自己设置的, 而是在创建pod的时候, 根据limit和request系统自动确认的.</p>
+<h4 id="Guaranteed"><a href="#Guaranteed" class="headerlink" title="Guaranteed"></a>Guaranteed</h4><p>这是级别最高的, 他的触发条件是:</p>
+<ul>
+<li>每个pod中container必须有内存的limit和request, 而且必须相同</li>
+<li>每个pod中cpu必须有内存的limit和request, 而且必须相同</li>
+</ul>
+<p>效果: 这些containers是最高优先级</p>
+<p>注意: 如果设置了limit没有设置request, 系统将会自动填充request跟limit相同.</p>
+<p>####Burstable </p>
+<p>这个的触发条件是:</p>
+<ul>
+<li>pod不满足Guaranteed</li>
+<li>pod中至少一个container有内存或者cpu的请求.</li>
+</ul>
+<p>效果: 能够保证request的请求, 但是不保证limit, 如果超出request请求的内存大小, 发生oom时可能会被杀死.</p>
+<h4 id="BestEffort"><a href="#BestEffort" class="headerlink" title="BestEffort"></a>BestEffort</h4><p>触发条件: 很明显, 没有指定任何request和limit或者值都是0就是BestEffort级别.</p>
+<p>效果: 这些containers没有请求资源保障, 会被认为是最低优先级的, 如果系统发生oom, 他们会被首先杀死. 他们只会使用集群中没有被使用的那部分资源.</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>所以k8s的qos主要是通过两方面: request,limit 和 qos class来实现的. 这两方面又有很多交叉的地方. 而且在面对不同的资源的时候, 他们的策略是不一样的.</p>
+<h3 id="Storage-QoS"><a href="#Storage-QoS" class="headerlink" title="Storage QoS"></a>Storage QoS</h3><p>由于k8s中没有关于存储的qos机制, 于是关于存储的qos, 查看了一些文档.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-k8s-schedule/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1091,97 +1029,6 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>docker run 的时候如果出现类似:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
-
-<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
-
-<p>修改后发现新的错误:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
-
-<p>网上查有如下回复:</p>
-<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
-
-<p>所以重启大法好…</p>
-<p>但是真正原因没搞清楚, 待更新.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-29-golang-rename/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1277,7 +1124,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-14-qos-in-k8s/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1295,7 +1142,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-14-qos-in-k8s/" class="post-title-link" itemprop="url">qos-in-k8s</a>
+          <a href="/2024/03/10/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/" class="post-title-link" itemprop="url">shell bash 类型和搜索机制</a>
         </h2>
 
         <div class="post-meta-container">
@@ -1314,7 +1161,7 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
         </span>
     </span>
 
@@ -1328,48 +1175,139 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>​    一直感觉对kubernetes中的qos是一个盲点, 借着复习下scheduler的一些资源调度策略来学习下k8s中的qos策略, 然后再辐射到一般性的qos策略.</p>
-<h3 id="动机"><a href="#动机" class="headerlink" title="动机:"></a>动机:</h3><p>k8s 用非常简单的方式分配资源. 用户能够指定容器的资源限制. 比如一个用户能够指定某个container 只能使用1GB的内存. scheduler通过资源限制去调度容器. 如果某个节点的内存只有4GB, 那个一个有5Gb请求的容器就将不能调度到这个节点. 目前, k8s不能保证容器在一个超卖的系统中运行稳定. </p>
-<p>目前的实现中, 如果用户指定limts给所有的container, 那么集群资源的利用率将会非常低下. 因为容器往往无法充分使用用户指定的那些资源. 一个可能的方式是不指定limits, 这样container就可以无限制的使用, 但是如果这些container无限制的使用资源, 就可能使得指定了limits的容器由于机器资源不够而被杀掉. 这是用户不愿意看到的, 他们希望自己指定了某个大小, 那么启动之后系统就应该保证这个容器的顺利运行. </p>
-<p>qos机制就是在节点资源超卖的环境下, 通过提供不同级别的保证来满足资源的需求. 容器可以用request请求一个最小资源, request与limit不同, container可以使用超过request的值. best-effort级别的container相当于request为0的container. Best-effort container只使用那些其他container没有使用的资源, 可以用于资源清理(这个没看懂). </p>
-<h3 id="Request-and-limits"><a href="#Request-and-limits" class="headerlink" title="Request and limits"></a>Request and limits</h3><p>对于每种资源, container可以指定request和limits, 0 &lt;&#x3D; request &lt;&#x3D; limit &lt;&#x3D; infinity. 如果container成功调度, 意味着container能够保证至少有request的值的资源. container不能超过limit的值. 而request 和 limit 如何执行要看资源是compressible还是incompressible.</p>
-<h4 id="Compressible-Resource-Guarantees"><a href="#Compressible-Resource-Guarantees" class="headerlink" title="Compressible Resource Guarantees"></a>Compressible Resource Guarantees</h4><ul>
-<li>目前只有cpu</li>
-<li>container至少得到request的cpu请求</li>
-<li>剩余的cpu会按照cpu request比例分配给container. 比如container A request 60%, container B request 30%. 假设两个container都尝试拿到更多的cpu, 那么剩余的10%将按照2:1的比例分配.</li>
-<li>如果超过limits, Containers 会被节流(不是被杀死).</li>
+          <h3 id="问题描述"><a href="#问题描述" class="headerlink" title="问题描述"></a>问题描述</h3><p>今天在执行一个命令是遇到一个which路径与实际执行不同步的问题, 如下:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">which</span> ss-local</span><br><span class="line">/usr/local/bin/ss-local</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ /usr/local/bin/ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 2.5.6 with OpenSSL 1.0.1f 6 Jan 2014</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 3.1.3</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ /usr/bin/ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 3.1.3</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>which 现实路径是&#x2F;usr&#x2F;local&#x2F;bin&#x2F;ss-local, 但实际执行的路径却是&#x2F;usr&#x2F;bin&#x2F;ss-local. 查看which的文档, 发现which是按顺序搜索PATH环境变量来查找的:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">echo</span> <span class="variable">$PATH</span></span><br><span class="line">/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/local/go/bin:/usr/local/go/bin:/home/shentao/gopath//bin:/opt/idea-IC-145.1617.8/bin:/usr/local/go/bin:/home/shentao/gopath//bin:/opt/idea-IC-145.1617.8/bin:/usr/local/go/bin</span><br></pre></td></tr></table></figure>
+
+<p>所以最先在&#x2F;usr&#x2F;local&#x2F;bin中找到.</p>
+<h3 id="问题解决"><a href="#问题解决" class="headerlink" title="问题解决"></a>问题解决</h3><p>于是去调查了下bash的执行过程和顺序. 得到了答案. <a target="_blank" rel="noopener" href="https://crashingdaily.wordpress.com/2008/04/21/hashing-the-executables-a-look-at-hash-and-type/">https://crashingdaily.wordpress.com/2008/04/21/hashing-the-executables-a-look-at-hash-and-type/</a></p>
+<p>原来在每一次执行过程中shell都会有一个hash table作为cache将调用过的可执行命令存入hash table, 这样再下次调用的时候就可以直接从缓存中读取, 而不用每次去搜索PATH. 我们通过type命令可以查看:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">type</span> ss-local</span><br><span class="line">ss-local is hashed (/usr/bin/ss-local)</span><br></pre></td></tr></table></figure>
+
+<p>可以通过hash命令删除:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">hash</span> -d ss-local</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 2.5.6 with OpenSSL 1.0.1f 6 Jan 2014</span><br></pre></td></tr></table></figure>
+
+<h3 id="知识回顾"><a href="#知识回顾" class="headerlink" title="知识回顾"></a>知识回顾</h3><p>我们再来回顾下关于bash 的一些知识:</p>
+<h4 id="关于bash可以执行的类型"><a href="#关于bash可以执行的类型" class="headerlink" title="关于bash可以执行的类型"></a>关于bash可以执行的类型</h4><ul>
+<li><p>Aliases: An alias is a word that is mapped to a certain string, 命令的别名.</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">alias</span> nmapp=<span class="string">&quot;nmap -Pn -A --osscan-limit&quot;</span></span><br><span class="line">$ nmapp 192.168.0.1</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Functions:  A function contains shell commands, and acts very much like a small script. 用function定义一个函数:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> gcc &#123; <span class="built_in">echo</span> “just a <span class="built_in">test</span> <span class="keyword">for</span> gcc”; &#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Builtins: 内置函数, cd之类的</p>
+</li>
+<li><p>Keywords: Keywords are like builtins, with the main difference being that special parsing rules apply to them. For example, [ is a Bash builtin, while [[ is a Bash keyword. They are both used for testing stuff. [[ is a keyword rather than a builtin and is therefore able to offer an extended test: </p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ [ a &lt; b ]</span><br><span class="line">-bash: b: No such file or directory</span><br><span class="line">$ [[ a &lt; b ]]</span><br></pre></td></tr></table></figure>
+<p>第一个&lt; 是重定向, 第二个加了[[的关键词之后 &lt; 成了小于号.</p>
+</li>
+<li><p>Executables: (Executables may also be called <em>external commands</em> or <em>applications</em>.) Executables are commonly invoked by typing only their name. This can be done because a pre-defined variable makes known to Bash a list of common, executable, file paths. This variable is called <code>PATH</code>. 外部命令, 也就是PATH中找到的那些命令</p>
+</li>
+<li><p>Script: 脚本. 比如test.sh</p>
+</li>
 </ul>
-<h4 id="Incompressible-Resouce-Guarantees"><a href="#Incompressible-Resouce-Guarantees" class="headerlink" title="Incompressible Resouce Guarantees"></a>Incompressible Resouce Guarantees</h4><ul>
-<li>目前只有内存. (我认为本地存储也在这一类)</li>
-<li>Containers能够得到request的大小, 如果超过这个大小, 它们可能会被杀掉(如果其他container需要内存), 但是如果containers消耗的少于request值, 他们不会被删除(除非系统任务或者daemonset需要更多的内存)</li>
-<li>Containers会被杀掉如果他们使用了超过limit的内存.</li>
-</ul>
-<h4 id="Kubelet-admission-策略"><a href="#Kubelet-admission-策略" class="headerlink" title="Kubelet admission 策略"></a>Kubelet admission 策略</h4><p>kubelet通过统计containers的request来确保系统资源不会被超载.</p>
-<h3 id="QoS-分级"><a href="#QoS-分级" class="headerlink" title="QoS 分级"></a>QoS 分级</h3><h4 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h4><p>k8s Qos 分成三个等级:</p>
-<ul>
-<li>Guaranteed</li>
-<li>Burstable</li>
-<li>BestEffort</li>
-</ul>
-<p>理论上QoS与limit, request应该是互不干扰的, 但实际上他们的联系非常紧密. QoS class不是自己设置的, 而是在创建pod的时候, 根据limit和request系统自动确认的.</p>
-<h4 id="Guaranteed"><a href="#Guaranteed" class="headerlink" title="Guaranteed"></a>Guaranteed</h4><p>这是级别最高的, 他的触发条件是:</p>
-<ul>
-<li>每个pod中container必须有内存的limit和request, 而且必须相同</li>
-<li>每个pod中cpu必须有内存的limit和request, 而且必须相同</li>
-</ul>
-<p>效果: 这些containers是最高优先级</p>
-<p>注意: 如果设置了limit没有设置request, 系统将会自动填充request跟limit相同.</p>
-<p>####Burstable </p>
-<p>这个的触发条件是:</p>
-<ul>
-<li>pod不满足Guaranteed</li>
-<li>pod中至少一个container有内存或者cpu的请求.</li>
-</ul>
-<p>效果: 能够保证request的请求, 但是不保证limit, 如果超出request请求的内存大小, 发生oom时可能会被杀死.</p>
-<h4 id="BestEffort"><a href="#BestEffort" class="headerlink" title="BestEffort"></a>BestEffort</h4><p>触发条件: 很明显, 没有指定任何request和limit或者值都是0就是BestEffort级别.</p>
-<p>效果: 这些containers没有请求资源保障, 会被认为是最低优先级的, 如果系统发生oom, 他们会被首先杀死. 他们只会使用集群中没有被使用的那部分资源.</p>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>所以k8s的qos主要是通过两方面: request,limit 和 qos class来实现的. 这两方面又有很多交叉的地方. 而且在面对不同的资源的时候, 他们的策略是不一样的.</p>
-<h3 id="Storage-QoS"><a href="#Storage-QoS" class="headerlink" title="Storage QoS"></a>Storage QoS</h3><p>由于k8s中没有关于存储的qos机制, 于是关于存储的qos, 查看了一些文档.</p>
+<h4 id="关于bash的搜索顺序总结"><a href="#关于bash的搜索顺序总结" class="headerlink" title="关于bash的搜索顺序总结"></a>关于bash的搜索顺序总结</h4><p>bash搜索的顺序是: 当前路径和绝对路径的目录-&gt;alias-&gt;keyword-&gt;function-&gt;built-in-&gt;Executables, Script(hash)-&gt;Executables, Script($PATH)</p>
+<h4 id="相关命令"><a href="#相关命令" class="headerlink" title="相关命令"></a>相关命令</h4><p>bash, hash, type, which, alias, function</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-04-08-sticky-bit/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-04-08-sticky-bit/" class="post-title-link" itemprop="url">sticky-bit</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>在linux的权限中, 发现不仅仅有rwx, 还有一个t, 如下所示:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">drwxrwxr-t   2 shentao shentao       4096  8月 24  2016 <span class="built_in">test</span>/</span><br></pre></td></tr></table></figure>
+<p>t只能加在最后一个组, 也就是其他组的权限中, 他的意思是sticky bit, 表示其他组成员不能对该文件进行删除和重命名操作, 这是为了防止某个文件无意被其他组的成员删除和重命名后导致owner找不到文件.</p>
+<p>添加的方式是:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> o+t <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
+
+<p>或者</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> +t <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
+<p>或者使用数字的方式, 在首位设置1</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> 1775 <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
+
+<p>结果如下:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ll <span class="built_in">test</span></span><br><span class="line">drwxrwxr-t   2 shentao shentao       4096  8月 24  2016 <span class="built_in">test</span>/</span><br></pre></td></tr></table></figure>
+
+<p>移除方式如下</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> o-t <span class="built_in">test</span></span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ll <span class="built_in">test</span></span><br><span class="line"></span><br><span class="line">drwxrwxr-x   2 shentao shentao       4096  8月 24  2016 <span class="built_in">test</span>/</span><br></pre></td></tr></table></figure>
+
+<p>从这里也能看出, t是比x更高一个级别的权限, 即t包含了可执行权限, 只是不能delete和rename. 其次它与rw也不冲突.</p>
 
       
     </div>
