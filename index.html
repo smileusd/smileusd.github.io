@@ -112,7 +112,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">27</span>
+          <span class="site-state-item-count">30</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
@@ -140,6 +140,350 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/04/24/2024-05-04-cgroup-v2-buffer-io/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/04/24/2024-05-04-cgroup-v2-buffer-io/" class="post-title-link" itemprop="url">Why the cgroup v1 can not throttle the buffer io but cgroup v2 can</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-04-24 19:49:04" itemprop="dateCreated datePublished" datetime="2024-04-24T19:49:04+08:00">2024-04-24</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2024-05-06 17:08:23" itemprop="dateModified" datetime="2024-05-06T17:08:23+08:00">2024-05-06</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h2 id="Why-the-cgroup-v1-can-not-throttle-the-buffer-io-but-cgroup-v2-can"><a href="#Why-the-cgroup-v1-can-not-throttle-the-buffer-io-but-cgroup-v2-can" class="headerlink" title="Why the cgroup v1 can not throttle the buffer io but cgroup v2 can"></a>Why the cgroup v1 can not throttle the buffer io but cgroup v2 can</h2><h3 id="What-the-cgroup-init-difference-between-v1-and-v2"><a href="#What-the-cgroup-init-difference-between-v1-and-v2" class="headerlink" title="What the cgroup init difference between v1 and v2"></a>What the cgroup init difference between v1 and v2</h3><p>We know the basic buffer IO flow is to write the data into a dirty page on memory, then an asynchronous writeback thread will flush the dirty page onto the disk. Unlike the direct IO, the buffer IO is not only controlled by the io controller but also controlled by the memory controller.</p>
+<p>In March 2014, kernel merged the pr<a target="_blank" rel="noopener" href="https://lwn.net/Articles/592434/"> cgroup: implement unified hierarchy</a> about unified architecture in cgroup, that is the basic design of cgroup v2.</p>
+<p>There is the code of the main process of cgroup init. In the process of cgroup init in the function of “cgroup_init”, after setting up the cgroup root, initiating the subsystem of the cgroups and creating the mountpoints, the kernel registers the different cgroup filesystems on that mount point according to different cgroup types:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">int __init cgroup_init(void)</span><br><span class="line">&#123;</span><br><span class="line">           …</span><br><span class="line">    	BUG_ON(cgroup_setup_root(&amp;cgrp_dfl_root, 0));</span><br><span class="line">           …</span><br><span class="line">	for_each_subsys(ss, ssid) &#123;</span><br><span class="line">		if (ss-&gt;early_init) &#123;</span><br><span class="line">			struct cgroup_subsys_state *css =</span><br><span class="line">				init_css_set.subsys[ss-&gt;id];</span><br><span class="line"></span><br><span class="line">			css-&gt;id = cgroup_idr_alloc(&amp;ss-&gt;css_idr, css, 1, 2,</span><br><span class="line">						   GFP_KERNEL);</span><br><span class="line">			BUG_ON(css-&gt;id &lt; 0);</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			cgroup_init_subsys(ss, false);</span><br><span class="line">		&#125;</span><br><span class="line">                      …</span><br><span class="line">		if (ss-&gt;dfl_cftypes == ss-&gt;legacy_cftypes) &#123;</span><br><span class="line">			WARN_ON(cgroup_add_cftypes(ss, ss-&gt;dfl_cftypes));</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			WARN_ON(cgroup_add_dfl_cftypes(ss, ss-&gt;dfl_cftypes));</span><br><span class="line">			WARN_ON(cgroup_add_legacy_cftypes(ss, ss-&gt;legacy_cftypes));</span><br><span class="line">		&#125;</span><br><span class="line">           &#125;</span><br><span class="line">           …</span><br><span class="line">	WARN_ON(sysfs_create_mount_point(fs_kobj, &quot;cgroup&quot;));</span><br><span class="line">	WARN_ON(register_filesystem(&amp;cgroup_fs_type));</span><br><span class="line">	WARN_ON(register_filesystem(&amp;cgroup2_fs_type));</span><br><span class="line">	WARN_ON(!proc_create_single(&quot;cgroups&quot;, 0, NULL, proc_cgroupstats_show));</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+<p>When register_filesystem, cgroup v1 and v2 register different filesystem operations:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">static const struct fs_context_operations cgroup_fs_context_ops = &#123;</span><br><span class="line">	.free		= cgroup_fs_context_free,</span><br><span class="line">	.parse_param	= cgroup2_parse_param,</span><br><span class="line">	.get_tree	= cgroup_get_tree,</span><br><span class="line">	.reconfigure	= cgroup_reconfigure,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">static const struct fs_context_operations cgroup1_fs_context_ops = &#123;</span><br><span class="line">	.free		= cgroup_fs_context_free,</span><br><span class="line">	.parse_param	= cgroup1_parse_param,</span><br><span class="line">	.get_tree	= cgroup1_get_tree,</span><br><span class="line">	.reconfigure	= cgroup1_reconfigure,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+
+<p>When doing the mount, the kernel tries to call the .get_tree interface to bind the filesystem on the directory by do_new_mount -&gt; vfs_get_tree -&gt; fc-&gt;ops-&gt;get_tree(fc). There are the different call path of the cgroup v1 and v2 implementations of .get_tree:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line">int cgroup1_get_tree(struct fs_context *fc)</span><br><span class="line">&#123;</span><br><span class="line">…</span><br><span class="line">          	ret = cgroup1_root_to_use(fc);</span><br><span class="line">	if (!ret)</span><br><span class="line">		ret = cgroup_do_get_tree(fc);</span><br><span class="line">…</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">/*</span><br><span class="line"> * The guts of cgroup1 mount - find or create cgroup_root to use.</span><br><span class="line"> */</span><br><span class="line">static int cgroup1_root_to_use(struct fs_context *fc)</span><br><span class="line">&#123;</span><br><span class="line">	for_each_root(root) &#123;</span><br><span class="line"></span><br><span class="line">		/*</span><br><span class="line">		 * If we asked for a name then it must match.  Also, if</span><br><span class="line">		 * name matches but sybsys_mask doesn&#x27;t, we should fail.</span><br><span class="line">		 * Remember whether name matched.</span><br><span class="line">		 */</span><br><span class="line">		if (ctx-&gt;name) &#123;</span><br><span class="line">			if (strcmp(ctx-&gt;name, root-&gt;name))</span><br><span class="line">				continue;</span><br><span class="line">			name_match = true;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		ctx-&gt;root = root;</span><br><span class="line">		return 0;</span><br><span class="line">	&#125;</span><br><span class="line">            /*</span><br><span class="line">	 * No such thing, create a new one.  </span><br><span class="line">	 */</span><br><span class="line">	root = kzalloc(sizeof(*root), GFP_KERNEL);</span><br><span class="line">	if (!root)</span><br><span class="line">		return -ENOMEM;</span><br><span class="line"></span><br><span class="line">	ctx-&gt;root = root;</span><br><span class="line">	init_cgroup_root(ctx);</span><br><span class="line"></span><br><span class="line">	ret = cgroup_setup_root(root, ctx-&gt;subsys_mask);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>Because the mountpoinst are different names, every mount will produce a new cgroup root and the cgroup root link to the subsys of cgroup. The cgroup_root represents the root of a cgroup hierarchy which is organized as a tree. Every tree is a hierarchy structure and it is independent. The child cgroups from cgroup root can only inherit the sussystem with parent cgroup and can not quickly visit other subsystems in cgroup v1. Though it has a root_list to store all the cgroup root, it is hard to cooperate with each other. </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line">/*</span><br><span class="line"> * A cgroup_root represents the root of a cgroup hierarchy, and may be</span><br><span class="line"> * associated with a kernfs_root to form an active hierarchy.  This is</span><br><span class="line"> * internal to cgroup core.  Don&#x27;t access directly from controllers.</span><br><span class="line"> */</span><br><span class="line">struct cgroup_root &#123;</span><br><span class="line">	struct kernfs_root *kf_root;</span><br><span class="line"></span><br><span class="line">	/* The bitmask of subsystems attached to this hierarchy */</span><br><span class="line">	unsigned int subsys_mask;</span><br><span class="line"></span><br><span class="line">	/* Unique id for this hierarchy. */</span><br><span class="line">	int hierarchy_id;</span><br><span class="line"></span><br><span class="line">	/*</span><br><span class="line">	 * The root cgroup. The containing cgroup_root will be destroyed on its</span><br><span class="line">	 * release. cgrp-&gt;ancestors[0] will be used overflowing into the</span><br><span class="line">	 * following field. cgrp_ancestor_storage must immediately follow.</span><br><span class="line">	 */</span><br><span class="line">	struct cgroup cgrp;</span><br><span class="line"></span><br><span class="line">	/* must follow cgrp for cgrp-&gt;ancestors[0], see above */</span><br><span class="line">	struct cgroup *cgrp_ancestor_storage;</span><br><span class="line"></span><br><span class="line">	/* Number of cgroups in the hierarchy, used only for /proc/cgroups */</span><br><span class="line">	atomic_t nr_cgrps;</span><br><span class="line"></span><br><span class="line">	/* A list running through the active hierarchies */</span><br><span class="line">	struct list_head root_list;</span><br><span class="line"></span><br><span class="line">	/* Hierarchy-specific flags */</span><br><span class="line">	unsigned int flags;</span><br><span class="line"></span><br><span class="line">	/* The path to use for release notifications. */</span><br><span class="line">	char release_agent_path[PATH_MAX];</span><br><span class="line"></span><br><span class="line">	/* The name for this hierarchy - may be empty */</span><br><span class="line">	char name[MAX_CGROUP_ROOT_NAMELEN];</span><br><span class="line">&#125;;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+<p>But in the cgroup v2, all the subsystems are bind to one cgroup_root because it is only one mountpoint and normally using the default cgroup root:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">static int cgroup_get_tree(struct fs_context *fc)</span><br><span class="line">&#123;</span><br><span class="line">	struct cgroup_fs_context *ctx = cgroup_fc2context(fc);</span><br><span class="line">	int ret;</span><br><span class="line"></span><br><span class="line">	WRITE_ONCE(cgrp_dfl_visible, true);</span><br><span class="line">	cgroup_get_live(&amp;cgrp_dfl_root.cgrp);</span><br><span class="line">	ctx-&gt;root = &amp;cgrp_dfl_root;</span><br><span class="line"></span><br><span class="line">	ret = cgroup_do_get_tree(fc);</span><br><span class="line">	if (!ret)</span><br><span class="line">		apply_cgroup_root_flags(ctx-&gt;flags);</span><br><span class="line">	return ret;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">/* the default hierarchy */</span><br><span class="line">struct cgroup_root cgrp_dfl_root = &#123; .cgrp.rstat_cpu = &amp;cgrp_dfl_root_rstat_cpu &#125;;</span><br><span class="line">EXPORT_SYMBOL_GPL(cgrp_dfl_root);</span><br></pre></td></tr></table></figure>
+
+
+<p>The default cgroup has all subsys_mask. All the child cgroup from the root cgroup will bind the subsystem cgroup by enabling it in the parent cgroup’s cgroup.subtree_control. So the different subsystems can have easier cooperation with each other.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">int __init cgroup_init(void)</span><br><span class="line">&#123;</span><br><span class="line">	for_each_subsys(ss, ssid) &#123;</span><br><span class="line">		list_add_tail(&amp;init_css_set.e_cset_node[ssid],</span><br><span class="line">			      &amp;cgrp_dfl_root.cgrp.e_csets[ssid]);</span><br><span class="line"></span><br><span class="line">		cgrp_dfl_root.subsys_mask |= 1 &lt;&lt; ss-&gt;id;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="How-kernel-implement-the-cgroup-v2-writeback"><a href="#How-kernel-implement-the-cgroup-v2-writeback" class="headerlink" title="How kernel implement the cgroup v2 writeback"></a>How kernel implement the cgroup v2 writeback</h3><p>After the kernel added a unified cgroup hierarchy, another patch <a target="_blank" rel="noopener" href="https://lwn.net/Articles/628631/">writeback: cgroup writeback support</a> merged in January, 2015. It adds a feature and framework to support the writeback control by cgroup. Then the ext4 filesystem added the support with writeback cgroup <a target="_blank" rel="noopener" href="https://lwn.net/Articles/648299/">ext4: implement cgroup writeback support</a> at Jun, 2015. But xfs filesystem implements the support at <a target="_blank" rel="noopener" href="https://patchwork.kernel.org/project/xfs/patch/f13839700d372a4663a08a11883e9c89b13056ca.1521752282.git.shli@fb.com/">[V2] xfs: implement cgroup writeback support</a> on March, 2018. So on some old kernel versions, the xfs filesystem does not support cgroup writeback. </p>
+<p>Now let’s do the deep dive about how the kernel implements the cgroup writeback. The implementation of cgroup writeback is complex with many different packages and adds many new changes after the original patch. Here we just analyze and focus on the latest kernel version and skip the history and change from the first patch.</p>
+<p>There is full flow of write:</p>
+<p><img src="/images/cgroupv2_full_flow.png" alt="cgroupv2_full_flow"></p>
+<p>As the write as example, there is the simplify flow from syscall of write to enter of block layer:</p>
+<p><img src="/images/cgroupv2_simple_flow.png" alt="cgroupv2_simple_flow"></p>
+<p>When call the write syscall with buffer io, vfs call the generic_perform_write function and run the interface write_begin and write_end in proper order. Between them, the raw_copy_from_user is the real data write from the user space into the kernel space of memory area. In the write_end stage, mark_buffer_dirty function marks the memory page and inode is dirty and wait to writeout: </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">void mark_buffer_dirty(struct buffer_head *bh)</span><br><span class="line">&#123;</span><br><span class="line">	WARN_ON_ONCE(!buffer_uptodate(bh));</span><br><span class="line"></span><br><span class="line">	trace_block_dirty_buffer(bh);</span><br><span class="line"></span><br><span class="line">	/*</span><br><span class="line">	 * Very *carefully* optimize the it-is-already-dirty case.</span><br><span class="line">	 *</span><br><span class="line">	 * Don&#x27;t let the final &quot;is it dirty&quot; escape to before we</span><br><span class="line">	 * perhaps modified the buffer.</span><br><span class="line">	 */</span><br><span class="line">	if (buffer_dirty(bh)) &#123;</span><br><span class="line">		smp_mb();</span><br><span class="line">		if (buffer_dirty(bh))</span><br><span class="line">			return;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if (!test_set_buffer_dirty(bh)) &#123;</span><br><span class="line">		struct folio *folio = bh-&gt;b_folio;</span><br><span class="line">		struct address_space *mapping = NULL;</span><br><span class="line"></span><br><span class="line">		folio_memcg_lock(folio);</span><br><span class="line">		if (!folio_test_set_dirty(folio)) &#123;</span><br><span class="line">			mapping = folio-&gt;mapping;</span><br><span class="line">			if (mapping)</span><br><span class="line">				__folio_mark_dirty(folio, mapping, 0);</span><br><span class="line">		&#125;</span><br><span class="line">		folio_memcg_unlock(folio);</span><br><span class="line">		if (mapping)</span><br><span class="line">			__mark_inode_dirty(mapping-&gt;host, I_DIRTY_PAGES);</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>The __mark_inode_dirty function calls the __inode_attach_wb to create a bdi_writeback structure and attach the inode into it. The cgwb_create function creates a bdi_writeback for this memory cgroup and adds it into the bdi-&gt;cgwb_tree and by wb_get_lookup to get the bdi_writeback.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line">void __inode_attach_wb(struct inode *inode, struct folio *folio)</span><br><span class="line">&#123;</span><br><span class="line">	struct backing_dev_info *bdi = inode_to_bdi(inode);</span><br><span class="line">	struct bdi_writeback *wb = NULL;</span><br><span class="line"></span><br><span class="line">	if (inode_cgwb_enabled(inode)) &#123;</span><br><span class="line">		struct cgroup_subsys_state *memcg_css;</span><br><span class="line"></span><br><span class="line">		if (folio) &#123;</span><br><span class="line">			memcg_css = mem_cgroup_css_from_folio(folio);</span><br><span class="line">			wb = wb_get_create(bdi, memcg_css, GFP_ATOMIC);</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			/* must pin memcg_css, see wb_get_create() */</span><br><span class="line">			memcg_css = task_get_css(current, memory_cgrp_id);</span><br><span class="line">			wb = wb_get_create(bdi, memcg_css, GFP_ATOMIC);</span><br><span class="line">			css_put(memcg_css);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if (!wb)</span><br><span class="line">		wb = &amp;bdi-&gt;wb;</span><br><span class="line"></span><br><span class="line">	/*</span><br><span class="line">	 * There may be multiple instances of this function racing to</span><br><span class="line">	 * update the same inode.  Use cmpxchg() to tell the winner.</span><br><span class="line">	 */</span><br><span class="line">	if (unlikely(cmpxchg(&amp;inode-&gt;i_wb, NULL, wb)))</span><br><span class="line">		wb_put(wb);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">//  wb_get_create - get wb for a given memcg, create if necessary</span><br><span class="line">struct bdi_writeback *wb_get_create(struct backing_dev_info *bdi,</span><br><span class="line">				    struct cgroup_subsys_state *memcg_css,</span><br><span class="line">				    gfp_t gfp)</span><br><span class="line">&#123;</span><br><span class="line">	struct bdi_writeback *wb;</span><br><span class="line"></span><br><span class="line">	might_alloc(gfp);</span><br><span class="line"></span><br><span class="line">	if (!memcg_css-&gt;parent)</span><br><span class="line">		return &amp;bdi-&gt;wb;</span><br><span class="line"></span><br><span class="line">	do &#123;</span><br><span class="line">		wb = wb_get_lookup(bdi, memcg_css);</span><br><span class="line">	&#125; while (!wb &amp;&amp; !cgwb_create(bdi, memcg_css, gfp));</span><br><span class="line"></span><br><span class="line">	return wb;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>The cgwb_create function is important, because it get the IO subsystem blkcg_css according to the memory cgroup by cgroup_get_e_css. </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">static int cgwb_create(struct backing_dev_info *bdi,</span><br><span class="line">		       struct cgroup_subsys_state *memcg_css, gfp_t gfp)</span><br><span class="line">&#123;</span><br><span class="line">	struct mem_cgroup *memcg;</span><br><span class="line">	struct cgroup_subsys_state *blkcg_css;</span><br><span class="line">	struct list_head *memcg_cgwb_list, *blkcg_cgwb_list;</span><br><span class="line">	struct bdi_writeback *wb;</span><br><span class="line">	unsigned long flags;</span><br><span class="line">	int ret = 0;</span><br><span class="line"></span><br><span class="line">	memcg = mem_cgroup_from_css(memcg_css);</span><br><span class="line">	blkcg_css = cgroup_get_e_css(memcg_css-&gt;cgroup, &amp;io_cgrp_subsys);</span><br><span class="line">	memcg_cgwb_list = &amp;memcg-&gt;cgwb_list;</span><br><span class="line">	blkcg_cgwb_list = blkcg_get_cgwb_list(blkcg_css);</span><br><span class="line">            …</span><br><span class="line">	ret = wb_init(wb, bdi, gfp);</span><br><span class="line">	wb-&gt;memcg_css = memcg_css;</span><br><span class="line">	wb-&gt;blkcg_css = blkcg_css;</span><br><span class="line">           …</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+<p>For the cgroup v2, the cgroup_get_e_css gets the IO css from the cgroup because all the subsystems bind to the cgroup. But for the cgroup v1, only the subsystem currently binds to the cgroup, so the cgroup_css returns NULL and goes back to the parent cgroup and finally gets the empty cgroup and breaks the loop. Then return the init IO css. But this css doesn’t contain the process and cgroup information. I think it is just for compatibility with cgroup v1 to return the init css.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">// cgroup_get_e_css - get a cgroup&#x27;s effective css for the specified subsystem</span><br><span class="line">struct cgroup_subsys_state *cgroup_get_e_css(struct cgroup *cgrp,</span><br><span class="line">					     struct cgroup_subsys *ss)</span><br><span class="line">&#123;</span><br><span class="line">	struct cgroup_subsys_state *css;</span><br><span class="line"></span><br><span class="line">	if (!CGROUP_HAS_SUBSYS_CONFIG)</span><br><span class="line">		return NULL;</span><br><span class="line"></span><br><span class="line">	rcu_read_lock();</span><br><span class="line"></span><br><span class="line">	do &#123;</span><br><span class="line">		css = cgroup_css(cgrp, ss);</span><br><span class="line"></span><br><span class="line">		if (css &amp;&amp; css_tryget_online(css))</span><br><span class="line">			goto out_unlock;</span><br><span class="line">		cgrp = cgroup_parent(cgrp);</span><br><span class="line">	&#125; while (cgrp);</span><br><span class="line"></span><br><span class="line">	css = init_css_set.subsys[ss-&gt;id];</span><br><span class="line">	css_get(css);</span><br><span class="line">out_unlock:</span><br><span class="line">	rcu_read_unlock();</span><br><span class="line">	return css;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>Besides binding the cgroup, bdi and inode, the bdi_writeback needs to attach a real worker function to flush the diary page out to disk. This step at wb_init:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">INIT_DELAYED_WORK(&amp;wb-&gt;dwork, wb_workfn);</span><br><span class="line">INIT_DELAYED_WORK(&amp;wb-&gt;bw_dwork, wb_update_bandwidth_workfn);</span><br></pre></td></tr></table></figure>
+
+
+<p>The __mark_inode_dirty adds this work into the delayed work queue for the idle worker to do the flush work. The wb_update_bandwidth_workfn according to the writeback IO time, dirty writeback numbers and the completion writeback numbers to calculate the bandwidth of the writeback and update the dirty_ratelimit. There are some algorithms but not the point in this topic, just skip them.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">	static void __wb_update_bandwidth(struct dirty_throttle_control *gdtc,</span><br><span class="line">				  struct dirty_throttle_control *mdtc,</span><br><span class="line">				  bool update_ratelimit)</span><br><span class="line">&#123;</span><br><span class="line">            /*</span><br><span class="line">	 * Lockless checks for elapsed time are racy and delayed update after</span><br><span class="line">	 * IO completion doesn&#x27;t do it at all (to make sure written pages are</span><br><span class="line">	 * accounted reasonably quickly). Make sure elapsed &gt;= 1 to avoid</span><br><span class="line">	 * division errors.</span><br><span class="line">	 */</span><br><span class="line">	elapsed = max(now - wb-&gt;bw_time_stamp, 1UL);</span><br><span class="line">	dirtied = percpu_counter_read(&amp;wb-&gt;stat[WB_DIRTIED]);</span><br><span class="line">	written = percpu_counter_read(&amp;wb-&gt;stat[WB_WRITTEN]);</span><br><span class="line">           …</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">/*</span><br><span class="line"> * Maintain wb-&gt;dirty_ratelimit, the base dirty throttle rate.</span><br><span class="line"> *</span><br><span class="line"> * Normal wb tasks will be curbed at or below it in long term.</span><br><span class="line"> * Obviously it should be around (write_bw / N) when there are N dd tasks.</span><br><span class="line"> */</span><br><span class="line">static void wb_update_dirty_ratelimit(struct dirty_throttle_control *dtc,</span><br><span class="line">				      unsigned long dirtied,</span><br><span class="line">				      unsigned long elapsed)</span><br><span class="line">&#123;</span><br><span class="line">	balanced_dirty_ratelimit = div_u64((u64)task_ratelimit * write_bw,</span><br><span class="line">					   dirty_rate | 1);</span><br><span class="line">	WRITE_ONCE(wb-&gt;dirty_ratelimit, max(dirty_ratelimit, 1UL));</span><br><span class="line">	wb-&gt;balanced_dirty_ratelimit = balanced_dirty_ratelimit;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>Now the wb has been prepared, it links to the real worker waiting to write out. It links to the inode, bdi, memory cgroup and IO cgoup. They can provide the information when writing out.</p>
+<p>The wb_workfn function runs the __writeback_single_inode and calls the interface of writepages or writepage.  The different file system and backend implement the interfaces. But they have a similar process including wbc_init_bio and wbc_account_cgroup_owner before submitting the bio. </p>
+<p><img src="/images/cgroupv2_simple_flow2.png" alt="cgroupv2_simple_flow2"></p>
+<p>These two functions are patches added to the xfs and ext4 cgroup writeback support. We can see the cgroup v2 documentation about <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/cgroup-v2.txt">Filesystem Support for Writeback</a>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">Filesystem Support for Writeback</span><br><span class="line">--------------------------------</span><br><span class="line"></span><br><span class="line">A filesystem can support cgroup writeback by updating</span><br><span class="line">address_space_operations-&gt;writepage[s]() to annotate bio&#x27;s using the</span><br><span class="line">following two functions.</span><br><span class="line"></span><br><span class="line">  wbc_init_bio(@wbc, @bio)</span><br><span class="line">	Should be called for each bio carrying writeback data and</span><br><span class="line">	associates the bio with the inode&#x27;s owner cgroup and the</span><br><span class="line">	corresponding request queue.  This must be called after</span><br><span class="line">	a queue (device) has been associated with the bio and</span><br><span class="line">	before submission.</span><br><span class="line"></span><br><span class="line">  wbc_account_cgroup_owner(@wbc, @page, @bytes)</span><br><span class="line">	Should be called for each data segment being written out.</span><br><span class="line">	While this function doesn&#x27;t care exactly when it&#x27;s called</span><br><span class="line">	during the writeback session, it&#x27;s the easiest and most</span><br><span class="line">	natural to call it as data segments are added to a bio.</span><br></pre></td></tr></table></figure>
+
+
+<p>The wbc is writeback_control which manages and controls total writeback flow and stores the bdi_writeback and inode. </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">/*</span><br><span class="line"> * A control structure which tells the writeback code what to do.  These are</span><br><span class="line"> * always on the stack, and hence need no locking.  They are always initialised</span><br><span class="line"> * in a manner such that unspecified fields are set to zero.</span><br><span class="line"> */</span><br><span class="line">struct writeback_control &#123;</span><br><span class="line">	long nr_to_write;		/* Write this many pages, and decrement</span><br><span class="line">					   this for each page written */</span><br><span class="line">            …</span><br><span class="line">#ifdef CONFIG_CGROUP_WRITEBACK</span><br><span class="line">	struct bdi_writeback *wb;	/* wb this writeback is issued under */</span><br><span class="line">	struct inode *inode;		/* inode being written out */</span><br><span class="line">#endif</span><br><span class="line">&#125;;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+<p>wbc_init_bio() binds the specified bio to its cgroup which binds at cgwb_create function.  </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">static inline void wbc_init_bio(struct writeback_control *wbc, struct bio *bio)</span><br><span class="line">&#123;</span><br><span class="line">	/*</span><br><span class="line">	 * pageout() path doesn&#x27;t attach @wbc to the inode being written</span><br><span class="line">	 * out.  This is intentional as we don&#x27;t want the function to block</span><br><span class="line">	 * behind a slow cgroup.  Ultimately, we want pageout() to kick off</span><br><span class="line">	 * regular writeback instead of writing things out itself.</span><br><span class="line">	 */</span><br><span class="line">	if (wbc-&gt;wb)</span><br><span class="line">		bio_associate_blkg_from_css(bio, wbc-&gt;wb-&gt;blkcg_css);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">//  bio_associate_blkg_from_css - associate a bio with a specified css</span><br><span class="line">void bio_associate_blkg_from_css(struct bio *bio,</span><br><span class="line">				 struct cgroup_subsys_state *css)</span><br><span class="line">&#123;</span><br><span class="line">	if (bio-&gt;bi_blkg)</span><br><span class="line">		blkg_put(bio-&gt;bi_blkg);</span><br><span class="line"></span><br><span class="line">	if (css &amp;&amp; css-&gt;parent) &#123;</span><br><span class="line">		bio-&gt;bi_blkg = blkg_tryget_closest(bio, css);</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		blkg_get(bdev_get_queue(bio-&gt;bi_bdev)-&gt;root_blkg);</span><br><span class="line">		bio-&gt;bi_blkg = bdev_get_queue(bio-&gt;bi_bdev)-&gt;root_blkg;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>Here the bio has to bind to the IO cgroup, if the css is empty, it will bind to the root cgroup.</p>
+<p>The wbc_account_cgroup_owner is a solution for this question: if multiple processes from different cgroup write into the same inode, how to decide who is the owner of this inode right now. The wbc_account_cgroup_owner counts the pages to different cgroup by memory id. After finishing the current writeback, the wbc_detach_inode function uses Boyer-Moore majority vote algorithm to select the owner of this inode, then calls inode_switch_wbs to switch the bdi_writeback for the inode.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line">//  wbc_account_cgroup_owner - account writeback to update inode cgroup ownership</span><br><span class="line">void wbc_account_cgroup_owner(struct writeback_control *wbc, struct page *page,</span><br><span class="line">			      size_t bytes)</span><br><span class="line">&#123;</span><br><span class="line">	struct folio *folio;</span><br><span class="line">	struct cgroup_subsys_state *css;</span><br><span class="line">	int id;</span><br><span class="line"></span><br><span class="line">	/*</span><br><span class="line">	 * pageout() path doesn&#x27;t attach @wbc to the inode being written</span><br><span class="line">	 * out.  This is intentional as we don&#x27;t want the function to block</span><br><span class="line">	 * behind a slow cgroup.  Ultimately, we want pageout() to kick off</span><br><span class="line">	 * regular writeback instead of writing things out itself.</span><br><span class="line">	 */</span><br><span class="line">	if (!wbc-&gt;wb || wbc-&gt;no_cgroup_owner)</span><br><span class="line">		return;</span><br><span class="line"></span><br><span class="line">	folio = page_folio(page);</span><br><span class="line">	css = mem_cgroup_css_from_folio(folio);</span><br><span class="line">	/* dead cgroups shouldn&#x27;t contribute to inode ownership arbitration */</span><br><span class="line">	if (!(css-&gt;flags &amp; CSS_ONLINE))</span><br><span class="line">		return;</span><br><span class="line"></span><br><span class="line">	id = css-&gt;id;</span><br><span class="line"></span><br><span class="line">	if (id == wbc-&gt;wb_id) &#123;</span><br><span class="line">		wbc-&gt;wb_bytes += bytes;</span><br><span class="line">		return;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if (id == wbc-&gt;wb_lcand_id)</span><br><span class="line">		wbc-&gt;wb_lcand_bytes += bytes;</span><br><span class="line"></span><br><span class="line">	/* Boyer-Moore majority vote algorithm */</span><br><span class="line">	if (!wbc-&gt;wb_tcand_bytes)</span><br><span class="line">		wbc-&gt;wb_tcand_id = id;</span><br><span class="line">	if (id == wbc-&gt;wb_tcand_id)</span><br><span class="line">		wbc-&gt;wb_tcand_bytes += bytes;</span><br><span class="line">	else</span><br><span class="line">		wbc-&gt;wb_tcand_bytes -= min(bytes, wbc-&gt;wb_tcand_bytes);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">/**</span><br><span class="line"> * mem_cgroup_css_from_folio - css of the memcg associated with a folio</span><br><span class="line"> * @folio: folio of interest</span><br><span class="line"> *</span><br><span class="line"> * If memcg is bound to the default hierarchy, css of the memcg associated</span><br><span class="line"> * with @folio is returned.  The returned css remains associated with @folio</span><br><span class="line"> * until it is released.</span><br><span class="line"> *</span><br><span class="line"> * If memcg is bound to a traditional hierarchy, the css of root_mem_cgroup</span><br><span class="line"> * is returned.</span><br><span class="line"> */</span><br><span class="line">struct cgroup_subsys_state *mem_cgroup_css_from_folio(struct folio *folio)</span><br><span class="line">&#123;</span><br><span class="line">	struct mem_cgroup *memcg = folio_memcg(folio);</span><br><span class="line"></span><br><span class="line">	if (!memcg || !cgroup_subsys_on_dfl(memory_cgrp_subsys))</span><br><span class="line">		memcg = root_mem_cgroup;</span><br><span class="line"></span><br><span class="line">	return &amp;memcg-&gt;css;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>The cgroup v1 returns the root cgroup as well because it can not handle this case.</p>
+<p>So in cgroup v2, before entering the block layer, the filesystem layer has decided which inode, which memory cgroup and which IO cgroup bind to this bio. Then it is transfer to direct IO after calling submit_bio. </p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/04/04/CSI%20Inline%20Volume%20Become%20Orphan%20After%20Kubelet%20Restart%20When%20Pod%20Terminating/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/04/04/CSI%20Inline%20Volume%20Become%20Orphan%20After%20Kubelet%20Restart%20When%20Pod%20Terminating/" class="post-title-link" itemprop="url">Untitled</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-04-04 13:32:27" itemprop="dateCreated datePublished" datetime="2024-04-04T13:32:27+08:00">2024-04-04</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>CSI Inline Volume Become Orphan After Kubelet Restart When Pod Terminating</p>
+<h2 id="Problem"><a href="#Problem" class="headerlink" title="Problem"></a>Problem</h2><p>Problem</p>
+<p>When the pod is terminating and csi inline volume is deleted, the kubelet down or restart impact the volume become orphan and pod skip delete and unmount the volume. The error message show as follow:</p>
+<p>Mar 12 00:28:56 tess-node-kltc4-tess19.stratus.lvs.ebay.com kubelet[1526549]: I0312 00:28:56.150307 1526549 state_mem.go:36] “Initialized new in-memory state store”Mar 12 00:28:56 tess-node-kltc4-tess19.stratus.lvs.ebay.com kubelet[1526549]: E0312 00:28:56.153369 1526549 server.go:302] “Failed to run kubelet” err&#x3D;”failed to run Kubelet: unable to determine runtime API version: rpc error: code &#x3D; Unknown desc &#x3D; server is not initialized yet”Mar 12 00:28:56 tess-node-kltc4-tess19.stratus.lvs.ebay.com systemd[1]: kubelet.service: Main process exited, code&#x3D;exited, status&#x3D;1&#x2F;FAILUREMar 12 00:28:56 tess-node-kltc4-tess19.stratus.lvs.ebay.com systemd[1]: kubelet.service: Failed with result ‘exit-code’.Mar 12 00:28:58 tess-node-kltc4-tess19.stratus.lvs.ebay.com systemd[1]: kubelet.service: Scheduled restart job, restart counter is at 1.**Mar 12 00:28:58 tess-node-kltc4-tess19.stratus.lvs.ebay.com systemd[1]: Stopped Kubernetes Kubelet Server.**<strong>Mar 12 00:28:58 tess-node-kltc4-tess19.stratus.lvs.ebay.com systemd[1]: Started Kubernetes Kubelet Server.</strong>…Mar 12 00:29:01 tess-node-kltc4-tess19.stratus.lvs.ebay.com kubelet[1526901]: I0312 00:29:01.976957 1526901 reconciler.go:388] **”Could not construct volume information, cleaning up mounts” podName&#x3D;1517b38e-fa84-4138-b6c0-06663741e385 volumeSpecName&#x3D;”data” err&#x3D;”failed to GetVolumeName from volumePlugin for volumeSpec &quot;data&quot; err&#x3D;kubernetes.io&#x2F;csi: plugin.GetVolumeName failed to extract volume source from spec: unexpected api.CSIVolumeSource found in volume.Spec”**Mar 12 00:29:01 tess-node-kltc4-tess19.stratus.lvs.ebay.com kubelet[1526901]: I0312 00:29:01.976982 1526901 reconciler.go:421] <strong>“Reconciler sync states: could not find volume information in desired state, clean up the mount points”</strong> podName&#x3D;1517b38e-fa84-4138-b6c0-06663741e385 volumeSpecName&#x3D;”data”Mar 12 00:29:01 tess-node-kltc4-tess19.stratus.lvs.ebay.com kubelet[1526901]: E0312 00:29:01.981982 1526901 operation_generator.go:952] UnmountVolume.MarkVolumeMountAsUncertain failed for volume “” (UniqueName: “data”) pod “1517b38e-fa84-4138-b6c0-06663741e385” (UID: “1517b38e-fa84-4138-b6c0-06663741e385”) : no volume with the name “data” exists in the list of attached volumesMar 12 00:29:01 tess-node-kltc4-tess19.stratus.lvs.ebay.com kubelet[1526901]: E0312 00:29:01.982029 1526901 nestedpendingoperations.go:335] Operation for “{volumeName:data podName:1517b38e-fa84-4138-b6c0-06663741e385 nodeName:}” failed. No retries permitted until 2024-03-12 00:29:02.482017035 -0700 -07 m&#x3D;+1.794257422 (durationBeforeRetry 500ms). Error: UnmountVolume.TearDown failed for volume “” (UniqueName: “data”) pod “1517b38e-fa84-4138-b6c0-06663741e385” (UID: “1517b38e-fa84-4138-b6c0-06663741e385”) : kubernetes.io&#x2F;csi: Unmounter.TearDownAt failed: rpc error: code &#x3D; Aborted desc &#x3D; NodeUnpublish operation for volume csi-c6b0a910c881c66f817829d6c0815f60d2dee9c028369214c6f1224be8139978 still ongoingMar 12 00:29:44 tess-node-kltc4-tess19.stratus.lvs.ebay.com kubelet[1526901]: I0312 00:29:44.655173 1526901 kubelet.go:2126] “SyncLoop DELETE” source&#x3D;”api” pods&#x3D;[kube-system&#x2F;fio-test-6b7df68464-r66bv]Mar 12 00:29:44 tess-node-kltc4-tess19.stratus.lvs.ebay.com kubelet[1526901]: I0312 00:29:44.658223 1526901 kubelet.go:2120] “SyncLoop REMOVE” source&#x3D;”api” pods&#x3D;[kube-system&#x2F;fio-test-6b7df68464-r66bv]</p>
+<p>From the error messages, we can know what happened:</p>
+<p> Kubelet restart  -&gt; reconstructVolume   -&gt; get csi volume plugin by FindAttachablePluginByName and FindDeviceMountablePluginByName     -&gt; util.GetUniqueVolumeNameFromSpec      -&gt; volumePlugin.GetVolumeName       -&gt; getPVSourceFromSpec         -&gt; get error “unexpected api.CSIVolumeSource found in volume.Spec” because this function only check CSIPersistentVolumeSource</p>
+<p>When reconstructVolume gets an error, the volume can not be added into the ActualStateOfWorld in kubelet, then the kubelet will skip this volume unmount when pod deleting.</p>
+<p>​	reconstructedVolume, err :&#x3D; rc.<strong>reconstructVolume</strong>(volume)		if err !&#x3D; nil {			if <strong>volumeInDSW</strong> {				&#x2F;&#x2F; Some pod needs the volume, don’t clean it up and hope that				&#x2F;&#x2F; reconcile() calls SetUp and reconstructs the volume in ASW.				klog.V(4).InfoS(“Volume exists in desired state, skip cleaning up mounts”, “podName”, volume.podName, “volumeSpecName”, volume.volumeSpecName)				continue			}			&#x2F;&#x2F; No pod needs the volume.			klog.InfoS(“Could not construct volume information, cleaning up mounts”, “podName”, volume.podName, “volumeSpecName”, volume.volumeSpecName, “err”, err)			rc.<strong>cleanupMounts</strong>(volume)			continue		} </p>
+<p>So there is a bug that the csi ephemeral volume should go into <strong>‘GetUniqueVolumeNameFromSpecWithPod’</strong> not <strong>‘GetUniqueVolumeNameFromSpec’.</strong> That means csi ephemeral volume <strong>should not</strong> get the attachablePlugin and deviceMountablePlugin.</p>
+<p>​	if attachablePlugin !&#x3D; nil || deviceMountablePlugin !&#x3D; nil {		uniqueVolumeName, err &#x3D; util.<strong>GetUniqueVolumeNameFromSpec</strong>(plugin, volumeSpec)		if err !&#x3D; nil {			return nil, err		}	} else {		uniqueVolumeName &#x3D; util.<strong>GetUniqueVolumeNameFromSpecWithPod</strong>(volume.podName, plugin, volumeSpec)	}</p>
+<p>This place should use <code>*FindDeviceMountablePluginBySpec*</code> not <code>*FindAttachablePluginByName*</code> to get the volume plugin:</p>
+<p>​	attachablePlugin, err :&#x3D; rc.volumePluginMgr.<strong>FindAttachablePluginByName</strong>(volume.pluginName)	if err !&#x3D; nil {		return nil, err	}	deviceMountablePlugin, err :&#x3D; rc.volumePluginMgr.<strong>FindDeviceMountablePluginByName</strong>(volume.pluginName)	if err !&#x3D; nil {		return nil, err	} </p>
+<p>Actually, due to pod is terminating and pod not added into the DSW, when reconstructVolume failed, the kubelet still try to unmount and clean mountpoint for this volume:</p>
+<p>func (dswp *desiredStateOfWorldPopulator) findAndAddNewPods() {	&#x2F;&#x2F; Map unique pod name to outer volume name to MountedVolume.	mountedVolumesForPod :&#x3D; make(map[volumetypes.UniquePodName]map[string]cache.MountedVolume)	if utilfeature.DefaultFeatureGate.Enabled(features.ExpandInUsePersistentVolumes) {		for _, mountedVolume :&#x3D; range dswp.actualStateOfWorld.GetMountedVolumes() {			mountedVolumes, exist :&#x3D; mountedVolumesForPod[mountedVolume.PodName]			if !exist {				mountedVolumes &#x3D; make(map[string]cache.MountedVolume)				mountedVolumesForPod[mountedVolume.PodName] &#x3D; mountedVolumes			}			mountedVolumes[mountedVolume.OuterVolumeSpecName] &#x3D; mountedVolume		}	} 	processedVolumesForFSResize :&#x3D; sets.NewString()	for _, pod :&#x3D; range dswp.podManager.GetPods() {		if dswp.podStateProvider.<strong>ShouldPodContainersBeTerminating</strong>(pod.UID) {			&#x2F;&#x2F; Do not (re)add volumes for pods that can’t also be starting containers			continue		}		dswp.<strong>processPodVolumes</strong>(pod, mountedVolumesForPod, processedVolumesForFSResize)	}  func (rc *reconciler) cleanupMounts(volume podVolume) {	klog.V(2).InfoS(“Reconciler sync states: could not find volume information in desired state, clean up the mount points”, “podName”, volume.podName, “volumeSpecName”, volume.volumeSpecName)	mountedVolume :&#x3D; operationexecutor.MountedVolume{		PodName:       volume.podName,		VolumeName:     v1.UniqueVolumeName(volume.volumeSpecName),		InnerVolumeSpecName: volume.volumeSpecName,		PluginName:     volume.pluginName,		PodUID:       types.UID(volume.podName),	}	&#x2F;&#x2F; TODO: Currently cleanupMounts only includes UnmountVolume operation. In the next PR, we will add	&#x2F;&#x2F; to unmount both volume and device in the same routine.	err :&#x3D; rc.operationExecutor.<strong>UnmountVolume</strong>(mountedVolume, rc.actualStateOfWorld, rc.kubeletPodsDir)	if err !&#x3D; nil {		klog.ErrorS(err, mountedVolume.GenerateErrorDetailed(“volumeHandler.UnmountVolumeHandler for UnmountVolume failed”, err).Error())		return	}} </p>
+<p>But in this time, the container was not finished the container termination, so the volume remove failed, this is the last chance to recycle the volume:</p>
+<p>[CSI local driver]2024&#x2F;03&#x2F;29 03:10:59 logging.go:26: Serving &#x2F;csi.v1.Node&#x2F;NodeUnpublishVolume: req&#x3D;volume_id:”csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11” target_path:”&#x2F;var&#x2F;mnt&#x2F;kubelet&#x2F;pods&#x2F;8c76f1db-b963-4cfc-96b7-6f81fd9781f6&#x2F;volumes&#x2F;kubernetes.io~csi&#x2F;data&#x2F;mount” [CSI local driver]2024&#x2F;03&#x2F;29 03:10:59 server.go:1111: Looking up volume with id&#x3D;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11[CSI local driver]2024&#x2F;03&#x2F;29 03:10:59 lvm.go:830: Executing: &#x2F;usr&#x2F;sbin&#x2F;lvs –reportformat&#x3D;json –units&#x3D;b –nosuffix –options&#x3D;lv_name,lv_size,vg_name,lv_path vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11         {“lv_name”:”vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”, “lv_size”:”21474836480”, “vg_name”:”vg10000”, “lv_path”:”&#x2F;dev&#x2F;vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”}[CSI local driver]2024&#x2F;03&#x2F;29 03:11:03 server.go:1139: Removing volume with id&#x3D;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11[CSI local driver]2024&#x2F;03&#x2F;29 03:11:03 lvm.go:830: Executing: &#x2F;usr&#x2F;sbin&#x2F;lvs –reportformat&#x3D;json –units&#x3D;b –nosuffix –options&#x3D;lv_name,lv_size,vg_name,lv_path vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11         {“lv_name”:”vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”, “lv_size”:”21474836480”, “vg_name”:”vg10000”, “lv_path”:”&#x2F;dev&#x2F;vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”}2024&#x2F;03&#x2F;29 03:11:09 Cleanup lv “vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”: StdoutBuf - “Calling mkfs”2024&#x2F;03&#x2F;29 03:11:09 Cleanup lv “vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”: StderrBuf - “mke2fs 1.45.5 (07-Jan-2020)”2024&#x2F;03&#x2F;29 03:11:09 Cleanup lv “vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”: StderrBuf - “&#x2F;dev&#x2F;vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11 is apparently in use by the system; will not make a filesystem here!”2024&#x2F;03&#x2F;29 03:11:09 Cleanup lv “vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”: StdoutBuf - “Calling wipefs”2024&#x2F;03&#x2F;29 03:11:09 Cleanup lv “vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”: StderrBuf - “wipefs: error: &#x2F;dev&#x2F;vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11: probing initialization failed: Device or resource busy”2024&#x2F;03&#x2F;29 03:11:09 Cleanup lv “vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11”: StdoutBuf - “Quick reset completed”[CSI local driver]2024&#x2F;03&#x2F;29 03:11:09 lvm.go:830: Executing: &#x2F;usr&#x2F;sbin&#x2F;lvremove -f vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11[CSI local driver]2024&#x2F;03&#x2F;29 03:11:18 lvm.go:837: stderr: Logical volume vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11 contains a filesystem in use.[CSI local driver]2024&#x2F;03&#x2F;29 03:11:18 logging.go:30: &#x2F;csi.v1.Node&#x2F;NodeUnpublishVolume failed: err&#x3D;rpc error: code &#x3D; Internal desc &#x3D; rpc error: code &#x3D; Internal desc &#x3D; Failed to remove volume: Failed to lvremove lv vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11: Logical volume vg10000&#x2F;vg10000_csi-17ef0134f9c76245a954e751a3ebdb57a965d6cf5ea66a6f19bc4b6aa37bad11 contains a filesystem in use.</p>
+<p>So the conditions of producing orphan csi inline volume should be:</p>
+<ol>
+<li>Pod terminating</li>
+<li>Kubelet restart or shutdown during pod terminating</li>
+<li>Kubelet reconstructvolume failed and start unmount before container shutdown</li>
+</ol>
+<h2 id="Solution"><a href="#Solution" class="headerlink" title="Solution"></a>Solution</h2><p>The upstream has reported and fixed this issue at 1.25 version: <a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/pull/108997">https://github.com/kubernetes/kubernetes/pull/108997</a></p>
+<p>I backport the related pr into our kubernetes repo: <a target="_blank" rel="noopener" href="https://github.corp.ebay.com/tess/kubernetes/pull/2289">https://github.corp.ebay.com/tess/kubernetes/pull/2289</a></p>
+<p>Before the bug fix rollout, we need manually remove the orphan volume, else it might impact the new pod creating local pvc.</p>
+<p>After I audit, I only see the orphan volumes in cluster 40. We can do a change to fix them after kubelet rollout. </p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/04/01/cgroup%20v2%20iocost%20records/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/04/01/cgroup%20v2%20iocost%20records/" class="post-title-link" itemprop="url">Untitled</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2024-04-01 16:56:01 / Modified: 16:56:02" itemprop="dateCreated datePublished" datetime="2024-04-01T16:56:01+08:00">2024-04-01</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* per device */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ioc</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">rq_qos</span>			<span class="title">rqos</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="type">bool</span>				enabled;</span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">ioc_params</span>		<span class="title">params</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">ioc_margins</span>		<span class="title">margins</span>;</span></span><br><span class="line">	u32				period_us;</span><br><span class="line">	u32				timer_slack_ns;</span><br><span class="line">	u64				vrate_min;</span><br><span class="line">	u64				vrate_max;</span><br><span class="line"></span><br><span class="line">	<span class="type">spinlock_t</span>			lock;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">timer_list</span>		<span class="title">timer</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">active_iocgs</span>;</span>	<span class="comment">/* active cgroups */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">ioc_pcpu_stat</span> __<span class="title">percpu</span>	*<span class="title">pcpu_stat</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">enum</span> <span class="title">ioc_running</span>		<span class="title">running</span>;</span></span><br><span class="line">	<span class="type">atomic64_t</span>			vtime_rate;</span><br><span class="line">	u64				vtime_base_rate;</span><br><span class="line">	s64				vtime_err;</span><br><span class="line"></span><br><span class="line">	<span class="type">seqcount_spinlock_t</span>		period_seqcount;</span><br><span class="line">	u64				period_at;	<span class="comment">/* wallclock starttime */</span></span><br><span class="line">	u64				period_at_vtime; <span class="comment">/* vtime starttime */</span></span><br><span class="line"></span><br><span class="line">	<span class="type">atomic64_t</span>			cur_period;	<span class="comment">/* inc&#x27;d each period */</span></span><br><span class="line">	<span class="type">int</span>				busy_level;	<span class="comment">/* saturation history */</span></span><br><span class="line"></span><br><span class="line">	<span class="type">bool</span>				weights_updated;</span><br><span class="line">	<span class="type">atomic_t</span>			hweight_gen;	<span class="comment">/* for lazy hweights */</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* debt forgivness */</span></span><br><span class="line">	u64				dfgv_period_at;</span><br><span class="line">	u64				dfgv_period_rem;</span><br><span class="line">	u64				dfgv_usage_us_sum;</span><br><span class="line"></span><br><span class="line">	u64				autop_too_fast_at;</span><br><span class="line">	u64				autop_too_slow_at;</span><br><span class="line">	<span class="type">int</span>				autop_idx;</span><br><span class="line">	<span class="type">bool</span>				user_qos_params:<span class="number">1</span>;</span><br><span class="line">	<span class="type">bool</span>				user_cost_model:<span class="number">1</span>;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* per device-cgroup pair */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ioc_gq</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">blkg_policy_data</span>		<span class="title">pd</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">ioc</span>			*<span class="title">ioc</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * A iocg can get its weight from two sources - an explicit</span></span><br><span class="line"><span class="comment">	 * per-device-cgroup configuration or the default weight of the</span></span><br><span class="line"><span class="comment">	 * cgroup.  `cfg_weight` is the explicit per-device-cgroup</span></span><br><span class="line"><span class="comment">	 * configuration.  `weight` is the effective considering both</span></span><br><span class="line"><span class="comment">	 * sources.</span></span><br><span class="line"><span class="comment">	 *</span></span><br><span class="line"><span class="comment">	 * When an idle cgroup becomes active its `active` goes from 0 to</span></span><br><span class="line"><span class="comment">	 * `weight`.  `inuse` is the surplus adjusted active weight.</span></span><br><span class="line"><span class="comment">	 * `active` and `inuse` are used to calculate `hweight_active` and</span></span><br><span class="line"><span class="comment">	 * `hweight_inuse`.</span></span><br><span class="line"><span class="comment">	 *</span></span><br><span class="line"><span class="comment">	 * `last_inuse` remembers `inuse` while an iocg is idle to persist</span></span><br><span class="line"><span class="comment">	 * surplus adjustments.</span></span><br><span class="line"><span class="comment">	 *</span></span><br><span class="line"><span class="comment">	 * `inuse` may be adjusted dynamically during period. `saved_*` are used</span></span><br><span class="line"><span class="comment">	 * to determine and track adjustments.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">  </span><br><span class="line">	u32				cfg_weight;</span><br><span class="line">	u32				weight;</span><br><span class="line">	u32				active;</span><br><span class="line">	u32				inuse;</span><br><span class="line"></span><br><span class="line">	u32				last_inuse;</span><br><span class="line">	s64				saved_margin;</span><br><span class="line"></span><br><span class="line">	<span class="type">sector_t</span>			cursor;		<span class="comment">/* to detect randio */</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * `vtime` is this iocg&#x27;s vtime cursor which progresses as IOs are</span></span><br><span class="line"><span class="comment">	 * issued.  If lagging behind device vtime, the delta represents</span></span><br><span class="line"><span class="comment">	 * the currently available IO budget.  If running ahead, the</span></span><br><span class="line"><span class="comment">	 * overage.</span></span><br><span class="line"><span class="comment">	 *</span></span><br><span class="line"><span class="comment">	 * `vtime_done` is the same but progressed on completion rather</span></span><br><span class="line"><span class="comment">	 * than issue.  The delta behind `vtime` represents the cost of</span></span><br><span class="line"><span class="comment">	 * currently in-flight IOs.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="type">atomic64_t</span>			vtime;</span><br><span class="line">	<span class="type">atomic64_t</span>			done_vtime;</span><br><span class="line">	u64				abs_vdebt;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* current delay in effect and when it started */</span></span><br><span class="line">	u64				delay;</span><br><span class="line">	u64				delay_at;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * The period this iocg was last active in.  Used for deactivation</span></span><br><span class="line"><span class="comment">	 * and invalidating `vtime`.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="type">atomic64_t</span>			active_period;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">active_list</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* see __propagate_weights() and current_hweight() for details */</span></span><br><span class="line">	u64				child_active_sum;</span><br><span class="line">	u64				child_inuse_sum;</span><br><span class="line">	u64				child_adjusted_sum;</span><br><span class="line">	<span class="type">int</span>				hweight_gen;</span><br><span class="line">	u32				hweight_active;</span><br><span class="line">	u32				hweight_inuse;</span><br><span class="line">	u32				hweight_donating;</span><br><span class="line">	u32				hweight_after_donation;</span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">walk_list</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">surplus_list</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">wait_queue_head</span>		<span class="title">waitq</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">hrtimer</span>			<span class="title">waitq_timer</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* timestamp at the latest activation */</span></span><br><span class="line">	u64				activated_at;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* statistics */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">iocg_pcpu_stat</span> __<span class="title">percpu</span>	*<span class="title">pcpu_stat</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">iocg_stat</span>		<span class="title">stat</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">iocg_stat</span>		<span class="title">last_stat</span>;</span></span><br><span class="line">	u64				last_stat_abs_vusage;</span><br><span class="line">	u64				usage_delta_us;</span><br><span class="line">	u64				wait_since;</span><br><span class="line">	u64				indebt_since;</span><br><span class="line">	u64				indelay_since;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* this iocg&#x27;s depth in the hierarchy and ancestors including self */</span></span><br><span class="line">	<span class="type">int</span>				level;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">ioc_gq</span>			*<span class="title">ancestors</span>[];</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -524,141 +868,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-repair-thinpool/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
-<ol>
-<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>repair meta and active pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>active pool</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
-
-<p>Below are the steps which happen while running the consistency check:</p>
-<ol>
-<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
-<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
-</ol>
-<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
-
-<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
-<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
-<ol>
-<li><p>create temporary small LV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>replace pool’s metadata volume with this tempLV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>(say ‘y’ to swap)</p>
-<ol>
-<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
-<p>so create:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
-
-<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
-<ol>
-<li><p>swap deactivated repaired volume back to your thin-pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>try to activate pool - if it doesn’t work report more problems.</p>
-<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
-<ol>
-<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Repair thin pool with lvconvert –repair.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Check and repair file system with fsck.</p>
-</li>
-</ol>
-</li>
-</ol>
-</li>
-</ol>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-raid/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -800,6 +1009,141 @@
 <li>[4] dm-raid, <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt">https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt</a></li>
 <li>[5] How To Create RAID Arrays with mdadm on Ubuntu 16.04, <a target="_blank" rel="noopener" href="https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04">https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04</a></li>
 </ul>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-repair-thinpool/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
+<ol>
+<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>repair meta and active pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>active pool</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
+
+<p>Below are the steps which happen while running the consistency check:</p>
+<ol>
+<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
+<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
+</ol>
+<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
+
+<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
+<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
+<ol>
+<li><p>create temporary small LV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>replace pool’s metadata volume with this tempLV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>(say ‘y’ to swap)</p>
+<ol>
+<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
+<p>so create:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
+
+<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
+<ol>
+<li><p>swap deactivated repaired volume back to your thin-pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>try to activate pool - if it doesn’t work report more problems.</p>
+<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
+<ol>
+<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Repair thin pool with lvconvert –repair.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Check and repair file system with fsck.</p>
+</li>
+</ol>
+</li>
+</ol>
+</li>
+</ol>
 
       
     </div>
@@ -1072,363 +1416,6 @@
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">[  983.179047] BUG kmalloc-256(4:099fef32f6df55082271a9ab572acec8251aa754a14a60444d7ce4cb110be56f) (Tainted: G    B          ------------ T): Objects remaining in kmalloc-256(4:099fef32f6df55082271a9ab572acec8251aa754a14a60444d7ce4cb110be56f</span><br><span class="line">[  983.179890] -----------------------------------------------------------------------------</span><br><span class="line"></span><br><span class="line">[  983.180762] INFO: Slab 0xffffea000cae8840 objects=16 used=9 fp=0xffff88032ba21b00 flags=0x2fffff00000080</span><br><span class="line">[  983.181181] CPU: 3 PID: 25070 Comm: lvconvert Tainted: G    B          ------------ T 3.10.0-327.el7.x86_64 #1</span><br><span class="line">[  983.181182] Hardware name: Red Hat KVM, BIOS 0.5.1 01/01/2011</span><br><span class="line">[  983.181183]  ffffea000cae8840 00000000c255adbf ffff88018d43baa8 ffffffff816351f1</span><br><span class="line">[  983.181186]  ffff88018d43bb80 ffffffff811beac4 0000000000000020 ffff88018d43bb90</span><br><span class="line">[  983.181188]  ffff88018d43bb40 656a624f00000000 616d657220737463 6e6920676e696e69</span><br><span class="line">[  983.181190] Call Trace:</span><br><span class="line">[  983.181195]  [&lt;ffffffff816351f1&gt;] dump_stack+0x19/0x1b</span><br><span class="line">[  983.181203]  [&lt;ffffffff811beac4&gt;] slab_err+0xb4/0xe0</span><br><span class="line">[  983.181206]  [&lt;ffffffff811c1f33&gt;] ? __kmalloc+0x1f3/0x230</span><br><span class="line">[  983.181208]  [&lt;ffffffff811c316b&gt;] ? kmem_cache_close+0x12b/0x2f0</span><br><span class="line">[  983.181210]  [&lt;ffffffff811c318c&gt;] kmem_cache_close+0x14c/0x2f0</span><br><span class="line">[  983.181212]  [&lt;ffffffff811c35c4&gt;] __kmem_cache_shutdown+0x14/0x80</span><br><span class="line">[  983.181215]  [&lt;ffffffff8118ceaf&gt;] kmem_cache_destroy+0x3f/0xe0</span><br><span class="line">[  983.181217]  [&lt;ffffffff811d4949&gt;] kmem_cache_destroy_memcg_children+0x89/0xb0</span><br><span class="line">[  983.181221]  [&lt;ffffffff8118ce84&gt;] kmem_cache_destroy+0x14/0xe0</span><br><span class="line">[  983.181231]  [&lt;ffffffff8121705e&gt;] bioset_free+0xce/0x110</span><br><span class="line">[  983.181250]  [&lt;ffffffffa0002fa0&gt;] __dm_destroy+0x1b0/0x340 [dm_mod]</span><br><span class="line">[  983.181257]  [&lt;ffffffffa00047e3&gt;] dm_destroy+0x13/0x20 [dm_mod]</span><br><span class="line">[  983.181263]  [&lt;ffffffffa000a34e&gt;] dev_remove+0x11e/0x180 [dm_mod]</span><br><span class="line">[  983.181268]  [&lt;ffffffffa000a230&gt;] ? dev_suspend+0x250/0x250 [dm_mod]</span><br><span class="line">[  983.181274]  [&lt;ffffffffa000aa25&gt;] ctl_ioctl+0x255/0x500 [dm_mod]</span><br><span class="line">[  983.181278]  [&lt;ffffffff81271b94&gt;] ? SYSC_semtimedop+0x264/0xd10</span><br><span class="line">[  983.181287]  [&lt;ffffffffa000ace3&gt;] dm_ctl_ioctl+0x13/0x20 [dm_mod]</span><br><span class="line">[  983.181289]  [&lt;ffffffff811f1ef5&gt;] do_vfs_ioctl+0x2e5/0x4c0</span><br><span class="line">[  983.181292]  [&lt;ffffffff811e05ee&gt;] ? ____fput+0xe/0x10</span><br><span class="line">[  983.181294]  [&lt;ffffffff811f2171&gt;] SyS_ioctl+0xa1/0xc0</span><br><span class="line">[  983.181298]  [&lt;ffffffff81645909&gt;] system_call_fastpath+0x16/0x1b</span><br></pre></td></tr></table></figure>
 
 <p>看起来是lvconvert过程中缓存分配出现错误, 查到这一步基本无从下手了, 只能google搜索. 在docker项目中发现有相似的情况<a target="_blank" rel="noopener" href="https://github.com/moby/moby/issues/29879">https://github.com/moby/moby/issues/29879</a>, 出问题的三个网址都是3.10的kernel, 回到说是kernel问题, 升到4.16.7-1.el7.elrepo.x86_64没有问题.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-docker-start-failed/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-docker-start-failed/" class="post-title-link" itemprop="url">docker-start-failed</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>make build过程中忽然出现错误:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">Sending build context to Docker daemon   220 MB</span><br><span class="line">Step 1 : FROM warpdrive:tos-release-1-5</span><br><span class="line"> ---&gt; 769306738d96</span><br><span class="line">Step 2 : COPY . /go/src/github.com/transwarp/warpdrive/</span><br><span class="line"> ---&gt; 07c99697b16e</span><br><span class="line">Removing intermediate container 127c0e71a84b</span><br><span class="line">Successfully built 07c99697b16e</span><br><span class="line">/usr/bin/docker: Error response from daemon: invalid header field value &quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux.go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot;.</span><br><span class="line">FATA[0301] exit status 125                              </span><br><span class="line">make: *** [build] Error 1</span><br></pre></td></tr></table></figure>
-
-<p>尝试run 07c99697b16e报同样的错, 查看docker日志, 出现<code>&quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux .go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot;</code></p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">8月 21 15:29:01 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:29:01.778212288+08:00&quot; level=error msg=&quot;Handler for POST /v1.24/containers/79a0906242e0180dfd7aeff30e9fb179f7b7c37f0ba20533f83b4cd40b409d2a/start returned error: invali</span><br><span class="line">d header field value \&quot;oci runtime error: container_linux.go:247: starting container process caused \\\&quot;process_linux.go:245: running exec setns process for init caused \\\\\\\&quot;exit status 6\\\\\\\&quot;\\\&quot;\\n\&quot;&quot;</span><br><span class="line">8月 21 15:51:08 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:51:08.075631868+08:00&quot; level=error msg=&quot;containerd: start container&quot; error=&quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux</span><br><span class="line">.go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot; id=b93539a02f27cc1ad0114552643d8e0c942fba053dc8cd3980cb8f24cf61ff25</span><br><span class="line">8月 21 15:51:08 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:51:08.092002257+08:00&quot; level=error msg=&quot;Create container failed with error: invalid header field value \&quot;oci runtime error: container_linux.go:247: starting container p</span><br><span class="line">rocess caused \\\&quot;process_linux.go:245: running exec setns process for init caused \\\\\\\&quot;exit status 6\\\\\\\&quot;\\\&quot;\\n\&quot;&quot;</span><br></pre></td></tr></table></figure>
-
-<p>发现Docker比较卡, 于是清理了大量的images, 删掉了所有未运行的container, 再清理了系统缓存, 问题解决了, 但深层次的问题没弄清楚, 尽管清了缓存, 但是清完其实缓存差距不大, docker 也没有显示资源问题, 另外一个点就是, 只有这个image是进不去的, 其他的Images是可以run -it的, 而且在做<code>COPY . /go/src/github.com/transwarp/warpdrive/</code>这一步时间等的比较长.</p>
-<p><a target="_blank" rel="noopener" href="https://github.com/opencontainers/runc/issues/1130">https://github.com/opencontainers/runc/issues/1130</a> 记录了相关的问题, 说runc的问题.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-k8s-cgroup/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-k8s-cgroup/" class="post-title-link" itemprop="url">k8s-cgroup</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>问题:</p>
-<ol>
-<li>k8s中cpu的request和limit中设置”0.5”和”100m”表示什么意思?</li>
-<li>一个4核8线程的cpu, 设置cpu为”1”的limit实际的限制多少?</li>
-<li>cpu中request和limit使用上有什么区别?</li>
-<li>cgroup中是如何限制的?</li>
-</ol>
-<h4 id="Linux-Cgroup"><a href="#Linux-Cgroup" class="headerlink" title="Linux Cgroup"></a>Linux Cgroup</h4><p>众所周知, kubernetes和docker中对cpu, memory进行了使用限制, 用于内存和cpu的资源使用隔离. 而底层使用的是linux cgroup技术. 内存比较简单, 本文主要讲cpu的cgroup.</p>
-<p>在cgroup里面，跟CPU相关的子系统有<a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/cgroup-v1/cpusets.txt">cpusets</a>、<a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/cgroup-v1/cpuacct.txt">cpuacct</a>和<a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt">cpu</a>。</p>
-<p>其中cpuset主要用于设置CPU的亲和性，可以限制cgroup中的进程只能在指定的CPU上运行，或者不能在指定的CPU上运行，同时cpuset还能设置内存的亲和性。设置亲和性一般只在比较特殊的情况才用得着，所以这里不做介绍。</p>
-<p>cpuacct包含当前cgroup所使用的CPU的统计信息，信息量较少，有兴趣可以去看看它的文档，这里不做介绍。</p>
-<p>本篇只介绍<a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-cpu#sect-cfs">cpu子系统</a>，包括怎么限制cgroup的CPU使用上限及相对于其它cgroup的相对值。</p>
-<h5 id="创建子cgroup"><a href="#创建子cgroup" class="headerlink" title="创建子cgroup"></a>创建子cgroup</h5><p>在ubuntu下，systemd已经帮我们mount好了cpu子系统，我们只需要在相应的目录下创建子目录就可以了</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">#从这里的输出可以看到，cpuset被挂载在了/sys/fs/cgroup/cpuset，</span><br><span class="line">#而cpu和cpuacct一起挂载到了/sys/fs/cgroup/cpu,cpuacct下面</span><br><span class="line">dev@ubuntu:~$ mount|grep cpu</span><br><span class="line">cgroup on /sys/fs/cgroup/cpuset type cgroup (rw,nosuid,nodev,noexec,relatime,cpuset)</span><br><span class="line">cgroup on /sys/fs/cgroup/cpu,cpuacct type cgroup (rw,nosuid,nodev,noexec,relatime,cpu,cpuacct)</span><br><span class="line"></span><br><span class="line">#进入/sys/fs/cgroup/cpu,cpuacct并创建子cgroup</span><br><span class="line">dev@ubuntu:~$ cd /sys/fs/cgroup/cpu,cpuacct</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct$ sudo mkdir test</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct$ cd test</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ ls</span><br><span class="line">cgroup.clone_children  cpuacct.stat   cpuacct.usage_percpu  cpu.cfs_quota_us  cpu.stat           tasks</span><br><span class="line">cgroup.procs           cpuacct.usage  cpu.cfs_period_us     cpu.shares        notify_on_release</span><br></pre></td></tr></table></figure>
-
-<p>我们只需要关注cpu.开头的文件</p>
-<h5 id="cpu-subsystem"><a href="#cpu-subsystem" class="headerlink" title="cpu subsystem"></a>cpu subsystem</h5><p>cpu子系统调度cpu到cgroups中, 目前有两种调度策略:</p>
-<ul>
-<li><em>Completely Fair Scheduler (CFS)</em> —-将cpu时间划分成合适的份额, 按比例和权重分配给cgroup.cfs可以设置相对权重和绝对权重, 目前k8s用的是这个调度策略.</li>
-<li><em>Real-Time scheduler (RT)</em> —RT调度器与CFS中的绝对权重控制相似, 不过仅用于实时任务. 可以在运行时进行实时调整参数.</li>
-</ul>
-<ol>
-<li>Completely Fair Scheduler (CFS):</li>
-</ol>
-<ul>
-<li><p>强制绝对控制参数:</p>
-<p>cpu.cfs_period_us &amp; cpu.cfs_quota_us</p>
-</li>
-</ul>
-<p> cfs_period_us用来配置时间周期长度，cfs_quota_us用来配置当前cgroup在设置的周期长度内所能使用的CPU时间数，两个文件配合起来设置CPU的使用上限。两个文件的单位都是微秒（us），cfs_period_us的取值范围为1毫秒（ms）到1秒（s），cfs_quota_us的取值大于1ms即可，如果cfs_quota_us的值为-1（默认值），表示不受cpu时间的限制。下面是几个例子：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">1.限制只能使用1个CPU（每250ms能使用250ms的CPU时间）</span><br><span class="line">    # echo 250000 &gt; cpu.cfs_quota_us /* quota = 250ms */</span><br><span class="line">    # echo 250000 &gt; cpu.cfs_period_us /* period = 250ms */</span><br><span class="line"></span><br><span class="line">2.限制使用2个CPU（内核）（每500ms能使用1000ms的CPU时间，即使用两个内核）</span><br><span class="line">    # echo 1000000 &gt; cpu.cfs_quota_us /* quota = 1000ms */</span><br><span class="line">    # echo 500000 &gt; cpu.cfs_period_us /* period = 500ms */</span><br><span class="line"></span><br><span class="line">3.限制使用1个CPU的20%（每50ms能使用10ms的CPU时间，即使用一个CPU核心的20%）</span><br><span class="line">    # echo 10000 &gt; cpu.cfs_quota_us /* quota = 10ms */</span><br><span class="line">    # echo 50000 &gt; cpu.cfs_period_us /* period = 50ms */</span><br></pre></td></tr></table></figure>
-
-<p> cpu.stat:</p>
-<p>包含了下面三项统计结果</p>
-<ul>
-<li>nr_periods： 表示过去了多少个cpu.cfs_period_us里面配置的时间周期</li>
-<li>nr_throttled： 在上面的这些周期中，有多少次是受到了限制（即cgroup中的进程在指定的时间周期中用光了它的配额）</li>
-<li>throttled_time: cgroup中的进程被限制使用CPU持续了多长时间(纳秒)</li>
-<li>相对控制参数: cpu.shares</li>
-</ul>
-<p>shares用来设置CPU的相对值，并且是针对所有的CPU（内核），默认值是1024，假如系统中有两个cgroup，分别是A和B，A的shares值是1024，B的shares值是512，那么A将获得1024&#x2F;(1204+512)&#x3D;66%的CPU资源，而B将获得33%的CPU资源。shares有两个特点：</p>
-<ul>
-<li>如果A不忙，没有使用到66%的CPU时间，那么剩余的CPU时间将会被系统分配给B，即B的CPU使用率可以超过33%</li>
-<li>如果添加了一个新的cgroup C，且它的shares值是1024，那么A的限额变成了1024&#x2F;(1204+512+1024)&#x3D;40%，B的变成了20%</li>
-</ul>
-<p>从上面两个特点可以看出：</p>
-<ul>
-<li>在闲的时候，shares基本上不起作用，只有在CPU忙的时候起作用，这是一个优点。</li>
-<li>由于shares是一个绝对值，需要和其它cgroup的值进行比较才能得到自己的相对限额，而在一个部署很多容器的机器上，cgroup的数量是变化的，所以这个限额也是变化的，自己设置了一个高的值，但别人可能设置了一个更高的值，所以这个功能没法精确的控制CPU使用率。</li>
-</ul>
-<ol start="2">
-<li>Real-Time scheduler (RT):</li>
-</ol>
-<p>cpu.rt_period_us: 周期时间, us, 同cfs</p>
-<p>cpu.rt_runtime_us: 最长持续周期, us. 例如设置rt_runtime_us &#x3D; 200000, rt_period_us &#x3D; 1000000, 这就是说如果node有2cpu, 那么每秒钟占用时间就是2*0.2 &#x3D; 0.4s. 这个也是绝对时间.</p>
-<h5 id="运行事例"><a href="#运行事例" class="headerlink" title="运行事例:"></a>运行事例:</h5><p>以cfs为例.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">#继续使用上面创建的子cgroup： test</span><br><span class="line">#设置只能使用1个cpu的20%的时间</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ sudo sh -c &quot;echo 50000 &gt; cpu.cfs_period_us&quot;</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ sudo sh -c &quot;echo 10000 &gt; cpu.cfs_quota_us&quot;</span><br><span class="line"></span><br><span class="line">#将当前bash加入到该cgroup</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ echo $$</span><br><span class="line">5456</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ sudo sh -c &quot;echo 5456 &gt; cgroup.procs&quot;</span><br><span class="line"></span><br><span class="line">#在bash中启动一个死循环来消耗cpu，正常情况下应该使用100%的cpu（即消耗一个内核）</span><br><span class="line">dev@ubuntu:/sys/fs/cgroup/cpu,cpuacct/test$ while :; do echo test &gt; /dev/null; done</span><br><span class="line"></span><br><span class="line">#--------------------------重新打开一个shell窗口----------------------</span><br><span class="line">#通过top命令可以看到5456的CPU使用率为20%左右，说明被限制住了</span><br><span class="line">#不过这时系统的%us+%sy在10%左右，那是因为我测试的机器上cpu是双核的，</span><br><span class="line">#所以系统整体的cpu使用率为10%左右</span><br><span class="line">dev@ubuntu:~$ top</span><br><span class="line">Tasks: 139 total,   2 running, 137 sleeping,   0 stopped,   0 zombie</span><br><span class="line">%Cpu(s):  5.6 us,  6.2 sy,  0.0 ni, 88.2 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st</span><br><span class="line">KiB Mem :   499984 total,    15472 free,    81488 used,   403024 buff/cache</span><br><span class="line">KiB Swap:        0 total,        0 free,        0 used.   383332 avail Mem</span><br><span class="line"></span><br><span class="line">  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND</span><br><span class="line"> 5456 dev       20   0   22640   5472   3524 R  20.3  1.1   0:04.62 bash</span><br><span class="line"></span><br><span class="line">#这时可以看到被限制的统计结果</span><br><span class="line">dev@ubuntu:~$ cat /sys/fs/cgroup/cpu,cpuacct/test/cpu.stat</span><br><span class="line">nr_periods 1436</span><br><span class="line">nr_throttled 1304</span><br><span class="line">throttled_time 51542291833</span><br></pre></td></tr></table></figure>
-
-<h4 id="kubernetes-资源控制机制"><a href="#kubernetes-资源控制机制" class="headerlink" title="kubernetes 资源控制机制"></a>kubernetes 资源控制机制</h4><p>kubernetes使用runc作为runtime, runc中通过cpuGroup对cpu子系统的的调度进行设置. 其中Set()用于初始设置, Apply()方法用于动态更改设置, . 原理就是往上述的指定文件写入相应条目和数字. 没有什么可说的.</p>
-<p>内存的Set():</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">func (s *MemoryGroup) Set(path string, cgroup *configs.Cgroup) error &#123;</span><br><span class="line">	if err := setMemoryAndSwap(path, cgroup); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if cgroup.Resources.KernelMemory != 0 &#123;</span><br><span class="line">		if err := setKernelMemory(path, cgroup.Resources.KernelMemory); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if cgroup.Resources.MemoryReservation != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;memory.soft_limit_in_bytes&quot;, strconv.FormatInt(cgroup.Resources.MemoryReservation, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if cgroup.Resources.KernelMemoryTCP != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;memory.kmem.tcp.limit_in_bytes&quot;, strconv.FormatInt(cgroup.Resources.KernelMemoryTCP, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.OomKillDisable &#123;</span><br><span class="line">		if err := writeFile(path, &quot;memory.oom_control&quot;, &quot;1&quot;); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.MemorySwappiness == nil || int64(*cgroup.Resources.MemorySwappiness) == -1 &#123;</span><br><span class="line">		return nil</span><br><span class="line">	&#125; else if *cgroup.Resources.MemorySwappiness &lt;= 100 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;memory.swappiness&quot;, strconv.FormatUint(*cgroup.Resources.MemorySwappiness, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		return fmt.Errorf(&quot;invalid value:%d. valid memory swappiness range is 0-100&quot;, *cgroup.Resources.MemorySwappiness)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>内存Apply():</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">func (s *MemoryGroup) Apply(d *cgroupData) (err error) &#123;</span><br><span class="line">	path, err := d.path(&quot;memory&quot;)</span><br><span class="line">	if err != nil &amp;&amp; !cgroups.IsNotFound(err) &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125; else if path == &quot;&quot; &#123;</span><br><span class="line">		return nil</span><br><span class="line">	&#125;</span><br><span class="line">	if memoryAssigned(d.config) &#123;</span><br><span class="line">		if _, err := os.Stat(path); os.IsNotExist(err) &#123;</span><br><span class="line">			if err := os.MkdirAll(path, 0755); err != nil &#123;</span><br><span class="line">				return err</span><br><span class="line">			&#125;</span><br><span class="line">			// 只有内核内存可以动态设置</span><br><span class="line">			if err := EnableKernelMemoryAccounting(path); err != nil &#123;</span><br><span class="line">				return err</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	...</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func EnableKernelMemoryAccounting(path string) error &#123;</span><br><span class="line">	// Check if kernel memory is enabled</span><br><span class="line">	// We have to limit the kernel memory here as it won&#x27;t be accounted at all</span><br><span class="line">	// until a limit is set on the cgroup and limit cannot be set once the</span><br><span class="line">	// cgroup has children, or if there are already tasks in the cgroup.</span><br><span class="line">	for _, i := range []int64&#123;1, -1&#125; &#123;</span><br><span class="line">		if err := setKernelMemory(path, i); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>cpu的Set():</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">func (s *CpuGroup) Set(path string, cgroup *configs.Cgroup) error &#123;</span><br><span class="line">    // 设置CFS </span><br><span class="line">	if cgroup.Resources.CpuShares != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.shares&quot;, strconv.FormatUint(cgroup.Resources.CpuShares, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.CpuPeriod != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.cfs_period_us&quot;, strconv.FormatUint(cgroup.Resources.CpuPeriod, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.CpuQuota != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.cfs_quota_us&quot;, strconv.FormatInt(cgroup.Resources.CpuQuota, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	// 设置RT</span><br><span class="line">	if err := s.SetRtSched(path, cgroup); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func (s *CpuGroup) SetRtSched(path string, cgroup *configs.Cgroup) error &#123;</span><br><span class="line">	if cgroup.Resources.CpuRtPeriod != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.rt_period_us&quot;, strconv.FormatUint(cgroup.Resources.CpuRtPeriod, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if cgroup.Resources.CpuRtRuntime != 0 &#123;</span><br><span class="line">		if err := writeFile(path, &quot;cpu.rt_runtime_us&quot;, strconv.FormatInt(cgroup.Resources.CpuRtRuntime, 10)); err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>cpu的Apply() 只能设置RT:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">func (s *CpuGroup) Apply(d *cgroupData) error &#123;</span><br><span class="line">	// We always want to join the cpu group, to allow fair cpu scheduling</span><br><span class="line">	// on a container basis</span><br><span class="line">	path, err := d.path(&quot;cpu&quot;)</span><br><span class="line">	if err != nil &amp;&amp; !cgroups.IsNotFound(err) &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line">	return s.ApplyDir(path, d.config, d.pid)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func (s *CpuGroup) ApplyDir(path string, cgroup *configs.Cgroup, pid int) error &#123;</span><br><span class="line">	// This might happen if we have no cpu cgroup mounted.</span><br><span class="line">	// Just do nothing and don&#x27;t fail.</span><br><span class="line">	if path == &quot;&quot; &#123;</span><br><span class="line">		return nil</span><br><span class="line">	&#125;</span><br><span class="line">	if err := os.MkdirAll(path, 0755); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line">	// We should set the real-Time group scheduling settings before moving</span><br><span class="line">	// in the process because if the process is already in SCHED_RR mode</span><br><span class="line">	// and no RT bandwidth is set, adding it will fail.</span><br><span class="line">	if err := s.SetRtSched(path, cgroup); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line">	// because we are not using d.join we need to place the pid into the procs file</span><br><span class="line">	// unlike the other subsystems</span><br><span class="line">	if err := cgroups.WriteCgroupProc(path, pid); err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h5 id="K8s-Limits-Request-代码分析"><a href="#K8s-Limits-Request-代码分析" class="headerlink" title="K8s Limits &amp; Request 代码分析"></a>K8s Limits &amp; Request 代码分析</h5><p>k8s中管理cgroup的结构体在k8s.io&#x2F;kubernetes&#x2F;pkg&#x2F;kubelet&#x2F;cm&#x2F;cgroup_manager_linux.go中:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">// cgroupManagerImpl implements the CgroupManager interface.</span><br><span class="line">// Its a stateless object which can be used to</span><br><span class="line">// update,create or delete any number of cgroups</span><br><span class="line">// It uses the Libcontainer raw fs cgroup manager for cgroup management.</span><br><span class="line">type cgroupManagerImpl struct &#123;</span><br><span class="line">	// subsystems holds information about all the</span><br><span class="line">	// mounted cgroup subsystems on the node</span><br><span class="line">	subsystems *CgroupSubsystems</span><br><span class="line">	// simplifies interaction with libcontainer and its cgroup managers</span><br><span class="line">	adapter *libcontainerAdapter</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>来看下Update方法:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line">// Update updates the cgroup with the specified Cgroup Configuration</span><br><span class="line">func (m *cgroupManagerImpl) Update(cgroupConfig *CgroupConfig) error &#123;</span><br><span class="line">	...</span><br><span class="line">	// 提取cgroup资源参数</span><br><span class="line">	resourceConfig := cgroupConfig.ResourceParameters</span><br><span class="line">	resources := m.toResources(resourceConfig)</span><br><span class="line"></span><br><span class="line">	cgroupPaths := m.buildCgroupPaths(cgroupConfig.Name)</span><br><span class="line"></span><br><span class="line">	// 获得cgroupfs的位置.</span><br><span class="line">	abstractCgroupFsName := string(cgroupConfig.Name)</span><br><span class="line">	abstractParent := CgroupName(path.Dir(abstractCgroupFsName))</span><br><span class="line">	abstractName := CgroupName(path.Base(abstractCgroupFsName))</span><br><span class="line"></span><br><span class="line">	driverParent := m.adapter.adaptName(abstractParent, false)</span><br><span class="line">	driverName := m.adapter.adaptName(abstractName, false)</span><br><span class="line"></span><br><span class="line">	// 获取systemd的绝对位置</span><br><span class="line">	if m.adapter.cgroupManagerType == libcontainerSystemd &#123;</span><br><span class="line">		driverName = m.adapter.adaptName(cgroupConfig.Name, false)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	// 初始化cgroup配置</span><br><span class="line">	libcontainerCgroupConfig := &amp;libcontainerconfigs.Cgroup&#123;</span><br><span class="line">		Name:      driverName,</span><br><span class="line">		Parent:    driverParent,</span><br><span class="line">		Resources: resources,</span><br><span class="line">		Paths:     cgroupPaths,</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    // 设置cgroup配置</span><br><span class="line">	if err := setSupportedSubsystems(libcontainerCgroupConfig); err != nil &#123;</span><br><span class="line">		return fmt.Errorf(&quot;failed to set supported cgroup subsystems for cgroup %v: %v&quot;, cgroupConfig.Name, err)</span><br><span class="line">	&#125;</span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>先看下参数是如何提取的:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">func (m *cgroupManagerImpl) toResources(resourceConfig *ResourceConfig) *libcontainerconfigs.Resources &#123;</span><br><span class="line">	resources := &amp;libcontainerconfigs.Resources&#123;&#125;</span><br><span class="line">	if resourceConfig == nil &#123;</span><br><span class="line">		return resources</span><br><span class="line">	&#125;</span><br><span class="line">	if resourceConfig.Memory != nil &#123;</span><br><span class="line">		resources.Memory = *resourceConfig.Memory</span><br><span class="line">	&#125;</span><br><span class="line">	if resourceConfig.CpuShares != nil &#123;</span><br><span class="line">		resources.CpuShares = *resourceConfig.CpuShares</span><br><span class="line">	&#125;</span><br><span class="line">	if resourceConfig.CpuQuota != nil &#123;</span><br><span class="line">		resources.CpuQuota = *resourceConfig.CpuQuota</span><br><span class="line">	&#125;</span><br><span class="line">	if resourceConfig.CpuPeriod != nil &#123;</span><br><span class="line">		resources.CpuPeriod = *resourceConfig.CpuPeriod</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	// huge page参数提取, 略过</span><br><span class="line">	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.HugePages) &#123;</span><br><span class="line">    ...</span><br><span class="line">	return resources</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>在来看看CpuShare, CpuQuota, 和CpuPeriod都来字哪里:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line">// ResourceConfigForPod takes the input pod and outputs the cgroup resource config.</span><br><span class="line">func ResourceConfigForPod(pod *v1.Pod) *ResourceConfig &#123;</span><br><span class="line">	// sum requests and limits.</span><br><span class="line">	reqs, limits := resource.PodRequestsAndLimits(pod)</span><br><span class="line"></span><br><span class="line">	cpuRequests := int64(0)</span><br><span class="line">	cpuLimits := int64(0)</span><br><span class="line">	memoryLimits := int64(0)</span><br><span class="line">	if request, found := reqs[v1.ResourceCPU]; found &#123;</span><br><span class="line">		cpuRequests = request.MilliValue()</span><br><span class="line">	&#125;</span><br><span class="line">	if limit, found := limits[v1.ResourceCPU]; found &#123;</span><br><span class="line">		cpuLimits = limit.MilliValue()</span><br><span class="line">	&#125;</span><br><span class="line">	if limit, found := limits[v1.ResourceMemory]; found &#123;</span><br><span class="line">		memoryLimits = limit.Value()</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	// convert to CFS values</span><br><span class="line">	cpuShares := MilliCPUToShares(cpuRequests)</span><br><span class="line">	cpuQuota, cpuPeriod := MilliCPUToQuota(cpuLimits)</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">// MilliCPUToShares converts the milliCPU to CFS shares.</span><br><span class="line">func MilliCPUToShares(milliCPU int64) uint64 &#123;</span><br><span class="line">	if milliCPU == 0 &#123;</span><br><span class="line">		// Docker converts zero milliCPU to unset, which maps to kernel default</span><br><span class="line">		// for unset: 1024. Return 2 here to really match kernel default for</span><br><span class="line">		// zero milliCPU.</span><br><span class="line">		return MinShares</span><br><span class="line">	&#125;</span><br><span class="line">	// Conceptually (milliCPU / milliCPUToCPU) * sharesPerCPU, but factored to improve rounding.</span><br><span class="line">	shares := (milliCPU * SharesPerCPU) / MilliCPUToCPU</span><br><span class="line">	if shares &lt; MinShares &#123;</span><br><span class="line">		return MinShares</span><br><span class="line">	&#125;</span><br><span class="line">	return uint64(shares)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">// MilliCPUToQuota converts milliCPU to CFS quota and period values.</span><br><span class="line">func MilliCPUToQuota(milliCPU int64) (quota int64, period uint64) &#123;</span><br><span class="line">	// CFS quota is measured in two values:</span><br><span class="line">	//  - cfs_period_us=100ms (the amount of time to measure usage across)</span><br><span class="line">	//  - cfs_quota=20ms (the amount of cpu time allowed to be used across a period)</span><br><span class="line">	// so in the above example, you are limited to 20% of a single CPU</span><br><span class="line">	// for multi-cpu environments, you just scale equivalent amounts</span><br><span class="line"></span><br><span class="line">	if milliCPU == 0 &#123;</span><br><span class="line">		return</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	// we set the period to 100ms by default</span><br><span class="line">	period = QuotaPeriod</span><br><span class="line"></span><br><span class="line">	// we then convert your milliCPU to a value normalized over a period</span><br><span class="line">	quota = (milliCPU * QuotaPeriod) / MilliCPUToCPU</span><br><span class="line"></span><br><span class="line">	// quota needs to be a minimum of 1ms.</span><br><span class="line">	if quota &lt; MinQuotaPeriod &#123;</span><br><span class="line">		quota = MinQuotaPeriod</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">const (</span><br><span class="line">	// Taken from lmctfy https://github.com/google/lmctfy/blob/master/lmctfy/controllers/cpu_controller.cc</span><br><span class="line">	MinShares     = 2</span><br><span class="line">	SharesPerCPU  = 1024</span><br><span class="line">	MilliCPUToCPU = 1000</span><br><span class="line"></span><br><span class="line">	// 100000 is equivalent to 100ms</span><br><span class="line">	QuotaPeriod    = 100000</span><br><span class="line">	MinQuotaPeriod = 1000</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
-
-<p>设置的代码:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">func setSupportedSubsystems(cgroupConfig *libcontainerconfigs.Cgroup) error &#123;</span><br><span class="line">	for _, sys := range getSupportedSubsystems() &#123;</span><br><span class="line">		if _, ok := cgroupConfig.Paths[sys.Name()]; !ok &#123;</span><br><span class="line">			return fmt.Errorf(&quot;Failed to find subsystem mount for subsystem: %v&quot;, sys.Name())</span><br><span class="line">		&#125;</span><br><span class="line">        // 调用前面的cgroup.Set()方法</span><br><span class="line">		if err := sys.Set(cgroupConfig.Paths[sys.Name()], cgroupConfig); err != nil &#123;</span><br><span class="line">			return fmt.Errorf(&quot;Failed to set config for supported subsystems : %v&quot;, err)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>代码很明显了:</p>
-<p>Request -&gt; cpu.shares</p>
-<p>Limits -&gt; cpu.quota(CFS或者RT)</p>
-<p>QuotaPeriod 为100ms</p>
-<p>所以当Request设置0.5(0.5 <em>1024&#x3D;512), 等价于设置500m(500</em> 1024&#x2F;1000&#x3D;512), 也就是512.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[root@tdc-tester04 ~]# cat /sys/fs/cgroup/cpu/kubepods/burstable/pod4de91174-9002-11e8-a663-ac1f6b83dd66/1cbc69fd7756efdcba38d11a57acab5cdbe0b9b2e5eef2a9e86e3c6c8850b1a1/cpu.shares </span><br><span class="line">512</span><br></pre></td></tr></table></figure>
-
-<p>当Limit设置1(1 <em>1000</em> 100000&#x2F;1000&#x3D;100000), 等价于1000m(1000 * 100000 &#x2F; 1000 &#x3D; 100000 ), 也就是quota&#x3D;100000, period&#x3D;100000.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[root@tdc-tester04 ~]# cat /sys/fs/cgroup/cpu/kubepods/burstable/pod4de91174-9002-11e8-a663-ac1f6b83dd66/1cbc69fd7756efdcba38d11a57acab5cdbe0b9b2e5eef2a9e86e3c6c8850b1a1/cpu.cfs_quota_us </span><br><span class="line">100000</span><br><span class="line">[root@tdc-tester04 ~]# cat /sys/fs/cgroup/cpu/kubepods/burstable/pod4de91174-9002-11e8-a663-ac1f6b83dd66/1cbc69fd7756efdcba38d11a57acab5cdbe0b9b2e5eef2a9e86e3c6c8850b1a1/cpu.cfs_period_us </span><br><span class="line">100000</span><br></pre></td></tr></table></figure>
-
-<p>至此所有路走通.</p>
-<h4 id="值得注意的点"><a href="#值得注意的点" class="headerlink" title="值得注意的点"></a>值得注意的点</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">The CPU resource is measured in cpu units. One cpu, in Kubernetes, is equivalent to:</span><br><span class="line"></span><br><span class="line">    1 AWS vCPU</span><br><span class="line">    1 GCP Core</span><br><span class="line">    1 Azure vCore</span><br><span class="line">    1 Hyperthread on a bare-metal Intel processor with Hyperthreading</span><br></pre></td></tr></table></figure>
-
-<p>从文档来看所以4核8线程对k8s来讲就是8核.</p>
-<p>如果只设置了request没有设置limit, 意味着一个pod可以任意使用node资源, 如果没有其他pod创建. 如果集群管理员设置了<a target="_blank" rel="noopener" href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.11/#limitrange-v1-core/">LimitRange</a>, 那么当pod没有设置limit的时候就会使用LimitRange里设置的值作为默认.</p>
-<h4 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h4><ol>
-<li><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/#what-if-you-specify-a-container-s-request-but-not-its-limit">https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/#what-if-you-specify-a-container-s-request-but-not-its-limit</a></li>
-<li><a target="_blank" rel="noopener" href="https://segmentfault.com/a/1190000008323952">https://segmentfault.com/a/1190000008323952</a></li>
-<li><a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-cpu">https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-cpu</a></li>
-</ol>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-go-sort/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-go-sort/" class="post-title-link" itemprop="url">go-sort</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>Go排序实现在&#x2F;src&#x2F;go4.org&#x2F;sort&#x2F;sort.go中.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">func Sort(data Interface) &#123;</span><br><span class="line">	n := data.Len()</span><br><span class="line">	if fs, ok := data.(*funcs); ok &#123;</span><br><span class="line">		quickSort_func(fs.lessSwap, 0, n, maxDepth(n))</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		quickSort(data, 0, n, maxDepth(n))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func quickSort(data Interface, a, b, maxDepth int) &#123;</span><br><span class="line">	for b-a &gt; 12 &#123; // Use ShellSort for slices &lt;= 12 elements</span><br><span class="line">		if maxDepth == 0 &#123;</span><br><span class="line">			heapSort(data, a, b)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line">		maxDepth--</span><br><span class="line">		mlo, mhi := doPivot(data, a, b)</span><br><span class="line">		// Avoiding recursion on the larger subproblem guarantees</span><br><span class="line">		// a stack depth of at most lg(b-a).</span><br><span class="line">		if mlo-a &lt; b-mhi &#123;</span><br><span class="line">			quickSort(data, a, mlo, maxDepth)</span><br><span class="line">			a = mhi // i.e., quickSort(data, mhi, b)</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			quickSort(data, mhi, b, maxDepth)</span><br><span class="line">			b = mlo // i.e., quickSort(data, a, mlo)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if b-a &gt; 1 &#123;</span><br><span class="line">		// Do ShellSort pass with gap 6</span><br><span class="line">		// It could be written in this simplified form cause b-a &lt;= 12</span><br><span class="line">		for i := a + 6; i &lt; b; i++ &#123;</span><br><span class="line">			if data.Less(i, i-6) &#123;</span><br><span class="line">				data.Swap(i, i-6)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		insertionSort(data, a, b)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line">// Insertion sort</span><br><span class="line">func insertionSort(data Interface, a, b int) &#123;</span><br><span class="line">	for i := a + 1; i &lt; b; i++ &#123;</span><br><span class="line">		for j := i; j &gt; a &amp;&amp; data.Less(j, j-1); j-- &#123;</span><br><span class="line">			data.Swap(j, j-1)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>quickSort和quickSort_func基本相同, 子不过自己定义的比较方法, 这里不在赘述.</p>
-<p>可以看到主体是quickSort, 所以不保证稳定排序, 当数据量小于等于12时. 退化为希尔排序, 但希尔排序只做了一次gap为6, 之后再次退化为了简单插入排序. 这部分实现非常简单, i从前往后, j从i往前, 每次比较j-1和j, 将小的换到前面.</p>
-<p>当数据量大于12时, 根据maxDepth是否为0决定使用对排序还是使用快速排序, maxDepth计算:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">// maxDepth returns a threshold at which quicksort should switch</span><br><span class="line">// to heapsort. It returns 2*ceil(lg(n+1)).</span><br><span class="line">func maxDepth(n int) int &#123;</span><br><span class="line">	var depth int</span><br><span class="line">	for i := n; i &gt; 0; i &gt;&gt;= 1 &#123;</span><br><span class="line">		depth++</span><br><span class="line">	&#125;</span><br><span class="line">	return depth * 2</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>返回的是目前树高度的2倍. 每进行一轮快速排序的partition(doPivot), 这个数值就减1, 当减为0, 此时认为数据已经比较有序, 如果数据长度依然大于12, 改为堆排序效率更高.</p>
-<p>这里先看快速排序的主体部分, 再来看堆排序的实现. partition是快排的思想核心, 他实现在doPivot中:</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">doPivot</span><span class="params">(data Interface, lo, hi <span class="type">int</span>)</span></span> (midlo, midhi <span class="type">int</span>) &#123;</span><br><span class="line">	m := lo + (hi-lo)/<span class="number">2</span> <span class="comment">// 避免整数溢出</span></span><br><span class="line">	<span class="keyword">if</span> hi-lo &gt; <span class="number">40</span> &#123; 如果长度大于<span class="number">40</span>, 使用Tukey ninther法</span><br><span class="line">		<span class="comment">// Tukey&#x27;s ``Ninther,&#x27;&#x27; median of three medians of three.</span></span><br><span class="line">		s := (hi - lo) / <span class="number">8</span></span><br><span class="line">		medianOfThree(data, lo, lo+s, lo+<span class="number">2</span>*s)</span><br><span class="line">		medianOfThree(data, m, m-s, m+s)</span><br><span class="line">		medianOfThree(data, hi<span class="number">-1</span>, hi<span class="number">-1</span>-s, hi<span class="number">-1</span><span class="number">-2</span>*s)</span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// medianOfThree 保证lo, m hi-1三个值是从小到大的</span></span><br><span class="line">	medianOfThree(data, lo, m, hi<span class="number">-1</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Invariants are:</span></span><br><span class="line">	<span class="comment">//	data[lo] = pivot (set up by ChoosePivot)</span></span><br><span class="line">	<span class="comment">//	data[lo &lt; i &lt; a] &lt; pivot</span></span><br><span class="line">	<span class="comment">//	data[a &lt;= i &lt; b] &lt;= pivot</span></span><br><span class="line">	<span class="comment">//	data[b &lt;= i &lt; c] unexamined</span></span><br><span class="line">	<span class="comment">//	data[c &lt;= i &lt; hi-1] &gt; pivot</span></span><br><span class="line">	<span class="comment">//	data[hi-1] &gt;= pivot</span></span><br><span class="line">	pivot := lo</span><br><span class="line">	a, c := lo+<span class="number">1</span>, hi<span class="number">-1</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 找到第一个比起始值点大的Index</span></span><br><span class="line">	<span class="keyword">for</span> ; a &lt; c &amp;&amp; data.Less(a, pivot); a++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line">	b := a</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; !data.Less(pivot, b); b++ &#123; <span class="comment">// data[b] &lt;= pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; data.Less(pivot, c<span class="number">-1</span>); c-- &#123; <span class="comment">// data[c-1] &gt; pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> b &gt;= c &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// data[b] &gt; pivot; data[c-1] &lt;= pivot</span></span><br><span class="line">		data.Swap(b, c<span class="number">-1</span>)</span><br><span class="line">		b++</span><br><span class="line">		c--</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// If hi-c&lt;3 then there are duplicates (by property of median of nine).</span></span><br><span class="line">	<span class="comment">// Let be a bit more conservative, and set border to 5.</span></span><br><span class="line">	protect := hi-c &lt; <span class="number">5</span></span><br><span class="line">	<span class="keyword">if</span> !protect &amp;&amp; hi-c &lt; (hi-lo)/<span class="number">4</span> &#123;</span><br><span class="line">		<span class="comment">// Lets test some points for equality to pivot</span></span><br><span class="line">		dups := <span class="number">0</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(pivot, hi<span class="number">-1</span>) &#123; <span class="comment">// data[hi-1] = pivot</span></span><br><span class="line">			data.Swap(c, hi<span class="number">-1</span>)</span><br><span class="line">			c++</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> !data.Less(b<span class="number">-1</span>, pivot) &#123; <span class="comment">// data[b-1] = pivot</span></span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// m-lo = (hi-lo)/2 &gt; 6</span></span><br><span class="line">		<span class="comment">// b-lo &gt; (hi-lo)*3/4-1 &gt; 8</span></span><br><span class="line">		<span class="comment">// ==&gt; m &lt; b ==&gt; data[m] &lt;= pivot</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(m, pivot) &#123; <span class="comment">// data[m] = pivot</span></span><br><span class="line">			data.Swap(m, b<span class="number">-1</span>)</span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// if at least 2 points are equal to pivot, assume skewed distribution</span></span><br><span class="line">		protect = dups &gt; <span class="number">1</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> protect &#123;</span><br><span class="line">		<span class="comment">// Protect against a lot of duplicates</span></span><br><span class="line">		<span class="comment">// Add invariant:</span></span><br><span class="line">		<span class="comment">//	data[a &lt;= i &lt; b] unexamined</span></span><br><span class="line">		<span class="comment">//	data[b &lt;= i &lt; c] = pivot</span></span><br><span class="line">		<span class="keyword">for</span> &#123;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; !data.Less(b<span class="number">-1</span>, pivot); b-- &#123; <span class="comment">// data[b] == pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; data.Less(a, pivot); a++ &#123; <span class="comment">// data[a] &lt; pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> a &gt;= b &#123;</span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// data[a] == pivot; data[b-1] &lt; pivot</span></span><br><span class="line">			data.Swap(a, b<span class="number">-1</span>)</span><br><span class="line">			a++</span><br><span class="line">			b--</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// Swap pivot into middle</span></span><br><span class="line">	data.Swap(pivot, b<span class="number">-1</span>)</span><br><span class="line">	<span class="keyword">return</span> b - <span class="number">1</span>, c</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// medianOfThree moves the median of the three values data[m0], data[m1], data[m2] into data[m1].</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">medianOfThree</span><span class="params">(data Interface, m1, m0, m2 <span class="type">int</span>)</span></span> &#123;</span><br><span class="line">	<span class="comment">// sort 3 elements</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">		data.Swap(m1, m0)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// data[m0] &lt;= data[m1]</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m2, m1) &#123;</span><br><span class="line">		data.Swap(m2, m1)</span><br><span class="line">		<span class="comment">// data[m0] &lt;= data[m2] &amp;&amp; data[m1] &lt; data[m2]</span></span><br><span class="line">		<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">			data.Swap(m1, m0)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 保证 data[m0] &lt;= data[m1] &lt;= data[m2]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
 
       
     </div>
