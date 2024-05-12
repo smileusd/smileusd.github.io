@@ -149,118 +149,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/" class="post-title-link" itemprop="url">shell bash 类型和搜索机制</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h3 id="问题描述"><a href="#问题描述" class="headerlink" title="问题描述"></a>问题描述</h3><p>今天在执行一个命令是遇到一个which路径与实际执行不同步的问题, 如下:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">which</span> ss-local</span><br><span class="line">/usr/local/bin/ss-local</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ /usr/local/bin/ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 2.5.6 with OpenSSL 1.0.1f 6 Jan 2014</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 3.1.3</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ /usr/bin/ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 3.1.3</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<p>which 现实路径是&#x2F;usr&#x2F;local&#x2F;bin&#x2F;ss-local, 但实际执行的路径却是&#x2F;usr&#x2F;bin&#x2F;ss-local. 查看which的文档, 发现which是按顺序搜索PATH环境变量来查找的:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">echo</span> <span class="variable">$PATH</span></span><br><span class="line">/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/local/go/bin:/usr/local/go/bin:/home/shentao/gopath//bin:/opt/idea-IC-145.1617.8/bin:/usr/local/go/bin:/home/shentao/gopath//bin:/opt/idea-IC-145.1617.8/bin:/usr/local/go/bin</span><br></pre></td></tr></table></figure>
-
-<p>所以最先在&#x2F;usr&#x2F;local&#x2F;bin中找到.</p>
-<h3 id="问题解决"><a href="#问题解决" class="headerlink" title="问题解决"></a>问题解决</h3><p>于是去调查了下bash的执行过程和顺序. 得到了答案. <a target="_blank" rel="noopener" href="https://crashingdaily.wordpress.com/2008/04/21/hashing-the-executables-a-look-at-hash-and-type/">https://crashingdaily.wordpress.com/2008/04/21/hashing-the-executables-a-look-at-hash-and-type/</a></p>
-<p>原来在每一次执行过程中shell都会有一个hash table作为cache将调用过的可执行命令存入hash table, 这样再下次调用的时候就可以直接从缓存中读取, 而不用每次去搜索PATH. 我们通过type命令可以查看:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">type</span> ss-local</span><br><span class="line">ss-local is hashed (/usr/bin/ss-local)</span><br></pre></td></tr></table></figure>
-
-<p>可以通过hash命令删除:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">hash</span> -d ss-local</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 2.5.6 with OpenSSL 1.0.1f 6 Jan 2014</span><br></pre></td></tr></table></figure>
-
-<h3 id="知识回顾"><a href="#知识回顾" class="headerlink" title="知识回顾"></a>知识回顾</h3><p>我们再来回顾下关于bash 的一些知识:</p>
-<h4 id="关于bash可以执行的类型"><a href="#关于bash可以执行的类型" class="headerlink" title="关于bash可以执行的类型"></a>关于bash可以执行的类型</h4><ul>
-<li><p>Aliases: An alias is a word that is mapped to a certain string, 命令的别名.</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">alias</span> nmapp=<span class="string">&quot;nmap -Pn -A --osscan-limit&quot;</span></span><br><span class="line">$ nmapp 192.168.0.1</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Functions:  A function contains shell commands, and acts very much like a small script. 用function定义一个函数:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> gcc &#123; <span class="built_in">echo</span> “just a <span class="built_in">test</span> <span class="keyword">for</span> gcc”; &#125;</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Builtins: 内置函数, cd之类的</p>
-</li>
-<li><p>Keywords: Keywords are like builtins, with the main difference being that special parsing rules apply to them. For example, [ is a Bash builtin, while [[ is a Bash keyword. They are both used for testing stuff. [[ is a keyword rather than a builtin and is therefore able to offer an extended test: </p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ [ a &lt; b ]</span><br><span class="line">-bash: b: No such file or directory</span><br><span class="line">$ [[ a &lt; b ]]</span><br></pre></td></tr></table></figure>
-<p>第一个&lt; 是重定向, 第二个加了[[的关键词之后 &lt; 成了小于号.</p>
-</li>
-<li><p>Executables: (Executables may also be called <em>external commands</em> or <em>applications</em>.) Executables are commonly invoked by typing only their name. This can be done because a pre-defined variable makes known to Bash a list of common, executable, file paths. This variable is called <code>PATH</code>. 外部命令, 也就是PATH中找到的那些命令</p>
-</li>
-<li><p>Script: 脚本. 比如test.sh</p>
-</li>
-</ul>
-<h4 id="关于bash的搜索顺序总结"><a href="#关于bash的搜索顺序总结" class="headerlink" title="关于bash的搜索顺序总结"></a>关于bash的搜索顺序总结</h4><p>bash搜索的顺序是: 当前路径和绝对路径的目录-&gt;alias-&gt;keyword-&gt;function-&gt;built-in-&gt;Executables, Script(hash)-&gt;Executables, Script($PATH)</p>
-<h4 id="相关命令"><a href="#相关命令" class="headerlink" title="相关命令"></a>相关命令</h4><p>bash, hash, type, which, alias, function</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-03-22-microservices/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -344,97 +232,6 @@
 </li>
 </ol>
 <p>cloud native &#x3D; container + CICD&#x2F;devops + microservice</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-Istio/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-05-24-Istio/" class="post-title-link" itemprop="url">Istio</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>Istio: 一个开源平台去链接， 管理和保障微服务： 分布式微服务代理。</p>
-<p>传统代理： 类似于一个线， 任何服务都经过这个代理。</p>
-<p>分布式代理： 代理运行在每个应用上，接管应用进出的流量并和统一的控制中心通信获取动态配置。</p>
-<p>微服务代理： service mesh: 互连的分布式代理。</p>
-<p>Istio: </p>
-<ol>
-<li><p>Pilot: 基于http做流量的； </p>
-</li>
-<li><p>Ｍixer: 做数据统计， 授权认证</p>
-</li>
-<li><p>CA-Auth： 做安全认证</p>
-</li>
-</ol>
-<p>Envoy： 微服务代理。</p>
 
       
     </div>
@@ -559,7 +356,7 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-03-21-containerd%E5%8E%9F%E7%94%9F%E6%94%AF%E6%8C%81Kubernetes/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -577,7 +374,119 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-03-21-containerd%E5%8E%9F%E7%94%9F%E6%94%AF%E6%8C%81Kubernetes/" class="post-title-link" itemprop="url">containerd原生支持Kubernetes</a>
+          <a href="/2024/03/10/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/" class="post-title-link" itemprop="url">shell bash 类型和搜索机制</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h3 id="问题描述"><a href="#问题描述" class="headerlink" title="问题描述"></a>问题描述</h3><p>今天在执行一个命令是遇到一个which路径与实际执行不同步的问题, 如下:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">which</span> ss-local</span><br><span class="line">/usr/local/bin/ss-local</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ /usr/local/bin/ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 2.5.6 with OpenSSL 1.0.1f 6 Jan 2014</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 3.1.3</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ /usr/bin/ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 3.1.3</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>which 现实路径是&#x2F;usr&#x2F;local&#x2F;bin&#x2F;ss-local, 但实际执行的路径却是&#x2F;usr&#x2F;bin&#x2F;ss-local. 查看which的文档, 发现which是按顺序搜索PATH环境变量来查找的:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">echo</span> <span class="variable">$PATH</span></span><br><span class="line">/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/local/go/bin:/usr/local/go/bin:/home/shentao/gopath//bin:/opt/idea-IC-145.1617.8/bin:/usr/local/go/bin:/home/shentao/gopath//bin:/opt/idea-IC-145.1617.8/bin:/usr/local/go/bin</span><br></pre></td></tr></table></figure>
+
+<p>所以最先在&#x2F;usr&#x2F;local&#x2F;bin中找到.</p>
+<h3 id="问题解决"><a href="#问题解决" class="headerlink" title="问题解决"></a>问题解决</h3><p>于是去调查了下bash的执行过程和顺序. 得到了答案. <a target="_blank" rel="noopener" href="https://crashingdaily.wordpress.com/2008/04/21/hashing-the-executables-a-look-at-hash-and-type/">https://crashingdaily.wordpress.com/2008/04/21/hashing-the-executables-a-look-at-hash-and-type/</a></p>
+<p>原来在每一次执行过程中shell都会有一个hash table作为cache将调用过的可执行命令存入hash table, 这样再下次调用的时候就可以直接从缓存中读取, 而不用每次去搜索PATH. 我们通过type命令可以查看:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">type</span> ss-local</span><br><span class="line">ss-local is hashed (/usr/bin/ss-local)</span><br></pre></td></tr></table></figure>
+
+<p>可以通过hash命令删除:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ <span class="built_in">hash</span> -d ss-local</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ ss-local -v | grep shadowsocks-libev</span><br><span class="line">shadowsocks-libev 2.5.6 with OpenSSL 1.0.1f 6 Jan 2014</span><br></pre></td></tr></table></figure>
+
+<h3 id="知识回顾"><a href="#知识回顾" class="headerlink" title="知识回顾"></a>知识回顾</h3><p>我们再来回顾下关于bash 的一些知识:</p>
+<h4 id="关于bash可以执行的类型"><a href="#关于bash可以执行的类型" class="headerlink" title="关于bash可以执行的类型"></a>关于bash可以执行的类型</h4><ul>
+<li><p>Aliases: An alias is a word that is mapped to a certain string, 命令的别名.</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">alias</span> nmapp=<span class="string">&quot;nmap -Pn -A --osscan-limit&quot;</span></span><br><span class="line">$ nmapp 192.168.0.1</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Functions:  A function contains shell commands, and acts very much like a small script. 用function定义一个函数:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> gcc &#123; <span class="built_in">echo</span> “just a <span class="built_in">test</span> <span class="keyword">for</span> gcc”; &#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Builtins: 内置函数, cd之类的</p>
+</li>
+<li><p>Keywords: Keywords are like builtins, with the main difference being that special parsing rules apply to them. For example, [ is a Bash builtin, while [[ is a Bash keyword. They are both used for testing stuff. [[ is a keyword rather than a builtin and is therefore able to offer an extended test: </p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ [ a &lt; b ]</span><br><span class="line">-bash: b: No such file or directory</span><br><span class="line">$ [[ a &lt; b ]]</span><br></pre></td></tr></table></figure>
+<p>第一个&lt; 是重定向, 第二个加了[[的关键词之后 &lt; 成了小于号.</p>
+</li>
+<li><p>Executables: (Executables may also be called <em>external commands</em> or <em>applications</em>.) Executables are commonly invoked by typing only their name. This can be done because a pre-defined variable makes known to Bash a list of common, executable, file paths. This variable is called <code>PATH</code>. 外部命令, 也就是PATH中找到的那些命令</p>
+</li>
+<li><p>Script: 脚本. 比如test.sh</p>
+</li>
+</ul>
+<h4 id="关于bash的搜索顺序总结"><a href="#关于bash的搜索顺序总结" class="headerlink" title="关于bash的搜索顺序总结"></a>关于bash的搜索顺序总结</h4><p>bash搜索的顺序是: 当前路径和绝对路径的目录-&gt;alias-&gt;keyword-&gt;function-&gt;built-in-&gt;Executables, Script(hash)-&gt;Executables, Script($PATH)</p>
+<h4 id="相关命令"><a href="#相关命令" class="headerlink" title="相关命令"></a>相关命令</h4><p>bash, hash, type, which, alias, function</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-Istio/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-05-24-Istio/" class="post-title-link" itemprop="url">Istio</a>
         </h2>
 
         <div class="post-meta-container">
@@ -610,22 +519,20 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>苗艳强，闫学安</p>
-<p>ZTE 工程师，主要从事容器相关开源工作，Kubernetes 社区 member, containerd 社区 member</p>
-<p>课程详情：</p>
-<p><strong>演讲主题：</strong></p>
-<p>目前跟 Kubernetes 对接的默认容器运行时是 docker，然而 docker 从 1.12 版本开始加入了 swarm 功能，随着版本的演进，功能越来越庞大，已经成为一个跟 Kubernetes 同级甚至高一级的编排工具，且前不久又宣布在编排测要无缝对接 Kubernetes，因此，docker 作为 Kubernetes 默认容器运行时的位子必将被其他工具代替。本次分享首先简单介绍 Kubernetes 的运行时接口规范，然后着重为大家分享一款新的容器运行时工具 containerd，包括项目介绍，功能组成等，以及使其原生对接 Kubernetes 的插件 cri-containerd。</p>
-<p><strong>纲要&#x2F;提纲：</strong></p>
+          <p>Istio: 一个开源平台去链接， 管理和保障微服务： 分布式微服务代理。</p>
+<p>传统代理： 类似于一个线， 任何服务都经过这个代理。</p>
+<p>分布式代理： 代理运行在每个应用上，接管应用进出的流量并和统一的控制中心通信获取动态配置。</p>
+<p>微服务代理： service mesh: 互连的分布式代理。</p>
+<p>Istio: </p>
 <ol>
-<li><p>Kubernetes 容器容器运行时接口（CRI）</p>
+<li><p>Pilot: 基于http做流量的； </p>
 </li>
-<li><p>containerd 项目介绍</p>
+<li><p>Ｍixer: 做数据统计， 授权认证</p>
 </li>
-<li><p>containerd 的 CRI 实现</p>
+<li><p>CA-Auth： 做安全认证</p>
 </li>
 </ol>
-<hr>
-<p>Containerd的CRI实现<br>kubelet -&gt; cri-containerd -&gt; containerd</p>
+<p>Envoy： 微服务代理。</p>
 
       
     </div>
@@ -708,6 +615,99 @@
 <p>输出如下:</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">/home/shentao/.IdeaIC2016.1/config/plugins/Go/lib/dlv/linux/dlv --listen=localhost:34206 --headless=true exec &quot;/tmp/Build initializetest.go and rungo&quot; -- -size=10</span><br><span class="line">1,  12, 123, 3 </span><br><span class="line">2,  22, 123, 3 </span><br><span class="line">2,  22, 123, 10 </span><br></pre></td></tr></table></figure>
 <p>注释标记的是实际运行顺序, 先是变量的初始化, 此时size还没传入解析, 所以使用默认值”3”; 其次是调用init函数; 最后是main函数, main函数再进行flag.Parse(), 此时size改变, 但是其他变量不会再变.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-03-21-containerd%E5%8E%9F%E7%94%9F%E6%94%AF%E6%8C%81Kubernetes/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-03-21-containerd%E5%8E%9F%E7%94%9F%E6%94%AF%E6%8C%81Kubernetes/" class="post-title-link" itemprop="url">containerd原生支持Kubernetes</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>苗艳强，闫学安</p>
+<p>ZTE 工程师，主要从事容器相关开源工作，Kubernetes 社区 member, containerd 社区 member</p>
+<p>课程详情：</p>
+<p><strong>演讲主题：</strong></p>
+<p>目前跟 Kubernetes 对接的默认容器运行时是 docker，然而 docker 从 1.12 版本开始加入了 swarm 功能，随着版本的演进，功能越来越庞大，已经成为一个跟 Kubernetes 同级甚至高一级的编排工具，且前不久又宣布在编排测要无缝对接 Kubernetes，因此，docker 作为 Kubernetes 默认容器运行时的位子必将被其他工具代替。本次分享首先简单介绍 Kubernetes 的运行时接口规范，然后着重为大家分享一款新的容器运行时工具 containerd，包括项目介绍，功能组成等，以及使其原生对接 Kubernetes 的插件 cri-containerd。</p>
+<p><strong>纲要&#x2F;提纲：</strong></p>
+<ol>
+<li><p>Kubernetes 容器容器运行时接口（CRI）</p>
+</li>
+<li><p>containerd 项目介绍</p>
+</li>
+<li><p>containerd 的 CRI 实现</p>
+</li>
+</ol>
+<hr>
+<p>Containerd的CRI实现<br>kubelet -&gt; cri-containerd -&gt; containerd</p>
 
       
     </div>
@@ -910,6 +910,96 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2018/03/19/2018-03-19-go-lock-to-thread/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2018/03/19/2018-03-19-go-lock-to-thread/" class="post-title-link" itemprop="url">忽略掉一些奇怪的goroutine信息</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2018-03-19 18:55:19" itemprop="dateCreated datePublished" datetime="2018-03-19T18:55:19+08:00">2018-03-19</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2024-03-10 12:35:02" itemprop="dateModified" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>在跑自己的golang程序时遇到死锁, 查看stack, 发现一些奇怪的goroutinue:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">goroutine 17 [syscall, 12 minutes, locked to thread]:</span><br><span class="line">runtime.goexit()</span><br><span class="line">        /usr/local/go/src/runtime/asm_amd64.s:2086 +0x1</span><br><span class="line">        </span><br><span class="line">goroutine 20 [select, 12 minutes, locked to thread]:</span><br><span class="line">runtime.gopark(0xd067b8, 0x0, 0xc738c8, 0x6, 0x18, 0x2)</span><br><span class="line">        /usr/local/go/src/runtime/proc.go:259 +0xfd</span><br><span class="line">runtime.selectgoImpl(0xc420022f30, 0xc420022f1c, 0x0)</span><br><span class="line">        /usr/local/go/src/runtime/select.go:423 +0x1303</span><br><span class="line">runtime.selectgo(0xc420022f30)</span><br><span class="line">        /usr/local/go/src/runtime/select.go:238 +0x1c</span><br><span class="line">runtime.ensureSigM.func1()</span><br><span class="line">        /usr/local/go/src/runtime/signal1_unix.go:304 +0x28c</span><br><span class="line">runtime.goexit()</span><br><span class="line">        /usr/local/go/src/runtime/asm_amd64.s:2086 +0x1</span><br></pre></td></tr></table></figure>
+
+<p>这些goroutine显示: <code>locked to thread</code>, 但上网查找有回复说到, 这并不是一个真正的死锁, 而是正常的goroutine拿线程锁的过程. 可能调用了cgo或者runtime.LockOSThread. 这个问题可以忽略掉, 以防绕进死胡同.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">That is not a deadlock, at least not a deadlock in the Go program.  It </span><br><span class="line">is normal for a goroutine to be locked to a thread.  It can happen </span><br><span class="line">because of cgo, or because the code called runtime.LockOSThread.  It </span><br><span class="line">is not a problem.  The problem is that the thread has not made any </span><br><span class="line">progress for 214 minutes; what that is depends on what it is doing. </span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2018/03/19/2018-03-19-%E9%BB%91%E5%AE%A2%E4%B8%8E%E7%94%BB%E5%AE%B6/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -984,96 +1074,6 @@
 <li>“做出优秀成果的人, 在做的过程中常常觉得自己做的不够好. 其他人看到他们的成果觉得棒极了, 而创造者本人看到的都是自己作品的缺陷. 这种视角的差异并非偶然, 因为只有对现状不满, 才会造就杰出的成果.”</li>
 <li>“一心让臣民行善的暴君可能是最专制的暴君. —-C.S.LEWIS (1898-1963, 英国小说家) “</li>
 </ul>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2018/03/19/2018-03-19-go-lock-to-thread/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2018/03/19/2018-03-19-go-lock-to-thread/" class="post-title-link" itemprop="url">忽略掉一些奇怪的goroutine信息</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2018-03-19 18:55:19" itemprop="dateCreated datePublished" datetime="2018-03-19T18:55:19+08:00">2018-03-19</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar-check"></i>
-      </span>
-      <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2024-03-10 12:35:02" itemprop="dateModified" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>在跑自己的golang程序时遇到死锁, 查看stack, 发现一些奇怪的goroutinue:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">goroutine 17 [syscall, 12 minutes, locked to thread]:</span><br><span class="line">runtime.goexit()</span><br><span class="line">        /usr/local/go/src/runtime/asm_amd64.s:2086 +0x1</span><br><span class="line">        </span><br><span class="line">goroutine 20 [select, 12 minutes, locked to thread]:</span><br><span class="line">runtime.gopark(0xd067b8, 0x0, 0xc738c8, 0x6, 0x18, 0x2)</span><br><span class="line">        /usr/local/go/src/runtime/proc.go:259 +0xfd</span><br><span class="line">runtime.selectgoImpl(0xc420022f30, 0xc420022f1c, 0x0)</span><br><span class="line">        /usr/local/go/src/runtime/select.go:423 +0x1303</span><br><span class="line">runtime.selectgo(0xc420022f30)</span><br><span class="line">        /usr/local/go/src/runtime/select.go:238 +0x1c</span><br><span class="line">runtime.ensureSigM.func1()</span><br><span class="line">        /usr/local/go/src/runtime/signal1_unix.go:304 +0x28c</span><br><span class="line">runtime.goexit()</span><br><span class="line">        /usr/local/go/src/runtime/asm_amd64.s:2086 +0x1</span><br></pre></td></tr></table></figure>
-
-<p>这些goroutine显示: <code>locked to thread</code>, 但上网查找有回复说到, 这并不是一个真正的死锁, 而是正常的goroutine拿线程锁的过程. 可能调用了cgo或者runtime.LockOSThread. 这个问题可以忽略掉, 以防绕进死胡同.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">That is not a deadlock, at least not a deadlock in the Go program.  It </span><br><span class="line">is normal for a goroutine to be locked to a thread.  It can happen </span><br><span class="line">because of cgo, or because the code called runtime.LockOSThread.  It </span><br><span class="line">is not a problem.  The problem is that the thread has not made any </span><br><span class="line">progress for 214 minutes; what that is depends on what it is doing. </span><br></pre></td></tr></table></figure>
-
 
       
     </div>

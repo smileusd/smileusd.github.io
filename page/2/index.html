@@ -238,91 +238,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-docker-start-failed/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-docker-start-failed/" class="post-title-link" itemprop="url">docker-start-failed</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>make build过程中忽然出现错误:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">Sending build context to Docker daemon   220 MB</span><br><span class="line">Step 1 : FROM warpdrive:tos-release-1-5</span><br><span class="line"> ---&gt; 769306738d96</span><br><span class="line">Step 2 : COPY . /go/src/github.com/transwarp/warpdrive/</span><br><span class="line"> ---&gt; 07c99697b16e</span><br><span class="line">Removing intermediate container 127c0e71a84b</span><br><span class="line">Successfully built 07c99697b16e</span><br><span class="line">/usr/bin/docker: Error response from daemon: invalid header field value &quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux.go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot;.</span><br><span class="line">FATA[0301] exit status 125                              </span><br><span class="line">make: *** [build] Error 1</span><br></pre></td></tr></table></figure>
-
-<p>尝试run 07c99697b16e报同样的错, 查看docker日志, 出现<code>&quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux .go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot;</code></p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">8月 21 15:29:01 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:29:01.778212288+08:00&quot; level=error msg=&quot;Handler for POST /v1.24/containers/79a0906242e0180dfd7aeff30e9fb179f7b7c37f0ba20533f83b4cd40b409d2a/start returned error: invali</span><br><span class="line">d header field value \&quot;oci runtime error: container_linux.go:247: starting container process caused \\\&quot;process_linux.go:245: running exec setns process for init caused \\\\\\\&quot;exit status 6\\\\\\\&quot;\\\&quot;\\n\&quot;&quot;</span><br><span class="line">8月 21 15:51:08 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:51:08.075631868+08:00&quot; level=error msg=&quot;containerd: start container&quot; error=&quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux</span><br><span class="line">.go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot; id=b93539a02f27cc1ad0114552643d8e0c942fba053dc8cd3980cb8f24cf61ff25</span><br><span class="line">8月 21 15:51:08 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:51:08.092002257+08:00&quot; level=error msg=&quot;Create container failed with error: invalid header field value \&quot;oci runtime error: container_linux.go:247: starting container p</span><br><span class="line">rocess caused \\\&quot;process_linux.go:245: running exec setns process for init caused \\\\\\\&quot;exit status 6\\\\\\\&quot;\\\&quot;\\n\&quot;&quot;</span><br></pre></td></tr></table></figure>
-
-<p>发现Docker比较卡, 于是清理了大量的images, 删掉了所有未运行的container, 再清理了系统缓存, 问题解决了, 但深层次的问题没弄清楚, 尽管清了缓存, 但是清完其实缓存差距不大, docker 也没有显示资源问题, 另外一个点就是, 只有这个image是进不去的, 其他的Images是可以run -it的, 而且在做<code>COPY . /go/src/github.com/transwarp/warpdrive/</code>这一步时间等的比较长.</p>
-<p><a target="_blank" rel="noopener" href="https://github.com/opencontainers/runc/issues/1130">https://github.com/opencontainers/runc/issues/1130</a> 记录了相关的问题, 说runc的问题.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-k8s-cgroup/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -506,6 +421,91 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-docker-start-failed/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-docker-start-failed/" class="post-title-link" itemprop="url">docker-start-failed</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>make build过程中忽然出现错误:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">Sending build context to Docker daemon   220 MB</span><br><span class="line">Step 1 : FROM warpdrive:tos-release-1-5</span><br><span class="line"> ---&gt; 769306738d96</span><br><span class="line">Step 2 : COPY . /go/src/github.com/transwarp/warpdrive/</span><br><span class="line"> ---&gt; 07c99697b16e</span><br><span class="line">Removing intermediate container 127c0e71a84b</span><br><span class="line">Successfully built 07c99697b16e</span><br><span class="line">/usr/bin/docker: Error response from daemon: invalid header field value &quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux.go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot;.</span><br><span class="line">FATA[0301] exit status 125                              </span><br><span class="line">make: *** [build] Error 1</span><br></pre></td></tr></table></figure>
+
+<p>尝试run 07c99697b16e报同样的错, 查看docker日志, 出现<code>&quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux .go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot;</code></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">8月 21 15:29:01 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:29:01.778212288+08:00&quot; level=error msg=&quot;Handler for POST /v1.24/containers/79a0906242e0180dfd7aeff30e9fb179f7b7c37f0ba20533f83b4cd40b409d2a/start returned error: invali</span><br><span class="line">d header field value \&quot;oci runtime error: container_linux.go:247: starting container process caused \\\&quot;process_linux.go:245: running exec setns process for init caused \\\\\\\&quot;exit status 6\\\\\\\&quot;\\\&quot;\\n\&quot;&quot;</span><br><span class="line">8月 21 15:51:08 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:51:08.075631868+08:00&quot; level=error msg=&quot;containerd: start container&quot; error=&quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux</span><br><span class="line">.go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot; id=b93539a02f27cc1ad0114552643d8e0c942fba053dc8cd3980cb8f24cf61ff25</span><br><span class="line">8月 21 15:51:08 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:51:08.092002257+08:00&quot; level=error msg=&quot;Create container failed with error: invalid header field value \&quot;oci runtime error: container_linux.go:247: starting container p</span><br><span class="line">rocess caused \\\&quot;process_linux.go:245: running exec setns process for init caused \\\\\\\&quot;exit status 6\\\\\\\&quot;\\\&quot;\\n\&quot;&quot;</span><br></pre></td></tr></table></figure>
+
+<p>发现Docker比较卡, 于是清理了大量的images, 删掉了所有未运行的container, 再清理了系统缓存, 问题解决了, 但深层次的问题没弄清楚, 尽管清了缓存, 但是清完其实缓存差距不大, docker 也没有显示资源问题, 另外一个点就是, 只有这个image是进不去的, 其他的Images是可以run -it的, 而且在做<code>COPY . /go/src/github.com/transwarp/warpdrive/</code>这一步时间等的比较长.</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/opencontainers/runc/issues/1130">https://github.com/opencontainers/runc/issues/1130</a> 记录了相关的问题, 说runc的问题.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-29-use-operator-sdk/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -566,6 +566,184 @@
 <p>通过operator-sdk可以自动生成 crd.yaml, operator.yaml, cr.yaml, rbac.yaml. 这些都需要手动部署到k8s. </p>
 <p>operator.yaml是最重要的一个. 里面包含handle逻辑和type结构, 它是你需要去实现和填充的业务逻辑, 理论上handle可以实现任何逻辑, 比如对修改apiserver中的某些资源内容, 或者创建新的资源, 或者起一个pod和job做一些hack的事情. </p>
 <p>做完这些就可以生成operator了, 他会build一个image, operator是一个deployment的, 它去拉这个image然后watch你定义的cr, 当你创建或者删除cr, 就会触发handle操作.	</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-07-02-golang-map/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-07-02-golang-map/" class="post-title-link" itemprop="url">golang map 内存布局和原理</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2024-03-10 12:35:02 / Modified: 12:37:57" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h4 id="map数据结构"><a href="#map数据结构" class="headerlink" title="map数据结构"></a>map数据结构</h4><p>golang的map是hashmap实现的, 代码在&#x2F;src&#x2F;runtime&#x2F;hashmap.go. 对比C++用红黑树实现的map，Go的map是unordered map，即无法对key值排序遍历。跟传统的hashmap的实现方法一样，它通过一个buckets数组实现，所有元素被hash到数组的bucket中，<strong>buckets</strong>就是指向了这个内存连续分配的数组. </p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> maptype <span class="keyword">struct</span> &#123;</span><br><span class="line">	typ           _type</span><br><span class="line">	key           *_type</span><br><span class="line">	elem          *_type</span><br><span class="line">	bucket        *_type <span class="comment">// internal type representing a hash bucket</span></span><br><span class="line">	hmap          *_type <span class="comment">// internal type representing a hmap</span></span><br><span class="line">	keysize       <span class="type">uint8</span>  <span class="comment">// size of key slot</span></span><br><span class="line">	indirectkey   <span class="type">bool</span>   <span class="comment">// store ptr to key instead of key itself</span></span><br><span class="line">	valuesize     <span class="type">uint8</span>  <span class="comment">// size of value slot</span></span><br><span class="line">	indirectvalue <span class="type">bool</span>   <span class="comment">// store ptr to value instead of value itself</span></span><br><span class="line">	bucketsize    <span class="type">uint16</span> <span class="comment">// size of bucket</span></span><br><span class="line">	reflexivekey  <span class="type">bool</span>   <span class="comment">// true if k==k for all keys</span></span><br><span class="line">	needkeyupdate <span class="type">bool</span>   <span class="comment">// true if we need to update key on an overwrite</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A header for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> hmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	count <span class="type">int</span> <span class="comment">// len()返回的map的大小 即有多少kv对</span></span><br><span class="line">	flags <span class="type">uint8</span></span><br><span class="line">	B     <span class="type">uint8</span>  <span class="comment">// 表示hash table总共有2^B个buckets </span></span><br><span class="line">	hash0 <span class="type">uint32</span> <span class="comment">// hash seed</span></span><br><span class="line"></span><br><span class="line">	buckets    unsafe.Pointer <span class="comment">// 一系列桶的头指针, 按照low hash值可查找的连续分配的数组，初始时为16个Buckets.</span></span><br><span class="line">	oldbuckets unsafe.Pointer </span><br><span class="line">	nevacuate  <span class="type">uintptr</span>      </span><br><span class="line"></span><br><span class="line">	overflow *[<span class="number">2</span>]*[]*bmap <span class="comment">//溢出链 当初始buckets都满了之后会使用overflow</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A bucket for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> bmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	tophash [bucketCnt]<span class="type">uint8</span></span><br><span class="line">	<span class="comment">// Followed by bucketCnt keys and then bucketCnt values.</span></span><br><span class="line">	<span class="comment">// <span class="doctag">NOTE:</span> packing all the keys together and then all the values together makes the</span></span><br><span class="line">	<span class="comment">// code a bit more complicated than alternating key/value/key/value/... but it allows</span></span><br><span class="line">	<span class="comment">// us to eliminate padding which would be needed for, e.g., map[int64]int8.</span></span><br><span class="line">	<span class="comment">// Followed by an overflow pointer.</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如上所示, maptype表示map类型, 其中的hmap表示hashmap, 它的指针就是map的实体.  桶一个连续分配的数组组成, 而buckets是这个数组的头指针(起始地址), bmap是每个bucket的实体. 每个bucket有一个长度为8的数组叫做tophash, 他存储了8个key的高八位的值, 这样当我们找的时候, 先用key hash的低八位找到对应的桶, 再匹配key高8位值找到对应的tophash, 如果正确了再去找对应的key是否相等. 在对key&#x2F;value对增删查的时候，先比较key的hash值高八位是否相等，然后再比较具体的key值。根据官方注释在tophash数组之后跟着8个key&#x2F;value对，每一对都对应tophash当中的一条记录。最后bucket中还包含指向链表下一个bucket的指针。内存布局如下图。</p>
+<p><img src="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/hashmap.png" alt="image"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">之所以把所有k1k2放一起而不是k1v1是因为key和value的数据类型内存大小可能差距很大，比如map[int64]int8，考虑到字节对齐，kv存在一起会浪费很多空间。</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="map创建和初始化"><a href="#map创建和初始化" class="headerlink" title="map创建和初始化"></a>map创建和初始化</h4><p>我们首先来看make过程, 看一个map是如何创建的.</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// makemap implements a Go map creation make(map[k]v, hint)</span></span><br><span class="line"><span class="comment">// If the compiler has determined that the map or the first bucket</span></span><br><span class="line"><span class="comment">// can be created on the stack, h and/or bucket may be non-nil.</span></span><br><span class="line"><span class="comment">// If h != nil, the map can be created directly in h.</span></span><br><span class="line"><span class="comment">// If bucket != nil, bucket can be used as the first bucket.</span></span><br><span class="line"><span class="comment">// hint是map大小, h过不等于空就直接使用这个hmap, bucket不为空就当做第一个bucket.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">makemap</span><span class="params">(t *maptype, hint <span class="type">int64</span>, h *hmap, bucket unsafe.Pointer)</span></span> *hmap &#123;</span><br><span class="line">    <span class="keyword">if</span> sz := unsafe.Sizeof(hmap&#123;&#125;); sz &gt; <span class="number">48</span> || sz != t.hmap.size &#123;</span><br><span class="line">		<span class="built_in">println</span>(<span class="string">&quot;runtime: sizeof(hmap) =&quot;</span>, sz, <span class="string">&quot;, t.hmap.size =&quot;</span>, t.hmap.size)</span><br><span class="line">		throw(<span class="string">&quot;bad hmap size&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// hint值不符合规范, 置0</span></span><br><span class="line">	<span class="keyword">if</span> hint &lt; <span class="number">0</span> || hint &gt; <span class="type">int64</span>(maxSliceCap(t.bucket.size)) &#123;</span><br><span class="line">		hint = <span class="number">0</span></span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// 按照是否实现hash()来判断是否支持map类型</span></span><br><span class="line">	<span class="keyword">if</span> !ismapkey(t.key) &#123;</span><br><span class="line">		throw(<span class="string">&quot;runtime.makemap: unsupported map key type&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 检查key和value大小</span></span><br><span class="line">	<span class="keyword">if</span> t.key.size &gt; maxKeySize &amp;&amp; (!t.indirectkey || t.keysize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.key.size &lt;= maxKeySize &amp;&amp; (t.indirectkey || t.keysize != <span class="type">uint8</span>(t.key.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size &gt; maxValueSize &amp;&amp; (!t.indirectvalue || t.valuesize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.elem.size &lt;= maxValueSize &amp;&amp; (t.indirectvalue || t.valuesize != <span class="type">uint8</span>(t.elem.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 检查各种编译的规范, 跳过</span></span><br><span class="line">	<span class="comment">// invariants we depend on. We should probably check these at compile time</span></span><br><span class="line">	<span class="comment">// somewhere, but for now we&#x27;ll do it here.</span></span><br><span class="line">	<span class="keyword">if</span> t.key.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;key align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;value align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.key.size%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size not a multiple of key align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size not a multiple of value align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> bucketCnt &lt; <span class="number">8</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;bucketsize too small for proper alignment&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (key)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (value)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 把hint参数对应成2进制的上确界那个数. 例如size=6, B就是3, 因为2^2 &lt; 6 &lt; 2^3</span></span><br><span class="line">	B := <span class="type">uint8</span>(<span class="number">0</span>)</span><br><span class="line">	<span class="keyword">for</span> ; overLoadFactor(hint, B); B++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 使用malloc分配2^B个buckets给h.</span></span><br><span class="line">	<span class="comment">// allocate initial hash table</span></span><br><span class="line">	<span class="comment">// if B == 0, the buckets field is allocated lazily later (in mapassign)</span></span><br><span class="line">	<span class="comment">// If hint is large zeroing this memory could take a while.</span></span><br><span class="line">	buckets := bucket</span><br><span class="line">	<span class="keyword">var</span> extra *mapextra</span><br><span class="line">	<span class="keyword">if</span> B != <span class="number">0</span> &#123;</span><br><span class="line">		<span class="keyword">var</span> nextOverflow *bmap</span><br><span class="line">		buckets, nextOverflow = makeBucketArray(t, B)</span><br><span class="line">		<span class="keyword">if</span> nextOverflow != <span class="literal">nil</span> &#123;</span><br><span class="line">			extra = <span class="built_in">new</span>(mapextra)</span><br><span class="line">			extra.nextOverflow = nextOverflow</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// initialize Hmap</span></span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		h = (*hmap)(newobject(t.hmap))</span><br><span class="line">	&#125;</span><br><span class="line">	h.count = <span class="number">0</span></span><br><span class="line">	h.B = B</span><br><span class="line">	h.extra = extra</span><br><span class="line">	h.flags = <span class="number">0</span></span><br><span class="line">	h.hash0 = fastrand()</span><br><span class="line">	h.buckets = buckets</span><br><span class="line">	h.oldbuckets = <span class="literal">nil</span></span><br><span class="line">	h.nevacuate = <span class="number">0</span></span><br><span class="line">	h.noverflow = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> h</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="map存值"><a href="#map存值" class="headerlink" title="map存值"></a>map存值</h4><p>存储的步骤和第一部分的分析一致。首先用key的hash值低8位找到bucket，然后在bucket内部比对tophash和高8位与其对应的key值与入参key是否相等，若找到则更新这个值。若key不存在，则key优先存入在查找的过程中遇到的空的tophash数组位置。若当前的bucket已满则需要另外分配空间给这个key，新分配的bucket将挂在overflow链表后。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Like mapaccess, but allocates a slot for the key if it is not present in the map.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapassign</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> unsafe.Pointer &#123;</span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(plainError(<span class="string">&quot;assignment to entry in nil map&quot;</span>))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> raceenabled &#123;</span><br><span class="line">		callerpc := getcallerpc(unsafe.Pointer(&amp;t))</span><br><span class="line">		pc := funcPC(mapassign)</span><br><span class="line">		racewritepc(unsafe.Pointer(h), callerpc, pc)</span><br><span class="line">		raceReadObjectPC(t.key, key, callerpc, pc)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> msanenabled &#123;</span><br><span class="line">		msanread(key, t.key.size)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	alg := t.key.alg</span><br><span class="line">	hash := alg.hash(key, <span class="type">uintptr</span>(h.hash0))</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Set hashWriting after calling alg.hash, since alg.hash may panic,</span></span><br><span class="line">	<span class="comment">// in which case we have not actually done a write.</span></span><br><span class="line">	h.flags |= hashWriting</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> h.buckets == <span class="literal">nil</span> &#123;</span><br><span class="line">		h.buckets = newarray(t.bucket, <span class="number">1</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">again:</span><br><span class="line">    <span class="comment">// 用hash值的低八位找到bucket</span></span><br><span class="line">	bucket := hash &amp; (<span class="type">uintptr</span>(<span class="number">1</span>)&lt;&lt;h.B - <span class="number">1</span>)</span><br><span class="line">	<span class="keyword">if</span> h.growing() &#123;</span><br><span class="line">		growWork(t, h, bucket)</span><br><span class="line">	&#125;</span><br><span class="line">	b := (*bmap)(unsafe.Pointer(<span class="type">uintptr</span>(h.buckets) + bucket*<span class="type">uintptr</span>(t.bucketsize)))</span><br><span class="line">    <span class="comment">// 拿到高八位的hash值用于比对tophash</span></span><br><span class="line">	top := <span class="type">uint8</span>(hash &gt;&gt; (sys.PtrSize*<span class="number">8</span> - <span class="number">8</span>))</span><br><span class="line">	<span class="keyword">if</span> top &lt; minTopHash &#123;</span><br><span class="line">		top += minTopHash</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> inserti *<span class="type">uint8</span></span><br><span class="line">	<span class="keyword">var</span> insertk unsafe.Pointer</span><br><span class="line">	<span class="keyword">var</span> val unsafe.Pointer</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> i := <span class="type">uintptr</span>(<span class="number">0</span>); i &lt; bucketCnt; i++ &#123;</span><br><span class="line">            <span class="comment">// 遍历tophash, 找到对应的key</span></span><br><span class="line">			<span class="keyword">if</span> b.tophash[i] != top &#123;</span><br><span class="line">                <span class="comment">// 如果没有找到key, 说明是第一次, 将这个key插入到insertk(第i+1个key所在的)的位置, 将value插入到val(第i+1个value所在)的位置, 并且将tophash的当前地址赋值给inserti, 用于记录是否插入以及插入的位置.</span></span><br><span class="line">				<span class="keyword">if</span> b.tophash[i] == empty &amp;&amp; inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">					inserti = &amp;b.tophash[i]</span><br><span class="line">					insertk = add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">					val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">				&#125;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 如果找到了key的tophash, 就将拿对应的key跟现在的key对比, 看是否相等, 如果不相等就跳过继续找key, 如果相等就更新它的value的值.</span></span><br><span class="line">			k := add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">			<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">				k = *((*unsafe.Pointer)(k))</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> !alg.equal(key, k) &#123;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 如果需要更新key, 就覆盖key的值.</span></span><br><span class="line">			<span class="keyword">if</span> t.needkeyupdate &#123;</span><br><span class="line">				typedmemmove(t.key, k, key)</span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 返回val的地址, 这个函数并不真正更新value, 只是找到value所在的地址.</span></span><br><span class="line">			val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">		&#125;</span><br><span class="line">        <span class="comment">// 如这个bucket没找到, 找他的overflow链表, 拿下一个bucket循环操作.</span></span><br><span class="line">		ovf := b.overflow(t)</span><br><span class="line">		<span class="keyword">if</span> ovf == <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		b = ovf</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果都没有找到对应的值, 就可能做两件事:</span></span><br><span class="line">    <span class="comment">// 1) 建立新的overflow, 然后把值加到这个overflow的bucket中.</span></span><br><span class="line">    <span class="comment">// 2) 如果此时map的len()超过了overLoadFactor(6.5默认值)*桶的数量(2^B, 每个桶最多8个kv), 或者overflow的bucket太多了, golang就会扩大map的容量. </span></span><br><span class="line">	<span class="comment">// Did not find mapping for key. Allocate new cell &amp; add entry.</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// If we hit the max load factor or we have too many overflow buckets,</span></span><br><span class="line">	<span class="comment">// and we&#x27;re not already in the middle of growing, start growing.</span></span><br><span class="line">	<span class="keyword">if</span> !h.growing() &amp;&amp; (overLoadFactor(<span class="type">int64</span>(h.count), h.B) || tooManyOverflowBuckets(h.noverflow, h.B)) &#123;</span><br><span class="line">		hashGrow(t, h)</span><br><span class="line">		<span class="keyword">goto</span> again <span class="comment">// Growing the table invalidates everything, so try again</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// all current buckets are full, allocate a new one.</span></span><br><span class="line">		newb := h.newoverflow(t, b)</span><br><span class="line">		inserti = &amp;newb.tophash[<span class="number">0</span>]</span><br><span class="line">		insertk = add(unsafe.Pointer(newb), dataOffset)</span><br><span class="line">		val = add(insertk, bucketCnt*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// store new key/value at insert position</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">		kmem := newobject(t.key)</span><br><span class="line">		*(*unsafe.Pointer)(insertk) = kmem</span><br><span class="line">		insertk = kmem</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		vmem := newobject(t.elem)</span><br><span class="line">		*(*unsafe.Pointer)(val) = vmem</span><br><span class="line">	&#125;</span><br><span class="line">	typedmemmove(t.key, insertk, key)</span><br><span class="line">	*inserti = top</span><br><span class="line">	h.count++</span><br><span class="line"></span><br><span class="line">done:</span><br><span class="line">    <span class="comment">// 不支持并发map的写.</span></span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting == <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	h.flags &amp;^= hashWriting</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		val = *((*unsafe.Pointer)(val))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> val</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在往map中存值时若所有的bucket已满，需要在堆中new新的空间时需要计算是否需要扩容。扩容的时机是count &gt; loadFactor(2^B)。这里的loadfactor选择为6.5。<strong>扩容时机的物理意义的理解</strong> 在没有溢出时hashmap总共可以存储8*(2^B)个KV对，当hashmap已经存储到6.5*(2^B)个KV对时表示hashmap已经趋于溢出，即很有可能在存值时用到overflow链表，这样会增加hitprobe和missprobe。为了使hashmap保持读取和超找的高性能，在hashmap快满时需要在新分配的bucket中重新hash元素并拷贝，源码中称之为evacuate。</p>
+<blockquote>
+<p>overflow溢出率是指平均一个bucket有多少个kv的时候会溢出。bytes&#x2F;entry是指平均存一个kv需要额外存储多少字节的数据。hitprobe是指找一个存在的key平均需要找多少次。missprobe是指找一个不存在的key平均需要找多少次。选取6.5是为了平衡这组数据。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>loadFactor</th>
+<th>%overflow</th>
+<th>bytes&#x2F;entry</th>
+<th>hitprobe</th>
+<th>missprobe</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4.00</td>
+<td>2.13</td>
+<td>20.77</td>
+<td>3.00</td>
+<td>4.00</td>
+</tr>
+<tr>
+<td>4.50</td>
+<td>4.05</td>
+<td>17.30</td>
+<td>3.25</td>
+<td>4.50</td>
+</tr>
+<tr>
+<td>5.00</td>
+<td>6.85</td>
+<td>14.77</td>
+<td>3.50</td>
+<td>5.00</td>
+</tr>
+<tr>
+<td>5.50</td>
+<td>10.55</td>
+<td>12.94</td>
+<td>3.75</td>
+<td>5.50</td>
+</tr>
+<tr>
+<td>6.00</td>
+<td>15.27</td>
+<td>11.67</td>
+<td>4.00</td>
+<td>6.00</td>
+</tr>
+<tr>
+<td>6.50</td>
+<td>20.90</td>
+<td>10.79</td>
+<td>4.25</td>
+<td>6.50</td>
+</tr>
+<tr>
+<td>7.00</td>
+<td>27.14</td>
+<td>10.15</td>
+<td>4.50</td>
+<td>7.00</td>
+</tr>
+<tr>
+<td>7.50</td>
+<td>34.03</td>
+<td>9.73</td>
+<td>4.75</td>
+<td>7.50</td>
+</tr>
+<tr>
+<td>8.00</td>
+<td>41.10</td>
+<td>9.40</td>
+<td>5.00</td>
+<td>8.00</td>
+</tr>
+</tbody></table>
+<p>但这个迁移并没有在扩容之后一次性完成，而是逐步完成的，每一次insert或remove时迁移1到2个pair，即增量扩容。<a target="_blank" rel="noopener" href="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/">增量扩容的原因</a> 主要是缩短map容器的响应时间。若hashmap很大扩容时很容易导致系统停顿无响应。增量扩容本质上就是将总的扩容时间分摊到了每一次hash操作上。由于这个工作是逐渐完成的，导致数据一部分在old table中一部分在new table中。old的bucket不会删除，只是加上一个已删除的标记。只有当所有的bucket都从old table里迁移后才会将其释放掉。</p>
+<h4 id="Map的取值"><a href="#Map的取值" class="headerlink" title="Map的取值"></a>Map的取值</h4><p>map取值和存值前面的过程差不多, 代码在<code>mapaccess1</code>中, 这里不做赘述.</p>
+<h4 id="Map-的删除"><a href="#Map-的删除" class="headerlink" title="Map 的删除"></a>Map 的删除</h4><p>删除的前面部分也是找到对应的key和value, 此处省略.</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapdelete</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> &#123;</span><br><span class="line"><span class="comment">// 查找位置, 省略</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的地址, 将地址变为nil</span></span><br><span class="line">				*(*unsafe.Pointer)(k) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的值, 清空key的值</span></span><br><span class="line">				typedmemclr(t.key, k)</span><br><span class="line">			&#125;</span><br><span class="line">			v := unsafe.Pointer(<span class="type">uintptr</span>(unsafe.Pointer(b)) + dataOffset + bucketCnt*<span class="type">uintptr</span>(t.keysize) + i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">    	<span class="comment">// 同理</span></span><br><span class="line">			<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">				*(*unsafe.Pointer)(v) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				typedmemclr(t.elem, v)</span><br><span class="line">			&#125;</span><br><span class="line">    		<span class="comment">//将tophash相应位置标记为空, kv数量-1.</span></span><br><span class="line">			b.tophash[i] = empty</span><br><span class="line">			h.count--</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 
       
     </div>
@@ -784,7 +962,7 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-07-02-golang-map/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-k8s-schedule/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -802,185 +980,7 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-07-02-golang-map/" class="post-title-link" itemprop="url">golang map 内存布局和原理</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-      
-
-      <time title="Created: 2024-03-10 12:35:02 / Modified: 12:37:57" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h4 id="map数据结构"><a href="#map数据结构" class="headerlink" title="map数据结构"></a>map数据结构</h4><p>golang的map是hashmap实现的, 代码在&#x2F;src&#x2F;runtime&#x2F;hashmap.go. 对比C++用红黑树实现的map，Go的map是unordered map，即无法对key值排序遍历。跟传统的hashmap的实现方法一样，它通过一个buckets数组实现，所有元素被hash到数组的bucket中，<strong>buckets</strong>就是指向了这个内存连续分配的数组. </p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> maptype <span class="keyword">struct</span> &#123;</span><br><span class="line">	typ           _type</span><br><span class="line">	key           *_type</span><br><span class="line">	elem          *_type</span><br><span class="line">	bucket        *_type <span class="comment">// internal type representing a hash bucket</span></span><br><span class="line">	hmap          *_type <span class="comment">// internal type representing a hmap</span></span><br><span class="line">	keysize       <span class="type">uint8</span>  <span class="comment">// size of key slot</span></span><br><span class="line">	indirectkey   <span class="type">bool</span>   <span class="comment">// store ptr to key instead of key itself</span></span><br><span class="line">	valuesize     <span class="type">uint8</span>  <span class="comment">// size of value slot</span></span><br><span class="line">	indirectvalue <span class="type">bool</span>   <span class="comment">// store ptr to value instead of value itself</span></span><br><span class="line">	bucketsize    <span class="type">uint16</span> <span class="comment">// size of bucket</span></span><br><span class="line">	reflexivekey  <span class="type">bool</span>   <span class="comment">// true if k==k for all keys</span></span><br><span class="line">	needkeyupdate <span class="type">bool</span>   <span class="comment">// true if we need to update key on an overwrite</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A header for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> hmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	count <span class="type">int</span> <span class="comment">// len()返回的map的大小 即有多少kv对</span></span><br><span class="line">	flags <span class="type">uint8</span></span><br><span class="line">	B     <span class="type">uint8</span>  <span class="comment">// 表示hash table总共有2^B个buckets </span></span><br><span class="line">	hash0 <span class="type">uint32</span> <span class="comment">// hash seed</span></span><br><span class="line"></span><br><span class="line">	buckets    unsafe.Pointer <span class="comment">// 一系列桶的头指针, 按照low hash值可查找的连续分配的数组，初始时为16个Buckets.</span></span><br><span class="line">	oldbuckets unsafe.Pointer </span><br><span class="line">	nevacuate  <span class="type">uintptr</span>      </span><br><span class="line"></span><br><span class="line">	overflow *[<span class="number">2</span>]*[]*bmap <span class="comment">//溢出链 当初始buckets都满了之后会使用overflow</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A bucket for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> bmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	tophash [bucketCnt]<span class="type">uint8</span></span><br><span class="line">	<span class="comment">// Followed by bucketCnt keys and then bucketCnt values.</span></span><br><span class="line">	<span class="comment">// <span class="doctag">NOTE:</span> packing all the keys together and then all the values together makes the</span></span><br><span class="line">	<span class="comment">// code a bit more complicated than alternating key/value/key/value/... but it allows</span></span><br><span class="line">	<span class="comment">// us to eliminate padding which would be needed for, e.g., map[int64]int8.</span></span><br><span class="line">	<span class="comment">// Followed by an overflow pointer.</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>如上所示, maptype表示map类型, 其中的hmap表示hashmap, 它的指针就是map的实体.  桶一个连续分配的数组组成, 而buckets是这个数组的头指针(起始地址), bmap是每个bucket的实体. 每个bucket有一个长度为8的数组叫做tophash, 他存储了8个key的高八位的值, 这样当我们找的时候, 先用key hash的低八位找到对应的桶, 再匹配key高8位值找到对应的tophash, 如果正确了再去找对应的key是否相等. 在对key&#x2F;value对增删查的时候，先比较key的hash值高八位是否相等，然后再比较具体的key值。根据官方注释在tophash数组之后跟着8个key&#x2F;value对，每一对都对应tophash当中的一条记录。最后bucket中还包含指向链表下一个bucket的指针。内存布局如下图。</p>
-<p><img src="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/hashmap.png" alt="image"></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">之所以把所有k1k2放一起而不是k1v1是因为key和value的数据类型内存大小可能差距很大，比如map[int64]int8，考虑到字节对齐，kv存在一起会浪费很多空间。</span><br></pre></td></tr></table></figure>
-
-
-
-<h4 id="map创建和初始化"><a href="#map创建和初始化" class="headerlink" title="map创建和初始化"></a>map创建和初始化</h4><p>我们首先来看make过程, 看一个map是如何创建的.</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// makemap implements a Go map creation make(map[k]v, hint)</span></span><br><span class="line"><span class="comment">// If the compiler has determined that the map or the first bucket</span></span><br><span class="line"><span class="comment">// can be created on the stack, h and/or bucket may be non-nil.</span></span><br><span class="line"><span class="comment">// If h != nil, the map can be created directly in h.</span></span><br><span class="line"><span class="comment">// If bucket != nil, bucket can be used as the first bucket.</span></span><br><span class="line"><span class="comment">// hint是map大小, h过不等于空就直接使用这个hmap, bucket不为空就当做第一个bucket.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">makemap</span><span class="params">(t *maptype, hint <span class="type">int64</span>, h *hmap, bucket unsafe.Pointer)</span></span> *hmap &#123;</span><br><span class="line">    <span class="keyword">if</span> sz := unsafe.Sizeof(hmap&#123;&#125;); sz &gt; <span class="number">48</span> || sz != t.hmap.size &#123;</span><br><span class="line">		<span class="built_in">println</span>(<span class="string">&quot;runtime: sizeof(hmap) =&quot;</span>, sz, <span class="string">&quot;, t.hmap.size =&quot;</span>, t.hmap.size)</span><br><span class="line">		throw(<span class="string">&quot;bad hmap size&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// hint值不符合规范, 置0</span></span><br><span class="line">	<span class="keyword">if</span> hint &lt; <span class="number">0</span> || hint &gt; <span class="type">int64</span>(maxSliceCap(t.bucket.size)) &#123;</span><br><span class="line">		hint = <span class="number">0</span></span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// 按照是否实现hash()来判断是否支持map类型</span></span><br><span class="line">	<span class="keyword">if</span> !ismapkey(t.key) &#123;</span><br><span class="line">		throw(<span class="string">&quot;runtime.makemap: unsupported map key type&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 检查key和value大小</span></span><br><span class="line">	<span class="keyword">if</span> t.key.size &gt; maxKeySize &amp;&amp; (!t.indirectkey || t.keysize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.key.size &lt;= maxKeySize &amp;&amp; (t.indirectkey || t.keysize != <span class="type">uint8</span>(t.key.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size &gt; maxValueSize &amp;&amp; (!t.indirectvalue || t.valuesize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.elem.size &lt;= maxValueSize &amp;&amp; (t.indirectvalue || t.valuesize != <span class="type">uint8</span>(t.elem.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 检查各种编译的规范, 跳过</span></span><br><span class="line">	<span class="comment">// invariants we depend on. We should probably check these at compile time</span></span><br><span class="line">	<span class="comment">// somewhere, but for now we&#x27;ll do it here.</span></span><br><span class="line">	<span class="keyword">if</span> t.key.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;key align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;value align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.key.size%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size not a multiple of key align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size not a multiple of value align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> bucketCnt &lt; <span class="number">8</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;bucketsize too small for proper alignment&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (key)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (value)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 把hint参数对应成2进制的上确界那个数. 例如size=6, B就是3, 因为2^2 &lt; 6 &lt; 2^3</span></span><br><span class="line">	B := <span class="type">uint8</span>(<span class="number">0</span>)</span><br><span class="line">	<span class="keyword">for</span> ; overLoadFactor(hint, B); B++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 使用malloc分配2^B个buckets给h.</span></span><br><span class="line">	<span class="comment">// allocate initial hash table</span></span><br><span class="line">	<span class="comment">// if B == 0, the buckets field is allocated lazily later (in mapassign)</span></span><br><span class="line">	<span class="comment">// If hint is large zeroing this memory could take a while.</span></span><br><span class="line">	buckets := bucket</span><br><span class="line">	<span class="keyword">var</span> extra *mapextra</span><br><span class="line">	<span class="keyword">if</span> B != <span class="number">0</span> &#123;</span><br><span class="line">		<span class="keyword">var</span> nextOverflow *bmap</span><br><span class="line">		buckets, nextOverflow = makeBucketArray(t, B)</span><br><span class="line">		<span class="keyword">if</span> nextOverflow != <span class="literal">nil</span> &#123;</span><br><span class="line">			extra = <span class="built_in">new</span>(mapextra)</span><br><span class="line">			extra.nextOverflow = nextOverflow</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// initialize Hmap</span></span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		h = (*hmap)(newobject(t.hmap))</span><br><span class="line">	&#125;</span><br><span class="line">	h.count = <span class="number">0</span></span><br><span class="line">	h.B = B</span><br><span class="line">	h.extra = extra</span><br><span class="line">	h.flags = <span class="number">0</span></span><br><span class="line">	h.hash0 = fastrand()</span><br><span class="line">	h.buckets = buckets</span><br><span class="line">	h.oldbuckets = <span class="literal">nil</span></span><br><span class="line">	h.nevacuate = <span class="number">0</span></span><br><span class="line">	h.noverflow = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> h</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-
-<h4 id="map存值"><a href="#map存值" class="headerlink" title="map存值"></a>map存值</h4><p>存储的步骤和第一部分的分析一致。首先用key的hash值低8位找到bucket，然后在bucket内部比对tophash和高8位与其对应的key值与入参key是否相等，若找到则更新这个值。若key不存在，则key优先存入在查找的过程中遇到的空的tophash数组位置。若当前的bucket已满则需要另外分配空间给这个key，新分配的bucket将挂在overflow链表后。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Like mapaccess, but allocates a slot for the key if it is not present in the map.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapassign</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> unsafe.Pointer &#123;</span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(plainError(<span class="string">&quot;assignment to entry in nil map&quot;</span>))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> raceenabled &#123;</span><br><span class="line">		callerpc := getcallerpc(unsafe.Pointer(&amp;t))</span><br><span class="line">		pc := funcPC(mapassign)</span><br><span class="line">		racewritepc(unsafe.Pointer(h), callerpc, pc)</span><br><span class="line">		raceReadObjectPC(t.key, key, callerpc, pc)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> msanenabled &#123;</span><br><span class="line">		msanread(key, t.key.size)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	alg := t.key.alg</span><br><span class="line">	hash := alg.hash(key, <span class="type">uintptr</span>(h.hash0))</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Set hashWriting after calling alg.hash, since alg.hash may panic,</span></span><br><span class="line">	<span class="comment">// in which case we have not actually done a write.</span></span><br><span class="line">	h.flags |= hashWriting</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> h.buckets == <span class="literal">nil</span> &#123;</span><br><span class="line">		h.buckets = newarray(t.bucket, <span class="number">1</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">again:</span><br><span class="line">    <span class="comment">// 用hash值的低八位找到bucket</span></span><br><span class="line">	bucket := hash &amp; (<span class="type">uintptr</span>(<span class="number">1</span>)&lt;&lt;h.B - <span class="number">1</span>)</span><br><span class="line">	<span class="keyword">if</span> h.growing() &#123;</span><br><span class="line">		growWork(t, h, bucket)</span><br><span class="line">	&#125;</span><br><span class="line">	b := (*bmap)(unsafe.Pointer(<span class="type">uintptr</span>(h.buckets) + bucket*<span class="type">uintptr</span>(t.bucketsize)))</span><br><span class="line">    <span class="comment">// 拿到高八位的hash值用于比对tophash</span></span><br><span class="line">	top := <span class="type">uint8</span>(hash &gt;&gt; (sys.PtrSize*<span class="number">8</span> - <span class="number">8</span>))</span><br><span class="line">	<span class="keyword">if</span> top &lt; minTopHash &#123;</span><br><span class="line">		top += minTopHash</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> inserti *<span class="type">uint8</span></span><br><span class="line">	<span class="keyword">var</span> insertk unsafe.Pointer</span><br><span class="line">	<span class="keyword">var</span> val unsafe.Pointer</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> i := <span class="type">uintptr</span>(<span class="number">0</span>); i &lt; bucketCnt; i++ &#123;</span><br><span class="line">            <span class="comment">// 遍历tophash, 找到对应的key</span></span><br><span class="line">			<span class="keyword">if</span> b.tophash[i] != top &#123;</span><br><span class="line">                <span class="comment">// 如果没有找到key, 说明是第一次, 将这个key插入到insertk(第i+1个key所在的)的位置, 将value插入到val(第i+1个value所在)的位置, 并且将tophash的当前地址赋值给inserti, 用于记录是否插入以及插入的位置.</span></span><br><span class="line">				<span class="keyword">if</span> b.tophash[i] == empty &amp;&amp; inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">					inserti = &amp;b.tophash[i]</span><br><span class="line">					insertk = add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">					val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">				&#125;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 如果找到了key的tophash, 就将拿对应的key跟现在的key对比, 看是否相等, 如果不相等就跳过继续找key, 如果相等就更新它的value的值.</span></span><br><span class="line">			k := add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">			<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">				k = *((*unsafe.Pointer)(k))</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> !alg.equal(key, k) &#123;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 如果需要更新key, 就覆盖key的值.</span></span><br><span class="line">			<span class="keyword">if</span> t.needkeyupdate &#123;</span><br><span class="line">				typedmemmove(t.key, k, key)</span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 返回val的地址, 这个函数并不真正更新value, 只是找到value所在的地址.</span></span><br><span class="line">			val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">		&#125;</span><br><span class="line">        <span class="comment">// 如这个bucket没找到, 找他的overflow链表, 拿下一个bucket循环操作.</span></span><br><span class="line">		ovf := b.overflow(t)</span><br><span class="line">		<span class="keyword">if</span> ovf == <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		b = ovf</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果都没有找到对应的值, 就可能做两件事:</span></span><br><span class="line">    <span class="comment">// 1) 建立新的overflow, 然后把值加到这个overflow的bucket中.</span></span><br><span class="line">    <span class="comment">// 2) 如果此时map的len()超过了overLoadFactor(6.5默认值)*桶的数量(2^B, 每个桶最多8个kv), 或者overflow的bucket太多了, golang就会扩大map的容量. </span></span><br><span class="line">	<span class="comment">// Did not find mapping for key. Allocate new cell &amp; add entry.</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// If we hit the max load factor or we have too many overflow buckets,</span></span><br><span class="line">	<span class="comment">// and we&#x27;re not already in the middle of growing, start growing.</span></span><br><span class="line">	<span class="keyword">if</span> !h.growing() &amp;&amp; (overLoadFactor(<span class="type">int64</span>(h.count), h.B) || tooManyOverflowBuckets(h.noverflow, h.B)) &#123;</span><br><span class="line">		hashGrow(t, h)</span><br><span class="line">		<span class="keyword">goto</span> again <span class="comment">// Growing the table invalidates everything, so try again</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// all current buckets are full, allocate a new one.</span></span><br><span class="line">		newb := h.newoverflow(t, b)</span><br><span class="line">		inserti = &amp;newb.tophash[<span class="number">0</span>]</span><br><span class="line">		insertk = add(unsafe.Pointer(newb), dataOffset)</span><br><span class="line">		val = add(insertk, bucketCnt*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// store new key/value at insert position</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">		kmem := newobject(t.key)</span><br><span class="line">		*(*unsafe.Pointer)(insertk) = kmem</span><br><span class="line">		insertk = kmem</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		vmem := newobject(t.elem)</span><br><span class="line">		*(*unsafe.Pointer)(val) = vmem</span><br><span class="line">	&#125;</span><br><span class="line">	typedmemmove(t.key, insertk, key)</span><br><span class="line">	*inserti = top</span><br><span class="line">	h.count++</span><br><span class="line"></span><br><span class="line">done:</span><br><span class="line">    <span class="comment">// 不支持并发map的写.</span></span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting == <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	h.flags &amp;^= hashWriting</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		val = *((*unsafe.Pointer)(val))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> val</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>在往map中存值时若所有的bucket已满，需要在堆中new新的空间时需要计算是否需要扩容。扩容的时机是count &gt; loadFactor(2^B)。这里的loadfactor选择为6.5。<strong>扩容时机的物理意义的理解</strong> 在没有溢出时hashmap总共可以存储8*(2^B)个KV对，当hashmap已经存储到6.5*(2^B)个KV对时表示hashmap已经趋于溢出，即很有可能在存值时用到overflow链表，这样会增加hitprobe和missprobe。为了使hashmap保持读取和超找的高性能，在hashmap快满时需要在新分配的bucket中重新hash元素并拷贝，源码中称之为evacuate。</p>
-<blockquote>
-<p>overflow溢出率是指平均一个bucket有多少个kv的时候会溢出。bytes&#x2F;entry是指平均存一个kv需要额外存储多少字节的数据。hitprobe是指找一个存在的key平均需要找多少次。missprobe是指找一个不存在的key平均需要找多少次。选取6.5是为了平衡这组数据。</p>
-</blockquote>
-<table>
-<thead>
-<tr>
-<th>loadFactor</th>
-<th>%overflow</th>
-<th>bytes&#x2F;entry</th>
-<th>hitprobe</th>
-<th>missprobe</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>4.00</td>
-<td>2.13</td>
-<td>20.77</td>
-<td>3.00</td>
-<td>4.00</td>
-</tr>
-<tr>
-<td>4.50</td>
-<td>4.05</td>
-<td>17.30</td>
-<td>3.25</td>
-<td>4.50</td>
-</tr>
-<tr>
-<td>5.00</td>
-<td>6.85</td>
-<td>14.77</td>
-<td>3.50</td>
-<td>5.00</td>
-</tr>
-<tr>
-<td>5.50</td>
-<td>10.55</td>
-<td>12.94</td>
-<td>3.75</td>
-<td>5.50</td>
-</tr>
-<tr>
-<td>6.00</td>
-<td>15.27</td>
-<td>11.67</td>
-<td>4.00</td>
-<td>6.00</td>
-</tr>
-<tr>
-<td>6.50</td>
-<td>20.90</td>
-<td>10.79</td>
-<td>4.25</td>
-<td>6.50</td>
-</tr>
-<tr>
-<td>7.00</td>
-<td>27.14</td>
-<td>10.15</td>
-<td>4.50</td>
-<td>7.00</td>
-</tr>
-<tr>
-<td>7.50</td>
-<td>34.03</td>
-<td>9.73</td>
-<td>4.75</td>
-<td>7.50</td>
-</tr>
-<tr>
-<td>8.00</td>
-<td>41.10</td>
-<td>9.40</td>
-<td>5.00</td>
-<td>8.00</td>
-</tr>
-</tbody></table>
-<p>但这个迁移并没有在扩容之后一次性完成，而是逐步完成的，每一次insert或remove时迁移1到2个pair，即增量扩容。<a target="_blank" rel="noopener" href="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/">增量扩容的原因</a> 主要是缩短map容器的响应时间。若hashmap很大扩容时很容易导致系统停顿无响应。增量扩容本质上就是将总的扩容时间分摊到了每一次hash操作上。由于这个工作是逐渐完成的，导致数据一部分在old table中一部分在new table中。old的bucket不会删除，只是加上一个已删除的标记。只有当所有的bucket都从old table里迁移后才会将其释放掉。</p>
-<h4 id="Map的取值"><a href="#Map的取值" class="headerlink" title="Map的取值"></a>Map的取值</h4><p>map取值和存值前面的过程差不多, 代码在<code>mapaccess1</code>中, 这里不做赘述.</p>
-<h4 id="Map-的删除"><a href="#Map-的删除" class="headerlink" title="Map 的删除"></a>Map 的删除</h4><p>删除的前面部分也是找到对应的key和value, 此处省略.</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapdelete</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> &#123;</span><br><span class="line"><span class="comment">// 查找位置, 省略</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的地址, 将地址变为nil</span></span><br><span class="line">				*(*unsafe.Pointer)(k) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的值, 清空key的值</span></span><br><span class="line">				typedmemclr(t.key, k)</span><br><span class="line">			&#125;</span><br><span class="line">			v := unsafe.Pointer(<span class="type">uintptr</span>(unsafe.Pointer(b)) + dataOffset + bucketCnt*<span class="type">uintptr</span>(t.keysize) + i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">    	<span class="comment">// 同理</span></span><br><span class="line">			<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">				*(*unsafe.Pointer)(v) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				typedmemclr(t.elem, v)</span><br><span class="line">			&#125;</span><br><span class="line">    		<span class="comment">//将tophash相应位置标记为空, kv数量-1.</span></span><br><span class="line">			b.tophash[i] = empty</span><br><span class="line">			h.count--</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
+          <a href="/2024/03/10/2018-05-24-k8s-schedule/" class="post-title-link" itemprop="url">k8s-schedule</a>
         </h2>
 
         <div class="post-meta-container">
@@ -1013,21 +1013,59 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>docker run 的时候如果出现类似:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
+          <h4 id="Labels-and-Selectors"><a href="#Labels-and-Selectors" class="headerlink" title="Labels and Selectors"></a>Labels and Selectors</h4><ol>
+<li><p>label<br>  label是k8s中所有资源都有的一个域, 他是一个<key>&#x3D;<value>对, 表示这个资源具有某种特定属性, key必须不能重复. 这样user和其他资源可以通过label来选择具有这种属性的资源集合.</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">&quot;metadata&quot;:</span> &#123;</span><br><span class="line">  <span class="attr">&quot;labels&quot;:</span> &#123;</span><br><span class="line">    <span class="string">&quot;key1&quot;</span> <span class="string">:</span> <span class="string">&quot;value1&quot;</span>,</span><br><span class="line">    <span class="string">&quot;key2&quot;</span> <span class="string">:</span> <span class="string">&quot;value2&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>  label的key有两个段,分别是前缀和名称, 通过’&#x2F;‘分开. 名称字段必须少于63个字符, 必须以’[a-z0-9A-Z]’, ‘-‘, ‘.’, ‘_’和数字 开头和结尾.前缀是可选的, 一旦指定, 不能超过253个字符. label的value指和key中的名称要求一样.</p>
+</li>
+<li><p>Selectors的使用<br>通过api中使用 -l 来选择特定集合的objects: <code>$ kubectl get pods -l &#39;environment in (production, qa)&#39;</code></p>
+</li>
+</ol>
+<p>一些k8s资源, 比如Service and ReplicationController 会有selector字段, 用来选择pod.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">selector:</span><br><span class="line">    component: redis</span><br></pre></td></tr></table></figure>
 
-<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
+<p>基于相等的匹配和基于集合的匹配:<br>  <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">selector:</span></span><br><span class="line"><span class="attr">matchLabels:</span></span><br><span class="line">  <span class="attr">component:</span> <span class="string">redis</span></span><br><span class="line"><span class="attr">matchExpressions:</span></span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">tier</span>, <span class="attr">operator:</span> <span class="string">In</span>, <span class="attr">values:</span> [<span class="string">cache</span>]&#125;</span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">environment</span>, <span class="attr">operator:</span> <span class="string">NotIn</span>, <span class="attr">values:</span> [<span class="string">dev</span>]&#125;</span><br></pre></td></tr></table></figure><br>   注意区分概念, label永远都是key&#x3D;value, 多个label在一起能组成一个集合, 类似map. 只有selector有集合的操作, label本身就是一个&lt;k,v&gt; 对, 没有<k in v>这样的label.<br>   集合方式有四种operator: In, NotIn, Exist, DoesNotExist. <code>&#123;key: tier, operator: In, values: [cache]&#125;</code>这条表达式等价于matchLabels中的: <code>tier: cache</code>.<br>   必须满足所有的selector表达式, 才算匹配.<br>   Job, Deployment, Replica Set, and Daemon Set都是支持基于集合的匹配.</p>
+<ol start="3">
+<li>nodeSelector<br>  nodeSelector用于选择某个node, 再次之前, 需要在node上添加label: <code>kubectl label nodes &lt;node-name&gt; &lt;label-key&gt;=&lt;label-value&gt;</code>. 然后在pod中配置相应的nodeSelector, 就能保证pod调度到符合语义的node:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">env:</span> <span class="string">test</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">  <span class="attr">nodeSelector:</span></span><br><span class="line">    <span class="attr">disktype:</span> <span class="string">ssd</span></span><br></pre></td></tr></table></figure>
+k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">kubernetes.io/hostname</span><br><span class="line">failure-domain.beta.kubernetes.io/zone</span><br><span class="line">failure-domain.beta.kubernetes.io/region</span><br><span class="line">beta.kubernetes.io/instance-type</span><br><span class="line">beta.kubernetes.io/os</span><br><span class="line">beta.kubernetes.io/arch</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="Affinity"><a href="#Affinity" class="headerlink" title="Affinity"></a>Affinity</h4><p>nodeSelector是比较简单的pod选择节点的方式, k8s提供了affinity&#x2F;anti-affinity用来更复杂的提供节点选择方案. 他有两种: node affinity 和 inter-pod affinity&#x2F;anti-affinity:</p>
+<ul>
+<li><p>node affinity<br>nodeAffinity与nodeSelector相似, 也是基于label, 包括两种类型, 可以分别理解为’hard’和’soft’, 一个强制要求, 一个尽可能要求. </p>
+<ul>
+<li>requiredDuringSchedulingIgnoredDuringExecution: hard类型</li>
+<li>preferredDuringSchedulingIgnoredDuringExecution: soft类型<br>内容和label selector基本一致:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">nodeAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">        <span class="attr">nodeSelectorTerms:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">kubernetes.io/e2e-az-name</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az1</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az2</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">        <span class="attr">preference:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">another-node-label-key</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">another-node-label-value</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
+<code>weight</code> 是1-100.</li>
+</ul>
+</li>
+<li><p>pod affinity<br>  podAffinity&#x2F;podAnti-Affinity是比较已经调度到节点上的pod而不是看node本身. 他也有两种类型hard和soft:</p>
+<ul>
+<li>requiredDuringSchedulingIgnoredDuringExecution: hard</li>
+<li>preferredDuringSchedulingIgnoredDuringExecution: soft</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">podAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">labelSelector:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">S1</span></span><br><span class="line">        <span class="attr">topologyKey:</span> <span class="string">failure-domain.beta.kubernetes.io/zone</span></span><br><span class="line">    <span class="attr">podAntiAffinity:</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">100</span></span><br><span class="line">        <span class="attr">podAffinityTerm:</span></span><br><span class="line">          <span class="attr">labelSelector:</span></span><br><span class="line">            <span class="attr">matchExpressions:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">              <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">              <span class="attr">values:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">S2</span></span><br><span class="line">          <span class="attr">topologyKey:</span> <span class="string">kubernetes.io/hostname</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
 
-<p>修改后发现新的错误:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
+<h4 id="Taints-and-Tolerations"><a href="#Taints-and-Tolerations" class="headerlink" title="Taints and Tolerations"></a>Taints and Tolerations</h4><p>affinity是站在pod的角度, 而taints是站在node的角度, </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key=value:NoSchedule</span><br></pre></td></tr></table></figure>
+<p>这个命令将node1加了一个taint, 表示无法调度, 除非你有相应的toleration:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
+<p>这两个tolerations都能匹配那个taint. operator默认是<code>Equal</code><br>一个空的tolerations匹配所有的taint:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
+<p>以下这个tolerations匹配所有key为<code>key</code>的taints:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
 
-<p>网上查有如下回复:</p>
-<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
-
-<p>所以重启大法好…</p>
-<p>但是真正原因没搞清楚, 待更新.</p>
-
+<p>effect有两种： NoExecute和ＮoSchedule， 如果加了NoExecute， 那么所有不匹配的pod将会立即被evicted掉， 如果加了Noschedule, 那么只是Pod无法被调度， 已经调度的Ｐod不受影响。NoExecute还可以指定一个可选的域<code>tolerationSeconds</code>， 表示尽管匹配了taint可以不被立即evicted掉, 但在一定时间之后就会被evicted掉。</p>
+<p>通过<code>kubectl taint nodes node1 key:NoSchedule-</code> 取消taint</p>
+<h5 id="更有意思的是多个taint和多个tolerations的情况"><a href="#更有意思的是多个taint和多个tolerations的情况" class="headerlink" title="更有意思的是多个taint和多个tolerations的情况."></a>更有意思的是多个taint和多个tolerations的情况.</h5><p>例如创建三个taint:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key1=value1:NoSchedule</span><br><span class="line">kubectl taint nodes node1 key1=value1:NoExecute</span><br><span class="line">kubectl taint nodes node1 key2=value2:NoSchedule</span><br></pre></td></tr></table></figure>
+<p>一个pod拥有两个tolerations：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoExecute&quot;</span></span><br></pre></td></tr></table></figure>
+<p>该pod没有匹配所有的taint, 因此他不能被调度到这个节点， 但如果调度了，他不会被移除， 因为他只有第三个<code>NoSchedule</code>的taint不匹配。</p>
+<h5 id="注意"><a href="#注意" class="headerlink" title="注意"></a>注意</h5><p>在1.6之后， 官方加了一些内置的taint， 他会将pod evctied掉：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">node.kubernetes.io/not-ready: notready.</span><br><span class="line">node.alpha.kubernetes.io/unreachable: Unknown</span><br><span class="line">node.kubernetes.io/out-of-disk: Node becomes out of disk.</span><br><span class="line">node.kubernetes.io/memory-pressure: Node has memory pressure.</span><br><span class="line">node.kubernetes.io/disk-pressure: Node has disk pressure.</span><br><span class="line">node.kubernetes.io/network-unavailable: Node’s network is unavailable.</span><br><span class="line">node.cloudprovider.kubernetes.io/uninitialized: When kubelet is started with “external” cloud provider, it sets this taint on a node to mark it as unusable. When a controller from the cloud-controller-manager initializes this node, kubelet removes this taint.</span><br></pre></td></tr></table></figure>
       
     </div>
 
@@ -1172,7 +1210,7 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-05-24-k8s-schedule/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1190,7 +1228,7 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-05-24-k8s-schedule/" class="post-title-link" itemprop="url">k8s-schedule</a>
+          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
         </h2>
 
         <div class="post-meta-container">
@@ -1223,59 +1261,21 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <h4 id="Labels-and-Selectors"><a href="#Labels-and-Selectors" class="headerlink" title="Labels and Selectors"></a>Labels and Selectors</h4><ol>
-<li><p>label<br>  label是k8s中所有资源都有的一个域, 他是一个<key>&#x3D;<value>对, 表示这个资源具有某种特定属性, key必须不能重复. 这样user和其他资源可以通过label来选择具有这种属性的资源集合.</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">&quot;metadata&quot;:</span> &#123;</span><br><span class="line">  <span class="attr">&quot;labels&quot;:</span> &#123;</span><br><span class="line">    <span class="string">&quot;key1&quot;</span> <span class="string">:</span> <span class="string">&quot;value1&quot;</span>,</span><br><span class="line">    <span class="string">&quot;key2&quot;</span> <span class="string">:</span> <span class="string">&quot;value2&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>  label的key有两个段,分别是前缀和名称, 通过’&#x2F;‘分开. 名称字段必须少于63个字符, 必须以’[a-z0-9A-Z]’, ‘-‘, ‘.’, ‘_’和数字 开头和结尾.前缀是可选的, 一旦指定, 不能超过253个字符. label的value指和key中的名称要求一样.</p>
-</li>
-<li><p>Selectors的使用<br>通过api中使用 -l 来选择特定集合的objects: <code>$ kubectl get pods -l &#39;environment in (production, qa)&#39;</code></p>
-</li>
-</ol>
-<p>一些k8s资源, 比如Service and ReplicationController 会有selector字段, 用来选择pod.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">selector:</span><br><span class="line">    component: redis</span><br></pre></td></tr></table></figure>
+          <p>docker run 的时候如果出现类似:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
 
-<p>基于相等的匹配和基于集合的匹配:<br>  <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">selector:</span></span><br><span class="line"><span class="attr">matchLabels:</span></span><br><span class="line">  <span class="attr">component:</span> <span class="string">redis</span></span><br><span class="line"><span class="attr">matchExpressions:</span></span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">tier</span>, <span class="attr">operator:</span> <span class="string">In</span>, <span class="attr">values:</span> [<span class="string">cache</span>]&#125;</span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">environment</span>, <span class="attr">operator:</span> <span class="string">NotIn</span>, <span class="attr">values:</span> [<span class="string">dev</span>]&#125;</span><br></pre></td></tr></table></figure><br>   注意区分概念, label永远都是key&#x3D;value, 多个label在一起能组成一个集合, 类似map. 只有selector有集合的操作, label本身就是一个&lt;k,v&gt; 对, 没有<k in v>这样的label.<br>   集合方式有四种operator: In, NotIn, Exist, DoesNotExist. <code>&#123;key: tier, operator: In, values: [cache]&#125;</code>这条表达式等价于matchLabels中的: <code>tier: cache</code>.<br>   必须满足所有的selector表达式, 才算匹配.<br>   Job, Deployment, Replica Set, and Daemon Set都是支持基于集合的匹配.</p>
-<ol start="3">
-<li>nodeSelector<br>  nodeSelector用于选择某个node, 再次之前, 需要在node上添加label: <code>kubectl label nodes &lt;node-name&gt; &lt;label-key&gt;=&lt;label-value&gt;</code>. 然后在pod中配置相应的nodeSelector, 就能保证pod调度到符合语义的node:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">env:</span> <span class="string">test</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">  <span class="attr">nodeSelector:</span></span><br><span class="line">    <span class="attr">disktype:</span> <span class="string">ssd</span></span><br></pre></td></tr></table></figure>
-k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">kubernetes.io/hostname</span><br><span class="line">failure-domain.beta.kubernetes.io/zone</span><br><span class="line">failure-domain.beta.kubernetes.io/region</span><br><span class="line">beta.kubernetes.io/instance-type</span><br><span class="line">beta.kubernetes.io/os</span><br><span class="line">beta.kubernetes.io/arch</span><br></pre></td></tr></table></figure></li>
-</ol>
-<h4 id="Affinity"><a href="#Affinity" class="headerlink" title="Affinity"></a>Affinity</h4><p>nodeSelector是比较简单的pod选择节点的方式, k8s提供了affinity&#x2F;anti-affinity用来更复杂的提供节点选择方案. 他有两种: node affinity 和 inter-pod affinity&#x2F;anti-affinity:</p>
-<ul>
-<li><p>node affinity<br>nodeAffinity与nodeSelector相似, 也是基于label, 包括两种类型, 可以分别理解为’hard’和’soft’, 一个强制要求, 一个尽可能要求. </p>
-<ul>
-<li>requiredDuringSchedulingIgnoredDuringExecution: hard类型</li>
-<li>preferredDuringSchedulingIgnoredDuringExecution: soft类型<br>内容和label selector基本一致:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">nodeAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">        <span class="attr">nodeSelectorTerms:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">kubernetes.io/e2e-az-name</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az1</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az2</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">        <span class="attr">preference:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">another-node-label-key</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">another-node-label-value</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
-<code>weight</code> 是1-100.</li>
-</ul>
-</li>
-<li><p>pod affinity<br>  podAffinity&#x2F;podAnti-Affinity是比较已经调度到节点上的pod而不是看node本身. 他也有两种类型hard和soft:</p>
-<ul>
-<li>requiredDuringSchedulingIgnoredDuringExecution: hard</li>
-<li>preferredDuringSchedulingIgnoredDuringExecution: soft</li>
-</ul>
-</li>
-</ul>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">podAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">labelSelector:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">S1</span></span><br><span class="line">        <span class="attr">topologyKey:</span> <span class="string">failure-domain.beta.kubernetes.io/zone</span></span><br><span class="line">    <span class="attr">podAntiAffinity:</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">100</span></span><br><span class="line">        <span class="attr">podAffinityTerm:</span></span><br><span class="line">          <span class="attr">labelSelector:</span></span><br><span class="line">            <span class="attr">matchExpressions:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">              <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">              <span class="attr">values:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">S2</span></span><br><span class="line">          <span class="attr">topologyKey:</span> <span class="string">kubernetes.io/hostname</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
+<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
 
-<h4 id="Taints-and-Tolerations"><a href="#Taints-and-Tolerations" class="headerlink" title="Taints and Tolerations"></a>Taints and Tolerations</h4><p>affinity是站在pod的角度, 而taints是站在node的角度, </p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key=value:NoSchedule</span><br></pre></td></tr></table></figure>
-<p>这个命令将node1加了一个taint, 表示无法调度, 除非你有相应的toleration:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
-<p>这两个tolerations都能匹配那个taint. operator默认是<code>Equal</code><br>一个空的tolerations匹配所有的taint:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
-<p>以下这个tolerations匹配所有key为<code>key</code>的taints:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
+<p>修改后发现新的错误:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
 
-<p>effect有两种： NoExecute和ＮoSchedule， 如果加了NoExecute， 那么所有不匹配的pod将会立即被evicted掉， 如果加了Noschedule, 那么只是Pod无法被调度， 已经调度的Ｐod不受影响。NoExecute还可以指定一个可选的域<code>tolerationSeconds</code>， 表示尽管匹配了taint可以不被立即evicted掉, 但在一定时间之后就会被evicted掉。</p>
-<p>通过<code>kubectl taint nodes node1 key:NoSchedule-</code> 取消taint</p>
-<h5 id="更有意思的是多个taint和多个tolerations的情况"><a href="#更有意思的是多个taint和多个tolerations的情况" class="headerlink" title="更有意思的是多个taint和多个tolerations的情况."></a>更有意思的是多个taint和多个tolerations的情况.</h5><p>例如创建三个taint:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key1=value1:NoSchedule</span><br><span class="line">kubectl taint nodes node1 key1=value1:NoExecute</span><br><span class="line">kubectl taint nodes node1 key2=value2:NoSchedule</span><br></pre></td></tr></table></figure>
-<p>一个pod拥有两个tolerations：</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoExecute&quot;</span></span><br></pre></td></tr></table></figure>
-<p>该pod没有匹配所有的taint, 因此他不能被调度到这个节点， 但如果调度了，他不会被移除， 因为他只有第三个<code>NoSchedule</code>的taint不匹配。</p>
-<h5 id="注意"><a href="#注意" class="headerlink" title="注意"></a>注意</h5><p>在1.6之后， 官方加了一些内置的taint， 他会将pod evctied掉：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">node.kubernetes.io/not-ready: notready.</span><br><span class="line">node.alpha.kubernetes.io/unreachable: Unknown</span><br><span class="line">node.kubernetes.io/out-of-disk: Node becomes out of disk.</span><br><span class="line">node.kubernetes.io/memory-pressure: Node has memory pressure.</span><br><span class="line">node.kubernetes.io/disk-pressure: Node has disk pressure.</span><br><span class="line">node.kubernetes.io/network-unavailable: Node’s network is unavailable.</span><br><span class="line">node.cloudprovider.kubernetes.io/uninitialized: When kubelet is started with “external” cloud provider, it sets this taint on a node to mark it as unusable. When a controller from the cloud-controller-manager initializes this node, kubelet removes this taint.</span><br></pre></td></tr></table></figure>
+<p>网上查有如下回复:</p>
+<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
+
+<p>所以重启大法好…</p>
+<p>但是真正原因没搞清楚, 待更新.</p>
+
       
     </div>
 
