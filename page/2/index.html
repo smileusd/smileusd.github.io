@@ -234,6 +234,95 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-go-sort/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-go-sort/" class="post-title-link" itemprop="url">go-sort</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>Go排序实现在&#x2F;src&#x2F;go4.org&#x2F;sort&#x2F;sort.go中.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">func Sort(data Interface) &#123;</span><br><span class="line">	n := data.Len()</span><br><span class="line">	if fs, ok := data.(*funcs); ok &#123;</span><br><span class="line">		quickSort_func(fs.lessSwap, 0, n, maxDepth(n))</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		quickSort(data, 0, n, maxDepth(n))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func quickSort(data Interface, a, b, maxDepth int) &#123;</span><br><span class="line">	for b-a &gt; 12 &#123; // Use ShellSort for slices &lt;= 12 elements</span><br><span class="line">		if maxDepth == 0 &#123;</span><br><span class="line">			heapSort(data, a, b)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line">		maxDepth--</span><br><span class="line">		mlo, mhi := doPivot(data, a, b)</span><br><span class="line">		// Avoiding recursion on the larger subproblem guarantees</span><br><span class="line">		// a stack depth of at most lg(b-a).</span><br><span class="line">		if mlo-a &lt; b-mhi &#123;</span><br><span class="line">			quickSort(data, a, mlo, maxDepth)</span><br><span class="line">			a = mhi // i.e., quickSort(data, mhi, b)</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			quickSort(data, mhi, b, maxDepth)</span><br><span class="line">			b = mlo // i.e., quickSort(data, a, mlo)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if b-a &gt; 1 &#123;</span><br><span class="line">		// Do ShellSort pass with gap 6</span><br><span class="line">		// It could be written in this simplified form cause b-a &lt;= 12</span><br><span class="line">		for i := a + 6; i &lt; b; i++ &#123;</span><br><span class="line">			if data.Less(i, i-6) &#123;</span><br><span class="line">				data.Swap(i, i-6)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		insertionSort(data, a, b)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line">// Insertion sort</span><br><span class="line">func insertionSort(data Interface, a, b int) &#123;</span><br><span class="line">	for i := a + 1; i &lt; b; i++ &#123;</span><br><span class="line">		for j := i; j &gt; a &amp;&amp; data.Less(j, j-1); j-- &#123;</span><br><span class="line">			data.Swap(j, j-1)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>quickSort和quickSort_func基本相同, 子不过自己定义的比较方法, 这里不在赘述.</p>
+<p>可以看到主体是quickSort, 所以不保证稳定排序, 当数据量小于等于12时. 退化为希尔排序, 但希尔排序只做了一次gap为6, 之后再次退化为了简单插入排序. 这部分实现非常简单, i从前往后, j从i往前, 每次比较j-1和j, 将小的换到前面.</p>
+<p>当数据量大于12时, 根据maxDepth是否为0决定使用对排序还是使用快速排序, maxDepth计算:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">// maxDepth returns a threshold at which quicksort should switch</span><br><span class="line">// to heapsort. It returns 2*ceil(lg(n+1)).</span><br><span class="line">func maxDepth(n int) int &#123;</span><br><span class="line">	var depth int</span><br><span class="line">	for i := n; i &gt; 0; i &gt;&gt;= 1 &#123;</span><br><span class="line">		depth++</span><br><span class="line">	&#125;</span><br><span class="line">	return depth * 2</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>返回的是目前树高度的2倍. 每进行一轮快速排序的partition(doPivot), 这个数值就减1, 当减为0, 此时认为数据已经比较有序, 如果数据长度依然大于12, 改为堆排序效率更高.</p>
+<p>这里先看快速排序的主体部分, 再来看堆排序的实现. partition是快排的思想核心, 他实现在doPivot中:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">doPivot</span><span class="params">(data Interface, lo, hi <span class="type">int</span>)</span></span> (midlo, midhi <span class="type">int</span>) &#123;</span><br><span class="line">	m := lo + (hi-lo)/<span class="number">2</span> <span class="comment">// 避免整数溢出</span></span><br><span class="line">	<span class="keyword">if</span> hi-lo &gt; <span class="number">40</span> &#123; 如果长度大于<span class="number">40</span>, 使用Tukey ninther法</span><br><span class="line">		<span class="comment">// Tukey&#x27;s ``Ninther,&#x27;&#x27; median of three medians of three.</span></span><br><span class="line">		s := (hi - lo) / <span class="number">8</span></span><br><span class="line">		medianOfThree(data, lo, lo+s, lo+<span class="number">2</span>*s)</span><br><span class="line">		medianOfThree(data, m, m-s, m+s)</span><br><span class="line">		medianOfThree(data, hi<span class="number">-1</span>, hi<span class="number">-1</span>-s, hi<span class="number">-1</span><span class="number">-2</span>*s)</span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// medianOfThree 保证lo, m hi-1三个值是从小到大的</span></span><br><span class="line">	medianOfThree(data, lo, m, hi<span class="number">-1</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Invariants are:</span></span><br><span class="line">	<span class="comment">//	data[lo] = pivot (set up by ChoosePivot)</span></span><br><span class="line">	<span class="comment">//	data[lo &lt; i &lt; a] &lt; pivot</span></span><br><span class="line">	<span class="comment">//	data[a &lt;= i &lt; b] &lt;= pivot</span></span><br><span class="line">	<span class="comment">//	data[b &lt;= i &lt; c] unexamined</span></span><br><span class="line">	<span class="comment">//	data[c &lt;= i &lt; hi-1] &gt; pivot</span></span><br><span class="line">	<span class="comment">//	data[hi-1] &gt;= pivot</span></span><br><span class="line">	pivot := lo</span><br><span class="line">	a, c := lo+<span class="number">1</span>, hi<span class="number">-1</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 找到第一个比起始值点大的Index</span></span><br><span class="line">	<span class="keyword">for</span> ; a &lt; c &amp;&amp; data.Less(a, pivot); a++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line">	b := a</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; !data.Less(pivot, b); b++ &#123; <span class="comment">// data[b] &lt;= pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; data.Less(pivot, c<span class="number">-1</span>); c-- &#123; <span class="comment">// data[c-1] &gt; pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> b &gt;= c &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// data[b] &gt; pivot; data[c-1] &lt;= pivot</span></span><br><span class="line">		data.Swap(b, c<span class="number">-1</span>)</span><br><span class="line">		b++</span><br><span class="line">		c--</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// If hi-c&lt;3 then there are duplicates (by property of median of nine).</span></span><br><span class="line">	<span class="comment">// Let be a bit more conservative, and set border to 5.</span></span><br><span class="line">	protect := hi-c &lt; <span class="number">5</span></span><br><span class="line">	<span class="keyword">if</span> !protect &amp;&amp; hi-c &lt; (hi-lo)/<span class="number">4</span> &#123;</span><br><span class="line">		<span class="comment">// Lets test some points for equality to pivot</span></span><br><span class="line">		dups := <span class="number">0</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(pivot, hi<span class="number">-1</span>) &#123; <span class="comment">// data[hi-1] = pivot</span></span><br><span class="line">			data.Swap(c, hi<span class="number">-1</span>)</span><br><span class="line">			c++</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> !data.Less(b<span class="number">-1</span>, pivot) &#123; <span class="comment">// data[b-1] = pivot</span></span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// m-lo = (hi-lo)/2 &gt; 6</span></span><br><span class="line">		<span class="comment">// b-lo &gt; (hi-lo)*3/4-1 &gt; 8</span></span><br><span class="line">		<span class="comment">// ==&gt; m &lt; b ==&gt; data[m] &lt;= pivot</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(m, pivot) &#123; <span class="comment">// data[m] = pivot</span></span><br><span class="line">			data.Swap(m, b<span class="number">-1</span>)</span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// if at least 2 points are equal to pivot, assume skewed distribution</span></span><br><span class="line">		protect = dups &gt; <span class="number">1</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> protect &#123;</span><br><span class="line">		<span class="comment">// Protect against a lot of duplicates</span></span><br><span class="line">		<span class="comment">// Add invariant:</span></span><br><span class="line">		<span class="comment">//	data[a &lt;= i &lt; b] unexamined</span></span><br><span class="line">		<span class="comment">//	data[b &lt;= i &lt; c] = pivot</span></span><br><span class="line">		<span class="keyword">for</span> &#123;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; !data.Less(b<span class="number">-1</span>, pivot); b-- &#123; <span class="comment">// data[b] == pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; data.Less(a, pivot); a++ &#123; <span class="comment">// data[a] &lt; pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> a &gt;= b &#123;</span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// data[a] == pivot; data[b-1] &lt; pivot</span></span><br><span class="line">			data.Swap(a, b<span class="number">-1</span>)</span><br><span class="line">			a++</span><br><span class="line">			b--</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// Swap pivot into middle</span></span><br><span class="line">	data.Swap(pivot, b<span class="number">-1</span>)</span><br><span class="line">	<span class="keyword">return</span> b - <span class="number">1</span>, c</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// medianOfThree moves the median of the three values data[m0], data[m1], data[m2] into data[m1].</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">medianOfThree</span><span class="params">(data Interface, m1, m0, m2 <span class="type">int</span>)</span></span> &#123;</span><br><span class="line">	<span class="comment">// sort 3 elements</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">		data.Swap(m1, m0)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// data[m0] &lt;= data[m1]</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m2, m1) &#123;</span><br><span class="line">		data.Swap(m2, m1)</span><br><span class="line">		<span class="comment">// data[m0] &lt;= data[m2] &amp;&amp; data[m1] &lt; data[m2]</span></span><br><span class="line">		<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">			data.Swap(m1, m0)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 保证 data[m0] &lt;= data[m1] &lt;= data[m2]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-k8s-cgroup/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -417,95 +506,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-go-sort/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-go-sort/" class="post-title-link" itemprop="url">go-sort</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>Go排序实现在&#x2F;src&#x2F;go4.org&#x2F;sort&#x2F;sort.go中.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">func Sort(data Interface) &#123;</span><br><span class="line">	n := data.Len()</span><br><span class="line">	if fs, ok := data.(*funcs); ok &#123;</span><br><span class="line">		quickSort_func(fs.lessSwap, 0, n, maxDepth(n))</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		quickSort(data, 0, n, maxDepth(n))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func quickSort(data Interface, a, b, maxDepth int) &#123;</span><br><span class="line">	for b-a &gt; 12 &#123; // Use ShellSort for slices &lt;= 12 elements</span><br><span class="line">		if maxDepth == 0 &#123;</span><br><span class="line">			heapSort(data, a, b)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line">		maxDepth--</span><br><span class="line">		mlo, mhi := doPivot(data, a, b)</span><br><span class="line">		// Avoiding recursion on the larger subproblem guarantees</span><br><span class="line">		// a stack depth of at most lg(b-a).</span><br><span class="line">		if mlo-a &lt; b-mhi &#123;</span><br><span class="line">			quickSort(data, a, mlo, maxDepth)</span><br><span class="line">			a = mhi // i.e., quickSort(data, mhi, b)</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			quickSort(data, mhi, b, maxDepth)</span><br><span class="line">			b = mlo // i.e., quickSort(data, a, mlo)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if b-a &gt; 1 &#123;</span><br><span class="line">		// Do ShellSort pass with gap 6</span><br><span class="line">		// It could be written in this simplified form cause b-a &lt;= 12</span><br><span class="line">		for i := a + 6; i &lt; b; i++ &#123;</span><br><span class="line">			if data.Less(i, i-6) &#123;</span><br><span class="line">				data.Swap(i, i-6)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		insertionSort(data, a, b)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line">// Insertion sort</span><br><span class="line">func insertionSort(data Interface, a, b int) &#123;</span><br><span class="line">	for i := a + 1; i &lt; b; i++ &#123;</span><br><span class="line">		for j := i; j &gt; a &amp;&amp; data.Less(j, j-1); j-- &#123;</span><br><span class="line">			data.Swap(j, j-1)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>quickSort和quickSort_func基本相同, 子不过自己定义的比较方法, 这里不在赘述.</p>
-<p>可以看到主体是quickSort, 所以不保证稳定排序, 当数据量小于等于12时. 退化为希尔排序, 但希尔排序只做了一次gap为6, 之后再次退化为了简单插入排序. 这部分实现非常简单, i从前往后, j从i往前, 每次比较j-1和j, 将小的换到前面.</p>
-<p>当数据量大于12时, 根据maxDepth是否为0决定使用对排序还是使用快速排序, maxDepth计算:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">// maxDepth returns a threshold at which quicksort should switch</span><br><span class="line">// to heapsort. It returns 2*ceil(lg(n+1)).</span><br><span class="line">func maxDepth(n int) int &#123;</span><br><span class="line">	var depth int</span><br><span class="line">	for i := n; i &gt; 0; i &gt;&gt;= 1 &#123;</span><br><span class="line">		depth++</span><br><span class="line">	&#125;</span><br><span class="line">	return depth * 2</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>返回的是目前树高度的2倍. 每进行一轮快速排序的partition(doPivot), 这个数值就减1, 当减为0, 此时认为数据已经比较有序, 如果数据长度依然大于12, 改为堆排序效率更高.</p>
-<p>这里先看快速排序的主体部分, 再来看堆排序的实现. partition是快排的思想核心, 他实现在doPivot中:</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">doPivot</span><span class="params">(data Interface, lo, hi <span class="type">int</span>)</span></span> (midlo, midhi <span class="type">int</span>) &#123;</span><br><span class="line">	m := lo + (hi-lo)/<span class="number">2</span> <span class="comment">// 避免整数溢出</span></span><br><span class="line">	<span class="keyword">if</span> hi-lo &gt; <span class="number">40</span> &#123; 如果长度大于<span class="number">40</span>, 使用Tukey ninther法</span><br><span class="line">		<span class="comment">// Tukey&#x27;s ``Ninther,&#x27;&#x27; median of three medians of three.</span></span><br><span class="line">		s := (hi - lo) / <span class="number">8</span></span><br><span class="line">		medianOfThree(data, lo, lo+s, lo+<span class="number">2</span>*s)</span><br><span class="line">		medianOfThree(data, m, m-s, m+s)</span><br><span class="line">		medianOfThree(data, hi<span class="number">-1</span>, hi<span class="number">-1</span>-s, hi<span class="number">-1</span><span class="number">-2</span>*s)</span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// medianOfThree 保证lo, m hi-1三个值是从小到大的</span></span><br><span class="line">	medianOfThree(data, lo, m, hi<span class="number">-1</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Invariants are:</span></span><br><span class="line">	<span class="comment">//	data[lo] = pivot (set up by ChoosePivot)</span></span><br><span class="line">	<span class="comment">//	data[lo &lt; i &lt; a] &lt; pivot</span></span><br><span class="line">	<span class="comment">//	data[a &lt;= i &lt; b] &lt;= pivot</span></span><br><span class="line">	<span class="comment">//	data[b &lt;= i &lt; c] unexamined</span></span><br><span class="line">	<span class="comment">//	data[c &lt;= i &lt; hi-1] &gt; pivot</span></span><br><span class="line">	<span class="comment">//	data[hi-1] &gt;= pivot</span></span><br><span class="line">	pivot := lo</span><br><span class="line">	a, c := lo+<span class="number">1</span>, hi<span class="number">-1</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 找到第一个比起始值点大的Index</span></span><br><span class="line">	<span class="keyword">for</span> ; a &lt; c &amp;&amp; data.Less(a, pivot); a++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line">	b := a</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; !data.Less(pivot, b); b++ &#123; <span class="comment">// data[b] &lt;= pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; data.Less(pivot, c<span class="number">-1</span>); c-- &#123; <span class="comment">// data[c-1] &gt; pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> b &gt;= c &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// data[b] &gt; pivot; data[c-1] &lt;= pivot</span></span><br><span class="line">		data.Swap(b, c<span class="number">-1</span>)</span><br><span class="line">		b++</span><br><span class="line">		c--</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// If hi-c&lt;3 then there are duplicates (by property of median of nine).</span></span><br><span class="line">	<span class="comment">// Let be a bit more conservative, and set border to 5.</span></span><br><span class="line">	protect := hi-c &lt; <span class="number">5</span></span><br><span class="line">	<span class="keyword">if</span> !protect &amp;&amp; hi-c &lt; (hi-lo)/<span class="number">4</span> &#123;</span><br><span class="line">		<span class="comment">// Lets test some points for equality to pivot</span></span><br><span class="line">		dups := <span class="number">0</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(pivot, hi<span class="number">-1</span>) &#123; <span class="comment">// data[hi-1] = pivot</span></span><br><span class="line">			data.Swap(c, hi<span class="number">-1</span>)</span><br><span class="line">			c++</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> !data.Less(b<span class="number">-1</span>, pivot) &#123; <span class="comment">// data[b-1] = pivot</span></span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// m-lo = (hi-lo)/2 &gt; 6</span></span><br><span class="line">		<span class="comment">// b-lo &gt; (hi-lo)*3/4-1 &gt; 8</span></span><br><span class="line">		<span class="comment">// ==&gt; m &lt; b ==&gt; data[m] &lt;= pivot</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(m, pivot) &#123; <span class="comment">// data[m] = pivot</span></span><br><span class="line">			data.Swap(m, b<span class="number">-1</span>)</span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// if at least 2 points are equal to pivot, assume skewed distribution</span></span><br><span class="line">		protect = dups &gt; <span class="number">1</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> protect &#123;</span><br><span class="line">		<span class="comment">// Protect against a lot of duplicates</span></span><br><span class="line">		<span class="comment">// Add invariant:</span></span><br><span class="line">		<span class="comment">//	data[a &lt;= i &lt; b] unexamined</span></span><br><span class="line">		<span class="comment">//	data[b &lt;= i &lt; c] = pivot</span></span><br><span class="line">		<span class="keyword">for</span> &#123;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; !data.Less(b<span class="number">-1</span>, pivot); b-- &#123; <span class="comment">// data[b] == pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; data.Less(a, pivot); a++ &#123; <span class="comment">// data[a] &lt; pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> a &gt;= b &#123;</span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// data[a] == pivot; data[b-1] &lt; pivot</span></span><br><span class="line">			data.Swap(a, b<span class="number">-1</span>)</span><br><span class="line">			a++</span><br><span class="line">			b--</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// Swap pivot into middle</span></span><br><span class="line">	data.Swap(pivot, b<span class="number">-1</span>)</span><br><span class="line">	<span class="keyword">return</span> b - <span class="number">1</span>, c</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// medianOfThree moves the median of the three values data[m0], data[m1], data[m2] into data[m1].</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">medianOfThree</span><span class="params">(data Interface, m1, m0, m2 <span class="type">int</span>)</span></span> &#123;</span><br><span class="line">	<span class="comment">// sort 3 elements</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">		data.Swap(m1, m0)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// data[m0] &lt;= data[m1]</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m2, m1) &#123;</span><br><span class="line">		data.Swap(m2, m1)</span><br><span class="line">		<span class="comment">// data[m0] &lt;= data[m2] &amp;&amp; data[m1] &lt; data[m2]</span></span><br><span class="line">		<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">			data.Swap(m1, m0)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 保证 data[m0] &lt;= data[m1] &lt;= data[m2]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-29-use-operator-sdk/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -566,184 +566,6 @@
 <p>通过operator-sdk可以自动生成 crd.yaml, operator.yaml, cr.yaml, rbac.yaml. 这些都需要手动部署到k8s. </p>
 <p>operator.yaml是最重要的一个. 里面包含handle逻辑和type结构, 它是你需要去实现和填充的业务逻辑, 理论上handle可以实现任何逻辑, 比如对修改apiserver中的某些资源内容, 或者创建新的资源, 或者起一个pod和job做一些hack的事情. </p>
 <p>做完这些就可以生成operator了, 他会build一个image, operator是一个deployment的, 它去拉这个image然后watch你定义的cr, 当你创建或者删除cr, 就会触发handle操作.	</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-07-02-golang-map/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-07-02-golang-map/" class="post-title-link" itemprop="url">golang map 内存布局和原理</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-      
-
-      <time title="Created: 2024-03-10 12:35:02 / Modified: 12:37:57" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h4 id="map数据结构"><a href="#map数据结构" class="headerlink" title="map数据结构"></a>map数据结构</h4><p>golang的map是hashmap实现的, 代码在&#x2F;src&#x2F;runtime&#x2F;hashmap.go. 对比C++用红黑树实现的map，Go的map是unordered map，即无法对key值排序遍历。跟传统的hashmap的实现方法一样，它通过一个buckets数组实现，所有元素被hash到数组的bucket中，<strong>buckets</strong>就是指向了这个内存连续分配的数组. </p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> maptype <span class="keyword">struct</span> &#123;</span><br><span class="line">	typ           _type</span><br><span class="line">	key           *_type</span><br><span class="line">	elem          *_type</span><br><span class="line">	bucket        *_type <span class="comment">// internal type representing a hash bucket</span></span><br><span class="line">	hmap          *_type <span class="comment">// internal type representing a hmap</span></span><br><span class="line">	keysize       <span class="type">uint8</span>  <span class="comment">// size of key slot</span></span><br><span class="line">	indirectkey   <span class="type">bool</span>   <span class="comment">// store ptr to key instead of key itself</span></span><br><span class="line">	valuesize     <span class="type">uint8</span>  <span class="comment">// size of value slot</span></span><br><span class="line">	indirectvalue <span class="type">bool</span>   <span class="comment">// store ptr to value instead of value itself</span></span><br><span class="line">	bucketsize    <span class="type">uint16</span> <span class="comment">// size of bucket</span></span><br><span class="line">	reflexivekey  <span class="type">bool</span>   <span class="comment">// true if k==k for all keys</span></span><br><span class="line">	needkeyupdate <span class="type">bool</span>   <span class="comment">// true if we need to update key on an overwrite</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A header for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> hmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	count <span class="type">int</span> <span class="comment">// len()返回的map的大小 即有多少kv对</span></span><br><span class="line">	flags <span class="type">uint8</span></span><br><span class="line">	B     <span class="type">uint8</span>  <span class="comment">// 表示hash table总共有2^B个buckets </span></span><br><span class="line">	hash0 <span class="type">uint32</span> <span class="comment">// hash seed</span></span><br><span class="line"></span><br><span class="line">	buckets    unsafe.Pointer <span class="comment">// 一系列桶的头指针, 按照low hash值可查找的连续分配的数组，初始时为16个Buckets.</span></span><br><span class="line">	oldbuckets unsafe.Pointer </span><br><span class="line">	nevacuate  <span class="type">uintptr</span>      </span><br><span class="line"></span><br><span class="line">	overflow *[<span class="number">2</span>]*[]*bmap <span class="comment">//溢出链 当初始buckets都满了之后会使用overflow</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A bucket for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> bmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	tophash [bucketCnt]<span class="type">uint8</span></span><br><span class="line">	<span class="comment">// Followed by bucketCnt keys and then bucketCnt values.</span></span><br><span class="line">	<span class="comment">// <span class="doctag">NOTE:</span> packing all the keys together and then all the values together makes the</span></span><br><span class="line">	<span class="comment">// code a bit more complicated than alternating key/value/key/value/... but it allows</span></span><br><span class="line">	<span class="comment">// us to eliminate padding which would be needed for, e.g., map[int64]int8.</span></span><br><span class="line">	<span class="comment">// Followed by an overflow pointer.</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>如上所示, maptype表示map类型, 其中的hmap表示hashmap, 它的指针就是map的实体.  桶一个连续分配的数组组成, 而buckets是这个数组的头指针(起始地址), bmap是每个bucket的实体. 每个bucket有一个长度为8的数组叫做tophash, 他存储了8个key的高八位的值, 这样当我们找的时候, 先用key hash的低八位找到对应的桶, 再匹配key高8位值找到对应的tophash, 如果正确了再去找对应的key是否相等. 在对key&#x2F;value对增删查的时候，先比较key的hash值高八位是否相等，然后再比较具体的key值。根据官方注释在tophash数组之后跟着8个key&#x2F;value对，每一对都对应tophash当中的一条记录。最后bucket中还包含指向链表下一个bucket的指针。内存布局如下图。</p>
-<p><img src="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/hashmap.png" alt="image"></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">之所以把所有k1k2放一起而不是k1v1是因为key和value的数据类型内存大小可能差距很大，比如map[int64]int8，考虑到字节对齐，kv存在一起会浪费很多空间。</span><br></pre></td></tr></table></figure>
-
-
-
-<h4 id="map创建和初始化"><a href="#map创建和初始化" class="headerlink" title="map创建和初始化"></a>map创建和初始化</h4><p>我们首先来看make过程, 看一个map是如何创建的.</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// makemap implements a Go map creation make(map[k]v, hint)</span></span><br><span class="line"><span class="comment">// If the compiler has determined that the map or the first bucket</span></span><br><span class="line"><span class="comment">// can be created on the stack, h and/or bucket may be non-nil.</span></span><br><span class="line"><span class="comment">// If h != nil, the map can be created directly in h.</span></span><br><span class="line"><span class="comment">// If bucket != nil, bucket can be used as the first bucket.</span></span><br><span class="line"><span class="comment">// hint是map大小, h过不等于空就直接使用这个hmap, bucket不为空就当做第一个bucket.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">makemap</span><span class="params">(t *maptype, hint <span class="type">int64</span>, h *hmap, bucket unsafe.Pointer)</span></span> *hmap &#123;</span><br><span class="line">    <span class="keyword">if</span> sz := unsafe.Sizeof(hmap&#123;&#125;); sz &gt; <span class="number">48</span> || sz != t.hmap.size &#123;</span><br><span class="line">		<span class="built_in">println</span>(<span class="string">&quot;runtime: sizeof(hmap) =&quot;</span>, sz, <span class="string">&quot;, t.hmap.size =&quot;</span>, t.hmap.size)</span><br><span class="line">		throw(<span class="string">&quot;bad hmap size&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// hint值不符合规范, 置0</span></span><br><span class="line">	<span class="keyword">if</span> hint &lt; <span class="number">0</span> || hint &gt; <span class="type">int64</span>(maxSliceCap(t.bucket.size)) &#123;</span><br><span class="line">		hint = <span class="number">0</span></span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// 按照是否实现hash()来判断是否支持map类型</span></span><br><span class="line">	<span class="keyword">if</span> !ismapkey(t.key) &#123;</span><br><span class="line">		throw(<span class="string">&quot;runtime.makemap: unsupported map key type&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 检查key和value大小</span></span><br><span class="line">	<span class="keyword">if</span> t.key.size &gt; maxKeySize &amp;&amp; (!t.indirectkey || t.keysize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.key.size &lt;= maxKeySize &amp;&amp; (t.indirectkey || t.keysize != <span class="type">uint8</span>(t.key.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size &gt; maxValueSize &amp;&amp; (!t.indirectvalue || t.valuesize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.elem.size &lt;= maxValueSize &amp;&amp; (t.indirectvalue || t.valuesize != <span class="type">uint8</span>(t.elem.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 检查各种编译的规范, 跳过</span></span><br><span class="line">	<span class="comment">// invariants we depend on. We should probably check these at compile time</span></span><br><span class="line">	<span class="comment">// somewhere, but for now we&#x27;ll do it here.</span></span><br><span class="line">	<span class="keyword">if</span> t.key.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;key align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;value align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.key.size%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size not a multiple of key align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size not a multiple of value align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> bucketCnt &lt; <span class="number">8</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;bucketsize too small for proper alignment&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (key)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (value)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 把hint参数对应成2进制的上确界那个数. 例如size=6, B就是3, 因为2^2 &lt; 6 &lt; 2^3</span></span><br><span class="line">	B := <span class="type">uint8</span>(<span class="number">0</span>)</span><br><span class="line">	<span class="keyword">for</span> ; overLoadFactor(hint, B); B++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 使用malloc分配2^B个buckets给h.</span></span><br><span class="line">	<span class="comment">// allocate initial hash table</span></span><br><span class="line">	<span class="comment">// if B == 0, the buckets field is allocated lazily later (in mapassign)</span></span><br><span class="line">	<span class="comment">// If hint is large zeroing this memory could take a while.</span></span><br><span class="line">	buckets := bucket</span><br><span class="line">	<span class="keyword">var</span> extra *mapextra</span><br><span class="line">	<span class="keyword">if</span> B != <span class="number">0</span> &#123;</span><br><span class="line">		<span class="keyword">var</span> nextOverflow *bmap</span><br><span class="line">		buckets, nextOverflow = makeBucketArray(t, B)</span><br><span class="line">		<span class="keyword">if</span> nextOverflow != <span class="literal">nil</span> &#123;</span><br><span class="line">			extra = <span class="built_in">new</span>(mapextra)</span><br><span class="line">			extra.nextOverflow = nextOverflow</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// initialize Hmap</span></span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		h = (*hmap)(newobject(t.hmap))</span><br><span class="line">	&#125;</span><br><span class="line">	h.count = <span class="number">0</span></span><br><span class="line">	h.B = B</span><br><span class="line">	h.extra = extra</span><br><span class="line">	h.flags = <span class="number">0</span></span><br><span class="line">	h.hash0 = fastrand()</span><br><span class="line">	h.buckets = buckets</span><br><span class="line">	h.oldbuckets = <span class="literal">nil</span></span><br><span class="line">	h.nevacuate = <span class="number">0</span></span><br><span class="line">	h.noverflow = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> h</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-
-<h4 id="map存值"><a href="#map存值" class="headerlink" title="map存值"></a>map存值</h4><p>存储的步骤和第一部分的分析一致。首先用key的hash值低8位找到bucket，然后在bucket内部比对tophash和高8位与其对应的key值与入参key是否相等，若找到则更新这个值。若key不存在，则key优先存入在查找的过程中遇到的空的tophash数组位置。若当前的bucket已满则需要另外分配空间给这个key，新分配的bucket将挂在overflow链表后。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Like mapaccess, but allocates a slot for the key if it is not present in the map.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapassign</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> unsafe.Pointer &#123;</span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(plainError(<span class="string">&quot;assignment to entry in nil map&quot;</span>))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> raceenabled &#123;</span><br><span class="line">		callerpc := getcallerpc(unsafe.Pointer(&amp;t))</span><br><span class="line">		pc := funcPC(mapassign)</span><br><span class="line">		racewritepc(unsafe.Pointer(h), callerpc, pc)</span><br><span class="line">		raceReadObjectPC(t.key, key, callerpc, pc)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> msanenabled &#123;</span><br><span class="line">		msanread(key, t.key.size)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	alg := t.key.alg</span><br><span class="line">	hash := alg.hash(key, <span class="type">uintptr</span>(h.hash0))</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Set hashWriting after calling alg.hash, since alg.hash may panic,</span></span><br><span class="line">	<span class="comment">// in which case we have not actually done a write.</span></span><br><span class="line">	h.flags |= hashWriting</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> h.buckets == <span class="literal">nil</span> &#123;</span><br><span class="line">		h.buckets = newarray(t.bucket, <span class="number">1</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">again:</span><br><span class="line">    <span class="comment">// 用hash值的低八位找到bucket</span></span><br><span class="line">	bucket := hash &amp; (<span class="type">uintptr</span>(<span class="number">1</span>)&lt;&lt;h.B - <span class="number">1</span>)</span><br><span class="line">	<span class="keyword">if</span> h.growing() &#123;</span><br><span class="line">		growWork(t, h, bucket)</span><br><span class="line">	&#125;</span><br><span class="line">	b := (*bmap)(unsafe.Pointer(<span class="type">uintptr</span>(h.buckets) + bucket*<span class="type">uintptr</span>(t.bucketsize)))</span><br><span class="line">    <span class="comment">// 拿到高八位的hash值用于比对tophash</span></span><br><span class="line">	top := <span class="type">uint8</span>(hash &gt;&gt; (sys.PtrSize*<span class="number">8</span> - <span class="number">8</span>))</span><br><span class="line">	<span class="keyword">if</span> top &lt; minTopHash &#123;</span><br><span class="line">		top += minTopHash</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> inserti *<span class="type">uint8</span></span><br><span class="line">	<span class="keyword">var</span> insertk unsafe.Pointer</span><br><span class="line">	<span class="keyword">var</span> val unsafe.Pointer</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> i := <span class="type">uintptr</span>(<span class="number">0</span>); i &lt; bucketCnt; i++ &#123;</span><br><span class="line">            <span class="comment">// 遍历tophash, 找到对应的key</span></span><br><span class="line">			<span class="keyword">if</span> b.tophash[i] != top &#123;</span><br><span class="line">                <span class="comment">// 如果没有找到key, 说明是第一次, 将这个key插入到insertk(第i+1个key所在的)的位置, 将value插入到val(第i+1个value所在)的位置, 并且将tophash的当前地址赋值给inserti, 用于记录是否插入以及插入的位置.</span></span><br><span class="line">				<span class="keyword">if</span> b.tophash[i] == empty &amp;&amp; inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">					inserti = &amp;b.tophash[i]</span><br><span class="line">					insertk = add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">					val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">				&#125;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 如果找到了key的tophash, 就将拿对应的key跟现在的key对比, 看是否相等, 如果不相等就跳过继续找key, 如果相等就更新它的value的值.</span></span><br><span class="line">			k := add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">			<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">				k = *((*unsafe.Pointer)(k))</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> !alg.equal(key, k) &#123;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 如果需要更新key, 就覆盖key的值.</span></span><br><span class="line">			<span class="keyword">if</span> t.needkeyupdate &#123;</span><br><span class="line">				typedmemmove(t.key, k, key)</span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 返回val的地址, 这个函数并不真正更新value, 只是找到value所在的地址.</span></span><br><span class="line">			val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">		&#125;</span><br><span class="line">        <span class="comment">// 如这个bucket没找到, 找他的overflow链表, 拿下一个bucket循环操作.</span></span><br><span class="line">		ovf := b.overflow(t)</span><br><span class="line">		<span class="keyword">if</span> ovf == <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		b = ovf</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果都没有找到对应的值, 就可能做两件事:</span></span><br><span class="line">    <span class="comment">// 1) 建立新的overflow, 然后把值加到这个overflow的bucket中.</span></span><br><span class="line">    <span class="comment">// 2) 如果此时map的len()超过了overLoadFactor(6.5默认值)*桶的数量(2^B, 每个桶最多8个kv), 或者overflow的bucket太多了, golang就会扩大map的容量. </span></span><br><span class="line">	<span class="comment">// Did not find mapping for key. Allocate new cell &amp; add entry.</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// If we hit the max load factor or we have too many overflow buckets,</span></span><br><span class="line">	<span class="comment">// and we&#x27;re not already in the middle of growing, start growing.</span></span><br><span class="line">	<span class="keyword">if</span> !h.growing() &amp;&amp; (overLoadFactor(<span class="type">int64</span>(h.count), h.B) || tooManyOverflowBuckets(h.noverflow, h.B)) &#123;</span><br><span class="line">		hashGrow(t, h)</span><br><span class="line">		<span class="keyword">goto</span> again <span class="comment">// Growing the table invalidates everything, so try again</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// all current buckets are full, allocate a new one.</span></span><br><span class="line">		newb := h.newoverflow(t, b)</span><br><span class="line">		inserti = &amp;newb.tophash[<span class="number">0</span>]</span><br><span class="line">		insertk = add(unsafe.Pointer(newb), dataOffset)</span><br><span class="line">		val = add(insertk, bucketCnt*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// store new key/value at insert position</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">		kmem := newobject(t.key)</span><br><span class="line">		*(*unsafe.Pointer)(insertk) = kmem</span><br><span class="line">		insertk = kmem</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		vmem := newobject(t.elem)</span><br><span class="line">		*(*unsafe.Pointer)(val) = vmem</span><br><span class="line">	&#125;</span><br><span class="line">	typedmemmove(t.key, insertk, key)</span><br><span class="line">	*inserti = top</span><br><span class="line">	h.count++</span><br><span class="line"></span><br><span class="line">done:</span><br><span class="line">    <span class="comment">// 不支持并发map的写.</span></span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting == <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	h.flags &amp;^= hashWriting</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		val = *((*unsafe.Pointer)(val))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> val</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>在往map中存值时若所有的bucket已满，需要在堆中new新的空间时需要计算是否需要扩容。扩容的时机是count &gt; loadFactor(2^B)。这里的loadfactor选择为6.5。<strong>扩容时机的物理意义的理解</strong> 在没有溢出时hashmap总共可以存储8*(2^B)个KV对，当hashmap已经存储到6.5*(2^B)个KV对时表示hashmap已经趋于溢出，即很有可能在存值时用到overflow链表，这样会增加hitprobe和missprobe。为了使hashmap保持读取和超找的高性能，在hashmap快满时需要在新分配的bucket中重新hash元素并拷贝，源码中称之为evacuate。</p>
-<blockquote>
-<p>overflow溢出率是指平均一个bucket有多少个kv的时候会溢出。bytes&#x2F;entry是指平均存一个kv需要额外存储多少字节的数据。hitprobe是指找一个存在的key平均需要找多少次。missprobe是指找一个不存在的key平均需要找多少次。选取6.5是为了平衡这组数据。</p>
-</blockquote>
-<table>
-<thead>
-<tr>
-<th>loadFactor</th>
-<th>%overflow</th>
-<th>bytes&#x2F;entry</th>
-<th>hitprobe</th>
-<th>missprobe</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>4.00</td>
-<td>2.13</td>
-<td>20.77</td>
-<td>3.00</td>
-<td>4.00</td>
-</tr>
-<tr>
-<td>4.50</td>
-<td>4.05</td>
-<td>17.30</td>
-<td>3.25</td>
-<td>4.50</td>
-</tr>
-<tr>
-<td>5.00</td>
-<td>6.85</td>
-<td>14.77</td>
-<td>3.50</td>
-<td>5.00</td>
-</tr>
-<tr>
-<td>5.50</td>
-<td>10.55</td>
-<td>12.94</td>
-<td>3.75</td>
-<td>5.50</td>
-</tr>
-<tr>
-<td>6.00</td>
-<td>15.27</td>
-<td>11.67</td>
-<td>4.00</td>
-<td>6.00</td>
-</tr>
-<tr>
-<td>6.50</td>
-<td>20.90</td>
-<td>10.79</td>
-<td>4.25</td>
-<td>6.50</td>
-</tr>
-<tr>
-<td>7.00</td>
-<td>27.14</td>
-<td>10.15</td>
-<td>4.50</td>
-<td>7.00</td>
-</tr>
-<tr>
-<td>7.50</td>
-<td>34.03</td>
-<td>9.73</td>
-<td>4.75</td>
-<td>7.50</td>
-</tr>
-<tr>
-<td>8.00</td>
-<td>41.10</td>
-<td>9.40</td>
-<td>5.00</td>
-<td>8.00</td>
-</tr>
-</tbody></table>
-<p>但这个迁移并没有在扩容之后一次性完成，而是逐步完成的，每一次insert或remove时迁移1到2个pair，即增量扩容。<a target="_blank" rel="noopener" href="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/">增量扩容的原因</a> 主要是缩短map容器的响应时间。若hashmap很大扩容时很容易导致系统停顿无响应。增量扩容本质上就是将总的扩容时间分摊到了每一次hash操作上。由于这个工作是逐渐完成的，导致数据一部分在old table中一部分在new table中。old的bucket不会删除，只是加上一个已删除的标记。只有当所有的bucket都从old table里迁移后才会将其释放掉。</p>
-<h4 id="Map的取值"><a href="#Map的取值" class="headerlink" title="Map的取值"></a>Map的取值</h4><p>map取值和存值前面的过程差不多, 代码在<code>mapaccess1</code>中, 这里不做赘述.</p>
-<h4 id="Map-的删除"><a href="#Map-的删除" class="headerlink" title="Map 的删除"></a>Map 的删除</h4><p>删除的前面部分也是找到对应的key和value, 此处省略.</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapdelete</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> &#123;</span><br><span class="line"><span class="comment">// 查找位置, 省略</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的地址, 将地址变为nil</span></span><br><span class="line">				*(*unsafe.Pointer)(k) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的值, 清空key的值</span></span><br><span class="line">				typedmemclr(t.key, k)</span><br><span class="line">			&#125;</span><br><span class="line">			v := unsafe.Pointer(<span class="type">uintptr</span>(unsafe.Pointer(b)) + dataOffset + bucketCnt*<span class="type">uintptr</span>(t.keysize) + i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">    	<span class="comment">// 同理</span></span><br><span class="line">			<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">				*(*unsafe.Pointer)(v) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				typedmemclr(t.elem, v)</span><br><span class="line">			&#125;</span><br><span class="line">    		<span class="comment">//将tophash相应位置标记为空, kv数量-1.</span></span><br><span class="line">			b.tophash[i] = empty</span><br><span class="line">			h.count--</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
 
       
     </div>
@@ -936,6 +758,184 @@
 <li>每个cabinet内至多有一个OSD。</li>
 </ul>
 <p>这样的要求，如果用上一节的CRUSH选OSD的方法，不能满足二三两个要求，因为OSD的分布是随机的。</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-07-02-golang-map/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-07-02-golang-map/" class="post-title-link" itemprop="url">golang map 内存布局和原理</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2024-03-10 12:35:02 / Modified: 12:37:57" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h4 id="map数据结构"><a href="#map数据结构" class="headerlink" title="map数据结构"></a>map数据结构</h4><p>golang的map是hashmap实现的, 代码在&#x2F;src&#x2F;runtime&#x2F;hashmap.go. 对比C++用红黑树实现的map，Go的map是unordered map，即无法对key值排序遍历。跟传统的hashmap的实现方法一样，它通过一个buckets数组实现，所有元素被hash到数组的bucket中，<strong>buckets</strong>就是指向了这个内存连续分配的数组. </p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> maptype <span class="keyword">struct</span> &#123;</span><br><span class="line">	typ           _type</span><br><span class="line">	key           *_type</span><br><span class="line">	elem          *_type</span><br><span class="line">	bucket        *_type <span class="comment">// internal type representing a hash bucket</span></span><br><span class="line">	hmap          *_type <span class="comment">// internal type representing a hmap</span></span><br><span class="line">	keysize       <span class="type">uint8</span>  <span class="comment">// size of key slot</span></span><br><span class="line">	indirectkey   <span class="type">bool</span>   <span class="comment">// store ptr to key instead of key itself</span></span><br><span class="line">	valuesize     <span class="type">uint8</span>  <span class="comment">// size of value slot</span></span><br><span class="line">	indirectvalue <span class="type">bool</span>   <span class="comment">// store ptr to value instead of value itself</span></span><br><span class="line">	bucketsize    <span class="type">uint16</span> <span class="comment">// size of bucket</span></span><br><span class="line">	reflexivekey  <span class="type">bool</span>   <span class="comment">// true if k==k for all keys</span></span><br><span class="line">	needkeyupdate <span class="type">bool</span>   <span class="comment">// true if we need to update key on an overwrite</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A header for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> hmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	count <span class="type">int</span> <span class="comment">// len()返回的map的大小 即有多少kv对</span></span><br><span class="line">	flags <span class="type">uint8</span></span><br><span class="line">	B     <span class="type">uint8</span>  <span class="comment">// 表示hash table总共有2^B个buckets </span></span><br><span class="line">	hash0 <span class="type">uint32</span> <span class="comment">// hash seed</span></span><br><span class="line"></span><br><span class="line">	buckets    unsafe.Pointer <span class="comment">// 一系列桶的头指针, 按照low hash值可查找的连续分配的数组，初始时为16个Buckets.</span></span><br><span class="line">	oldbuckets unsafe.Pointer </span><br><span class="line">	nevacuate  <span class="type">uintptr</span>      </span><br><span class="line"></span><br><span class="line">	overflow *[<span class="number">2</span>]*[]*bmap <span class="comment">//溢出链 当初始buckets都满了之后会使用overflow</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A bucket for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> bmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	tophash [bucketCnt]<span class="type">uint8</span></span><br><span class="line">	<span class="comment">// Followed by bucketCnt keys and then bucketCnt values.</span></span><br><span class="line">	<span class="comment">// <span class="doctag">NOTE:</span> packing all the keys together and then all the values together makes the</span></span><br><span class="line">	<span class="comment">// code a bit more complicated than alternating key/value/key/value/... but it allows</span></span><br><span class="line">	<span class="comment">// us to eliminate padding which would be needed for, e.g., map[int64]int8.</span></span><br><span class="line">	<span class="comment">// Followed by an overflow pointer.</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如上所示, maptype表示map类型, 其中的hmap表示hashmap, 它的指针就是map的实体.  桶一个连续分配的数组组成, 而buckets是这个数组的头指针(起始地址), bmap是每个bucket的实体. 每个bucket有一个长度为8的数组叫做tophash, 他存储了8个key的高八位的值, 这样当我们找的时候, 先用key hash的低八位找到对应的桶, 再匹配key高8位值找到对应的tophash, 如果正确了再去找对应的key是否相等. 在对key&#x2F;value对增删查的时候，先比较key的hash值高八位是否相等，然后再比较具体的key值。根据官方注释在tophash数组之后跟着8个key&#x2F;value对，每一对都对应tophash当中的一条记录。最后bucket中还包含指向链表下一个bucket的指针。内存布局如下图。</p>
+<p><img src="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/hashmap.png" alt="image"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">之所以把所有k1k2放一起而不是k1v1是因为key和value的数据类型内存大小可能差距很大，比如map[int64]int8，考虑到字节对齐，kv存在一起会浪费很多空间。</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="map创建和初始化"><a href="#map创建和初始化" class="headerlink" title="map创建和初始化"></a>map创建和初始化</h4><p>我们首先来看make过程, 看一个map是如何创建的.</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// makemap implements a Go map creation make(map[k]v, hint)</span></span><br><span class="line"><span class="comment">// If the compiler has determined that the map or the first bucket</span></span><br><span class="line"><span class="comment">// can be created on the stack, h and/or bucket may be non-nil.</span></span><br><span class="line"><span class="comment">// If h != nil, the map can be created directly in h.</span></span><br><span class="line"><span class="comment">// If bucket != nil, bucket can be used as the first bucket.</span></span><br><span class="line"><span class="comment">// hint是map大小, h过不等于空就直接使用这个hmap, bucket不为空就当做第一个bucket.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">makemap</span><span class="params">(t *maptype, hint <span class="type">int64</span>, h *hmap, bucket unsafe.Pointer)</span></span> *hmap &#123;</span><br><span class="line">    <span class="keyword">if</span> sz := unsafe.Sizeof(hmap&#123;&#125;); sz &gt; <span class="number">48</span> || sz != t.hmap.size &#123;</span><br><span class="line">		<span class="built_in">println</span>(<span class="string">&quot;runtime: sizeof(hmap) =&quot;</span>, sz, <span class="string">&quot;, t.hmap.size =&quot;</span>, t.hmap.size)</span><br><span class="line">		throw(<span class="string">&quot;bad hmap size&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// hint值不符合规范, 置0</span></span><br><span class="line">	<span class="keyword">if</span> hint &lt; <span class="number">0</span> || hint &gt; <span class="type">int64</span>(maxSliceCap(t.bucket.size)) &#123;</span><br><span class="line">		hint = <span class="number">0</span></span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// 按照是否实现hash()来判断是否支持map类型</span></span><br><span class="line">	<span class="keyword">if</span> !ismapkey(t.key) &#123;</span><br><span class="line">		throw(<span class="string">&quot;runtime.makemap: unsupported map key type&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 检查key和value大小</span></span><br><span class="line">	<span class="keyword">if</span> t.key.size &gt; maxKeySize &amp;&amp; (!t.indirectkey || t.keysize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.key.size &lt;= maxKeySize &amp;&amp; (t.indirectkey || t.keysize != <span class="type">uint8</span>(t.key.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size &gt; maxValueSize &amp;&amp; (!t.indirectvalue || t.valuesize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.elem.size &lt;= maxValueSize &amp;&amp; (t.indirectvalue || t.valuesize != <span class="type">uint8</span>(t.elem.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 检查各种编译的规范, 跳过</span></span><br><span class="line">	<span class="comment">// invariants we depend on. We should probably check these at compile time</span></span><br><span class="line">	<span class="comment">// somewhere, but for now we&#x27;ll do it here.</span></span><br><span class="line">	<span class="keyword">if</span> t.key.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;key align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;value align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.key.size%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size not a multiple of key align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size not a multiple of value align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> bucketCnt &lt; <span class="number">8</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;bucketsize too small for proper alignment&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (key)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (value)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 把hint参数对应成2进制的上确界那个数. 例如size=6, B就是3, 因为2^2 &lt; 6 &lt; 2^3</span></span><br><span class="line">	B := <span class="type">uint8</span>(<span class="number">0</span>)</span><br><span class="line">	<span class="keyword">for</span> ; overLoadFactor(hint, B); B++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 使用malloc分配2^B个buckets给h.</span></span><br><span class="line">	<span class="comment">// allocate initial hash table</span></span><br><span class="line">	<span class="comment">// if B == 0, the buckets field is allocated lazily later (in mapassign)</span></span><br><span class="line">	<span class="comment">// If hint is large zeroing this memory could take a while.</span></span><br><span class="line">	buckets := bucket</span><br><span class="line">	<span class="keyword">var</span> extra *mapextra</span><br><span class="line">	<span class="keyword">if</span> B != <span class="number">0</span> &#123;</span><br><span class="line">		<span class="keyword">var</span> nextOverflow *bmap</span><br><span class="line">		buckets, nextOverflow = makeBucketArray(t, B)</span><br><span class="line">		<span class="keyword">if</span> nextOverflow != <span class="literal">nil</span> &#123;</span><br><span class="line">			extra = <span class="built_in">new</span>(mapextra)</span><br><span class="line">			extra.nextOverflow = nextOverflow</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// initialize Hmap</span></span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		h = (*hmap)(newobject(t.hmap))</span><br><span class="line">	&#125;</span><br><span class="line">	h.count = <span class="number">0</span></span><br><span class="line">	h.B = B</span><br><span class="line">	h.extra = extra</span><br><span class="line">	h.flags = <span class="number">0</span></span><br><span class="line">	h.hash0 = fastrand()</span><br><span class="line">	h.buckets = buckets</span><br><span class="line">	h.oldbuckets = <span class="literal">nil</span></span><br><span class="line">	h.nevacuate = <span class="number">0</span></span><br><span class="line">	h.noverflow = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> h</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="map存值"><a href="#map存值" class="headerlink" title="map存值"></a>map存值</h4><p>存储的步骤和第一部分的分析一致。首先用key的hash值低8位找到bucket，然后在bucket内部比对tophash和高8位与其对应的key值与入参key是否相等，若找到则更新这个值。若key不存在，则key优先存入在查找的过程中遇到的空的tophash数组位置。若当前的bucket已满则需要另外分配空间给这个key，新分配的bucket将挂在overflow链表后。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Like mapaccess, but allocates a slot for the key if it is not present in the map.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapassign</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> unsafe.Pointer &#123;</span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(plainError(<span class="string">&quot;assignment to entry in nil map&quot;</span>))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> raceenabled &#123;</span><br><span class="line">		callerpc := getcallerpc(unsafe.Pointer(&amp;t))</span><br><span class="line">		pc := funcPC(mapassign)</span><br><span class="line">		racewritepc(unsafe.Pointer(h), callerpc, pc)</span><br><span class="line">		raceReadObjectPC(t.key, key, callerpc, pc)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> msanenabled &#123;</span><br><span class="line">		msanread(key, t.key.size)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	alg := t.key.alg</span><br><span class="line">	hash := alg.hash(key, <span class="type">uintptr</span>(h.hash0))</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Set hashWriting after calling alg.hash, since alg.hash may panic,</span></span><br><span class="line">	<span class="comment">// in which case we have not actually done a write.</span></span><br><span class="line">	h.flags |= hashWriting</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> h.buckets == <span class="literal">nil</span> &#123;</span><br><span class="line">		h.buckets = newarray(t.bucket, <span class="number">1</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">again:</span><br><span class="line">    <span class="comment">// 用hash值的低八位找到bucket</span></span><br><span class="line">	bucket := hash &amp; (<span class="type">uintptr</span>(<span class="number">1</span>)&lt;&lt;h.B - <span class="number">1</span>)</span><br><span class="line">	<span class="keyword">if</span> h.growing() &#123;</span><br><span class="line">		growWork(t, h, bucket)</span><br><span class="line">	&#125;</span><br><span class="line">	b := (*bmap)(unsafe.Pointer(<span class="type">uintptr</span>(h.buckets) + bucket*<span class="type">uintptr</span>(t.bucketsize)))</span><br><span class="line">    <span class="comment">// 拿到高八位的hash值用于比对tophash</span></span><br><span class="line">	top := <span class="type">uint8</span>(hash &gt;&gt; (sys.PtrSize*<span class="number">8</span> - <span class="number">8</span>))</span><br><span class="line">	<span class="keyword">if</span> top &lt; minTopHash &#123;</span><br><span class="line">		top += minTopHash</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> inserti *<span class="type">uint8</span></span><br><span class="line">	<span class="keyword">var</span> insertk unsafe.Pointer</span><br><span class="line">	<span class="keyword">var</span> val unsafe.Pointer</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> i := <span class="type">uintptr</span>(<span class="number">0</span>); i &lt; bucketCnt; i++ &#123;</span><br><span class="line">            <span class="comment">// 遍历tophash, 找到对应的key</span></span><br><span class="line">			<span class="keyword">if</span> b.tophash[i] != top &#123;</span><br><span class="line">                <span class="comment">// 如果没有找到key, 说明是第一次, 将这个key插入到insertk(第i+1个key所在的)的位置, 将value插入到val(第i+1个value所在)的位置, 并且将tophash的当前地址赋值给inserti, 用于记录是否插入以及插入的位置.</span></span><br><span class="line">				<span class="keyword">if</span> b.tophash[i] == empty &amp;&amp; inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">					inserti = &amp;b.tophash[i]</span><br><span class="line">					insertk = add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">					val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">				&#125;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 如果找到了key的tophash, 就将拿对应的key跟现在的key对比, 看是否相等, 如果不相等就跳过继续找key, 如果相等就更新它的value的值.</span></span><br><span class="line">			k := add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">			<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">				k = *((*unsafe.Pointer)(k))</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> !alg.equal(key, k) &#123;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 如果需要更新key, 就覆盖key的值.</span></span><br><span class="line">			<span class="keyword">if</span> t.needkeyupdate &#123;</span><br><span class="line">				typedmemmove(t.key, k, key)</span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 返回val的地址, 这个函数并不真正更新value, 只是找到value所在的地址.</span></span><br><span class="line">			val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">		&#125;</span><br><span class="line">        <span class="comment">// 如这个bucket没找到, 找他的overflow链表, 拿下一个bucket循环操作.</span></span><br><span class="line">		ovf := b.overflow(t)</span><br><span class="line">		<span class="keyword">if</span> ovf == <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		b = ovf</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果都没有找到对应的值, 就可能做两件事:</span></span><br><span class="line">    <span class="comment">// 1) 建立新的overflow, 然后把值加到这个overflow的bucket中.</span></span><br><span class="line">    <span class="comment">// 2) 如果此时map的len()超过了overLoadFactor(6.5默认值)*桶的数量(2^B, 每个桶最多8个kv), 或者overflow的bucket太多了, golang就会扩大map的容量. </span></span><br><span class="line">	<span class="comment">// Did not find mapping for key. Allocate new cell &amp; add entry.</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// If we hit the max load factor or we have too many overflow buckets,</span></span><br><span class="line">	<span class="comment">// and we&#x27;re not already in the middle of growing, start growing.</span></span><br><span class="line">	<span class="keyword">if</span> !h.growing() &amp;&amp; (overLoadFactor(<span class="type">int64</span>(h.count), h.B) || tooManyOverflowBuckets(h.noverflow, h.B)) &#123;</span><br><span class="line">		hashGrow(t, h)</span><br><span class="line">		<span class="keyword">goto</span> again <span class="comment">// Growing the table invalidates everything, so try again</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// all current buckets are full, allocate a new one.</span></span><br><span class="line">		newb := h.newoverflow(t, b)</span><br><span class="line">		inserti = &amp;newb.tophash[<span class="number">0</span>]</span><br><span class="line">		insertk = add(unsafe.Pointer(newb), dataOffset)</span><br><span class="line">		val = add(insertk, bucketCnt*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// store new key/value at insert position</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">		kmem := newobject(t.key)</span><br><span class="line">		*(*unsafe.Pointer)(insertk) = kmem</span><br><span class="line">		insertk = kmem</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		vmem := newobject(t.elem)</span><br><span class="line">		*(*unsafe.Pointer)(val) = vmem</span><br><span class="line">	&#125;</span><br><span class="line">	typedmemmove(t.key, insertk, key)</span><br><span class="line">	*inserti = top</span><br><span class="line">	h.count++</span><br><span class="line"></span><br><span class="line">done:</span><br><span class="line">    <span class="comment">// 不支持并发map的写.</span></span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting == <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	h.flags &amp;^= hashWriting</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		val = *((*unsafe.Pointer)(val))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> val</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在往map中存值时若所有的bucket已满，需要在堆中new新的空间时需要计算是否需要扩容。扩容的时机是count &gt; loadFactor(2^B)。这里的loadfactor选择为6.5。<strong>扩容时机的物理意义的理解</strong> 在没有溢出时hashmap总共可以存储8*(2^B)个KV对，当hashmap已经存储到6.5*(2^B)个KV对时表示hashmap已经趋于溢出，即很有可能在存值时用到overflow链表，这样会增加hitprobe和missprobe。为了使hashmap保持读取和超找的高性能，在hashmap快满时需要在新分配的bucket中重新hash元素并拷贝，源码中称之为evacuate。</p>
+<blockquote>
+<p>overflow溢出率是指平均一个bucket有多少个kv的时候会溢出。bytes&#x2F;entry是指平均存一个kv需要额外存储多少字节的数据。hitprobe是指找一个存在的key平均需要找多少次。missprobe是指找一个不存在的key平均需要找多少次。选取6.5是为了平衡这组数据。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>loadFactor</th>
+<th>%overflow</th>
+<th>bytes&#x2F;entry</th>
+<th>hitprobe</th>
+<th>missprobe</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4.00</td>
+<td>2.13</td>
+<td>20.77</td>
+<td>3.00</td>
+<td>4.00</td>
+</tr>
+<tr>
+<td>4.50</td>
+<td>4.05</td>
+<td>17.30</td>
+<td>3.25</td>
+<td>4.50</td>
+</tr>
+<tr>
+<td>5.00</td>
+<td>6.85</td>
+<td>14.77</td>
+<td>3.50</td>
+<td>5.00</td>
+</tr>
+<tr>
+<td>5.50</td>
+<td>10.55</td>
+<td>12.94</td>
+<td>3.75</td>
+<td>5.50</td>
+</tr>
+<tr>
+<td>6.00</td>
+<td>15.27</td>
+<td>11.67</td>
+<td>4.00</td>
+<td>6.00</td>
+</tr>
+<tr>
+<td>6.50</td>
+<td>20.90</td>
+<td>10.79</td>
+<td>4.25</td>
+<td>6.50</td>
+</tr>
+<tr>
+<td>7.00</td>
+<td>27.14</td>
+<td>10.15</td>
+<td>4.50</td>
+<td>7.00</td>
+</tr>
+<tr>
+<td>7.50</td>
+<td>34.03</td>
+<td>9.73</td>
+<td>4.75</td>
+<td>7.50</td>
+</tr>
+<tr>
+<td>8.00</td>
+<td>41.10</td>
+<td>9.40</td>
+<td>5.00</td>
+<td>8.00</td>
+</tr>
+</tbody></table>
+<p>但这个迁移并没有在扩容之后一次性完成，而是逐步完成的，每一次insert或remove时迁移1到2个pair，即增量扩容。<a target="_blank" rel="noopener" href="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/">增量扩容的原因</a> 主要是缩短map容器的响应时间。若hashmap很大扩容时很容易导致系统停顿无响应。增量扩容本质上就是将总的扩容时间分摊到了每一次hash操作上。由于这个工作是逐渐完成的，导致数据一部分在old table中一部分在new table中。old的bucket不会删除，只是加上一个已删除的标记。只有当所有的bucket都从old table里迁移后才会将其释放掉。</p>
+<h4 id="Map的取值"><a href="#Map的取值" class="headerlink" title="Map的取值"></a>Map的取值</h4><p>map取值和存值前面的过程差不多, 代码在<code>mapaccess1</code>中, 这里不做赘述.</p>
+<h4 id="Map-的删除"><a href="#Map-的删除" class="headerlink" title="Map 的删除"></a>Map 的删除</h4><p>删除的前面部分也是找到对应的key和value, 此处省略.</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapdelete</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> &#123;</span><br><span class="line"><span class="comment">// 查找位置, 省略</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的地址, 将地址变为nil</span></span><br><span class="line">				*(*unsafe.Pointer)(k) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的值, 清空key的值</span></span><br><span class="line">				typedmemclr(t.key, k)</span><br><span class="line">			&#125;</span><br><span class="line">			v := unsafe.Pointer(<span class="type">uintptr</span>(unsafe.Pointer(b)) + dataOffset + bucketCnt*<span class="type">uintptr</span>(t.keysize) + i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">    	<span class="comment">// 同理</span></span><br><span class="line">			<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">				*(*unsafe.Pointer)(v) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				typedmemclr(t.elem, v)</span><br><span class="line">			&#125;</span><br><span class="line">    		<span class="comment">//将tophash相应位置标记为空, kv数量-1.</span></span><br><span class="line">			b.tophash[i] = empty</span><br><span class="line">			h.count--</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 
       
     </div>
@@ -1210,6 +1210,97 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>docker run 的时候如果出现类似:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
+
+<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
+
+<p>修改后发现新的错误:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
+
+<p>网上查有如下回复:</p>
+<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
+
+<p>所以重启大法好…</p>
+<p>但是真正原因没搞清楚, 待更新.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-29-golang-rename/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1279,97 +1370,6 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
 </ol>
 <p>​    显然问题比我想象的更加复杂. 有一个可能的解释是在我操作delete之后由于太长时间没有删掉导致Kubelet直接暴力删除了这个pod, statefulset又重启了新的pod, 原来的container虽然删掉但相应的namespaces中依然有应用程序在读写, 这种情况导致remove busy, 而且数据在更新.</p>
 <p>这些问题要调查起来都很费力. 显然直接删掉rename逻辑可以解决这个问题, 于是不再追究.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-06-07-docker-mountflags/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>docker run 的时候如果出现类似:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
-
-<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
-
-<p>修改后发现新的错误:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
-
-<p>网上查有如下回复:</p>
-<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
-
-<p>所以重启大法好…</p>
-<p>但是真正原因没搞清楚, 待更新.</p>
 
       
     </div>

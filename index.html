@@ -185,7 +185,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2024-05-12 18:34:08" itemprop="dateModified" datetime="2024-05-12T18:34:08+08:00">2024-05-12</time>
+      <time title="Modified: 2024-05-12 18:40:45" itemprop="dateModified" datetime="2024-05-12T18:40:45+08:00">2024-05-12</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -351,10 +351,7 @@
 
 
 <p>We have learned the block layer basic follow and we can know the place of rq_qos throttling. </p>
-<p id="gdcalert5" ><span style="color: red; font-weight: bold">>>>>>  gd2md-html alert: inline image link here (to images/image5.png). Store image on your image server and adjust path/filename/extension if necessary. </span><br>(<a href="#">Back to top</a>)(<a href="#gdcalert6">Next alert</a>)<br><span style="color: red; font-weight: bold">>>>>> </span></p>
-
-
-<p><img src="/images/image5.png" alt="alt_text" title="image_tooltip"></p>
+<p><img src="/images/disk_qos_1.png" alt="alt_text"></p>
 <p>IO QoS has complicated algorithms for different policy and implementation. Here is just making an entrance but not deep diving. I will make another article to talk about the disk IO QoS.</p>
 
       
@@ -979,141 +976,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-repair-thinpool/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
-<ol>
-<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>repair meta and active pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>active pool</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
-
-<p>Below are the steps which happen while running the consistency check:</p>
-<ol>
-<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
-<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
-</ol>
-<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
-
-<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
-<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
-<ol>
-<li><p>create temporary small LV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>replace pool’s metadata volume with this tempLV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>(say ‘y’ to swap)</p>
-<ol>
-<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
-<p>so create:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
-
-<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
-<ol>
-<li><p>swap deactivated repaired volume back to your thin-pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>try to activate pool - if it doesn’t work report more problems.</p>
-<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
-<ol>
-<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Repair thin pool with lvconvert –repair.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Check and repair file system with fsck.</p>
-</li>
-</ol>
-</li>
-</ol>
-</li>
-</ol>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-raid/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1255,6 +1117,141 @@
 <li>[4] dm-raid, <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt">https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt</a></li>
 <li>[5] How To Create RAID Arrays with mdadm on Ubuntu 16.04, <a target="_blank" rel="noopener" href="https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04">https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04</a></li>
 </ul>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-repair-thinpool/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
+<ol>
+<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>repair meta and active pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>active pool</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
+
+<p>Below are the steps which happen while running the consistency check:</p>
+<ol>
+<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
+<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
+</ol>
+<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
+
+<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
+<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
+<ol>
+<li><p>create temporary small LV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>replace pool’s metadata volume with this tempLV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>(say ‘y’ to swap)</p>
+<ol>
+<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
+<p>so create:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
+
+<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
+<ol>
+<li><p>swap deactivated repaired volume back to your thin-pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>try to activate pool - if it doesn’t work report more problems.</p>
+<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
+<ol>
+<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Repair thin pool with lvconvert –repair.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Check and repair file system with fsck.</p>
+</li>
+</ol>
+</li>
+</ol>
+</li>
+</ol>
 
       
     </div>
