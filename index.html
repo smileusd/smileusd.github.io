@@ -167,7 +167,7 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/04/24/2024-05-04-cgroup-v2-buffer-io/" class="post-title-link" itemprop="url">Why the cgroup v1 can not throttle the buffer io but cgroup v2 can</a>
+          <a href="/2024/04/24/2024-05-04-cgroup-v2-buffer-io/" class="post-title-link" itemprop="url">Cgroup DIsk IO Deep Dive</a>
         </h2>
 
         <div class="post-meta-container">
@@ -185,7 +185,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2024-05-12 18:31:29" itemprop="dateModified" datetime="2024-05-12T18:31:29+08:00">2024-05-12</time>
+      <time title="Modified: 2024-05-12 18:34:08" itemprop="dateModified" datetime="2024-05-12T18:34:08+08:00">2024-05-12</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -207,7 +207,7 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <h1 id="Cgroup-DIsk-IO-Deep-Dive"><a href="#Cgroup-DIsk-IO-Deep-Dive" class="headerlink" title="Cgroup DIsk IO Deep Dive"></a>Cgroup DIsk IO Deep Dive</h1><h3 id="1-What-the-cgroup-init-difference-between-v1-and-v2"><a href="#1-What-the-cgroup-init-difference-between-v1-and-v2" class="headerlink" title="1. What the cgroup init difference between v1 and v2"></a>1. What the cgroup init difference between v1 and v2</h3><p>We know the basic buffer IO flow is to write the data into a dirty page on memory, then an asynchronous writeback thread will flush the dirty page onto the disk. Unlike the direct IO, the buffer IO is not only controlled by the io controller but also controlled by the memory controller.</p>
+          <h3 id="What-the-cgroup-init-difference-between-v1-and-v2"><a href="#What-the-cgroup-init-difference-between-v1-and-v2" class="headerlink" title="What the cgroup init difference between v1 and v2"></a>What the cgroup init difference between v1 and v2</h3><p>We know the basic buffer IO flow is to write the data into a dirty page on memory, then an asynchronous writeback thread will flush the dirty page onto the disk. Unlike the direct IO, the buffer IO is not only controlled by the io controller but also controlled by the memory controller.</p>
 <p>In March 2014, kernel merged the pr<a target="_blank" rel="noopener" href="https://lwn.net/Articles/592434/"> cgroup: implement unified hierarchy</a> about unified architecture in cgroup, that is the basic design of cgroup v2.</p>
 <p>There is the code of the main process of cgroup init. In the process of cgroup init in the function of “cgroup_init”, after setting up the cgroup root, initiating the subsystem of the cgroups and creating the mountpoints, the kernel registers the different cgroup filesystems on that mount point according to different cgroup types:</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">int __init cgroup_init(void)</span><br><span class="line">&#123;</span><br><span class="line">           …</span><br><span class="line">    	BUG_ON(cgroup_setup_root(&amp;cgrp_dfl_root, 0));</span><br><span class="line">           …</span><br><span class="line">	for_each_subsys(ss, ssid) &#123;</span><br><span class="line">		if (ss-&gt;early_init) &#123;</span><br><span class="line">			struct cgroup_subsys_state *css =</span><br><span class="line">				init_css_set.subsys[ss-&gt;id];</span><br><span class="line"></span><br><span class="line">			css-&gt;id = cgroup_idr_alloc(&amp;ss-&gt;css_idr, css, 1, 2,</span><br><span class="line">						   GFP_KERNEL);</span><br><span class="line">			BUG_ON(css-&gt;id &lt; 0);</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			cgroup_init_subsys(ss, false);</span><br><span class="line">		&#125;</span><br><span class="line">                      …</span><br><span class="line">		if (ss-&gt;dfl_cftypes == ss-&gt;legacy_cftypes) &#123;</span><br><span class="line">			WARN_ON(cgroup_add_cftypes(ss, ss-&gt;dfl_cftypes));</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			WARN_ON(cgroup_add_dfl_cftypes(ss, ss-&gt;dfl_cftypes));</span><br><span class="line">			WARN_ON(cgroup_add_legacy_cftypes(ss, ss-&gt;legacy_cftypes));</span><br><span class="line">		&#125;</span><br><span class="line">           &#125;</span><br><span class="line">           …</span><br><span class="line">	WARN_ON(sysfs_create_mount_point(fs_kobj, &quot;cgroup&quot;));</span><br><span class="line">	WARN_ON(register_filesystem(&amp;cgroup_fs_type));</span><br><span class="line">	WARN_ON(register_filesystem(&amp;cgroup2_fs_type));</span><br><span class="line">	WARN_ON(!proc_create_single(&quot;cgroups&quot;, 0, NULL, proc_cgroupstats_show));</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
@@ -234,7 +234,7 @@
 
 
 
-<h3 id="3-How-kernel-implement-the-cgroup-v2-writeback"><a href="#3-How-kernel-implement-the-cgroup-v2-writeback" class="headerlink" title="3. How kernel implement the cgroup v2 writeback"></a>3. How kernel implement the cgroup v2 writeback</h3><p>After the kernel added a unified cgroup hierarchy, another patch <a target="_blank" rel="noopener" href="https://lwn.net/Articles/628631/">writeback: cgroup writeback support</a> merged in January, 2015. It adds a feature and framework to support the writeback control by cgroup. Then the ext4 filesystem added the support with writeback cgroup <a target="_blank" rel="noopener" href="https://lwn.net/Articles/648299/">ext4: implement cgroup writeback support</a> at Jun, 2015. But xfs filesystem implements the support at <a target="_blank" rel="noopener" href="https://patchwork.kernel.org/project/xfs/patch/f13839700d372a4663a08a11883e9c89b13056ca.1521752282.git.shli@fb.com/">[V2] xfs: implement cgroup writeback support</a> on March, 2018. So on some old kernel versions, the xfs filesystem does not support cgroup writeback. </p>
+<h3 id="How-kernel-implement-the-cgroup-v2-writeback"><a href="#How-kernel-implement-the-cgroup-v2-writeback" class="headerlink" title="How kernel implement the cgroup v2 writeback"></a>How kernel implement the cgroup v2 writeback</h3><p>After the kernel added a unified cgroup hierarchy, another patch <a target="_blank" rel="noopener" href="https://lwn.net/Articles/628631/">writeback: cgroup writeback support</a> merged in January, 2015. It adds a feature and framework to support the writeback control by cgroup. Then the ext4 filesystem added the support with writeback cgroup <a target="_blank" rel="noopener" href="https://lwn.net/Articles/648299/">ext4: implement cgroup writeback support</a> at Jun, 2015. But xfs filesystem implements the support at <a target="_blank" rel="noopener" href="https://patchwork.kernel.org/project/xfs/patch/f13839700d372a4663a08a11883e9c89b13056ca.1521752282.git.shli@fb.com/">[V2] xfs: implement cgroup writeback support</a> on March, 2018. So on some old kernel versions, the xfs filesystem does not support cgroup writeback. </p>
 <p>Now let’s do the deep dive about how the kernel implements the cgroup writeback. The implementation of cgroup writeback is complex with many different packages and adds many new changes after the original patch. Here we just analyze and focus on the latest kernel version and skip the history and change from the first patch.</p>
 <p>As the write as example, there is the simplify flow from syscall of write to enter of block layer:</p>
 <p>There is full flow of write:</p>
@@ -303,11 +303,7 @@
 
 
 
-
-<ol start="3">
-<li>How IO throttling in block layer</li>
-</ol>
-<p>There are the different throttling files with cgroup v1 and v2</p>
+<h3 id="How-IO-throttling-in-block-layer"><a href="#How-IO-throttling-in-block-layer" class="headerlink" title="How IO throttling in block layer"></a>How IO throttling in block layer</h3><p>There are the different throttling files with cgroup v1 and v2</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line">static struct cftype throtl_legacy_files[] = &#123;</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.read_bps_device&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, bps[READ][LIMIT_MAX]),</span><br><span class="line">		.seq_show = tg_print_conf_u64,</span><br><span class="line">		.write = tg_set_conf_u64,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.write_bps_device&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, bps[WRITE][LIMIT_MAX]),</span><br><span class="line">		.seq_show = tg_print_conf_u64,</span><br><span class="line">		.write = tg_set_conf_u64,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.read_iops_device&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, iops[READ][LIMIT_MAX]),</span><br><span class="line">		.seq_show = tg_print_conf_uint,</span><br><span class="line">		.write = tg_set_conf_uint,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.write_iops_device&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, iops[WRITE][LIMIT_MAX]),</span><br><span class="line">		.seq_show = tg_print_conf_uint,</span><br><span class="line">		.write = tg_set_conf_uint,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.io_service_bytes&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, stat_bytes),</span><br><span class="line">		.seq_show = tg_print_rwstat,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.io_service_bytes_recursive&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, stat_bytes),</span><br><span class="line">		.seq_show = tg_print_rwstat_recursive,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.io_serviced&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, stat_ios),</span><br><span class="line">		.seq_show = tg_print_rwstat,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.io_serviced_recursive&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, stat_ios),</span><br><span class="line">		.seq_show = tg_print_rwstat_recursive,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123; &#125;	/* terminate */</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
 
 
@@ -983,6 +979,141 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-repair-thinpool/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
+<ol>
+<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>repair meta and active pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>active pool</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
+
+<p>Below are the steps which happen while running the consistency check:</p>
+<ol>
+<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
+<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
+</ol>
+<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
+
+<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
+<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
+<ol>
+<li><p>create temporary small LV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>replace pool’s metadata volume with this tempLV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>(say ‘y’ to swap)</p>
+<ol>
+<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
+<p>so create:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
+
+<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
+<ol>
+<li><p>swap deactivated repaired volume back to your thin-pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>try to activate pool - if it doesn’t work report more problems.</p>
+<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
+<ol>
+<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Repair thin pool with lvconvert –repair.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Check and repair file system with fsck.</p>
+</li>
+</ol>
+</li>
+</ol>
+</li>
+</ol>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-raid/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1124,141 +1255,6 @@
 <li>[4] dm-raid, <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt">https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt</a></li>
 <li>[5] How To Create RAID Arrays with mdadm on Ubuntu 16.04, <a target="_blank" rel="noopener" href="https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04">https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04</a></li>
 </ul>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/10/2018-10-12-repair-thinpool/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
-<ol>
-<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>repair meta and active pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>active pool</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
-
-<p>Below are the steps which happen while running the consistency check:</p>
-<ol>
-<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
-<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
-</ol>
-<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
-
-<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
-<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
-<ol>
-<li><p>create temporary small LV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>replace pool’s metadata volume with this tempLV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>(say ‘y’ to swap)</p>
-<ol>
-<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
-<p>so create:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
-
-<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
-<ol>
-<li><p>swap deactivated repaired volume back to your thin-pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>try to activate pool - if it doesn’t work report more problems.</p>
-<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
-<ol>
-<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Repair thin pool with lvconvert –repair.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Check and repair file system with fsck.</p>
-</li>
-</ol>
-</li>
-</ol>
-</li>
-</ol>
 
       
     </div>

@@ -19,12 +19,12 @@
 
 <script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
 
-    <meta name="description" content="Cgroup DIsk IO Deep Dive1. What the cgroup init difference between v1 and v2We know the basic buffer IO flow is to write the data into a dirty page on memory, then an asynchronous writeback thread wil">
+    <meta name="description" content="What the cgroup init difference between v1 and v2We know the basic buffer IO flow is to write the data into a dirty page on memory, then an asynchronous writeback thread will flush the dirty page onto">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Why the cgroup v1 can not throttle the buffer io but cgroup v2 can">
+<meta property="og:title" content="Cgroup DIsk IO Deep Dive">
 <meta property="og:url" content="http://example.com/2024/04/24/2024-05-04-cgroup-v2-buffer-io/index.html">
 <meta property="og:site_name" content="Hexo">
-<meta property="og:description" content="Cgroup DIsk IO Deep Dive1. What the cgroup init difference between v1 and v2We know the basic buffer IO flow is to write the data into a dirty page on memory, then an asynchronous writeback thread wil">
+<meta property="og:description" content="What the cgroup init difference between v1 and v2We know the basic buffer IO flow is to write the data into a dirty page on memory, then an asynchronous writeback thread will flush the dirty page onto">
 <meta property="og:locale" content="en_US">
 <meta property="og:image" content="http://example.com/images/cgroupv2_full_flow.png">
 <meta property="og:image" content="http://example.com/images/cgroupv2_simple_flow.png">
@@ -33,7 +33,7 @@
 <meta property="og:image" content="http://example.com/images/blk_throttling.png">
 <meta property="og:image" content="http://example.com/images/image5.png">
 <meta property="article:published_time" content="2024-04-24T11:49:04.018Z">
-<meta property="article:modified_time" content="2024-05-12T10:31:29.590Z">
+<meta property="article:modified_time" content="2024-05-12T10:34:08.846Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="linux">
 <meta name="twitter:card" content="summary">
@@ -44,10 +44,10 @@
 
 
 
-<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"http://example.com/2024/04/24/2024-05-04-cgroup-v2-buffer-io/","path":"2024/04/24/2024-05-04-cgroup-v2-buffer-io/","title":"Why the cgroup v1 can not throttle the buffer io but cgroup v2 can"}</script>
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"http://example.com/2024/04/24/2024-05-04-cgroup-v2-buffer-io/","path":"2024/04/24/2024-05-04-cgroup-v2-buffer-io/","title":"Cgroup DIsk IO Deep Dive"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>Why the cgroup v1 can not throttle the buffer io but cgroup v2 can | Hexo</title>
+<title>Cgroup DIsk IO Deep Dive | Hexo</title>
   
 
 
@@ -112,7 +112,7 @@
       <div class="sidebar-panel-container">
         <!--noindex-->
         <div class="post-toc-wrap sidebar-panel">
-            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Cgroup-DIsk-IO-Deep-Dive"><span class="nav-number">1.</span> <span class="nav-text">Cgroup DIsk IO Deep Dive</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-What-the-cgroup-init-difference-between-v1-and-v2"><span class="nav-number">1.0.1.</span> <span class="nav-text">1. What the cgroup init difference between v1 and v2</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-How-kernel-implement-the-cgroup-v2-writeback"><span class="nav-number">1.0.2.</span> <span class="nav-text">3. How kernel implement the cgroup v2 writeback</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Disk-IO-QoS"><span class="nav-number">1.1.</span> <span class="nav-text">Disk IO QoS</span></a></li></ol></li></ol></div>
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#What-the-cgroup-init-difference-between-v1-and-v2"><span class="nav-number">1.</span> <span class="nav-text">What the cgroup init difference between v1 and v2</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#How-kernel-implement-the-cgroup-v2-writeback"><span class="nav-number">2.</span> <span class="nav-text">How kernel implement the cgroup v2 writeback</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#How-IO-throttling-in-block-layer"><span class="nav-number">3.</span> <span class="nav-text">How IO throttling in block layer</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Disk-IO-QoS"><span class="nav-number"></span> <span class="nav-text">Disk IO QoS</span></a></div>
         </div>
         <!--/noindex-->
 
@@ -176,12 +176,12 @@
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="Why the cgroup v1 can not throttle the buffer io but cgroup v2 can | Hexo">
+      <meta itemprop="name" content="Cgroup DIsk IO Deep Dive | Hexo">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          Why the cgroup v1 can not throttle the buffer io but cgroup v2 can
+          Cgroup DIsk IO Deep Dive
         </h1>
 
         <div class="post-meta-container">
@@ -199,7 +199,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2024-05-12 18:31:29" itemprop="dateModified" datetime="2024-05-12T18:31:29+08:00">2024-05-12</time>
+      <time title="Modified: 2024-05-12 18:34:08" itemprop="dateModified" datetime="2024-05-12T18:34:08+08:00">2024-05-12</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -220,7 +220,7 @@
     
     
     
-    <div class="post-body" itemprop="articleBody"><h1 id="Cgroup-DIsk-IO-Deep-Dive"><a href="#Cgroup-DIsk-IO-Deep-Dive" class="headerlink" title="Cgroup DIsk IO Deep Dive"></a>Cgroup DIsk IO Deep Dive</h1><h3 id="1-What-the-cgroup-init-difference-between-v1-and-v2"><a href="#1-What-the-cgroup-init-difference-between-v1-and-v2" class="headerlink" title="1. What the cgroup init difference between v1 and v2"></a>1. What the cgroup init difference between v1 and v2</h3><p>We know the basic buffer IO flow is to write the data into a dirty page on memory, then an asynchronous writeback thread will flush the dirty page onto the disk. Unlike the direct IO, the buffer IO is not only controlled by the io controller but also controlled by the memory controller.</p>
+    <div class="post-body" itemprop="articleBody"><h3 id="What-the-cgroup-init-difference-between-v1-and-v2"><a href="#What-the-cgroup-init-difference-between-v1-and-v2" class="headerlink" title="What the cgroup init difference between v1 and v2"></a>What the cgroup init difference between v1 and v2</h3><p>We know the basic buffer IO flow is to write the data into a dirty page on memory, then an asynchronous writeback thread will flush the dirty page onto the disk. Unlike the direct IO, the buffer IO is not only controlled by the io controller but also controlled by the memory controller.</p>
 <p>In March 2014, kernel merged the pr<a target="_blank" rel="noopener" href="https://lwn.net/Articles/592434/"> cgroup: implement unified hierarchy</a> about unified architecture in cgroup, that is the basic design of cgroup v2.</p>
 <p>There is the code of the main process of cgroup init. In the process of cgroup init in the function of “cgroup_init”, after setting up the cgroup root, initiating the subsystem of the cgroups and creating the mountpoints, the kernel registers the different cgroup filesystems on that mount point according to different cgroup types:</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">int __init cgroup_init(void)</span><br><span class="line">&#123;</span><br><span class="line">           …</span><br><span class="line">    	BUG_ON(cgroup_setup_root(&amp;cgrp_dfl_root, 0));</span><br><span class="line">           …</span><br><span class="line">	for_each_subsys(ss, ssid) &#123;</span><br><span class="line">		if (ss-&gt;early_init) &#123;</span><br><span class="line">			struct cgroup_subsys_state *css =</span><br><span class="line">				init_css_set.subsys[ss-&gt;id];</span><br><span class="line"></span><br><span class="line">			css-&gt;id = cgroup_idr_alloc(&amp;ss-&gt;css_idr, css, 1, 2,</span><br><span class="line">						   GFP_KERNEL);</span><br><span class="line">			BUG_ON(css-&gt;id &lt; 0);</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			cgroup_init_subsys(ss, false);</span><br><span class="line">		&#125;</span><br><span class="line">                      …</span><br><span class="line">		if (ss-&gt;dfl_cftypes == ss-&gt;legacy_cftypes) &#123;</span><br><span class="line">			WARN_ON(cgroup_add_cftypes(ss, ss-&gt;dfl_cftypes));</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			WARN_ON(cgroup_add_dfl_cftypes(ss, ss-&gt;dfl_cftypes));</span><br><span class="line">			WARN_ON(cgroup_add_legacy_cftypes(ss, ss-&gt;legacy_cftypes));</span><br><span class="line">		&#125;</span><br><span class="line">           &#125;</span><br><span class="line">           …</span><br><span class="line">	WARN_ON(sysfs_create_mount_point(fs_kobj, &quot;cgroup&quot;));</span><br><span class="line">	WARN_ON(register_filesystem(&amp;cgroup_fs_type));</span><br><span class="line">	WARN_ON(register_filesystem(&amp;cgroup2_fs_type));</span><br><span class="line">	WARN_ON(!proc_create_single(&quot;cgroups&quot;, 0, NULL, proc_cgroupstats_show));</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
@@ -247,7 +247,7 @@
 
 
 
-<h3 id="3-How-kernel-implement-the-cgroup-v2-writeback"><a href="#3-How-kernel-implement-the-cgroup-v2-writeback" class="headerlink" title="3. How kernel implement the cgroup v2 writeback"></a>3. How kernel implement the cgroup v2 writeback</h3><p>After the kernel added a unified cgroup hierarchy, another patch <a target="_blank" rel="noopener" href="https://lwn.net/Articles/628631/">writeback: cgroup writeback support</a> merged in January, 2015. It adds a feature and framework to support the writeback control by cgroup. Then the ext4 filesystem added the support with writeback cgroup <a target="_blank" rel="noopener" href="https://lwn.net/Articles/648299/">ext4: implement cgroup writeback support</a> at Jun, 2015. But xfs filesystem implements the support at <a target="_blank" rel="noopener" href="https://patchwork.kernel.org/project/xfs/patch/f13839700d372a4663a08a11883e9c89b13056ca.1521752282.git.shli@fb.com/">[V2] xfs: implement cgroup writeback support</a> on March, 2018. So on some old kernel versions, the xfs filesystem does not support cgroup writeback. </p>
+<h3 id="How-kernel-implement-the-cgroup-v2-writeback"><a href="#How-kernel-implement-the-cgroup-v2-writeback" class="headerlink" title="How kernel implement the cgroup v2 writeback"></a>How kernel implement the cgroup v2 writeback</h3><p>After the kernel added a unified cgroup hierarchy, another patch <a target="_blank" rel="noopener" href="https://lwn.net/Articles/628631/">writeback: cgroup writeback support</a> merged in January, 2015. It adds a feature and framework to support the writeback control by cgroup. Then the ext4 filesystem added the support with writeback cgroup <a target="_blank" rel="noopener" href="https://lwn.net/Articles/648299/">ext4: implement cgroup writeback support</a> at Jun, 2015. But xfs filesystem implements the support at <a target="_blank" rel="noopener" href="https://patchwork.kernel.org/project/xfs/patch/f13839700d372a4663a08a11883e9c89b13056ca.1521752282.git.shli@fb.com/">[V2] xfs: implement cgroup writeback support</a> on March, 2018. So on some old kernel versions, the xfs filesystem does not support cgroup writeback. </p>
 <p>Now let’s do the deep dive about how the kernel implements the cgroup writeback. The implementation of cgroup writeback is complex with many different packages and adds many new changes after the original patch. Here we just analyze and focus on the latest kernel version and skip the history and change from the first patch.</p>
 <p>As the write as example, there is the simplify flow from syscall of write to enter of block layer:</p>
 <p>There is full flow of write:</p>
@@ -316,11 +316,7 @@
 
 
 
-
-<ol start="3">
-<li>How IO throttling in block layer</li>
-</ol>
-<p>There are the different throttling files with cgroup v1 and v2</p>
+<h3 id="How-IO-throttling-in-block-layer"><a href="#How-IO-throttling-in-block-layer" class="headerlink" title="How IO throttling in block layer"></a>How IO throttling in block layer</h3><p>There are the different throttling files with cgroup v1 and v2</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line">static struct cftype throtl_legacy_files[] = &#123;</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.read_bps_device&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, bps[READ][LIMIT_MAX]),</span><br><span class="line">		.seq_show = tg_print_conf_u64,</span><br><span class="line">		.write = tg_set_conf_u64,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.write_bps_device&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, bps[WRITE][LIMIT_MAX]),</span><br><span class="line">		.seq_show = tg_print_conf_u64,</span><br><span class="line">		.write = tg_set_conf_u64,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.read_iops_device&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, iops[READ][LIMIT_MAX]),</span><br><span class="line">		.seq_show = tg_print_conf_uint,</span><br><span class="line">		.write = tg_set_conf_uint,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.write_iops_device&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, iops[WRITE][LIMIT_MAX]),</span><br><span class="line">		.seq_show = tg_print_conf_uint,</span><br><span class="line">		.write = tg_set_conf_uint,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.io_service_bytes&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, stat_bytes),</span><br><span class="line">		.seq_show = tg_print_rwstat,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.io_service_bytes_recursive&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, stat_bytes),</span><br><span class="line">		.seq_show = tg_print_rwstat_recursive,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.io_serviced&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, stat_ios),</span><br><span class="line">		.seq_show = tg_print_rwstat,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.name = &quot;throttle.io_serviced_recursive&quot;,</span><br><span class="line">		.private = offsetof(struct throtl_grp, stat_ios),</span><br><span class="line">		.seq_show = tg_print_rwstat_recursive,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123; &#125;	/* terminate */</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
 
 
