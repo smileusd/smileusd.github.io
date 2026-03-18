@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Deep dive into IP packet processing, routing decisions, and netfilter framework. Learn how Linux handles network layer protocols.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux Networking Deep Dive: Part 2 - Network Layer &amp; IP Processing">
+<meta property="og:url" content="http://example.com/2024/03/18/2024-03-18-linux-networking-part-2-network-layer/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Deep dive into IP packet processing, routing decisions, and netfilter framework. Learn how Linux handles network layer protocols.">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2024-03-18T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-03-17T11:13:45.562Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="linux-networking">
+<meta property="article:tag" content="ip-processing">
+<meta property="article:tag" content="routing">
+<meta property="article:tag" content="netfilter">
+<meta property="article:tag" content="network-layer">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://example.com/2024/03/18/2024-03-18-linux-networking-part-2-network-layer/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"http://example.com/2024/03/18/2024-03-18-linux-networking-part-2-network-layer/","path":"2024/03/18/2024-03-18-linux-networking-part-2-network-layer/","title":"Linux Networking Deep Dive: Part 2 - Network Layer & IP Processing"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux Networking Deep Dive: Part 2 - Network Layer & IP Processing | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Series-Navigation"><span class="nav-number">1.</span> <span class="nav-text">Series Navigation</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Introduction"><span class="nav-number">2.</span> <span class="nav-text">Introduction</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#IP-Packet-Processing-Pipeline"><span class="nav-number">3.</span> <span class="nav-text">IP Packet Processing Pipeline</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#The-Journey-Begins-ip-rcv"><span class="nav-number">3.1.</span> <span class="nav-text">The Journey Begins: ip_rcv()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Core-IP-Validation"><span class="nav-number">3.2.</span> <span class="nav-text">Core IP Validation</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Promiscuous-Mode-Filtering"><span class="nav-number">3.2.1.</span> <span class="nav-text">Promiscuous Mode Filtering</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Header-Length-Validation"><span class="nav-number">3.2.2.</span> <span class="nav-text">Header Length Validation</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Packet-Length-and-Checksum-Verification"><span class="nav-number">3.2.3.</span> <span class="nav-text">Packet Length and Checksum Verification</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Drop-Reasons-and-Statistics"><span class="nav-number">3.3.</span> <span class="nav-text">Drop Reasons and Statistics</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Routing-System-Deep-Dive"><span class="nav-number">4.</span> <span class="nav-text">Routing System Deep Dive</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Route-Lookup-Optimization"><span class="nav-number">4.1.</span> <span class="nav-text">Route Lookup Optimization</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-Route-Hint-Optimization"><span class="nav-number">4.1.1.</span> <span class="nav-text">1. Route Hint Optimization</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-Early-Demux-for-Performance"><span class="nav-number">4.1.2.</span> <span class="nav-text">2. Early Demux for Performance</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#FIB-Trie-Structure"><span class="nav-number">4.2.</span> <span class="nav-text">FIB Trie Structure</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Route-Lookup-Process"><span class="nav-number">4.3.</span> <span class="nav-text">Route Lookup Process</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Policy-Routing-and-Multiple-Tables"><span class="nav-number">4.4.</span> <span class="nav-text">Policy Routing and Multiple Tables</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Netfilter-Framework-Architecture"><span class="nav-number">5.</span> <span class="nav-text">Netfilter Framework Architecture</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#The-Five-Netfilter-Hooks"><span class="nav-number">5.1.</span> <span class="nav-text">The Five Netfilter Hooks</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-NF-INET-PRE-ROUTING"><span class="nav-number">5.1.1.</span> <span class="nav-text">1. NF_INET_PRE_ROUTING</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-NF-INET-LOCAL-IN"><span class="nav-number">5.1.2.</span> <span class="nav-text">2. NF_INET_LOCAL_IN</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-NF-INET-FORWARD"><span class="nav-number">5.1.3.</span> <span class="nav-text">3. NF_INET_FORWARD</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#4-NF-INET-LOCAL-OUT"><span class="nav-number">5.1.4.</span> <span class="nav-text">4. NF_INET_LOCAL_OUT</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#5-NF-INET-POST-ROUTING"><span class="nav-number">5.1.5.</span> <span class="nav-text">5. NF_INET_POST_ROUTING</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Hook-Processing-and-Priorities"><span class="nav-number">5.2.</span> <span class="nav-text">Hook Processing and Priorities</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Connection-Tracking-System"><span class="nav-number">5.3.</span> <span class="nav-text">Connection Tracking System</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Connection-States"><span class="nav-number">5.3.1.</span> <span class="nav-text">Connection States</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NAT-Implementation"><span class="nav-number">5.4.</span> <span class="nav-text">NAT Implementation</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Source-NAT-SNAT"><span class="nav-number">5.4.1.</span> <span class="nav-text">Source NAT (SNAT)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Destination-NAT-DNAT"><span class="nav-number">5.4.2.</span> <span class="nav-text">Destination NAT (DNAT)</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ICMP-Processing-and-Network-Diagnostics"><span class="nav-number">6.</span> <span class="nav-text">ICMP Processing and Network Diagnostics</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ICMP-Message-Processing"><span class="nav-number">6.1.</span> <span class="nav-text">ICMP Message Processing</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Message-Type-Handlers"><span class="nav-number">6.2.</span> <span class="nav-text">Message Type Handlers</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Path-MTU-Discovery"><span class="nav-number">6.3.</span> <span class="nav-text">Path MTU Discovery</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Rate-Limiting-and-Security"><span class="nav-number">6.4.</span> <span class="nav-text">Rate Limiting and Security</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Practical-Examples-and-Exercises"><span class="nav-number">7.</span> <span class="nav-text">Practical Examples and Exercises</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Network-Layer-Debugging-Tools"><span class="nav-number">7.1.</span> <span class="nav-text">Network Layer Debugging Tools</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-Route-Analysis"><span class="nav-number">7.1.1.</span> <span class="nav-text">1. Route Analysis</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-Packet-Processing-Analysis"><span class="nav-number">7.1.2.</span> <span class="nav-text">2. Packet Processing Analysis</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-Connection-Tracking-Monitoring"><span class="nav-number">7.1.3.</span> <span class="nav-text">3. Connection Tracking Monitoring</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Performance-Tuning-Examples"><span class="nav-number">7.2.</span> <span class="nav-text">Performance Tuning Examples</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-Routing-Performance"><span class="nav-number">7.2.1.</span> <span class="nav-text">1. Routing Performance</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-Netfilter-Optimization"><span class="nav-number">7.2.2.</span> <span class="nav-text">2. Netfilter Optimization</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Troubleshooting-Network-Layer-Issues"><span class="nav-number">7.3.</span> <span class="nav-text">Troubleshooting Network Layer Issues</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Common-Problems-and-Solutions"><span class="nav-number">7.3.1.</span> <span class="nav-text">Common Problems and Solutions</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#What%E2%80%99s-Next-Transport-Layer-Preview"><span class="nav-number">8.</span> <span class="nav-text">What’s Next: Transport Layer Preview</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Key-Takeaways"><span class="nav-number">9.</span> <span class="nav-text">Key Takeaways</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">33</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">23</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/03/18/2024-03-18-linux-networking-part-2-network-layer/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux Networking Deep Dive: Part 2 - Network Layer & IP Processing | Hexo">
+      <meta itemprop="description" content="Deep dive into IP packet processing, routing decisions, and netfilter framework. Learn how Linux handles network layer protocols.">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux Networking Deep Dive: Part 2 - Network Layer & IP Processing
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-18 10:00:00" itemprop="dateCreated datePublished" datetime="2024-03-18T10:00:00+08:00">2024-03-18</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-03-17 19:13:45" itemprop="dateModified" datetime="2026-03-17T19:13:45+08:00">2026-03-17</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/systems-programming/" itemprop="url" rel="index"><span itemprop="name">systems-programming</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/systems-programming/networking/" itemprop="url" rel="index"><span itemprop="name">networking</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+            <div class="post-description">Deep dive into IP packet processing, routing decisions, and netfilter framework. Learn how Linux handles network layer protocols.</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h2 id="Series-Navigation"><a href="#Series-Navigation" class="headerlink" title="Series Navigation"></a>Series Navigation</h2><p>This is <strong>Part 2</strong> of the Linux Networking Deep Dive series:</p>
+<ul>
+<li><a href="../2024-03-16-linux-networking-deep-dive-introduction/">Part 1: Foundation - Physical &amp; Link Layer</a> ← Previous</li>
+<li><strong>Part 2: Network Layer &amp; IP Processing</strong> ← You are here</li>
+<li>Part 3: Transport Layer &amp; Socket Processing → Coming Next</li>
+</ul>
+<h2 id="Introduction"><a href="#Introduction" class="headerlink" title="Introduction"></a>Introduction</h2><p>In <a href="../2024-03-16-linux-networking-deep-dive-introduction/">Part 1</a>, we explored the physical and link layer foundations of Linux networking, including network device registration, sk_buff management, and the transition from link layer to network layer. Now we dive into the network layer, where Linux makes critical routing decisions and applies powerful packet filtering and manipulation capabilities.</p>
+<p>The network layer is where packets begin their journey through the IP protocol stack, determining whether they should be delivered locally, forwarded to another host, or processed by specialized services. This layer implements the core Internet Protocol (IPv4&#x2F;IPv6) processing, sophisticated routing algorithms, and the netfilter framework that powers iptables, NAT, and firewall functionality.</p>
+<h2 id="IP-Packet-Processing-Pipeline"><a href="#IP-Packet-Processing-Pipeline" class="headerlink" title="IP Packet Processing Pipeline"></a>IP Packet Processing Pipeline</h2><h3 id="The-Journey-Begins-ip-rcv"><a href="#The-Journey-Begins-ip-rcv" class="headerlink" title="The Journey Begins: ip_rcv()"></a>The Journey Begins: ip_rcv()</h3><p>Every IPv4 packet’s journey through the Linux network stack begins in the <code>ip_rcv()</code> function, located in <code>net/ipv4/ip_input.c</code>. This is where the link layer hands off packets to the network layer for processing.</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">ip_rcv</span><span class="params">(<span class="keyword">struct</span> sk_buff *skb, <span class="keyword">struct</span> net_device *dev, <span class="keyword">struct</span> packet_type *pt,</span></span><br><span class="line"><span class="params">           <span class="keyword">struct</span> net_device *orig_dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">net</span> *<span class="title">net</span> =</span> dev_net(dev);</span><br><span class="line"></span><br><span class="line">    skb = ip_rcv_core(skb, net);</span><br><span class="line">    <span class="keyword">if</span> (skb == <span class="literal">NULL</span>)</span><br><span class="line">        <span class="keyword">return</span> NET_RX_DROP;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> NF_HOOK(NFPROTO_IPV4, NF_INET_PRE_ROUTING,</span><br><span class="line">                   net, <span class="literal">NULL</span>, skb, dev, <span class="literal">NULL</span>,</span><br><span class="line">                   ip_rcv_finish);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>This function demonstrates several key design principles:</p>
+<ul>
+<li><strong>Network Namespace Awareness</strong>: Uses <code>dev_net(dev)</code> to operate within the correct network namespace</li>
+<li><strong>Two-Stage Processing</strong>: Core validation followed by netfilter hook processing</li>
+<li><strong>Early Exit Strategy</strong>: Invalid packets are dropped before expensive netfilter processing</li>
+</ul>
+<h3 id="Core-IP-Validation"><a href="#Core-IP-Validation" class="headerlink" title="Core IP Validation"></a>Core IP Validation</h3><p>The <code>ip_rcv_core()</code> function performs essential sanity checks that protect the system from malformed packets:</p>
+<h4 id="Promiscuous-Mode-Filtering"><a href="#Promiscuous-Mode-Filtering" class="headerlink" title="Promiscuous Mode Filtering"></a>Promiscuous Mode Filtering</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (skb-&gt;pkt_type == PACKET_OTHERHOST) &#123;</span><br><span class="line">    dev_core_stats_rx_otherhost_dropped_inc(skb-&gt;dev);</span><br><span class="line">    drop_reason = SKB_DROP_REASON_OTHERHOST;</span><br><span class="line">    <span class="keyword">goto</span> drop;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>This check ensures that packets captured in promiscuous mode but not destined for this host are immediately dropped, preventing unnecessary processing.</p>
+<h4 id="Header-Length-Validation"><a href="#Header-Length-Validation" class="headerlink" title="Header Length Validation"></a>Header Length Validation</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (!pskb_may_pull(skb, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> iphdr)))</span><br><span class="line">    <span class="keyword">goto</span> inhdr_error;</span><br><span class="line"></span><br><span class="line">iph = ip_hdr(skb);</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (iph-&gt;version != <span class="number">4</span>)</span><br><span class="line">    <span class="keyword">goto</span> inhdr_error;</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (iph-&gt;ihl &lt; <span class="number">5</span>)  <span class="comment">// Minimum header length (20 bytes)</span></span><br><span class="line">    <span class="keyword">goto</span> inhdr_error;</span><br></pre></td></tr></table></figure>
+
+<p>These checks ensure that the packet contains a valid IPv4 header with the minimum required 20 bytes.</p>
+<h4 id="Packet-Length-and-Checksum-Verification"><a href="#Packet-Length-and-Checksum-Verification" class="headerlink" title="Packet Length and Checksum Verification"></a>Packet Length and Checksum Verification</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">len = ntohs(iph-&gt;tot_len);</span><br><span class="line"><span class="keyword">if</span> (skb-&gt;len &lt; len) &#123;</span><br><span class="line">    drop_reason = SKB_DROP_REASON_PKT_TOO_SMALL;</span><br><span class="line">    __IP_INC_STATS(net, IPSTATS_MIB_INTRUNCATEDPKTS);</span><br><span class="line">    <span class="keyword">goto</span> drop;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (ip_fast_csum((u8 *)iph, iph-&gt;ihl)) &#123;</span><br><span class="line">    drop_reason = SKB_DROP_REASON_IP_CSUM;</span><br><span class="line">    __IP_INC_STATS(net, IPSTATS_MIB_INHDRERRORS);</span><br><span class="line">    <span class="keyword">goto</span> drop;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>The kernel performs comprehensive validation including length consistency and header checksum verification using optimized assembly instructions.</p>
+<h3 id="Drop-Reasons-and-Statistics"><a href="#Drop-Reasons-and-Statistics" class="headerlink" title="Drop Reasons and Statistics"></a>Drop Reasons and Statistics</h3><p>Linux maintains detailed statistics about why packets are dropped, which is invaluable for troubleshooting:</p>
+<table>
+<thead>
+<tr>
+<th>Drop Reason</th>
+<th>SNMP Counter</th>
+<th>Common Cause</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SKB_DROP_REASON_OTHERHOST</code></td>
+<td>-</td>
+<td>Promiscuous mode filter</td>
+</tr>
+<tr>
+<td><code>SKB_DROP_REASON_PKT_TOO_SMALL</code></td>
+<td><code>IPSTATS_MIB_INTRUNCATEDPKTS</code></td>
+<td>Packet smaller than header indicates</td>
+</tr>
+<tr>
+<td><code>SKB_DROP_REASON_IP_CSUM</code></td>
+<td><code>IPSTATS_MIB_INHDRERRORS</code></td>
+<td>Invalid IP header checksum</td>
+</tr>
+<tr>
+<td><code>SKB_DROP_REASON_IP_INHDR</code></td>
+<td><code>IPSTATS_MIB_INHDRERRORS</code></td>
+<td>Malformed IP header</td>
+</tr>
+</tbody></table>
+<h2 id="Routing-System-Deep-Dive"><a href="#Routing-System-Deep-Dive" class="headerlink" title="Routing System Deep Dive"></a>Routing System Deep Dive</h2><p>After successful validation, packets enter the routing subsystem through the <code>ip_rcv_finish()</code> function. This is where Linux determines the packet’s ultimate destination.</p>
+<h3 id="Route-Lookup-Optimization"><a href="#Route-Lookup-Optimization" class="headerlink" title="Route Lookup Optimization"></a>Route Lookup Optimization</h3><p>Modern Linux implements several optimizations to minimize routing lookup overhead:</p>
+<h4 id="1-Route-Hint-Optimization"><a href="#1-Route-Hint-Optimization" class="headerlink" title="1. Route Hint Optimization"></a>1. Route Hint Optimization</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (ip_can_use_hint(skb, iph, hint)) &#123;</span><br><span class="line">    err = ip_route_use_hint(skb, iph-&gt;daddr, iph-&gt;saddr, iph-&gt;tos,</span><br><span class="line">                            dev, hint);</span><br><span class="line">    <span class="keyword">if</span> (unlikely(err))</span><br><span class="line">        <span class="keyword">goto</span> drop_error;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>For packet streams, the kernel can reuse routing decisions from previous packets in the same flow, significantly reducing CPU overhead.</p>
+<h4 id="2-Early-Demux-for-Performance"><a href="#2-Early-Demux-for-Performance" class="headerlink" title="2. Early Demux for Performance"></a>2. Early Demux for Performance</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (READ_ONCE(net-&gt;ipv4.sysctl_ip_early_demux) &amp;&amp;</span><br><span class="line">    !skb_dst(skb) &amp;&amp;</span><br><span class="line">    !skb-&gt;sk &amp;&amp;</span><br><span class="line">    !ip_is_fragment(iph)) &#123;</span><br><span class="line">    <span class="comment">// Protocol-specific early demux</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Early demux allows established TCP connections to bypass full routing lookup by associating packets directly with their sockets.</p>
+<h3 id="FIB-Trie-Structure"><a href="#FIB-Trie-Structure" class="headerlink" title="FIB Trie Structure"></a>FIB Trie Structure</h3><p>Linux uses a compressed trie (Patricia tree) for efficient route lookup, implemented in <code>net/ipv4/fib_trie.c</code>:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">key_vector</span> &#123;</span></span><br><span class="line">    t_key key;                <span class="comment">// Routing prefix</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span> pos;        <span class="comment">// Bit position</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span> bits;       <span class="comment">// Number of bits</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span> slen;       <span class="comment">// Suffix length</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">hlist_head</span> <span class="title">leaf</span>;</span>     <span class="comment">// Terminal nodes (routes)</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">key_vector</span> __<span class="title">rcu</span> *<span class="title">tnode</span>[0];</span> <span class="comment">// Internal nodes</span></span><br><span class="line">    &#125;;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>This structure provides several advantages:</p>
+<ul>
+<li><strong>O(log n) lookup time</strong>: Efficient for large routing tables</li>
+<li><strong>Memory efficient</strong>: Compressed representation reduces memory usage</li>
+<li><strong>Cache-friendly</strong>: Locality of reference improves performance</li>
+<li><strong>Lock-free reads</strong>: RCU protection allows concurrent access</li>
+</ul>
+<h3 id="Route-Lookup-Process"><a href="#Route-Lookup-Process" class="headerlink" title="Route Lookup Process"></a>Route Lookup Process</h3><p>The core lookup function <code>fib_lookup()</code> implements a layered approach:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">fib_lookup</span><span class="params">(<span class="keyword">struct</span> net *net, <span class="keyword">struct</span> flowi4 *flp,</span></span><br><span class="line"><span class="params">               <span class="keyword">struct</span> fib_result *res, <span class="type">unsigned</span> <span class="type">int</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fib_table</span> *<span class="title">tb</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// Check local table first</span></span><br><span class="line">    tb = fib_get_table(net, RT_TABLE_LOCAL);</span><br><span class="line">    <span class="keyword">if</span> (tb &amp;&amp; !__fib_lookup(net, flp, res, flags))</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Check main table</span></span><br><span class="line">    tb = fib_get_table(net, RT_TABLE_MAIN);</span><br><span class="line">    <span class="keyword">if</span> (tb &amp;&amp; !__fib_lookup(net, flp, res, flags))</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Apply policy routing rules</span></span><br><span class="line">    <span class="keyword">return</span> fib_rules_lookup(net, flp, res);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>This approach checks tables in priority order:</p>
+<ol>
+<li><strong>Local table</strong>: Routes to local interfaces and addresses</li>
+<li><strong>Main table</strong>: Normal routing entries</li>
+<li><strong>Policy routing</strong>: Rule-based routing for advanced configurations</li>
+</ol>
+<h3 id="Policy-Routing-and-Multiple-Tables"><a href="#Policy-Routing-and-Multiple-Tables" class="headerlink" title="Policy Routing and Multiple Tables"></a>Policy Routing and Multiple Tables</h3><p>Linux supports up to 255 routing tables, enabling sophisticated policy-based routing:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Default routing rule priority</span></span><br><span class="line">0:    from all lookup <span class="built_in">local</span>     <span class="comment"># Local routes</span></span><br><span class="line">32766: from all lookup main      <span class="comment"># Main routing table</span></span><br><span class="line">32767: from all lookup default   <span class="comment"># Default routes</span></span><br></pre></td></tr></table></figure>
+
+<p>Policy rules can make routing decisions based on:</p>
+<ul>
+<li><strong>Source address</strong>: Route packets from specific networks differently</li>
+<li><strong>Type of Service</strong>: Prioritize traffic based on TOS field</li>
+<li><strong>Input interface</strong>: Apply different policies per interface</li>
+<li><strong>Packet marks</strong>: Route based on netfilter marks</li>
+</ul>
+<p>Example policy routing configuration:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Route traffic from 192.168.1.0/24 via different gateway</span></span><br><span class="line">ip rule add from 192.168.1.0/24 table 100</span><br><span class="line">ip route add default via 10.0.1.1 table 100</span><br><span class="line"></span><br><span class="line"><span class="comment"># Route high-priority traffic differently</span></span><br><span class="line">ip rule add tos 0x10 table 200</span><br><span class="line">ip route add default via 10.0.2.1 table 200</span><br></pre></td></tr></table></figure>
+
+<h2 id="Netfilter-Framework-Architecture"><a href="#Netfilter-Framework-Architecture" class="headerlink" title="Netfilter Framework Architecture"></a>Netfilter Framework Architecture</h2><p>The netfilter framework is the cornerstone of Linux packet filtering, providing hooks at strategic points in the packet processing pipeline.</p>
+<h3 id="The-Five-Netfilter-Hooks"><a href="#The-Five-Netfilter-Hooks" class="headerlink" title="The Five Netfilter Hooks"></a>The Five Netfilter Hooks</h3><p>Netfilter defines five hook points in the IPv4 stack, each serving specific purposes:</p>
+<h4 id="1-NF-INET-PRE-ROUTING"><a href="#1-NF-INET-PRE-ROUTING" class="headerlink" title="1. NF_INET_PRE_ROUTING"></a>1. NF_INET_PRE_ROUTING</h4><p><strong>Location</strong>: After packet arrival, before routing decision<br><strong>Use Cases</strong>:</p>
+<ul>
+<li><strong>DNAT (Destination NAT)</strong>: Redirect packets to different destinations</li>
+<li><strong>Connection Tracking</strong>: Establish connection state</li>
+<li><strong>Early packet filtering</strong>: Drop malicious packets before routing overhead</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">return</span> NF_HOOK(NFPROTO_IPV4, NF_INET_PRE_ROUTING,</span><br><span class="line">               net, <span class="literal">NULL</span>, skb, dev, <span class="literal">NULL</span>,</span><br><span class="line">               ip_rcv_finish);</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-NF-INET-LOCAL-IN"><a href="#2-NF-INET-LOCAL-IN" class="headerlink" title="2. NF_INET_LOCAL_IN"></a>2. NF_INET_LOCAL_IN</h4><p><strong>Location</strong>: After routing, for packets destined locally<br><strong>Use Cases</strong>:</p>
+<ul>
+<li><strong>Local packet filtering</strong>: Control access to local services</li>
+<li><strong>Service protection</strong>: Implement rate limiting and access controls</li>
+<li><strong>Logging and auditing</strong>: Monitor incoming connections</li>
+</ul>
+<h4 id="3-NF-INET-FORWARD"><a href="#3-NF-INET-FORWARD" class="headerlink" title="3. NF_INET_FORWARD"></a>3. NF_INET_FORWARD</h4><p><strong>Location</strong>: After routing, for packets to be forwarded<br><strong>Use Cases</strong>:</p>
+<ul>
+<li><strong>Firewall rules</strong>: Control packet forwarding between networks</li>
+<li><strong>Bandwidth management</strong>: Shape traffic flowing through the system</li>
+<li><strong>VPN processing</strong>: Handle tunneled traffic</li>
+</ul>
+<h4 id="4-NF-INET-LOCAL-OUT"><a href="#4-NF-INET-LOCAL-OUT" class="headerlink" title="4. NF_INET_LOCAL_OUT"></a>4. NF_INET_LOCAL_OUT</h4><p><strong>Location</strong>: For locally generated packets, before routing<br><strong>Use Cases</strong>:</p>
+<ul>
+<li><strong>Outbound filtering</strong>: Control local application traffic</li>
+<li><strong>SNAT (Source NAT)</strong>: Modify source addresses for outbound packets</li>
+<li><strong>Traffic shaping</strong>: Apply QoS to outbound traffic</li>
+</ul>
+<h4 id="5-NF-INET-POST-ROUTING"><a href="#5-NF-INET-POST-ROUTING" class="headerlink" title="5. NF_INET_POST_ROUTING"></a>5. NF_INET_POST_ROUTING</h4><p><strong>Location</strong>: After routing, just before packet transmission<br><strong>Use Cases</strong>:</p>
+<ul>
+<li><strong>Final NAT</strong>: Last chance for address translation</li>
+<li><strong>Traffic accounting</strong>: Count and classify outbound traffic</li>
+<li><strong>QoS marking</strong>: Set DSCP&#x2F;TOS values for traffic prioritization</li>
+</ul>
+<h3 id="Hook-Processing-and-Priorities"><a href="#Hook-Processing-and-Priorities" class="headerlink" title="Hook Processing and Priorities"></a>Hook Processing and Priorities</h3><p>Hooks are processed in priority order, with well-defined standard priorities:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> NF_IP_PRI_RAW_BEFORE_DEFRAG -450</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NF_IP_PRI_CONNTRACK_DEFRAG  -400</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NF_IP_PRI_RAW               -300</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NF_IP_PRI_CONNTRACK         -200</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NF_IP_PRI_MANGLE            -150</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NF_IP_PRI_NAT_DST           -100</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NF_IP_PRI_FILTER              0</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NF_IP_PRI_NAT_SRC            100</span></span><br></pre></td></tr></table></figure>
+
+<p>This ordering ensures that:</p>
+<ul>
+<li><strong>Connection tracking</strong> establishes state before filtering</li>
+<li><strong>Destination NAT</strong> occurs before routing decisions</li>
+<li><strong>Source NAT</strong> happens after routing is complete</li>
+<li><strong>Raw table</strong> can bypass connection tracking when needed</li>
+</ul>
+<h3 id="Connection-Tracking-System"><a href="#Connection-Tracking-System" class="headerlink" title="Connection Tracking System"></a>Connection Tracking System</h3><p>Connection tracking (conntrack) maintains state information for network connections, enabling stateful packet filtering:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nf_conn</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">nf_conntrack</span>         <span class="title">ct_general</span>;</span></span><br><span class="line">    <span class="type">spinlock_t</span>                  lock;</span><br><span class="line">    u16                         cpu;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">nf_conntrack_tuple_hash</span> <span class="title">tuplehash</span>[<span class="title">IP_CT_DIR_MAX</span>];</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>               status;</span><br><span class="line">    u32                         timeout;</span><br><span class="line">    <span class="comment">// ... additional fields</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h4 id="Connection-States"><a href="#Connection-States" class="headerlink" title="Connection States"></a>Connection States</h4><p>Different protocols maintain different state information:</p>
+<p><strong>TCP States</strong>: <code>SYN_SENT</code>, <code>SYN_RECV</code>, <code>ESTABLISHED</code>, <code>FIN_WAIT</code>, <code>CLOSE_WAIT</code>, <code>TIME_WAIT</code>, etc.</p>
+<p><strong>UDP States</strong>: <code>NEW</code>, <code>ESTABLISHED</code>, <code>UNREPLIED</code></p>
+<p><strong>ICMP States</strong>: <code>NEW</code>, <code>ESTABLISHED</code> (for request&#x2F;reply pairs)</p>
+<p>Connection tracking enables powerful filtering rules:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Allow established connections</span></span><br><span class="line">iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT</span><br><span class="line"></span><br><span class="line"><span class="comment"># Drop invalid packets</span></span><br><span class="line">iptables -A INPUT -m conntrack --ctstate INVALID -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="NAT-Implementation"><a href="#NAT-Implementation" class="headerlink" title="NAT Implementation"></a>NAT Implementation</h3><p>Network Address Translation integrates deeply with connection tracking:</p>
+<h4 id="Source-NAT-SNAT"><a href="#Source-NAT-SNAT" class="headerlink" title="Source NAT (SNAT)"></a>Source NAT (SNAT)</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Basic SNAT for private network</span></span><br><span class="line">iptables -t nat -A POSTROUTING -s 192.168.1.0/24 -j SNAT --to-source 203.0.113.1</span><br><span class="line"></span><br><span class="line"><span class="comment"># MASQUERADE for dynamic IP addresses</span></span><br><span class="line">iptables -t nat -A POSTROUTING -s 192.168.1.0/24 -o eth0 -j MASQUERADE</span><br></pre></td></tr></table></figure>
+
+<h4 id="Destination-NAT-DNAT"><a href="#Destination-NAT-DNAT" class="headerlink" title="Destination NAT (DNAT)"></a>Destination NAT (DNAT)</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Port forwarding to internal server</span></span><br><span class="line">iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 192.168.1.100:8080</span><br><span class="line"></span><br><span class="line"><span class="comment"># Load balancing across multiple servers</span></span><br><span class="line">iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 192.168.1.100-192.168.1.103</span><br></pre></td></tr></table></figure>
+
+<h2 id="ICMP-Processing-and-Network-Diagnostics"><a href="#ICMP-Processing-and-Network-Diagnostics" class="headerlink" title="ICMP Processing and Network Diagnostics"></a>ICMP Processing and Network Diagnostics</h2><p>The Internet Control Message Protocol (ICMP) provides essential diagnostic and error reporting capabilities.</p>
+<h3 id="ICMP-Message-Processing"><a href="#ICMP-Message-Processing" class="headerlink" title="ICMP Message Processing"></a>ICMP Message Processing</h3><p>ICMP processing begins in <code>icmp_rcv()</code>, which validates and dispatches messages:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">icmp_rcv</span><span class="params">(<span class="keyword">struct</span> sk_buff *skb)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">icmphdr</span> *<span class="title">icmph</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// Security policy check</span></span><br><span class="line">    <span class="keyword">if</span> (!xfrm4_policy_check(<span class="literal">NULL</span>, XFRM_POLICY_IN, skb))</span><br><span class="line">        <span class="keyword">goto</span> drop;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Header validation</span></span><br><span class="line">    <span class="keyword">if</span> (!pskb_may_pull(skb, <span class="keyword">sizeof</span>(*icmph)))</span><br><span class="line">        <span class="keyword">goto</span> drop;</span><br><span class="line"></span><br><span class="line">    icmph = icmp_hdr(skb);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Checksum verification</span></span><br><span class="line">    <span class="keyword">if</span> (skb_checksum_simple_validate(skb))</span><br><span class="line">        <span class="keyword">goto</span> drop;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Dispatch to appropriate handler</span></span><br><span class="line">    <span class="keyword">return</span> icmp_pointers[icmph-&gt;type].handler(skb);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Message-Type-Handlers"><a href="#Message-Type-Handlers" class="headerlink" title="Message Type Handlers"></a>Message Type Handlers</h3><p>Different ICMP message types have specialized handlers:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Handler</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0 (Echo Reply)</td>
+<td><code>ping_rcv</code></td>
+<td>Ping responses</td>
+</tr>
+<tr>
+<td>3 (Dest Unreachable)</td>
+<td><code>icmp_unreach</code></td>
+<td>Network&#x2F;host&#x2F;port unreachable</td>
+</tr>
+<tr>
+<td>5 (Redirect)</td>
+<td><code>icmp_redirect</code></td>
+<td>Route optimization</td>
+</tr>
+<tr>
+<td>8 (Echo Request)</td>
+<td><code>icmp_echo</code></td>
+<td>Ping requests</td>
+</tr>
+<tr>
+<td>11 (Time Exceeded)</td>
+<td><code>icmp_unreach</code></td>
+<td>TTL expiration</td>
+</tr>
+</tbody></table>
+<h3 id="Path-MTU-Discovery"><a href="#Path-MTU-Discovery" class="headerlink" title="Path MTU Discovery"></a>Path MTU Discovery</h3><p>ICMP Type 3, Code 4 (Fragmentation Needed) implements Path MTU Discovery:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">icmp_unreach</span><span class="params">(<span class="keyword">struct</span> sk_buff *skb)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">icmphdr</span> *<span class="title">icmph</span> =</span> icmp_hdr(skb);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">switch</span> (icmph-&gt;code) &#123;</span><br><span class="line">    <span class="keyword">case</span> ICMP_FRAG_NEEDED:</span><br><span class="line">        info = ntohs(icmph-&gt;un.frag.mtu);</span><br><span class="line">        <span class="comment">// Update route cache with new MTU</span></span><br><span class="line">        dst_update_pmtu(skb_dst(skb), <span class="literal">NULL</span>, skb, info, <span class="literal">true</span>);</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Deliver error to socket layer</span></span><br><span class="line">    icmp_socket_deliver(skb, info);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>This mechanism allows applications to discover the optimal packet size for a network path, improving efficiency and reducing fragmentation.</p>
+<h3 id="Rate-Limiting-and-Security"><a href="#Rate-Limiting-and-Security" class="headerlink" title="Rate Limiting and Security"></a>Rate Limiting and Security</h3><p>ICMP implements sophisticated rate limiting to prevent abuse:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">bool</span> <span class="title function_">icmp_global_allow</span><span class="params">(<span class="keyword">struct</span> net *net, <span class="type">int</span> *credit)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> delta = jiffies - net-&gt;ipv4.icmp_global_credit_last_update;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (delta &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="type">int</span> new_credit = delta * net-&gt;ipv4.icmp_global_credit_rate;</span><br><span class="line">        net-&gt;ipv4.icmp_global_credit = <span class="type">min_t</span>(<span class="type">int</span>,</span><br><span class="line">            net-&gt;ipv4.icmp_global_credit + new_credit,</span><br><span class="line">            net-&gt;ipv4.icmp_global_credit_cap);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (net-&gt;ipv4.icmp_global_credit &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        net-&gt;ipv4.icmp_global_credit--;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Configuration options for ICMP security:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Configure ICMP rate limiting</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;net.ipv4.icmp_ratelimit = 1000&#x27;</span> &gt;&gt; /etc/sysctl.conf</span><br><span class="line"></span><br><span class="line"><span class="comment"># Disable ping responses (security hardening)</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;net.ipv4.icmp_echo_ignore_all = 1&#x27;</span> &gt;&gt; /etc/sysctl.conf</span><br><span class="line"></span><br><span class="line"><span class="comment"># Disable ICMP redirects (prevent attacks)</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;net.ipv4.conf.all.accept_redirects = 0&#x27;</span> &gt;&gt; /etc/sysctl.conf</span><br></pre></td></tr></table></figure>
+
+<h2 id="Practical-Examples-and-Exercises"><a href="#Practical-Examples-and-Exercises" class="headerlink" title="Practical Examples and Exercises"></a>Practical Examples and Exercises</h2><h3 id="Network-Layer-Debugging-Tools"><a href="#Network-Layer-Debugging-Tools" class="headerlink" title="Network Layer Debugging Tools"></a>Network Layer Debugging Tools</h3><h4 id="1-Route-Analysis"><a href="#1-Route-Analysis" class="headerlink" title="1. Route Analysis"></a>1. Route Analysis</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Show routing table</span></span><br><span class="line">ip route show</span><br><span class="line"></span><br><span class="line"><span class="comment"># Test route lookup for specific destination</span></span><br><span class="line">ip route get 8.8.8.8</span><br><span class="line"></span><br><span class="line"><span class="comment"># Show policy routing rules</span></span><br><span class="line">ip rule show</span><br><span class="line"></span><br><span class="line"><span class="comment"># Monitor routing decisions</span></span><br><span class="line">ip monitor route</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-Packet-Processing-Analysis"><a href="#2-Packet-Processing-Analysis" class="headerlink" title="2. Packet Processing Analysis"></a>2. Packet Processing Analysis</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># View IP processing statistics</span></span><br><span class="line"><span class="built_in">cat</span> /proc/net/snmp | grep <span class="string">&quot;Ip:&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Monitor packet drops</span></span><br><span class="line">watch <span class="string">&#x27;cat /proc/net/snmp | grep &quot;Ip:&quot; | grep -E &quot;(InDiscards|InErrors)&quot;&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Check netfilter statistics</span></span><br><span class="line"><span class="built_in">cat</span> /proc/net/netfilter/nf_log</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-Connection-Tracking-Monitoring"><a href="#3-Connection-Tracking-Monitoring" class="headerlink" title="3. Connection Tracking Monitoring"></a>3. Connection Tracking Monitoring</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># View active connections</span></span><br><span class="line"><span class="built_in">cat</span> /proc/net/nf_conntrack</span><br><span class="line"></span><br><span class="line"><span class="comment"># Monitor connection events</span></span><br><span class="line">conntrack -E</span><br><span class="line"></span><br><span class="line"><span class="comment"># Show connection tracking statistics</span></span><br><span class="line"><span class="built_in">cat</span> /proc/net/stat/nf_conntrack</span><br></pre></td></tr></table></figure>
+
+<h3 id="Performance-Tuning-Examples"><a href="#Performance-Tuning-Examples" class="headerlink" title="Performance Tuning Examples"></a>Performance Tuning Examples</h3><h4 id="1-Routing-Performance"><a href="#1-Routing-Performance" class="headerlink" title="1. Routing Performance"></a>1. Routing Performance</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Enable early demux for better performance</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;net.ipv4.ip_early_demux = 1&#x27;</span> &gt;&gt; /etc/sysctl.conf</span><br><span class="line"></span><br><span class="line"><span class="comment"># Tune FIB hash table size</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;net.ipv4.fib_multipath_hash_policy = 1&#x27;</span> &gt;&gt; /etc/sysctl.conf</span><br><span class="line"></span><br><span class="line"><span class="comment"># Optimize route cache</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;net.ipv4.route.gc_thresh = 32768&#x27;</span> &gt;&gt; /etc/sysctl.conf</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-Netfilter-Optimization"><a href="#2-Netfilter-Optimization" class="headerlink" title="2. Netfilter Optimization"></a>2. Netfilter Optimization</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Increase connection tracking table size</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;net.netfilter.nf_conntrack_max = 262144&#x27;</span> &gt;&gt; /etc/sysctl.conf</span><br><span class="line"></span><br><span class="line"><span class="comment"># Optimize hash table buckets</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;net.netfilter.nf_conntrack_buckets = 65536&#x27;</span> &gt;&gt; /etc/sysctl.conf</span><br><span class="line"></span><br><span class="line"><span class="comment"># Tune connection timeouts</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;net.netfilter.nf_conntrack_tcp_timeout_established = 432000&#x27;</span> &gt;&gt; /etc/sysctl.conf</span><br></pre></td></tr></table></figure>
+
+<h3 id="Troubleshooting-Network-Layer-Issues"><a href="#Troubleshooting-Network-Layer-Issues" class="headerlink" title="Troubleshooting Network Layer Issues"></a>Troubleshooting Network Layer Issues</h3><h4 id="Common-Problems-and-Solutions"><a href="#Common-Problems-and-Solutions" class="headerlink" title="Common Problems and Solutions"></a>Common Problems and Solutions</h4><p><strong>1. Packet Drops at IP Layer</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Check for header errors</span></span><br><span class="line">netstat -s | grep -i <span class="string">&quot;ip.*error&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Monitor specific drop reasons</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; /sys/kernel/debug/tracing/events/skb/kfree_skb/enable</span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/tracing/trace</span><br></pre></td></tr></table></figure>
+
+<p><strong>2. Routing Issues</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Verify route lookup</span></span><br><span class="line">traceroute -n destination_ip</span><br><span class="line"></span><br><span class="line"><span class="comment"># Check routing table consistency</span></span><br><span class="line">ip route show table all | grep destination_network</span><br><span class="line"></span><br><span class="line"><span class="comment"># Test policy routing</span></span><br><span class="line">ip route get destination_ip from source_ip</span><br></pre></td></tr></table></figure>
+
+<p><strong>3. Netfilter Problems</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Enable netfilter packet tracing</span></span><br><span class="line">iptables -t raw -A PREROUTING -j TRACE</span><br><span class="line"></span><br><span class="line"><span class="comment"># Monitor dropped packets</span></span><br><span class="line">iptables -L -n -v | grep DROP</span><br><span class="line"></span><br><span class="line"><span class="comment"># Check connection tracking issues</span></span><br><span class="line">dmesg | grep conntrack</span><br></pre></td></tr></table></figure>
+
+<h2 id="What’s-Next-Transport-Layer-Preview"><a href="#What’s-Next-Transport-Layer-Preview" class="headerlink" title="What’s Next: Transport Layer Preview"></a>What’s Next: Transport Layer Preview</h2><p>In Part 3, we’ll explore the transport layer where Linux implements TCP and UDP protocols. We’ll cover:</p>
+<ul>
+<li><strong>TCP State Management</strong>: Connection establishment, data transfer, and termination</li>
+<li><strong>Socket Layer Architecture</strong>: How applications interact with the network stack</li>
+<li><strong>Buffer Management</strong>: Socket buffers, congestion control, and flow control</li>
+<li><strong>Performance Optimization</strong>: TCP optimizations, zero-copy techniques, and offloading</li>
+<li><strong>UDP Processing</strong>: Connectionless protocol handling and multicast support</li>
+</ul>
+<p>The transport layer builds upon the network layer foundation we’ve covered here, using the routing decisions and connection tracking state to efficiently deliver data to applications.</p>
+<h2 id="Key-Takeaways"><a href="#Key-Takeaways" class="headerlink" title="Key Takeaways"></a>Key Takeaways</h2><p>The network layer represents a sophisticated balance of performance, security, and flexibility:</p>
+<ul>
+<li><strong>IP Processing Pipeline</strong>: Efficient validation and processing with detailed error tracking</li>
+<li><strong>Routing System</strong>: Scalable lookup algorithms with policy-based routing capabilities</li>
+<li><strong>Netfilter Framework</strong>: Powerful packet filtering and manipulation with minimal overhead</li>
+<li><strong>ICMP Integration</strong>: Essential diagnostics and error reporting with security protections</li>
+</ul>
+<p>Understanding these subsystems is crucial for:</p>
+<ul>
+<li><strong>Network Performance</strong>: Optimizing packet processing pipelines</li>
+<li><strong>Security Implementation</strong>: Effective firewall and NAT configurations</li>
+<li><strong>Troubleshooting</strong>: Diagnosing connectivity and routing issues</li>
+<li><strong>System Design</strong>: Making informed networking architecture decisions</li>
+</ul>
+<p>The Linux network layer’s careful design enables it to scale from embedded devices to high-performance routers and servers, while maintaining the flexibility needed for modern networking requirements including containers, virtualization, and cloud environments.</p>
+<hr>
+<p><em>This post is part of the Linux Networking Deep Dive series. Stay tuned for Part 3 where we’ll explore the transport layer and socket processing!</em></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/linux-networking/" rel="tag"># linux-networking</a>
+              <a href="/tags/ip-processing/" rel="tag"># ip-processing</a>
+              <a href="/tags/routing/" rel="tag"># routing</a>
+              <a href="/tags/netfilter/" rel="tag"># netfilter</a>
+              <a href="/tags/network-layer/" rel="tag"># network-layer</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2024/03/16/2024-03-16-linux-networking-deep-dive-introduction/" rel="prev" title="Linux Networking Deep Dive: Introduction and Roadmap">
+                  <i class="fa fa-angle-left"></i> Linux Networking Deep Dive: Introduction and Roadmap
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2024/03/20/2024-03-20-linux-networking-part-4-application-interface/" rel="next" title="Linux Networking Deep Dive: Part 4 - Application Interface & System Calls">
+                  Linux Networking Deep Dive: Part 4 - Application Interface & System Calls <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
