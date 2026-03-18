@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="etcd集群部署、配置、监控、备份恢复和故障排查的完整实战指南">
+<meta property="og:type" content="article">
+<meta property="og:title" content="etcd实战操作指南 - 从部署到监控的完整实践">
+<meta property="og:url" content="http://example.com/2026/03/17/2026-03-17-kubernetes-etcd-hands-on-guide/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="etcd集群部署、配置、监控、备份恢复和故障排查的完整实战指南">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-03-17T07:00:00.000Z">
+<meta property="article:modified_time" content="2026-03-17T13:08:15.718Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="kubernetes">
+<meta property="article:tag" content="etcd">
+<meta property="article:tag" content="hands-on">
+<meta property="article:tag" content="deployment">
+<meta property="article:tag" content="monitoring">
+<meta property="article:tag" content="backup-restore">
+<meta property="article:tag" content="troubleshooting">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://example.com/2026/03/17/2026-03-17-kubernetes-etcd-hands-on-guide/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"http://example.com/2026/03/17/2026-03-17-kubernetes-etcd-hands-on-guide/","path":"2026/03/17/2026-03-17-kubernetes-etcd-hands-on-guide/","title":"etcd实战操作指南 - 从部署到监控的完整实践"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>etcd实战操作指南 - 从部署到监控的完整实践 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#etcd%E5%AE%9E%E6%88%98%E6%93%8D%E4%BD%9C%E6%8C%87%E5%8D%97"><span class="nav-number">1.</span> <span class="nav-text">etcd实战操作指南</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2%E9%85%8D%E7%BD%AE"><span class="nav-number">1.1.</span> <span class="nav-text">集群部署配置</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%89%E8%8A%82%E7%82%B9etcd%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2"><span class="nav-number">1.1.1.</span> <span class="nav-text">三节点etcd集群部署</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E7%BA%A7%E5%AE%89%E5%85%A8%E9%85%8D%E7%BD%AE"><span class="nav-number">1.1.2.</span> <span class="nav-text">生产级安全配置</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E6%93%8D%E4%BD%9C%E5%AE%9E%E6%88%98"><span class="nav-number">1.2.</span> <span class="nav-text">基础操作实战</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%AE%89%E8%A3%85etcd%E5%AE%A2%E6%88%B7%E7%AB%AF%E5%B7%A5%E5%85%B7"><span class="nav-number">1.2.1.</span> <span class="nav-text">1. 安装etcd客户端工具</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%9F%BA%E6%9C%ACCRUD%E6%93%8D%E4%BD%9C"><span class="nav-number">1.2.2.</span> <span class="nav-text">2. 基本CRUD操作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Watch%E6%9C%BA%E5%88%B6%E5%AE%9E%E6%88%98"><span class="nav-number">1.2.3.</span> <span class="nav-text">3. Watch机制实战</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9B%86%E7%BE%A4%E7%AE%A1%E7%90%86%E6%93%8D%E4%BD%9C"><span class="nav-number">1.3.</span> <span class="nav-text">集群管理操作</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%9B%86%E7%BE%A4%E7%8A%B6%E6%80%81%E6%A3%80%E6%9F%A5"><span class="nav-number">1.3.1.</span> <span class="nav-text">1. 集群状态检查</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E9%9B%86%E7%BE%A4%E6%88%90%E5%91%98%E7%AE%A1%E7%90%86"><span class="nav-number">1.3.2.</span> <span class="nav-text">2. 集群成员管理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%95%B0%E6%8D%AE%E5%8E%8B%E7%BC%A9%E5%92%8C%E7%A2%8E%E7%89%87%E6%95%B4%E7%90%86"><span class="nav-number">1.3.3.</span> <span class="nav-text">3. 数据压缩和碎片整理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A4%87%E4%BB%BD%E4%B8%8E%E6%81%A2%E5%A4%8D"><span class="nav-number">1.4.</span> <span class="nav-text">备份与恢复</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%95%B0%E6%8D%AE%E5%A4%87%E4%BB%BD"><span class="nav-number">1.4.1.</span> <span class="nav-text">1. 数据备份</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%95%B0%E6%8D%AE%E6%81%A2%E5%A4%8D"><span class="nav-number">1.4.2.</span> <span class="nav-text">2. 数据恢复</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7"><span class="nav-number">1.5.</span> <span class="nav-text">性能监控</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%9F%BA%E7%A1%80%E7%9B%91%E6%8E%A7%E6%8C%87%E6%A0%87"><span class="nav-number">1.5.1.</span> <span class="nav-text">1. 基础监控指标</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Prometheus%E7%9B%91%E6%8E%A7%E9%85%8D%E7%BD%AE"><span class="nav-number">1.5.2.</span> <span class="nav-text">2. Prometheus监控配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Grafana%E4%BB%AA%E8%A1%A8%E6%9D%BF%E5%85%B3%E9%94%AE%E6%8C%87%E6%A0%87"><span class="nav-number">1.5.3.</span> <span class="nav-text">3. Grafana仪表板关键指标</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E5%AE%9E%E6%88%98"><span class="nav-number">1.6.</span> <span class="nav-text">故障排查实战</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98%E8%AF%8A%E6%96%AD"><span class="nav-number">1.6.1.</span> <span class="nav-text">1. 常见问题诊断</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%80%A7%E8%83%BD%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5"><span class="nav-number">1.6.2.</span> <span class="nav-text">2. 性能问题排查</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%95%B0%E6%8D%AE%E4%B8%80%E8%87%B4%E6%80%A7%E6%A3%80%E6%9F%A5"><span class="nav-number">1.6.3.</span> <span class="nav-text">3. 数据一致性检查</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E7%8E%AF%E5%A2%83%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5"><span class="nav-number">1.7.</span> <span class="nav-text">生产环境最佳实践</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%85%8D%E7%BD%AE%E4%BC%98%E5%8C%96"><span class="nav-number">1.7.1.</span> <span class="nav-text">1. 配置优化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E7%9B%91%E6%8E%A7%E5%91%8A%E8%AD%A6%E8%A7%84%E5%88%99"><span class="nav-number">1.7.2.</span> <span class="nav-text">2. 监控告警规则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E8%87%AA%E5%8A%A8%E5%8C%96%E8%BF%90%E7%BB%B4%E8%84%9A%E6%9C%AC"><span class="nav-number">1.7.3.</span> <span class="nav-text">3. 自动化运维脚本</span></a></li></ol></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">52</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">19</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">111</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2026/03/17/2026-03-17-kubernetes-etcd-hands-on-guide/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="etcd实战操作指南 - 从部署到监控的完整实践 | Hexo">
+      <meta itemprop="description" content="etcd集群部署、配置、监控、备份恢复和故障排查的完整实战指南">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          etcd实战操作指南 - 从部署到监控的完整实践
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-03-17 15:00:00 / Modified: 21:08:15" itemprop="dateCreated datePublished" datetime="2026-03-17T15:00:00+08:00">2026-03-17</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/kubernetes-learning/" itemprop="url" rel="index"><span itemprop="name">kubernetes-learning</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/kubernetes-learning/tutorial/" itemprop="url" rel="index"><span itemprop="name">tutorial</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+            <div class="post-description">etcd集群部署、配置、监控、备份恢复和故障排查的完整实战指南</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="etcd实战操作指南"><a href="#etcd实战操作指南" class="headerlink" title="etcd实战操作指南"></a>etcd实战操作指南</h1><h2 id="集群部署配置"><a href="#集群部署配置" class="headerlink" title="集群部署配置"></a>集群部署配置</h2><h3 id="三节点etcd集群部署"><a href="#三节点etcd集群部署" class="headerlink" title="三节点etcd集群部署"></a>三节点etcd集群部署</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># etcd-cluster.yaml</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ConfigMap</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">etcd-cluster-config</span></span><br><span class="line"><span class="attr">data:</span></span><br><span class="line">  <span class="attr">etcd1.conf:</span> <span class="string">|</span></span><br><span class="line"><span class="string">    name: etcd-1</span></span><br><span class="line"><span class="string">    data-dir: /var/lib/etcd</span></span><br><span class="line"><span class="string">    listen-client-urls: http://0.0.0.0:2379</span></span><br><span class="line"><span class="string">    advertise-client-urls: http://10.0.0.1:2379</span></span><br><span class="line"><span class="string">    listen-peer-urls: http://0.0.0.0:2380</span></span><br><span class="line"><span class="string">    initial-advertise-peer-urls: http://10.0.0.1:2380</span></span><br><span class="line"><span class="string">    initial-cluster: etcd-1=http://10.0.0.1:2380,etcd-2=http://10.0.0.2:2380,etcd-3=http://10.0.0.3:2380</span></span><br><span class="line"><span class="string">    initial-cluster-state: new</span></span><br><span class="line"><span class="string">    initial-cluster-token: etcd-cluster-1</span></span><br><span class="line"><span class="string"></span><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">StatefulSet</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">etcd</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">serviceName:</span> <span class="string">etcd</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">3</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">etcd</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">etcd</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">etcd</span></span><br><span class="line">        <span class="attr">image:</span> <span class="string">quay.io/coreos/etcd:v3.5.0</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">2379</span></span><br><span class="line">          <span class="attr">name:</span> <span class="string">client</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">2380</span></span><br><span class="line">          <span class="attr">name:</span> <span class="string">peer</span></span><br><span class="line">        <span class="attr">volumeMounts:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">data</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/var/lib/etcd</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">config</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/etc/etcd</span></span><br><span class="line">        <span class="attr">env:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">ETCD_CLUSTER_SIZE</span></span><br><span class="line">          <span class="attr">value:</span> <span class="string">&quot;3&quot;</span></span><br><span class="line">        <span class="attr">command:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">/usr/local/bin/etcd</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">--config-file=/etc/etcd/etcd.conf</span></span><br><span class="line">      <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">config</span></span><br><span class="line">        <span class="attr">configMap:</span></span><br><span class="line">          <span class="attr">name:</span> <span class="string">etcd-cluster-config</span></span><br><span class="line">  <span class="attr">volumeClaimTemplates:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">name:</span> <span class="string">data</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">accessModes:</span> [<span class="string">&quot;ReadWriteOnce&quot;</span>]</span><br><span class="line">      <span class="attr">resources:</span></span><br><span class="line">        <span class="attr">requests:</span></span><br><span class="line">          <span class="attr">storage:</span> <span class="string">10Gi</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="生产级安全配置"><a href="#生产级安全配置" class="headerlink" title="生产级安全配置"></a>生产级安全配置</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># etcd-secure-setup.sh</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 1. 生成CA证书</span></span><br><span class="line">cfssl gencert -initca ca-csr.json | cfssljson -bare ca</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 生成服务器证书</span></span><br><span class="line">cfssl gencert \</span><br><span class="line">  -ca=ca.pem \</span><br><span class="line">  -ca-key=ca-key.pem \</span><br><span class="line">  -config=ca-config.json \</span><br><span class="line">  -profile=server \</span><br><span class="line">  server-csr.json | cfssljson -bare server</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 生成客户端证书</span></span><br><span class="line">cfssl gencert \</span><br><span class="line">  -ca=ca.pem \</span><br><span class="line">  -ca-key=ca-key.pem \</span><br><span class="line">  -config=ca-config.json \</span><br><span class="line">  -profile=client \</span><br><span class="line">  client-csr.json | cfssljson -bare client</span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 启动安全etcd</span></span><br><span class="line">etcd \</span><br><span class="line">  --name=etcd-1 \</span><br><span class="line">  --data-dir=/var/lib/etcd \</span><br><span class="line">  --cert-file=/etc/etcd/ssl/server.pem \</span><br><span class="line">  --key-file=/etc/etcd/ssl/server-key.pem \</span><br><span class="line">  --trusted-ca-file=/etc/etcd/ssl/ca.pem \</span><br><span class="line">  --client-cert-auth \</span><br><span class="line">  --listen-client-urls=https://0.0.0.0:2379 \</span><br><span class="line">  --advertise-client-urls=https://10.0.0.1:2379</span><br></pre></td></tr></table></figure>
+
+<h2 id="基础操作实战"><a href="#基础操作实战" class="headerlink" title="基础操作实战"></a>基础操作实战</h2><h3 id="1-安装etcd客户端工具"><a href="#1-安装etcd客户端工具" class="headerlink" title="1. 安装etcd客户端工具"></a>1. 安装etcd客户端工具</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 方式1: 直接下载</span></span><br><span class="line">ETCD_VER=v3.5.0</span><br><span class="line">GOOGLE_URL=https://storage.googleapis.com/etcd</span><br><span class="line">GITHUB_URL=https://github.com/etcd-io/etcd/releases/download</span><br><span class="line">DOWNLOAD_URL=<span class="variable">$&#123;GOOGLE_URL&#125;</span></span><br><span class="line"></span><br><span class="line">curl -L <span class="variable">$&#123;DOWNLOAD_URL&#125;</span>/<span class="variable">$&#123;ETCD_VER&#125;</span>/etcd-<span class="variable">$&#123;ETCD_VER&#125;</span>-linux-amd64.tar.gz \</span><br><span class="line">  -o /tmp/etcd-<span class="variable">$&#123;ETCD_VER&#125;</span>-linux-amd64.tar.gz</span><br><span class="line"></span><br><span class="line">tar xzvf /tmp/etcd-<span class="variable">$&#123;ETCD_VER&#125;</span>-linux-amd64.tar.gz -C /tmp/</span><br><span class="line">sudo <span class="built_in">mv</span> /tmp/etcd-<span class="variable">$&#123;ETCD_VER&#125;</span>-linux-amd64/&#123;etcd,etcdctl&#125; /usr/local/bin/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 方式2: 使用包管理器</span></span><br><span class="line">sudo apt-get install etcd-client  <span class="comment"># Ubuntu</span></span><br><span class="line">brew install etcd                 <span class="comment"># macOS</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-基本CRUD操作"><a href="#2-基本CRUD操作" class="headerlink" title="2. 基本CRUD操作"></a>2. 基本CRUD操作</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 设置API版本</span></span><br><span class="line"><span class="built_in">export</span> ETCDCTL_API=3</span><br><span class="line"></span><br><span class="line"><span class="comment"># 写入数据</span></span><br><span class="line">etcdctl put name <span class="string">&quot;kubernetes&quot;</span></span><br><span class="line">etcdctl put version <span class="string">&quot;1.28&quot;</span></span><br><span class="line">etcdctl put /config/database/host <span class="string">&quot;mysql.example.com&quot;</span></span><br><span class="line">etcdctl put /config/database/port <span class="string">&quot;3306&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 读取数据</span></span><br><span class="line">etcdctl get name</span><br><span class="line">etcdctl get /config/database/host</span><br><span class="line">etcdctl get /config --prefix    <span class="comment"># 前缀匹配</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 删除数据</span></span><br><span class="line">etcdctl del name</span><br><span class="line">etcdctl del /config --prefix    <span class="comment"># 删除所有前缀匹配的键</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 原子操作</span></span><br><span class="line">etcdctl txn &lt;&lt;&lt; <span class="string">&#x27;</span></span><br><span class="line"><span class="string">compare:</span></span><br><span class="line"><span class="string">value(&quot;/config/lock&quot;) = &quot;&quot;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">success:</span></span><br><span class="line"><span class="string">put(&quot;/config/lock&quot;, &quot;acquired&quot;)</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">failure:</span></span><br><span class="line"><span class="string">get(&quot;/config/lock&quot;)</span></span><br><span class="line"><span class="string">&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-Watch机制实战"><a href="#3-Watch机制实战" class="headerlink" title="3. Watch机制实战"></a>3. Watch机制实战</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 监听单个键</span></span><br><span class="line">etcdctl watch mykey</span><br><span class="line"></span><br><span class="line"><span class="comment"># 监听前缀</span></span><br><span class="line">etcdctl watch /config --prefix</span><br><span class="line"></span><br><span class="line"><span class="comment"># 从历史版本开始监听</span></span><br><span class="line">etcdctl watch mykey --rev=10</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用程序监听变化</span></span><br><span class="line"><span class="comment">#!/bin/bash</span></span><br><span class="line">etcdctl watch /config --prefix | <span class="keyword">while</span> <span class="built_in">read</span> line; <span class="keyword">do</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;配置变更: <span class="variable">$line</span>&quot;</span></span><br><span class="line">    <span class="comment"># 触发配置重新加载</span></span><br><span class="line">    systemctl reload my-service</span><br><span class="line"><span class="keyword">done</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="集群管理操作"><a href="#集群管理操作" class="headerlink" title="集群管理操作"></a>集群管理操作</h2><h3 id="1-集群状态检查"><a href="#1-集群状态检查" class="headerlink" title="1. 集群状态检查"></a>1. 集群状态检查</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看集群成员</span></span><br><span class="line">etcdctl member list -w table</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查集群健康状态</span></span><br><span class="line">etcdctl endpoint health --cluster</span><br><span class="line">etcdctl endpoint status --cluster -w table</span><br><span class="line"></span><br><span class="line"><span class="comment"># 详细性能检查</span></span><br><span class="line">etcdctl check perf</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看集群信息</span></span><br><span class="line">etcdctl cluster-health        <span class="comment"># v2 API</span></span><br><span class="line">etcdctl endpoint health      <span class="comment"># v3 API</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-集群成员管理"><a href="#2-集群成员管理" class="headerlink" title="2. 集群成员管理"></a>2. 集群成员管理</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 添加新成员</span></span><br><span class="line">etcdctl member add etcd-4 \</span><br><span class="line">  --peer-urls=http://10.0.0.4:2380</span><br><span class="line"></span><br><span class="line"><span class="comment"># 移除成员</span></span><br><span class="line">etcdctl member remove &lt;member-id&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 更新成员</span></span><br><span class="line">etcdctl member update &lt;member-id&gt; \</span><br><span class="line">  --peer-urls=http://10.0.0.1:2380</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-数据压缩和碎片整理"><a href="#3-数据压缩和碎片整理" class="headerlink" title="3. 数据压缩和碎片整理"></a>3. 数据压缩和碎片整理</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 获取当前revision</span></span><br><span class="line">rev=$(etcdctl endpoint status --write-out=<span class="string">&quot;json&quot;</span> | \</span><br><span class="line">  egrep -o <span class="string">&#x27;&quot;revision&quot;:[0-9]*&#x27;</span> | egrep -o <span class="string">&#x27;[0-9].*&#x27;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 压缩历史版本</span></span><br><span class="line">etcdctl compact <span class="variable">$rev</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 碎片整理</span></span><br><span class="line">etcdctl defrag --cluster</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看压缩效果</span></span><br><span class="line">etcdctl endpoint status --cluster -w table</span><br></pre></td></tr></table></figure>
+
+<h2 id="备份与恢复"><a href="#备份与恢复" class="headerlink" title="备份与恢复"></a>备份与恢复</h2><h3 id="1-数据备份"><a href="#1-数据备份" class="headerlink" title="1. 数据备份"></a>1. 数据备份</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># etcd-backup.sh</span></span><br><span class="line"></span><br><span class="line">BACKUP_DIR=<span class="string">&quot;/backup/etcd&quot;</span></span><br><span class="line">TIMESTAMP=$(<span class="built_in">date</span> +%Y%m%d-%H%M%S)</span><br><span class="line">BACKUP_FILE=<span class="string">&quot;<span class="variable">$&#123;BACKUP_DIR&#125;</span>/etcd-snapshot-<span class="variable">$&#123;TIMESTAMP&#125;</span>.db&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建备份目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p <span class="variable">$&#123;BACKUP_DIR&#125;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建快照</span></span><br><span class="line">etcdctl snapshot save <span class="variable">$&#123;BACKUP_FILE&#125;</span> \</span><br><span class="line">  --endpoints=https://127.0.0.1:2379 \</span><br><span class="line">  --cacert=/etc/etcd/ssl/ca.pem \</span><br><span class="line">  --cert=/etc/etcd/ssl/client.pem \</span><br><span class="line">  --key=/etc/etcd/ssl/client-key.pem</span><br><span class="line"></span><br><span class="line"><span class="comment"># 验证快照</span></span><br><span class="line">etcdctl snapshot status <span class="variable">$&#123;BACKUP_FILE&#125;</span> -w table</span><br><span class="line"></span><br><span class="line"><span class="comment"># 清理老备份（保留7天）</span></span><br><span class="line">find <span class="variable">$&#123;BACKUP_DIR&#125;</span> -name <span class="string">&quot;*.db&quot;</span> -mtime +7 -delete</span><br><span class="line"></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;Backup completed: <span class="variable">$&#123;BACKUP_FILE&#125;</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-数据恢复"><a href="#2-数据恢复" class="headerlink" title="2. 数据恢复"></a>2. 数据恢复</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># etcd-restore.sh</span></span><br><span class="line"></span><br><span class="line">BACKUP_FILE=<span class="string">&quot;/backup/etcd/etcd-snapshot-20240317-100000.db&quot;</span></span><br><span class="line">DATA_DIR=<span class="string">&quot;/var/lib/etcd&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 停止etcd服务</span></span><br><span class="line">systemctl stop etcd</span><br><span class="line"></span><br><span class="line"><span class="comment"># 清理现有数据</span></span><br><span class="line"><span class="built_in">rm</span> -rf <span class="variable">$&#123;DATA_DIR&#125;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 从快照恢复</span></span><br><span class="line">etcdctl snapshot restore <span class="variable">$&#123;BACKUP_FILE&#125;</span> \</span><br><span class="line">  --data-dir=<span class="variable">$&#123;DATA_DIR&#125;</span> \</span><br><span class="line">  --name=etcd-1 \</span><br><span class="line">  --initial-cluster=etcd-1=http://10.0.0.1:2380,etcd-2=http://10.0.0.2:2380,etcd-3=http://10.0.0.3:2380 \</span><br><span class="line">  --initial-cluster-token=etcd-cluster-1 \</span><br><span class="line">  --initial-advertise-peer-urls=http://10.0.0.1:2380</span><br><span class="line"></span><br><span class="line"><span class="comment"># 修改数据目录权限</span></span><br><span class="line"><span class="built_in">chown</span> -R etcd:etcd <span class="variable">$&#123;DATA_DIR&#125;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动etcd服务</span></span><br><span class="line">systemctl start etcd</span><br></pre></td></tr></table></figure>
+
+<h2 id="性能监控"><a href="#性能监控" class="headerlink" title="性能监控"></a>性能监控</h2><h3 id="1-基础监控指标"><a href="#1-基础监控指标" class="headerlink" title="1. 基础监控指标"></a>1. 基础监控指标</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 实时性能监控</span></span><br><span class="line">watch -n 1 <span class="string">&#x27;etcdctl endpoint status --cluster -w table&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 延迟测试</span></span><br><span class="line">etcdctl check perf --load=<span class="string">&quot;small&quot;</span></span><br><span class="line">etcdctl check perf --load=<span class="string">&quot;large&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 存储使用情况</span></span><br><span class="line">etcdctl endpoint status -w json | jq <span class="string">&#x27;.[] | &#123;endpoint: .Endpoint, dbSize: .Status.dbSize&#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-Prometheus监控配置"><a href="#2-Prometheus监控配置" class="headerlink" title="2. Prometheus监控配置"></a>2. Prometheus监控配置</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># prometheus.yml</span></span><br><span class="line"><span class="attr">scrape_configs:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">job_name:</span> <span class="string">&#x27;etcd&#x27;</span></span><br><span class="line">    <span class="attr">static_configs:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">targets:</span> [<span class="string">&#x27;10.0.0.1:2379&#x27;</span>, <span class="string">&#x27;10.0.0.2:2379&#x27;</span>, <span class="string">&#x27;10.0.0.3:2379&#x27;</span>]</span><br><span class="line">    <span class="attr">metrics_path:</span> <span class="string">/metrics</span></span><br><span class="line">    <span class="attr">scheme:</span> <span class="string">https</span></span><br><span class="line">    <span class="attr">tls_config:</span></span><br><span class="line">      <span class="attr">ca_file:</span> <span class="string">/etc/ssl/etcd/ca.pem</span></span><br><span class="line">      <span class="attr">cert_file:</span> <span class="string">/etc/ssl/etcd/client.pem</span></span><br><span class="line">      <span class="attr">key_file:</span> <span class="string">/etc/ssl/etcd/client-key.pem</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-Grafana仪表板关键指标"><a href="#3-Grafana仪表板关键指标" class="headerlink" title="3. Grafana仪表板关键指标"></a>3. Grafana仪表板关键指标</h3><figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;dashboard&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;etcd Cluster Monitoring&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;panels&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Leader Changes&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;targets&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">          <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;expr&quot;</span><span class="punctuation">:</span> <span class="string">&quot;rate(etcd_server_leader_changes_seen_total[5m])&quot;</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">]</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Request Rate&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;targets&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">          <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;expr&quot;</span><span class="punctuation">:</span> <span class="string">&quot;rate(etcd_http_received_total[1m])&quot;</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">]</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Database Size&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;targets&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">          <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;expr&quot;</span><span class="punctuation">:</span> <span class="string">&quot;etcd_mvcc_db_total_size_in_bytes&quot;</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">]</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">]</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="故障排查实战"><a href="#故障排查实战" class="headerlink" title="故障排查实战"></a>故障排查实战</h2><h3 id="1-常见问题诊断"><a href="#1-常见问题诊断" class="headerlink" title="1. 常见问题诊断"></a>1. 常见问题诊断</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查集群健康状态</span></span><br><span class="line">etcdctl endpoint health --cluster</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看集群告警</span></span><br><span class="line">etcdctl alarm list</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查磁盘空间</span></span><br><span class="line">etcdctl endpoint status --cluster -w table</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看详细日志</span></span><br><span class="line">journalctl -u etcd -f</span><br><span class="line"></span><br><span class="line"><span class="comment"># 网络连接测试</span></span><br><span class="line">telnet 10.0.0.1 2379</span><br><span class="line">telnet 10.0.0.1 2380</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-性能问题排查"><a href="#2-性能问题排查" class="headerlink" title="2. 性能问题排查"></a>2. 性能问题排查</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 磁盘I/O性能测试</span></span><br><span class="line">sudo fio --randrepeat=1 --ioengine=libaio --direct=1 --gtod_reduce=1 \</span><br><span class="line">  --name=<span class="built_in">test</span> --filename=/var/lib/etcd/test --bs=4k --iodepth=64 \</span><br><span class="line">  --size=4G --readwrite=randrw --rwmixread=75</span><br><span class="line"></span><br><span class="line"><span class="comment"># 网络延迟测试</span></span><br><span class="line">ping -c 10 10.0.0.2</span><br><span class="line"></span><br><span class="line"><span class="comment"># etcd性能压测</span></span><br><span class="line">benchmark put --total=10000 --val-size=1024</span><br><span class="line">benchmark range key --total=10000 --consistency=l</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-数据一致性检查"><a href="#3-数据一致性检查" class="headerlink" title="3. 数据一致性检查"></a>3. 数据一致性检查</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查数据版本一致性</span></span><br><span class="line">etcdctl endpoint status --cluster -w table</span><br><span class="line"></span><br><span class="line"><span class="comment"># 对比不同节点的数据</span></span><br><span class="line">etcdctl get <span class="string">&quot;&quot;</span> --prefix --keys-only --endpoint=http://10.0.0.1:2379 | <span class="built_in">sort</span> &gt; node1.keys</span><br><span class="line">etcdctl get <span class="string">&quot;&quot;</span> --prefix --keys-only --endpoint=http://10.0.0.2:2379 | <span class="built_in">sort</span> &gt; node2.keys</span><br><span class="line">diff node1.keys node2.keys</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查WAL和快照</span></span><br><span class="line"><span class="built_in">ls</span> -la /var/lib/etcd/member/wal/</span><br><span class="line"><span class="built_in">ls</span> -la /var/lib/etcd/member/snap/</span><br></pre></td></tr></table></figure>
+
+<h2 id="生产环境最佳实践"><a href="#生产环境最佳实践" class="headerlink" title="生产环境最佳实践"></a>生产环境最佳实践</h2><h3 id="1-配置优化"><a href="#1-配置优化" class="headerlink" title="1. 配置优化"></a>1. 配置优化</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># etcd.conf 生产环境配置</span></span><br><span class="line"><span class="attr">name:</span> <span class="string">&#x27;etcd-1&#x27;</span></span><br><span class="line"><span class="attr">data-dir:</span> <span class="string">&#x27;/var/lib/etcd&#x27;</span></span><br><span class="line"><span class="attr">wal-dir:</span> <span class="string">&#x27;/var/lib/etcd/wal&#x27;</span></span><br><span class="line"><span class="attr">snapshot-count:</span> <span class="number">100000</span></span><br><span class="line"><span class="attr">heartbeat-interval:</span> <span class="number">100</span></span><br><span class="line"><span class="attr">election-timeout:</span> <span class="number">1000</span></span><br><span class="line"><span class="attr">quota-backend-bytes:</span> <span class="number">8589934592</span>  <span class="comment"># 8GB</span></span><br><span class="line"><span class="attr">max-snapshots:</span> <span class="number">5</span></span><br><span class="line"><span class="attr">max-wals:</span> <span class="number">5</span></span><br><span class="line"><span class="attr">cors:</span> <span class="string">&quot;*&quot;</span></span><br><span class="line"><span class="attr">auto-compaction-retention:</span> <span class="string">1h</span></span><br><span class="line"><span class="attr">auto-compaction-mode:</span> <span class="string">&#x27;periodic&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-监控告警规则"><a href="#2-监控告警规则" class="headerlink" title="2. 监控告警规则"></a>2. 监控告警规则</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># alerting_rules.yml</span></span><br><span class="line"><span class="attr">groups:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">name:</span> <span class="string">etcd</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">EtcdClusterDown</span></span><br><span class="line">    <span class="attr">expr:</span> <span class="string">up&#123;job=&quot;etcd&quot;&#125;</span> <span class="string">==</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">for:</span> <span class="string">5m</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">severity:</span> <span class="string">critical</span></span><br><span class="line">    <span class="attr">annotations:</span></span><br><span class="line">      <span class="attr">summary:</span> <span class="string">&quot;etcd cluster is down&quot;</span></span><br><span class="line"></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">EtcdHighNumberOfLeaderChanges</span></span><br><span class="line">    <span class="attr">expr:</span> <span class="string">increase(etcd_server_leader_changes_seen_total[1h])</span> <span class="string">&gt;</span> <span class="number">3</span></span><br><span class="line">    <span class="attr">for:</span> <span class="string">5m</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">severity:</span> <span class="string">warning</span></span><br><span class="line">    <span class="attr">annotations:</span></span><br><span class="line">      <span class="attr">summary:</span> <span class="string">&quot;High number of leader changes&quot;</span></span><br><span class="line"></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">EtcdDatabaseQuotaExceeded</span></span><br><span class="line">    <span class="attr">expr:</span> <span class="string">etcd_mvcc_db_total_size_in_bytes</span> <span class="string">/</span> <span class="string">etcd_server_quota_backend_bytes</span> <span class="string">&gt;</span> <span class="number">0.95</span></span><br><span class="line">    <span class="attr">for:</span> <span class="string">5m</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">severity:</span> <span class="string">critical</span></span><br><span class="line">    <span class="attr">annotations:</span></span><br><span class="line">      <span class="attr">summary:</span> <span class="string">&quot;etcd database quota exceeded&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-自动化运维脚本"><a href="#3-自动化运维脚本" class="headerlink" title="3. 自动化运维脚本"></a>3. 自动化运维脚本</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># etcd-health-check.sh</span></span><br><span class="line"></span><br><span class="line">ENDPOINTS=<span class="string">&quot;http://10.0.0.1:2379,http://10.0.0.2:2379,http://10.0.0.3:2379&quot;</span></span><br><span class="line">LOG_FILE=<span class="string">&quot;/var/log/etcd-health-check.log&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 健康检查</span></span><br><span class="line"><span class="function"><span class="title">check_health</span></span>() &#123;</span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;<span class="subst">$(date)</span>: Checking etcd cluster health...&quot;</span> &gt;&gt; <span class="variable">$LOG_FILE</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> etcdctl endpoint health --endpoints=<span class="variable">$ENDPOINTS</span>; <span class="keyword">then</span></span><br><span class="line">        <span class="built_in">echo</span> <span class="string">&quot;<span class="subst">$(date)</span>: Cluster is healthy&quot;</span> &gt;&gt; <span class="variable">$LOG_FILE</span></span><br><span class="line">        <span class="built_in">return</span> 0</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        <span class="built_in">echo</span> <span class="string">&quot;<span class="subst">$(date)</span>: Cluster health check failed&quot;</span> &gt;&gt; <span class="variable">$LOG_FILE</span></span><br><span class="line">        <span class="built_in">return</span> 1</span><br><span class="line">    <span class="keyword">fi</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 自动压缩</span></span><br><span class="line"><span class="function"><span class="title">auto_compact</span></span>() &#123;</span><br><span class="line">    rev=$(etcdctl endpoint status --endpoints=<span class="variable">$ENDPOINTS</span> --write-out=<span class="string">&quot;json&quot;</span> | \</span><br><span class="line">      jq -r <span class="string">&#x27;.[] | .Status.header.revision&#x27;</span> | <span class="built_in">sort</span> -n | <span class="built_in">tail</span> -1)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> [ <span class="variable">$rev</span> -gt 100000 ]; <span class="keyword">then</span></span><br><span class="line">        <span class="built_in">echo</span> <span class="string">&quot;<span class="subst">$(date)</span>: Auto compacting to revision <span class="variable">$rev</span>&quot;</span> &gt;&gt; <span class="variable">$LOG_FILE</span></span><br><span class="line">        etcdctl compact <span class="variable">$rev</span> --endpoints=<span class="variable">$ENDPOINTS</span></span><br><span class="line">    <span class="keyword">fi</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 执行检查</span></span><br><span class="line">check_health</span><br><span class="line">auto_compact</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p><strong>这篇实战指南涵盖了etcd从部署到运维的完整操作流程。建议在测试环境中逐一实践这些操作，熟悉etcd的管理和故障处理。</strong></p>
+<p><strong>相关阅读：</strong></p>
+<ul>
+<li><a href="./kubernetes-etcd-distributed-storage">etcd分布式存储原理与实践</a></li>
+<li><a href="./kubernetes-cluster-architecture-overview">Kubernetes集群架构深度解析</a></li>
+<li><a href="./kubernetes-interview-questions-comprehensive">Kubernetes核心组件面试题精选</a></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kubernetes/" rel="tag"># kubernetes</a>
+              <a href="/tags/etcd/" rel="tag"># etcd</a>
+              <a href="/tags/hands-on/" rel="tag"># hands-on</a>
+              <a href="/tags/deployment/" rel="tag"># deployment</a>
+              <a href="/tags/monitoring/" rel="tag"># monitoring</a>
+              <a href="/tags/backup-restore/" rel="tag"># backup-restore</a>
+              <a href="/tags/troubleshooting/" rel="tag"># troubleshooting</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/03/17/2026-03-17-kubernetes-interview-questions-comprehensive/" rel="prev" title="Kubernetes核心组件面试题精选 - 全面覆盖API Server、etcd、Container Runtime">
+                  <i class="fa fa-angle-left"></i> Kubernetes核心组件面试题精选 - 全面覆盖API Server、etcd、Container Runtime
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/03/17/2026-03-17-kubernetes-learning-series-overview/" rel="next" title="Kubernetes核心组件学习系列 - 完整指南与学习路线图">
+                  Kubernetes核心组件学习系列 - 完整指南与学习路线图 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

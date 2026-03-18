@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="精选Kubernetes核心组件面试题，涵盖基础概念、架构设计、源码分析和实战场景，助你通过技术面试">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes核心组件面试题精选 - 全面覆盖API Server、etcd、Container Runtime">
+<meta property="og:url" content="http://example.com/2026/03/17/2026-03-17-kubernetes-interview-questions-comprehensive/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="精选Kubernetes核心组件面试题，涵盖基础概念、架构设计、源码分析和实战场景，助你通过技术面试">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-03-17T06:00:00.000Z">
+<meta property="article:modified_time" content="2026-03-17T13:05:15.398Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="kubernetes">
+<meta property="article:tag" content="etcd">
+<meta property="article:tag" content="apiserver">
+<meta property="article:tag" content="container-runtime">
+<meta property="article:tag" content="kubernetes-interview">
+<meta property="article:tag" content="interview-questions">
+<meta property="article:tag" content="technical-interview">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://example.com/2026/03/17/2026-03-17-kubernetes-interview-questions-comprehensive/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"http://example.com/2026/03/17/2026-03-17-kubernetes-interview-questions-comprehensive/","path":"2026/03/17/2026-03-17-kubernetes-interview-questions-comprehensive/","title":"Kubernetes核心组件面试题精选 - 全面覆盖API Server、etcd、Container Runtime"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Kubernetes核心组件面试题精选 - 全面覆盖API Server、etcd、Container Runtime | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kubernetes%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6%E9%9D%A2%E8%AF%95%E9%A2%98%E7%B2%BE%E9%80%89"><span class="nav-number">1.</span> <span class="nav-text">Kubernetes核心组件面试题精选</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#API-Server%E9%9D%A2%E8%AF%95%E9%A2%98"><span class="nav-number">1.1.</span> <span class="nav-text">API Server面试题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5%E9%A2%98"><span class="nav-number">1.1.1.</span> <span class="nav-text">基础概念题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B7%B1%E5%BA%A6%E5%88%86%E6%9E%90%E9%A2%98"><span class="nav-number">1.1.2.</span> <span class="nav-text">深度分析题</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#etcd%E9%9D%A2%E8%AF%95%E9%A2%98"><span class="nav-number">1.2.</span> <span class="nav-text">etcd面试题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5%E9%A2%98-1"><span class="nav-number">1.2.1.</span> <span class="nav-text">基础概念题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B7%B1%E5%BA%A6%E5%88%86%E6%9E%90%E9%A2%98-1"><span class="nav-number">1.2.2.</span> <span class="nav-text">深度分析题</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Container-Runtime%E9%9D%A2%E8%AF%95%E9%A2%98"><span class="nav-number">1.3.</span> <span class="nav-text">Container Runtime面试题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5%E9%A2%98-2"><span class="nav-number">1.3.1.</span> <span class="nav-text">基础概念题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B7%B1%E5%BA%A6%E5%88%86%E6%9E%90%E9%A2%98-2"><span class="nav-number">1.3.2.</span> <span class="nav-text">深度分析题</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BB%BC%E5%90%88%E5%9C%BA%E6%99%AF%E9%A2%98"><span class="nav-number">1.4.</span> <span class="nav-text">综合场景题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Q13-%E9%9B%86%E7%BE%A4%E4%B8%ADPod%E6%97%A0%E6%B3%95%E5%90%AF%E5%8A%A8%EF%BC%8C%E5%A6%82%E4%BD%95%E6%8E%92%E6%9F%A5%EF%BC%9F"><span class="nav-number">1.4.1.</span> <span class="nav-text">Q13: 集群中Pod无法启动，如何排查？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Q14-%E5%A6%82%E4%BD%95%E8%AE%BE%E8%AE%A1%E9%AB%98%E6%80%A7%E8%83%BD%E7%9A%84etcd%E9%9B%86%E7%BE%A4%EF%BC%9F"><span class="nav-number">1.4.2.</span> <span class="nav-text">Q14: 如何设计高性能的etcd集群？</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9D%A2%E8%AF%95%E6%8A%80%E5%B7%A7"><span class="nav-number">1.5.</span> <span class="nav-text">面试技巧</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9B%9E%E7%AD%94%E7%AD%96%E7%95%A5"><span class="nav-number">1.5.1.</span> <span class="nav-text">回答策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B7%B1%E5%85%A5%E5%87%86%E5%A4%87"><span class="nav-number">1.5.2.</span> <span class="nav-text">深入准备</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8A%A0%E5%88%86%E9%A1%B9"><span class="nav-number">1.5.3.</span> <span class="nav-text">加分项</span></a></li></ol></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">52</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">19</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">111</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2026/03/17/2026-03-17-kubernetes-interview-questions-comprehensive/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Kubernetes核心组件面试题精选 - 全面覆盖API Server、etcd、Container Runtime | Hexo">
+      <meta itemprop="description" content="精选Kubernetes核心组件面试题，涵盖基础概念、架构设计、源码分析和实战场景，助你通过技术面试">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes核心组件面试题精选 - 全面覆盖API Server、etcd、Container Runtime
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-03-17 14:00:00 / Modified: 21:05:15" itemprop="dateCreated datePublished" datetime="2026-03-17T14:00:00+08:00">2026-03-17</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/kubernetes-learning/" itemprop="url" rel="index"><span itemprop="name">kubernetes-learning</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/kubernetes-learning/interview-preparation/" itemprop="url" rel="index"><span itemprop="name">interview-preparation</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+            <div class="post-description">精选Kubernetes核心组件面试题，涵盖基础概念、架构设计、源码分析和实战场景，助你通过技术面试</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="Kubernetes核心组件面试题精选"><a href="#Kubernetes核心组件面试题精选" class="headerlink" title="Kubernetes核心组件面试题精选"></a>Kubernetes核心组件面试题精选</h1><h2 id="API-Server面试题"><a href="#API-Server面试题" class="headerlink" title="API Server面试题"></a>API Server面试题</h2><h3 id="基础概念题"><a href="#基础概念题" class="headerlink" title="基础概念题"></a>基础概念题</h3><p><strong>Q1: API Server在Kubernetes中的作用是什么？</strong></p>
+<p><strong>答案</strong>:</p>
+<ul>
+<li><strong>唯一API入口</strong>: 所有组件都通过API Server通信</li>
+<li><strong>认证授权</strong>: 实现多层安全控制机制</li>
+<li><strong>数据持久化</strong>: 与etcd交互管理集群状态</li>
+<li><strong>版本管理</strong>: 处理API版本兼容性和演进</li>
+<li><strong>扩展支持</strong>: 支持CRD和API聚合</li>
+</ul>
+<p><strong>Q2: API Server的安全机制有哪些？</strong></p>
+<p><strong>答案</strong>: 三层安全控制</p>
+<ol>
+<li><strong>认证(Authentication)</strong>:<ul>
+<li>证书认证、Token认证、OIDC</li>
+<li>验证请求来源身份</li>
+</ul>
+</li>
+<li><strong>授权(Authorization)</strong>:<ul>
+<li>RBAC、ABAC、Webhook</li>
+<li>检查操作权限</li>
+</ul>
+</li>
+<li><strong>准入控制(Admission Control)</strong>:<ul>
+<li>Mutating&#x2F;Validating Webhooks</li>
+<li>策略检查和资源修改</li>
+</ul>
+</li>
+</ol>
+<h3 id="深度分析题"><a href="#深度分析题" class="headerlink" title="深度分析题"></a>深度分析题</h3><p><strong>Q3: API Server如何处理一个Pod创建请求？</strong></p>
+<p><strong>答案</strong>: 完整流程</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">    participant U as kubectl</span><br><span class="line">    participant A as API Server</span><br><span class="line">    participant E as etcd</span><br><span class="line">    participant S as Scheduler</span><br><span class="line">    participant K as kubelet</span><br><span class="line"></span><br><span class="line">    U-&gt;&gt;A: POST /api/v1/pods</span><br><span class="line">    A-&gt;&gt;A: 认证+授权+准入控制</span><br><span class="line">    A-&gt;&gt;A: 对象验证+版本转换</span><br><span class="line">    A-&gt;&gt;E: 持久化Pod spec</span><br><span class="line">    A-&gt;&gt;U: 201 Created</span><br><span class="line"></span><br><span class="line">    S-&gt;&gt;A: Watch Pod events</span><br><span class="line">    S-&gt;&gt;A: 绑定Pod到Node</span><br><span class="line">    K-&gt;&gt;A: Watch Pod events</span><br><span class="line">    K-&gt;&gt;K: 创建容器</span><br></pre></td></tr></table></figure>
+
+<p><strong>Q4: 如何设计API Server的高可用架构？</strong></p>
+<p><strong>答案</strong>: 关键要素</p>
+<ul>
+<li><strong>无状态设计</strong>: 状态全部存在etcd中</li>
+<li><strong>多实例部署</strong>: Active-Active模式</li>
+<li><strong>负载均衡</strong>: 通过LB分发请求</li>
+<li><strong>共享etcd</strong>: 多个API Server共享etcd集群</li>
+<li><strong>健康检查</strong>: 自动故障切换</li>
+</ul>
+<h2 id="etcd面试题"><a href="#etcd面试题" class="headerlink" title="etcd面试题"></a>etcd面试题</h2><h3 id="基础概念题-1"><a href="#基础概念题-1" class="headerlink" title="基础概念题"></a>基础概念题</h3><p><strong>Q5: etcd是什么？为什么Kubernetes选择etcd？</strong></p>
+<p><strong>答案</strong>:</p>
+<ul>
+<li><strong>定义</strong>: 分布式键值存储，基于Raft共识算法</li>
+<li><strong>选择理由</strong>:<ul>
+<li>强一致性保证（CP系统）</li>
+<li>Watch机制支持实时通知</li>
+<li>成熟的分布式一致性算法</li>
+<li>高性能和可靠性</li>
+</ul>
+</li>
+</ul>
+<p><strong>Q6: etcd如何保证数据一致性？</strong></p>
+<p><strong>答案</strong>: Raft共识算法</p>
+<ul>
+<li><strong>Leader选举</strong>: 确保单点写入</li>
+<li><strong>日志复制</strong>: 写操作复制到多数节点</li>
+<li><strong>两阶段提交</strong>: 保证操作原子性</li>
+<li><strong>MVCC</strong>: 多版本并发控制</li>
+</ul>
+<h3 id="深度分析题-1"><a href="#深度分析题-1" class="headerlink" title="深度分析题"></a>深度分析题</h3><p><strong>Q7: 解释Raft算法的工作原理</strong></p>
+<p><strong>答案</strong>: 三个角色和两个过程</p>
+<p><strong>角色</strong>:</p>
+<ul>
+<li>Leader: 处理所有写请求</li>
+<li>Follower: 复制Leader的日志</li>
+<li>Candidate: 选举状态的节点</li>
+</ul>
+<p><strong>选举过程</strong>:</p>
+<ol>
+<li>Follower超时后变成Candidate</li>
+<li>向其他节点请求投票</li>
+<li>获得多数票成为Leader</li>
+<li>发送心跳维持领导地位</li>
+</ol>
+<p><strong>日志复制</strong>:</p>
+<ol>
+<li>Leader接收客户端请求</li>
+<li>创建日志条目并发送给Follower</li>
+<li>收到多数确认后提交</li>
+<li>应用到状态机</li>
+</ol>
+<p><strong>Q8: etcd集群脑裂问题如何解决？</strong></p>
+<p><strong>答案</strong>: 多数派原则</p>
+<ul>
+<li><strong>奇数节点</strong>: 确保能产生明确多数</li>
+<li><strong>投票机制</strong>: 只有获得多数票才能成为Leader</li>
+<li><strong>网络分区</strong>: 少数派自动变为只读状态</li>
+<li><strong>监控告警</strong>: 及时发现网络分区问题</li>
+</ul>
+<h2 id="Container-Runtime面试题"><a href="#Container-Runtime面试题" class="headerlink" title="Container Runtime面试题"></a>Container Runtime面试题</h2><h3 id="基础概念题-2"><a href="#基础概念题-2" class="headerlink" title="基础概念题"></a>基础概念题</h3><p><strong>Q9: 什么是CRI？为什么需要CRI？</strong></p>
+<p><strong>答案</strong>:</p>
+<ul>
+<li><strong>定义</strong>: Container Runtime Interface，容器运行时接口</li>
+<li><strong>目的</strong>:<ul>
+<li>解耦Kubernetes和具体Runtime</li>
+<li>标准化容器操作接口</li>
+<li>支持多种Runtime实现</li>
+<li>简化Runtime集成</li>
+</ul>
+</li>
+</ul>
+<p><strong>Q10: Docker和containerd的区别？</strong></p>
+<p><strong>答案</strong>:</p>
+<ul>
+<li><strong>Docker</strong>: 完整容器平台，包含Runtime、镜像构建、网络等</li>
+<li><strong>containerd</strong>: 专注Runtime功能，更轻量</li>
+<li><strong>关系</strong>: containerd是从Docker拆分出来的核心组件</li>
+<li><strong>Kubernetes</strong>: 1.20+移除Docker支持，推荐使用containerd</li>
+</ul>
+<h3 id="深度分析题-2"><a href="#深度分析题-2" class="headerlink" title="深度分析题"></a>深度分析题</h3><p><strong>Q11: 什么是Pod Sandbox？如何实现？</strong></p>
+<p><strong>答案</strong>:</p>
+<ul>
+<li><strong>定义</strong>: Pod内容器共享的基础设施</li>
+<li><strong>功能</strong>: 提供共享的网络、IPC、PID命名空间</li>
+<li><strong>实现</strong>: 通常由pause容器（Infrastructure Container）提供</li>
+<li><strong>生命周期</strong>: 先于应用容器创建，后于应用容器销毁</li>
+</ul>
+<p><strong>Q12: 容器的资源隔离是如何实现的？</strong></p>
+<p><strong>答案</strong>: Linux内核机制</p>
+<ul>
+<li><p><strong>Namespace隔离</strong>:</p>
+<ul>
+<li>PID: 进程ID隔离</li>
+<li>Network: 网络隔离</li>
+<li>Mount: 文件系统隔离</li>
+<li>UTS: 主机名隔离</li>
+<li>IPC: 进程间通信隔离</li>
+<li>User: 用户ID隔离</li>
+</ul>
+</li>
+<li><p><strong>Cgroups控制</strong>:</p>
+<ul>
+<li>CPU: 处理器使用限制</li>
+<li>Memory: 内存使用限制</li>
+<li>BlkIO: 块设备I&#x2F;O限制</li>
+<li>Network: 网络带宽控制</li>
+</ul>
+</li>
+</ul>
+<h2 id="综合场景题"><a href="#综合场景题" class="headerlink" title="综合场景题"></a>综合场景题</h2><h3 id="Q13-集群中Pod无法启动，如何排查？"><a href="#Q13-集群中Pod无法启动，如何排查？" class="headerlink" title="Q13: 集群中Pod无法启动，如何排查？"></a>Q13: 集群中Pod无法启动，如何排查？</h3><p><strong>答案</strong>: 分层排查思路</p>
+<p><strong>1. kubelet层</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查kubelet状态</span></span><br><span class="line">systemctl status kubelet</span><br><span class="line">journalctl -u kubelet -f</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看kubelet配置</span></span><br><span class="line">ps aux | grep kubelet</span><br></pre></td></tr></table></figure>
+
+<p><strong>2. Container Runtime层</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># containerd状态</span></span><br><span class="line">systemctl status containerd</span><br><span class="line">crictl ps -a</span><br><span class="line">crictl logs &lt;container-id&gt;</span><br></pre></td></tr></table></figure>
+
+<p><strong>3. API Server层</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看Pod事件</span></span><br><span class="line">kubectl describe pod &lt;pod-name&gt;</span><br><span class="line">kubectl get events --sort-by=<span class="string">&#x27;.lastTimestamp&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>4. 网络和存储</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 网络连接</span></span><br><span class="line">kubectl <span class="built_in">exec</span> -it &lt;pod&gt; -- netstat -an</span><br><span class="line"><span class="comment"># 存储挂载</span></span><br><span class="line">kubectl get pv,pvc</span><br></pre></td></tr></table></figure>
+
+<h3 id="Q14-如何设计高性能的etcd集群？"><a href="#Q14-如何设计高性能的etcd集群？" class="headerlink" title="Q14: 如何设计高性能的etcd集群？"></a>Q14: 如何设计高性能的etcd集群？</h3><p><strong>答案</strong>: 全方位优化</p>
+<p><strong>硬件选择</strong>:</p>
+<ul>
+<li>SSD存储（IOPS&gt;3000）</li>
+<li>低延迟网络（&lt;10ms）</li>
+<li>充足内存（8GB+）</li>
+<li>多核CPU</li>
+</ul>
+<p><strong>网络架构</strong>:</p>
+<ul>
+<li>专用网络段</li>
+<li>网络带宽保证</li>
+<li>跨机架部署（容错）</li>
+</ul>
+<p><strong>配置优化</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 性能参数</span></span><br><span class="line">--heartbeat-interval=100</span><br><span class="line">--election-timeout=1000</span><br><span class="line">--snapshot-count=100000</span><br><span class="line">--quota-backend-bytes=8589934592</span><br><span class="line"></span><br><span class="line"><span class="comment"># 压缩策略</span></span><br><span class="line">--auto-compaction-retention=1h</span><br><span class="line">--auto-compaction-mode=periodic</span><br></pre></td></tr></table></figure>
+
+<p><strong>监控告警</strong>:</p>
+<ul>
+<li>延迟指标监控</li>
+<li>磁盘使用率</li>
+<li>网络延迟</li>
+<li>集群健康状态</li>
+</ul>
+<h2 id="面试技巧"><a href="#面试技巧" class="headerlink" title="面试技巧"></a>面试技巧</h2><h3 id="回答策略"><a href="#回答策略" class="headerlink" title="回答策略"></a>回答策略</h3><ol>
+<li><strong>分层回答</strong>: 从概念到实现到优化</li>
+<li><strong>举例说明</strong>: 结合具体场景</li>
+<li><strong>对比分析</strong>: 不同方案的优缺点</li>
+<li><strong>实战经验</strong>: 分享真实项目经历</li>
+</ol>
+<h3 id="深入准备"><a href="#深入准备" class="headerlink" title="深入准备"></a>深入准备</h3><ol>
+<li><strong>源码阅读</strong>: 关键组件核心模块</li>
+<li><strong>实验验证</strong>: 本地集群搭建测试</li>
+<li><strong>问题复现</strong>: 主动制造故障练习排查</li>
+<li><strong>性能测试</strong>: 了解各组件性能特性</li>
+</ol>
+<h3 id="加分项"><a href="#加分项" class="headerlink" title="加分项"></a>加分项</h3><ul>
+<li><strong>最新技术</strong>: 了解Kubernetes最新特性</li>
+<li><strong>生产经验</strong>: 大规模集群运维经验</li>
+<li><strong>开源贡献</strong>: 参与社区项目</li>
+<li><strong>架构思维</strong>: 系统性思考问题</li>
+</ul>
+<hr>
+<p><strong>这是Kubernetes面试准备系列的核心文章。建议结合实际项目经验和动手实践，深入理解每个组件的工作原理和最佳实践。</strong></p>
+<p><strong>相关阅读：</strong></p>
+<ul>
+<li><a href="./kubernetes-cluster-architecture-overview">Kubernetes集群架构深度解析</a></li>
+<li><a href="./kubernetes-apiserver-deep-dive">Kubernetes API Server深度解析</a></li>
+<li><a href="./kubernetes-etcd-distributed-storage">etcd分布式存储原理与实践</a></li>
+<li><a href="./kubernetes-container-runtime-cri">Container Runtime与CRI接口详解</a></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kubernetes/" rel="tag"># kubernetes</a>
+              <a href="/tags/etcd/" rel="tag"># etcd</a>
+              <a href="/tags/apiserver/" rel="tag"># apiserver</a>
+              <a href="/tags/container-runtime/" rel="tag"># container-runtime</a>
+              <a href="/tags/kubernetes-interview/" rel="tag"># kubernetes-interview</a>
+              <a href="/tags/interview-questions/" rel="tag"># interview-questions</a>
+              <a href="/tags/technical-interview/" rel="tag"># technical-interview</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/03/17/2026-03-17-kubernetes-container-runtime-cri/" rel="prev" title="Container Runtime与CRI接口详解 - Kubernetes的容器执行引擎">
+                  <i class="fa fa-angle-left"></i> Container Runtime与CRI接口详解 - Kubernetes的容器执行引擎
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/03/17/2026-03-17-kubernetes-etcd-hands-on-guide/" rel="next" title="etcd实战操作指南 - 从部署到监控的完整实践">
+                  etcd实战操作指南 - 从部署到监控的完整实践 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
