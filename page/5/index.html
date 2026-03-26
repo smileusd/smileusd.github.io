@@ -149,220 +149,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-29-golang-rename/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-29-golang-rename/" class="post-title-link" itemprop="url">记一次疑云重重的kubelet延迟很高的问题</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>最近在调查一个kubernetes中发现Kubelet的pods目录:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/xxx/volumes/</span><br></pre></td></tr></table></figure>
-<p>下出现了大量的包含”deleting~” 的目录:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~859156558</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~912994645</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~096627888</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~361944655</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~827756898</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~850958169</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~435144420</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~573873907</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~817019830</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~300298653</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~414447192</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~453118423</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~634999626</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~329196065</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~705907980</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~060876539</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~371568670</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~473777381</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~852926720</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~911951455</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~221614642</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~643761641</span><br></pre></td></tr></table></figure>
-<p>导致每次reconciler将这些多余的”deleting~”加入到”ActualOfWorld”中, 然后触发大量的Umount操作, 使得reconciler很久才Loop一次, 现象就是pod create和delete都变得非常得慢.<br>一. 一开始, 我发现自己写的plugin中使用了pkg&#x2F;volume&#x2F;volume.go中的RenameDirectory函数, 函数如下:</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">RenameDirectory</span><span class="params">(oldPath, newName <span class="type">string</span>)</span></span> (<span class="type">string</span>, <span class="type">error</span>) &#123;</span><br><span class="line">	newPath, err := ioutil.TempDir(filepath.Dir(oldPath), newName)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// os.Rename call fails on windows (https://github.com/golang/go/issues/14527)</span></span><br><span class="line">	<span class="comment">// Replacing with copyFolder to the newPath and deleting the oldPath directory</span></span><br><span class="line">	<span class="keyword">if</span> runtime.GOOS == <span class="string">&quot;windows&quot;</span> &#123;</span><br><span class="line">		err = copyFolder(oldPath, newPath)</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			glog.Errorf(<span class="string">&quot;Error copying folder from: %s to: %s with error: %v&quot;</span>, oldPath, newPath, err)</span><br><span class="line">			<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">		&#125;</span><br><span class="line">		os.RemoveAll(oldPath)</span><br><span class="line">		<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	err = os.Rename(oldPath, newPath)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-<p>在每次删除目录时, 并不是直接删除, 而是先创建一个随机的空目录, 然后将原目录rename到随机目录, 最后再将这个随机目录删除掉.<br>看似没有什么问题, 但不巧的是, 在golang1.8之后, os.Rename的实现发生了变化</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">rename</span><span class="params">(oldname, newname <span class="type">string</span>)</span></span> <span class="type">error</span> &#123;</span><br><span class="line">	fi, err := Lstat(newname)</span><br><span class="line">	<span class="keyword">if</span> err == <span class="literal">nil</span> &amp;&amp; fi.IsDir() &#123;</span><br><span class="line">		<span class="comment">// There are two independent errors this function can return:</span></span><br><span class="line">		<span class="comment">// one for a bad oldname, and one for a bad newname.</span></span><br><span class="line">		<span class="comment">// At this point we&#x27;ve determined the newname is bad.</span></span><br><span class="line">		<span class="comment">// But just in case oldname is also bad, prioritize returning</span></span><br><span class="line">		<span class="comment">// the oldname error because that&#x27;s what we did historically.</span></span><br><span class="line">		<span class="keyword">if</span> _, err := Lstat(oldname); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">if</span> pe, ok := err.(*PathError); ok &#123;</span><br><span class="line">				err = pe.Err</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, syscall.EEXIST&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">//------------------------版本分割线1.8</span></span><br><span class="line">	err = syscall.Rename(oldname, newname)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>在虚线以上是go1.8之后新加的内容, 如果rename之后的目录存在, 就会打印”File Exits”错误, 这样就会创建大量的”deleting~”目录. 相关修改和讨论在<a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/issues/43534">Bugs in EmptyDir Teardown path</a>.</p>
-<p>以为问题就这样解决了, 然而不是, 我检查了版本, 使用的是1.7.4, 同时查看了日志, 并没有打印”FILE Exist”的log, 而是打印了”device or resource busy”. 通过多种测试, 发现rename操作无论是进程占用还是进程对文件的读写, 都不会导致device busy问题. 这说明我找到了出问题的地方, 却没找到背后的原因. </p>
-<p>二. 如果rename没有返回错误, 那么只能是之后的remove操作返回的错误. 然而却有几个疑点:</p>
-<ol>
-<li>查看rename出来的deleting目录中都是空目录, 里面并没有数据</li>
-<li>手动可以remove掉这些目录</li>
-<li>原目录并没有消失, 而是存在且有大量的正在更新的数据.</li>
-</ol>
-<p>​    显然问题比我想象的更加复杂. 有一个可能的解释是在我操作delete之后由于太长时间没有删掉导致Kubelet直接暴力删除了这个pod, statefulset又重启了新的pod, 原来的container虽然删掉但相应的namespaces中依然有应用程序在读写, 这种情况导致remove busy, 而且数据在更新.</p>
-<p>这些问题要调查起来都很费力. 显然直接删掉rename逻辑可以解决这个问题, 于是不再追究.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-14-qos-in-k8s/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-14-qos-in-k8s/" class="post-title-link" itemprop="url">qos-in-k8s</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>​    一直感觉对kubernetes中的qos是一个盲点, 借着复习下scheduler的一些资源调度策略来学习下k8s中的qos策略, 然后再辐射到一般性的qos策略.</p>
-<h3 id="动机"><a href="#动机" class="headerlink" title="动机:"></a>动机:</h3><p>k8s 用非常简单的方式分配资源. 用户能够指定容器的资源限制. 比如一个用户能够指定某个container 只能使用1GB的内存. scheduler通过资源限制去调度容器. 如果某个节点的内存只有4GB, 那个一个有5Gb请求的容器就将不能调度到这个节点. 目前, k8s不能保证容器在一个超卖的系统中运行稳定. </p>
-<p>目前的实现中, 如果用户指定limts给所有的container, 那么集群资源的利用率将会非常低下. 因为容器往往无法充分使用用户指定的那些资源. 一个可能的方式是不指定limits, 这样container就可以无限制的使用, 但是如果这些container无限制的使用资源, 就可能使得指定了limits的容器由于机器资源不够而被杀掉. 这是用户不愿意看到的, 他们希望自己指定了某个大小, 那么启动之后系统就应该保证这个容器的顺利运行. </p>
-<p>qos机制就是在节点资源超卖的环境下, 通过提供不同级别的保证来满足资源的需求. 容器可以用request请求一个最小资源, request与limit不同, container可以使用超过request的值. best-effort级别的container相当于request为0的container. Best-effort container只使用那些其他container没有使用的资源, 可以用于资源清理(这个没看懂). </p>
-<h3 id="Request-and-limits"><a href="#Request-and-limits" class="headerlink" title="Request and limits"></a>Request and limits</h3><p>对于每种资源, container可以指定request和limits, 0 &lt;&#x3D; request &lt;&#x3D; limit &lt;&#x3D; infinity. 如果container成功调度, 意味着container能够保证至少有request的值的资源. container不能超过limit的值. 而request 和 limit 如何执行要看资源是compressible还是incompressible.</p>
-<h4 id="Compressible-Resource-Guarantees"><a href="#Compressible-Resource-Guarantees" class="headerlink" title="Compressible Resource Guarantees"></a>Compressible Resource Guarantees</h4><ul>
-<li>目前只有cpu</li>
-<li>container至少得到request的cpu请求</li>
-<li>剩余的cpu会按照cpu request比例分配给container. 比如container A request 60%, container B request 30%. 假设两个container都尝试拿到更多的cpu, 那么剩余的10%将按照2:1的比例分配.</li>
-<li>如果超过limits, Containers 会被节流(不是被杀死).</li>
-</ul>
-<h4 id="Incompressible-Resouce-Guarantees"><a href="#Incompressible-Resouce-Guarantees" class="headerlink" title="Incompressible Resouce Guarantees"></a>Incompressible Resouce Guarantees</h4><ul>
-<li>目前只有内存. (我认为本地存储也在这一类)</li>
-<li>Containers能够得到request的大小, 如果超过这个大小, 它们可能会被杀掉(如果其他container需要内存), 但是如果containers消耗的少于request值, 他们不会被删除(除非系统任务或者daemonset需要更多的内存)</li>
-<li>Containers会被杀掉如果他们使用了超过limit的内存.</li>
-</ul>
-<h4 id="Kubelet-admission-策略"><a href="#Kubelet-admission-策略" class="headerlink" title="Kubelet admission 策略"></a>Kubelet admission 策略</h4><p>kubelet通过统计containers的request来确保系统资源不会被超载.</p>
-<h3 id="QoS-分级"><a href="#QoS-分级" class="headerlink" title="QoS 分级"></a>QoS 分级</h3><h4 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h4><p>k8s Qos 分成三个等级:</p>
-<ul>
-<li>Guaranteed</li>
-<li>Burstable</li>
-<li>BestEffort</li>
-</ul>
-<p>理论上QoS与limit, request应该是互不干扰的, 但实际上他们的联系非常紧密. QoS class不是自己设置的, 而是在创建pod的时候, 根据limit和request系统自动确认的.</p>
-<h4 id="Guaranteed"><a href="#Guaranteed" class="headerlink" title="Guaranteed"></a>Guaranteed</h4><p>这是级别最高的, 他的触发条件是:</p>
-<ul>
-<li>每个pod中container必须有内存的limit和request, 而且必须相同</li>
-<li>每个pod中cpu必须有内存的limit和request, 而且必须相同</li>
-</ul>
-<p>效果: 这些containers是最高优先级</p>
-<p>注意: 如果设置了limit没有设置request, 系统将会自动填充request跟limit相同.</p>
-<p>####Burstable </p>
-<p>这个的触发条件是:</p>
-<ul>
-<li>pod不满足Guaranteed</li>
-<li>pod中至少一个container有内存或者cpu的请求.</li>
-</ul>
-<p>效果: 能够保证request的请求, 但是不保证limit, 如果超出request请求的内存大小, 发生oom时可能会被杀死.</p>
-<h4 id="BestEffort"><a href="#BestEffort" class="headerlink" title="BestEffort"></a>BestEffort</h4><p>触发条件: 很明显, 没有指定任何request和limit或者值都是0就是BestEffort级别.</p>
-<p>效果: 这些containers没有请求资源保障, 会被认为是最低优先级的, 如果系统发生oom, 他们会被首先杀死. 他们只会使用集群中没有被使用的那部分资源.</p>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>所以k8s的qos主要是通过两方面: request,limit 和 qos class来实现的. 这两方面又有很多交叉的地方. 而且在面对不同的资源的时候, 他们的策略是不一样的.</p>
-<h3 id="Storage-QoS"><a href="#Storage-QoS" class="headerlink" title="Storage QoS"></a>Storage QoS</h3><p>由于k8s中没有关于存储的qos机制, 于是关于存储的qos, 查看了一些文档.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-05-24-k8s-schedule/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -557,6 +343,220 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
 
 <p>所以重启大法好…</p>
 <p>但是真正原因没搞清楚, 待更新.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-14-qos-in-k8s/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-06-14-qos-in-k8s/" class="post-title-link" itemprop="url">qos-in-k8s</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>​    一直感觉对kubernetes中的qos是一个盲点, 借着复习下scheduler的一些资源调度策略来学习下k8s中的qos策略, 然后再辐射到一般性的qos策略.</p>
+<h3 id="动机"><a href="#动机" class="headerlink" title="动机:"></a>动机:</h3><p>k8s 用非常简单的方式分配资源. 用户能够指定容器的资源限制. 比如一个用户能够指定某个container 只能使用1GB的内存. scheduler通过资源限制去调度容器. 如果某个节点的内存只有4GB, 那个一个有5Gb请求的容器就将不能调度到这个节点. 目前, k8s不能保证容器在一个超卖的系统中运行稳定. </p>
+<p>目前的实现中, 如果用户指定limts给所有的container, 那么集群资源的利用率将会非常低下. 因为容器往往无法充分使用用户指定的那些资源. 一个可能的方式是不指定limits, 这样container就可以无限制的使用, 但是如果这些container无限制的使用资源, 就可能使得指定了limits的容器由于机器资源不够而被杀掉. 这是用户不愿意看到的, 他们希望自己指定了某个大小, 那么启动之后系统就应该保证这个容器的顺利运行. </p>
+<p>qos机制就是在节点资源超卖的环境下, 通过提供不同级别的保证来满足资源的需求. 容器可以用request请求一个最小资源, request与limit不同, container可以使用超过request的值. best-effort级别的container相当于request为0的container. Best-effort container只使用那些其他container没有使用的资源, 可以用于资源清理(这个没看懂). </p>
+<h3 id="Request-and-limits"><a href="#Request-and-limits" class="headerlink" title="Request and limits"></a>Request and limits</h3><p>对于每种资源, container可以指定request和limits, 0 &lt;&#x3D; request &lt;&#x3D; limit &lt;&#x3D; infinity. 如果container成功调度, 意味着container能够保证至少有request的值的资源. container不能超过limit的值. 而request 和 limit 如何执行要看资源是compressible还是incompressible.</p>
+<h4 id="Compressible-Resource-Guarantees"><a href="#Compressible-Resource-Guarantees" class="headerlink" title="Compressible Resource Guarantees"></a>Compressible Resource Guarantees</h4><ul>
+<li>目前只有cpu</li>
+<li>container至少得到request的cpu请求</li>
+<li>剩余的cpu会按照cpu request比例分配给container. 比如container A request 60%, container B request 30%. 假设两个container都尝试拿到更多的cpu, 那么剩余的10%将按照2:1的比例分配.</li>
+<li>如果超过limits, Containers 会被节流(不是被杀死).</li>
+</ul>
+<h4 id="Incompressible-Resouce-Guarantees"><a href="#Incompressible-Resouce-Guarantees" class="headerlink" title="Incompressible Resouce Guarantees"></a>Incompressible Resouce Guarantees</h4><ul>
+<li>目前只有内存. (我认为本地存储也在这一类)</li>
+<li>Containers能够得到request的大小, 如果超过这个大小, 它们可能会被杀掉(如果其他container需要内存), 但是如果containers消耗的少于request值, 他们不会被删除(除非系统任务或者daemonset需要更多的内存)</li>
+<li>Containers会被杀掉如果他们使用了超过limit的内存.</li>
+</ul>
+<h4 id="Kubelet-admission-策略"><a href="#Kubelet-admission-策略" class="headerlink" title="Kubelet admission 策略"></a>Kubelet admission 策略</h4><p>kubelet通过统计containers的request来确保系统资源不会被超载.</p>
+<h3 id="QoS-分级"><a href="#QoS-分级" class="headerlink" title="QoS 分级"></a>QoS 分级</h3><h4 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h4><p>k8s Qos 分成三个等级:</p>
+<ul>
+<li>Guaranteed</li>
+<li>Burstable</li>
+<li>BestEffort</li>
+</ul>
+<p>理论上QoS与limit, request应该是互不干扰的, 但实际上他们的联系非常紧密. QoS class不是自己设置的, 而是在创建pod的时候, 根据limit和request系统自动确认的.</p>
+<h4 id="Guaranteed"><a href="#Guaranteed" class="headerlink" title="Guaranteed"></a>Guaranteed</h4><p>这是级别最高的, 他的触发条件是:</p>
+<ul>
+<li>每个pod中container必须有内存的limit和request, 而且必须相同</li>
+<li>每个pod中cpu必须有内存的limit和request, 而且必须相同</li>
+</ul>
+<p>效果: 这些containers是最高优先级</p>
+<p>注意: 如果设置了limit没有设置request, 系统将会自动填充request跟limit相同.</p>
+<p>####Burstable </p>
+<p>这个的触发条件是:</p>
+<ul>
+<li>pod不满足Guaranteed</li>
+<li>pod中至少一个container有内存或者cpu的请求.</li>
+</ul>
+<p>效果: 能够保证request的请求, 但是不保证limit, 如果超出request请求的内存大小, 发生oom时可能会被杀死.</p>
+<h4 id="BestEffort"><a href="#BestEffort" class="headerlink" title="BestEffort"></a>BestEffort</h4><p>触发条件: 很明显, 没有指定任何request和limit或者值都是0就是BestEffort级别.</p>
+<p>效果: 这些containers没有请求资源保障, 会被认为是最低优先级的, 如果系统发生oom, 他们会被首先杀死. 他们只会使用集群中没有被使用的那部分资源.</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>所以k8s的qos主要是通过两方面: request,limit 和 qos class来实现的. 这两方面又有很多交叉的地方. 而且在面对不同的资源的时候, 他们的策略是不一样的.</p>
+<h3 id="Storage-QoS"><a href="#Storage-QoS" class="headerlink" title="Storage QoS"></a>Storage QoS</h3><p>由于k8s中没有关于存储的qos机制, 于是关于存储的qos, 查看了一些文档.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-29-golang-rename/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-06-29-golang-rename/" class="post-title-link" itemprop="url">记一次疑云重重的kubelet延迟很高的问题</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>最近在调查一个kubernetes中发现Kubelet的pods目录:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/xxx/volumes/</span><br></pre></td></tr></table></figure>
+<p>下出现了大量的包含”deleting~” 的目录:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~859156558</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~912994645</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~096627888</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~361944655</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~827756898</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~850958169</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~435144420</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~573873907</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~817019830</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~300298653</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~414447192</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~453118423</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~634999626</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~329196065</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~705907980</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~060876539</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~371568670</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~473777381</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~852926720</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~911951455</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~221614642</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~643761641</span><br></pre></td></tr></table></figure>
+<p>导致每次reconciler将这些多余的”deleting~”加入到”ActualOfWorld”中, 然后触发大量的Umount操作, 使得reconciler很久才Loop一次, 现象就是pod create和delete都变得非常得慢.<br>一. 一开始, 我发现自己写的plugin中使用了pkg&#x2F;volume&#x2F;volume.go中的RenameDirectory函数, 函数如下:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">RenameDirectory</span><span class="params">(oldPath, newName <span class="type">string</span>)</span></span> (<span class="type">string</span>, <span class="type">error</span>) &#123;</span><br><span class="line">	newPath, err := ioutil.TempDir(filepath.Dir(oldPath), newName)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// os.Rename call fails on windows (https://github.com/golang/go/issues/14527)</span></span><br><span class="line">	<span class="comment">// Replacing with copyFolder to the newPath and deleting the oldPath directory</span></span><br><span class="line">	<span class="keyword">if</span> runtime.GOOS == <span class="string">&quot;windows&quot;</span> &#123;</span><br><span class="line">		err = copyFolder(oldPath, newPath)</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			glog.Errorf(<span class="string">&quot;Error copying folder from: %s to: %s with error: %v&quot;</span>, oldPath, newPath, err)</span><br><span class="line">			<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">		&#125;</span><br><span class="line">		os.RemoveAll(oldPath)</span><br><span class="line">		<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	err = os.Rename(oldPath, newPath)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+<p>在每次删除目录时, 并不是直接删除, 而是先创建一个随机的空目录, 然后将原目录rename到随机目录, 最后再将这个随机目录删除掉.<br>看似没有什么问题, 但不巧的是, 在golang1.8之后, os.Rename的实现发生了变化</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">rename</span><span class="params">(oldname, newname <span class="type">string</span>)</span></span> <span class="type">error</span> &#123;</span><br><span class="line">	fi, err := Lstat(newname)</span><br><span class="line">	<span class="keyword">if</span> err == <span class="literal">nil</span> &amp;&amp; fi.IsDir() &#123;</span><br><span class="line">		<span class="comment">// There are two independent errors this function can return:</span></span><br><span class="line">		<span class="comment">// one for a bad oldname, and one for a bad newname.</span></span><br><span class="line">		<span class="comment">// At this point we&#x27;ve determined the newname is bad.</span></span><br><span class="line">		<span class="comment">// But just in case oldname is also bad, prioritize returning</span></span><br><span class="line">		<span class="comment">// the oldname error because that&#x27;s what we did historically.</span></span><br><span class="line">		<span class="keyword">if</span> _, err := Lstat(oldname); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">if</span> pe, ok := err.(*PathError); ok &#123;</span><br><span class="line">				err = pe.Err</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, syscall.EEXIST&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">//------------------------版本分割线1.8</span></span><br><span class="line">	err = syscall.Rename(oldname, newname)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在虚线以上是go1.8之后新加的内容, 如果rename之后的目录存在, 就会打印”File Exits”错误, 这样就会创建大量的”deleting~”目录. 相关修改和讨论在<a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/issues/43534">Bugs in EmptyDir Teardown path</a>.</p>
+<p>以为问题就这样解决了, 然而不是, 我检查了版本, 使用的是1.7.4, 同时查看了日志, 并没有打印”FILE Exist”的log, 而是打印了”device or resource busy”. 通过多种测试, 发现rename操作无论是进程占用还是进程对文件的读写, 都不会导致device busy问题. 这说明我找到了出问题的地方, 却没找到背后的原因. </p>
+<p>二. 如果rename没有返回错误, 那么只能是之后的remove操作返回的错误. 然而却有几个疑点:</p>
+<ol>
+<li>查看rename出来的deleting目录中都是空目录, 里面并没有数据</li>
+<li>手动可以remove掉这些目录</li>
+<li>原目录并没有消失, 而是存在且有大量的正在更新的数据.</li>
+</ol>
+<p>​    显然问题比我想象的更加复杂. 有一个可能的解释是在我操作delete之后由于太长时间没有删掉导致Kubelet直接暴力删除了这个pod, statefulset又重启了新的pod, 原来的container虽然删掉但相应的namespaces中依然有应用程序在读写, 这种情况导致remove busy, 而且数据在更新.</p>
+<p>这些问题要调查起来都很费力. 显然直接删掉rename逻辑可以解决这个问题, 于是不再追究.</p>
 
       
     </div>
@@ -790,97 +790,6 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-05-24-Istio/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-05-24-Istio/" class="post-title-link" itemprop="url">Istio</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>Istio: 一个开源平台去链接， 管理和保障微服务： 分布式微服务代理。</p>
-<p>传统代理： 类似于一个线， 任何服务都经过这个代理。</p>
-<p>分布式代理： 代理运行在每个应用上，接管应用进出的流量并和统一的控制中心通信获取动态配置。</p>
-<p>微服务代理： service mesh: 互连的分布式代理。</p>
-<p>Istio: </p>
-<ol>
-<li><p>Pilot: 基于http做流量的； </p>
-</li>
-<li><p>Ｍixer: 做数据统计， 授权认证</p>
-</li>
-<li><p>CA-Auth： 做安全认证</p>
-</li>
-</ol>
-<p>Envoy： 微服务代理。</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-04-19-shell%20bash%E7%B1%BB%E5%9E%8B%E5%92%8C%E6%90%9C%E7%B4%A2%E6%9C%BA%E5%88%B6/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -993,6 +902,190 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-05-24-Istio/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-05-24-Istio/" class="post-title-link" itemprop="url">Istio</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>Istio: 一个开源平台去链接， 管理和保障微服务： 分布式微服务代理。</p>
+<p>传统代理： 类似于一个线， 任何服务都经过这个代理。</p>
+<p>分布式代理： 代理运行在每个应用上，接管应用进出的流量并和统一的控制中心通信获取动态配置。</p>
+<p>微服务代理： service mesh: 互连的分布式代理。</p>
+<p>Istio: </p>
+<ol>
+<li><p>Pilot: 基于http做流量的； </p>
+</li>
+<li><p>Ｍixer: 做数据统计， 授权认证</p>
+</li>
+<li><p>CA-Auth： 做安全认证</p>
+</li>
+</ol>
+<p>Envoy： 微服务代理。</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-03-21-containerd%E5%8E%9F%E7%94%9F%E6%94%AF%E6%8C%81Kubernetes/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-03-21-containerd%E5%8E%9F%E7%94%9F%E6%94%AF%E6%8C%81Kubernetes/" class="post-title-link" itemprop="url">containerd原生支持Kubernetes</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>苗艳强，闫学安</p>
+<p>ZTE 工程师，主要从事容器相关开源工作，Kubernetes 社区 member, containerd 社区 member</p>
+<p>课程详情：</p>
+<p><strong>演讲主题：</strong></p>
+<p>目前跟 Kubernetes 对接的默认容器运行时是 docker，然而 docker 从 1.12 版本开始加入了 swarm 功能，随着版本的演进，功能越来越庞大，已经成为一个跟 Kubernetes 同级甚至高一级的编排工具，且前不久又宣布在编排测要无缝对接 Kubernetes，因此，docker 作为 Kubernetes 默认容器运行时的位子必将被其他工具代替。本次分享首先简单介绍 Kubernetes 的运行时接口规范，然后着重为大家分享一款新的容器运行时工具 containerd，包括项目介绍，功能组成等，以及使其原生对接 Kubernetes 的插件 cri-containerd。</p>
+<p><strong>纲要&#x2F;提纲：</strong></p>
+<ol>
+<li><p>Kubernetes 容器容器运行时接口（CRI）</p>
+</li>
+<li><p>containerd 项目介绍</p>
+</li>
+<li><p>containerd 的 CRI 实现</p>
+</li>
+</ol>
+<hr>
+<p>Containerd的CRI实现<br>kubelet -&gt; cri-containerd -&gt; containerd</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-03-21-git-submodule-problem/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1054,88 +1147,6 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
 <ol start="2">
 <li><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">git rm --cached themes/next  </span><br><span class="line">git add themes/next</span><br></pre></td></tr></table></figure></li>
 </ol>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-03-21-golang-initialize/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-03-21-golang-initialize/" class="post-title-link" itemprop="url">golang 初始化顺序初探</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>写了一个简单的程序, 想通过外部环境变量传递给程序的全局变量, 这个全局变量又被另一个全局变量使用, 发现另一个变量无法改变, 然后发现一些有意思的golang程序初始化顺序, 需要稍微注意一下. </p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">&quot;fmt&quot;</span></span><br><span class="line">    <span class="string">&quot;flag&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">    <span class="comment">// 1</span></span><br><span class="line">    size  = flag.String(<span class="string">&quot;size&quot;</span>, <span class="string">&quot;3&quot;</span>, <span class="string">&quot;size&quot;</span>)</span><br><span class="line">    a = <span class="string">&quot;1&quot;</span></span><br><span class="line">    b = a + <span class="string">&quot;2&quot;</span></span><br><span class="line">    c = b + *size</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> &#123;</span><br><span class="line">    <span class="comment">// 2</span></span><br><span class="line">    fmt.Printf(<span class="string">&quot;%s,  %s, %s, %s \n&quot;</span>, a, b, c, *size)</span><br><span class="line">    a = <span class="string">&quot;2&quot;</span></span><br><span class="line">    b = a + <span class="string">&quot;2&quot;</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">    fmt.Printf(<span class="string">&quot;%s,  %s, %s, %s \n&quot;</span>, a, b, c, *size)</span><br><span class="line">    <span class="comment">// 3</span></span><br><span class="line">    flag.Parse()</span><br><span class="line">    fmt.Printf(<span class="string">&quot;%s,  %s, %s, %s \n&quot;</span>, a, b, c, *size)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>输出如下:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">/home/shentao/.IdeaIC2016.1/config/plugins/Go/lib/dlv/linux/dlv --listen=localhost:34206 --headless=true exec &quot;/tmp/Build initializetest.go and rungo&quot; -- -size=10</span><br><span class="line">1,  12, 123, 3 </span><br><span class="line">2,  22, 123, 3 </span><br><span class="line">2,  22, 123, 10 </span><br></pre></td></tr></table></figure>
-<p>注释标记的是实际运行顺序, 先是变量的初始化, 此时size还没传入解析, 所以使用默认值”3”; 其次是调用init函数; 最后是main函数, main函数再进行flag.Parse(), 此时size改变, 但是其他变量不会再变.</p>
 
       
     </div>
