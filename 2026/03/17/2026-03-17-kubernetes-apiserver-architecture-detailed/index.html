@@ -223,22 +223,162 @@
     
     
     
-    <div class="post-body" itemprop="articleBody"><h1 id="API-Server架构设计深度剖析"><a href="#API-Server架构设计深度剖析" class="headerlink" title="API Server架构设计深度剖析"></a>API Server架构设计深度剖析</h1><h2 id="整体架构图"><a href="#整体架构图" class="headerlink" title="整体架构图"></a>整体架构图</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;Client Layer&quot;</span><br><span class="line">        CLI[kubectl]</span><br><span class="line">        WEB[Web Dashboard]</span><br><span class="line">        SDK[Client SDK]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;API Server&quot;</span><br><span class="line">        subgraph &quot;HTTP Handler&quot;</span><br><span class="line">            ROUTER[Request Router]</span><br><span class="line">            CORS[CORS Handler]</span><br><span class="line">            TIMEOUT[Timeout Handler]</span><br><span class="line">        end</span><br><span class="line"></span><br><span class="line">        subgraph &quot;Authentication&quot;</span><br><span class="line">            CERT[Certificate Auth]</span><br><span class="line">            TOKEN[Token Auth]</span><br><span class="line">            OIDC[OIDC Auth]</span><br><span class="line">            WEBHOOK[Auth Webhook]</span><br><span class="line">        end</span><br><span class="line"></span><br><span class="line">        subgraph &quot;Authorization&quot;</span><br><span class="line">            RBAC[RBAC]</span><br><span class="line">            ABAC[ABAC]</span><br><span class="line">            WEBHOOK2[Authz Webhook]</span><br><span class="line">        end</span><br><span class="line"></span><br><span class="line">        subgraph &quot;Admission Control&quot;</span><br><span class="line">            MUTATE[Mutating Admissions]</span><br><span class="line">            VALIDATE[Validating Admissions]</span><br><span class="line">            BUILT[Built-in Admissions]</span><br><span class="line">        end</span><br><span class="line"></span><br><span class="line">        subgraph &quot;API Machinery&quot;</span><br><span class="line">            REG[Schema Registry]</span><br><span class="line">            CONVERT[Version Converter]</span><br><span class="line">            VALIDATE2[Object Validator]</span><br><span class="line">        end</span><br><span class="line"></span><br><span class="line">        subgraph &quot;Storage Layer&quot;</span><br><span class="line">            GENERIC[Generic Store]</span><br><span class="line">            CACHE[Cache Layer]</span><br><span class="line">            ETCD3[etcd v3 Client]</span><br><span class="line">        end</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    CLI --&gt; ROUTER</span><br><span class="line">    WEB --&gt; ROUTER</span><br><span class="line">    SDK --&gt; ROUTER</span><br><span class="line"></span><br><span class="line">    ROUTER --&gt; CORS</span><br><span class="line">    CORS --&gt; TIMEOUT</span><br><span class="line">    TIMEOUT --&gt; CERT</span><br><span class="line">    CERT --&gt; TOKEN</span><br><span class="line">    TOKEN --&gt; OIDC</span><br><span class="line">    OIDC --&gt; WEBHOOK</span><br><span class="line">    WEBHOOK --&gt; RBAC</span><br><span class="line">    RBAC --&gt; ABAC</span><br><span class="line">    ABAC --&gt; WEBHOOK2</span><br><span class="line">    WEBHOOK2 --&gt; MUTATE</span><br><span class="line">    MUTATE --&gt; VALIDATE</span><br><span class="line">    VALIDATE --&gt; BUILT</span><br><span class="line">    BUILT --&gt; REG</span><br><span class="line">    REG --&gt; CONVERT</span><br><span class="line">    CONVERT --&gt; VALIDATE2</span><br><span class="line">    VALIDATE2 --&gt; GENERIC</span><br><span class="line">    GENERIC --&gt; CACHE</span><br><span class="line">    CACHE --&gt; ETCD3</span><br></pre></td></tr></table></figure>
+    <div class="post-body" itemprop="articleBody"><h1 id="API-Server架构设计深度剖析"><a href="#API-Server架构设计深度剖析" class="headerlink" title="API Server架构设计深度剖析"></a>API Server架构设计深度剖析</h1><h2 id="整体架构图"><a href="#整体架构图" class="headerlink" title="整体架构图"></a>整体架构图</h2><pre class="mermaid">graph TB
+    subgraph "Client Layer"
+        CLI[kubectl]
+        WEB[Web Dashboard]
+        SDK[Client SDK]
+    end
+
+    subgraph "API Server"
+        subgraph "HTTP Handler"
+            ROUTER[Request Router]
+            CORS[CORS Handler]
+            TIMEOUT[Timeout Handler]
+        end
+
+        subgraph "Authentication"
+            CERT[Certificate Auth]
+            TOKEN[Token Auth]
+            OIDC[OIDC Auth]
+            WEBHOOK[Auth Webhook]
+        end
+
+        subgraph "Authorization"
+            RBAC[RBAC]
+            ABAC[ABAC]
+            WEBHOOK2[Authz Webhook]
+        end
+
+        subgraph "Admission Control"
+            MUTATE[Mutating Admissions]
+            VALIDATE[Validating Admissions]
+            BUILT[Built-in Admissions]
+        end
+
+        subgraph "API Machinery"
+            REG[Schema Registry]
+            CONVERT[Version Converter]
+            VALIDATE2[Object Validator]
+        end
+
+        subgraph "Storage Layer"
+            GENERIC[Generic Store]
+            CACHE[Cache Layer]
+            ETCD3[etcd v3 Client]
+        end
+    end
+
+    CLI --> ROUTER
+    WEB --> ROUTER
+    SDK --> ROUTER
+
+    ROUTER --> CORS
+    CORS --> TIMEOUT
+    TIMEOUT --> CERT
+    CERT --> TOKEN
+    TOKEN --> OIDC
+    OIDC --> WEBHOOK
+    WEBHOOK --> RBAC
+    RBAC --> ABAC
+    ABAC --> WEBHOOK2
+    WEBHOOK2 --> MUTATE
+    MUTATE --> VALIDATE
+    VALIDATE --> BUILT
+    BUILT --> REG
+    REG --> CONVERT
+    CONVERT --> VALIDATE2
+    VALIDATE2 --> GENERIC
+    GENERIC --> CACHE
+    CACHE --> ETCD3</pre>
 
 <h2 id="核心模块详解"><a href="#核心模块详解" class="headerlink" title="核心模块详解"></a>核心模块详解</h2><h3 id="1-HTTP服务层"><a href="#1-HTTP服务层" class="headerlink" title="1. HTTP服务层"></a>1. HTTP服务层</h3><h4 id="Request-Router-请求路由"><a href="#Request-Router-请求路由" class="headerlink" title="Request Router (请求路由)"></a>Request Router (请求路由)</h4><p>负责将HTTP请求路由到相应的处理器：</p>
 <figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// API路由示例结构</span></span><br><span class="line"><span class="keyword">type</span> APIHandler <span class="keyword">struct</span> &#123;</span><br><span class="line">    group      <span class="type">string</span>    <span class="comment">// API组 (如 &quot;apps&quot;)</span></span><br><span class="line">    version    <span class="type">string</span>    <span class="comment">// 版本 (如 &quot;v1&quot;)</span></span><br><span class="line">    resource   <span class="type">string</span>    <span class="comment">// 资源类型 (如 &quot;deployments&quot;)</span></span><br><span class="line">    namespace  <span class="type">string</span>    <span class="comment">// 命名空间</span></span><br><span class="line">    name       <span class="type">string</span>    <span class="comment">// 资源名称</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 路由规则</span></span><br><span class="line">/api/v1/namespaces/&#123;namespace&#125;/pods/&#123;name&#125;</span><br><span class="line">/apis/apps/v1/namespaces/&#123;namespace&#125;/deployments</span><br><span class="line">/apis/apiextensions.k8s.io/v1/customresourcedefinitions</span><br></pre></td></tr></table></figure>
 
-<h4 id="HTTP中间件链"><a href="#HTTP中间件链" class="headerlink" title="HTTP中间件链"></a>HTTP中间件链</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">    REQ[HTTP Request]</span><br><span class="line">    --&gt; PANIC[Panic Recovery]</span><br><span class="line">    --&gt; CORS[CORS Headers]</span><br><span class="line">    --&gt; TIMEOUT[Request Timeout]</span><br><span class="line">    --&gt; AUDIT[Audit Logging]</span><br><span class="line">    --&gt; AUTH[Authentication]</span><br><span class="line">    --&gt; AUTHZ[Authorization]</span><br><span class="line">    --&gt; ADMIT[Admission]</span><br><span class="line">    --&gt; HANDLER[Resource Handler]</span><br></pre></td></tr></table></figure>
+<h4 id="HTTP中间件链"><a href="#HTTP中间件链" class="headerlink" title="HTTP中间件链"></a>HTTP中间件链</h4><pre class="mermaid">graph LR
+    REQ[HTTP Request]
+    --> PANIC[Panic Recovery]
+    --> CORS[CORS Headers]
+    --> TIMEOUT[Request Timeout]
+    --> AUDIT[Audit Logging]
+    --> AUTH[Authentication]
+    --> AUTHZ[Authorization]
+    --> ADMIT[Admission]
+    --> HANDLER[Resource Handler]</pre>
 
-<h3 id="2-认证模块-Authentication"><a href="#2-认证模块-Authentication" class="headerlink" title="2. 认证模块 (Authentication)"></a>2. 认证模块 (Authentication)</h3><h4 id="多种认证方式支持"><a href="#多种认证方式支持" class="headerlink" title="多种认证方式支持"></a>多种认证方式支持</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    REQUEST[Incoming Request]</span><br><span class="line"></span><br><span class="line">    subgraph &quot;认证插件链&quot;</span><br><span class="line">        CERT[X.509 Certificate]</span><br><span class="line">        TOKEN[Bearer Token]</span><br><span class="line">        BASIC[Basic Auth]</span><br><span class="line">        OIDC[OpenID Connect]</span><br><span class="line">        WEBHOOK[Authentication Webhook]</span><br><span class="line">        ANON[Anonymous]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    REQUEST --&gt; CERT</span><br><span class="line">    CERT --&gt; TOKEN</span><br><span class="line">    TOKEN --&gt; BASIC</span><br><span class="line">    BASIC --&gt; OIDC</span><br><span class="line">    OIDC --&gt; WEBHOOK</span><br><span class="line">    WEBHOOK --&gt; ANON</span><br></pre></td></tr></table></figure>
+<h3 id="2-认证模块-Authentication"><a href="#2-认证模块-Authentication" class="headerlink" title="2. 认证模块 (Authentication)"></a>2. 认证模块 (Authentication)</h3><h4 id="多种认证方式支持"><a href="#多种认证方式支持" class="headerlink" title="多种认证方式支持"></a>多种认证方式支持</h4><pre class="mermaid">graph TB
+    REQUEST[Incoming Request]
+
+    subgraph "认证插件链"
+        CERT[X.509 Certificate]
+        TOKEN[Bearer Token]
+        BASIC[Basic Auth]
+        OIDC[OpenID Connect]
+        WEBHOOK[Authentication Webhook]
+        ANON[Anonymous]
+    end
+
+    REQUEST --> CERT
+    CERT --> TOKEN
+    TOKEN --> BASIC
+    BASIC --> OIDC
+    OIDC --> WEBHOOK
+    WEBHOOK --> ANON</pre>
 
 <h4 id="认证流程代码示例"><a href="#认证流程代码示例" class="headerlink" title="认证流程代码示例"></a>认证流程代码示例</h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 认证接口定义</span></span><br><span class="line"><span class="keyword">type</span> Authenticator <span class="keyword">interface</span> &#123;</span><br><span class="line">    AuthenticateRequest(req *http.Request) (*Response, <span class="type">bool</span>, <span class="type">error</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 认证响应</span></span><br><span class="line"><span class="keyword">type</span> Response <span class="keyword">struct</span> &#123;</span><br><span class="line">    User   *user.DefaultInfo</span><br><span class="line">    Groups []<span class="type">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// X.509证书认证示例</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(ca *x509Authenticator)</span></span> AuthenticateRequest(req *http.Request) (*Response, <span class="type">bool</span>, <span class="type">error</span>) &#123;</span><br><span class="line">    <span class="comment">// 提取客户端证书</span></span><br><span class="line">    clientCerts := req.TLS.PeerCertificates</span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(clientCerts) == <span class="number">0</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">false</span>, <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 验证证书链</span></span><br><span class="line">    cert := clientCerts[<span class="number">0</span>]</span><br><span class="line">    <span class="keyword">if</span> err := ca.verifier.Verify(cert); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">false</span>, err</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 提取用户信息</span></span><br><span class="line">    user := &amp;user.DefaultInfo&#123;</span><br><span class="line">        Name:   cert.Subject.CommonName,</span><br><span class="line">        UID:    cert.Subject.SerialNumber,</span><br><span class="line">        Groups: cert.Subject.Organization,</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> &amp;Response&#123;User: user&#125;, <span class="literal">true</span>, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<h3 id="3-授权模块-Authorization"><a href="#3-授权模块-Authorization" class="headerlink" title="3. 授权模块 (Authorization)"></a>3. 授权模块 (Authorization)</h3><h4 id="RBAC授权架构"><a href="#RBAC授权架构" class="headerlink" title="RBAC授权架构"></a>RBAC授权架构</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;RBAC模型&quot;</span><br><span class="line">        USER[User/ServiceAccount]</span><br><span class="line">        ROLE[Role/ClusterRole]</span><br><span class="line">        BINDING[RoleBinding/ClusterRoleBinding]</span><br><span class="line"></span><br><span class="line">        USER --&gt; BINDING</span><br><span class="line">        ROLE --&gt; BINDING</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;权限检查&quot;</span><br><span class="line">        REQUEST[Request]</span><br><span class="line">        SUBJECT[Subject]</span><br><span class="line">        RESOURCE[Resource]</span><br><span class="line">        VERB[Verb]</span><br><span class="line"></span><br><span class="line">        REQUEST --&gt; SUBJECT</span><br><span class="line">        REQUEST --&gt; RESOURCE</span><br><span class="line">        REQUEST --&gt; VERB</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    BINDING --&gt; ALLOW&#123;允许访问&#125;</span><br><span class="line">    SUBJECT --&gt; ALLOW</span><br><span class="line">    RESOURCE --&gt; ALLOW</span><br><span class="line">    VERB --&gt; ALLOW</span><br></pre></td></tr></table></figure>
+<h3 id="3-授权模块-Authorization"><a href="#3-授权模块-Authorization" class="headerlink" title="3. 授权模块 (Authorization)"></a>3. 授权模块 (Authorization)</h3><h4 id="RBAC授权架构"><a href="#RBAC授权架构" class="headerlink" title="RBAC授权架构"></a>RBAC授权架构</h4><pre class="mermaid">graph TB
+    subgraph "RBAC模型"
+        USER[User/ServiceAccount]
+        ROLE[Role/ClusterRole]
+        BINDING[RoleBinding/ClusterRoleBinding]
+
+        USER --> BINDING
+        ROLE --> BINDING
+    end
+
+    subgraph "权限检查"
+        REQUEST[Request]
+        SUBJECT[Subject]
+        RESOURCE[Resource]
+        VERB[Verb]
+
+        REQUEST --> SUBJECT
+        REQUEST --> RESOURCE
+        REQUEST --> VERB
+    end
+
+    BINDING --> ALLOW{允许访问}
+    SUBJECT --> ALLOW
+    RESOURCE --> ALLOW
+    VERB --> ALLOW</pre>
 
 <h4 id="授权决策流程"><a href="#授权决策流程" class="headerlink" title="授权决策流程"></a>授权决策流程</h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 授权接口</span></span><br><span class="line"><span class="keyword">type</span> Authorizer <span class="keyword">interface</span> &#123;</span><br><span class="line">    Authorize(ctx context.Context, a Attributes) (Decision, <span class="type">string</span>, <span class="type">error</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 授权属性</span></span><br><span class="line"><span class="keyword">type</span> Attributes <span class="keyword">interface</span> &#123;</span><br><span class="line">    GetUser() user.Info</span><br><span class="line">    GetVerb() <span class="type">string</span></span><br><span class="line">    GetResource() <span class="type">string</span></span><br><span class="line">    GetNamespace() <span class="type">string</span></span><br><span class="line">    GetName() <span class="type">string</span></span><br><span class="line">    GetAPIGroup() <span class="type">string</span></span><br><span class="line">    GetAPIVersion() <span class="type">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// RBAC授权实现</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *RBACAuthorizer)</span></span> Authorize(ctx context.Context, requestAttributes authorizer.Attributes) (authorizer.Decision, <span class="type">string</span>, <span class="type">error</span>) &#123;</span><br><span class="line">    rules, err := r.GetRules(requestAttributes.GetUser())</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> authorizer.DecisionDeny, <span class="string">&quot;&quot;</span>, err</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> _, rule := <span class="keyword">range</span> rules &#123;</span><br><span class="line">        <span class="keyword">if</span> ruleAllows(requestAttributes, &amp;rule) &#123;</span><br><span class="line">            <span class="keyword">return</span> authorizer.DecisionAllow, <span class="string">&quot;&quot;</span>, <span class="literal">nil</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> authorizer.DecisionDeny, <span class="string">&quot;&quot;</span>, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<h3 id="4-准入控制模块-Admission-Control"><a href="#4-准入控制模块-Admission-Control" class="headerlink" title="4. 准入控制模块 (Admission Control)"></a>4. 准入控制模块 (Admission Control)</h3><h4 id="准入控制器链"><a href="#准入控制器链" class="headerlink" title="准入控制器链"></a>准入控制器链</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">    REQ[Request Object]</span><br><span class="line"></span><br><span class="line">    subgraph &quot;Mutating Admission&quot;</span><br><span class="line">        NS[NamespaceLifecycle]</span><br><span class="line">        LIMIT[LimitRanger]</span><br><span class="line">        SC[ServiceAccount]</span><br><span class="line">        WEBHOOK1[MutatingWebhook]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;Validating Admission&quot;</span><br><span class="line">        QUOTA[ResourceQuota]</span><br><span class="line">        POLICY[PodSecurity]</span><br><span class="line">        WEBHOOK2[ValidatingWebhook]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    REQ --&gt; NS</span><br><span class="line">    NS --&gt; LIMIT</span><br><span class="line">    LIMIT --&gt; SC</span><br><span class="line">    SC --&gt; WEBHOOK1</span><br><span class="line">    WEBHOOK1 --&gt; QUOTA</span><br><span class="line">    QUOTA --&gt; POLICY</span><br><span class="line">    POLICY --&gt; WEBHOOK2</span><br><span class="line">    WEBHOOK2 --&gt; STORE[(etcd)]</span><br></pre></td></tr></table></figure>
+<h3 id="4-准入控制模块-Admission-Control"><a href="#4-准入控制模块-Admission-Control" class="headerlink" title="4. 准入控制模块 (Admission Control)"></a>4. 准入控制模块 (Admission Control)</h3><h4 id="准入控制器链"><a href="#准入控制器链" class="headerlink" title="准入控制器链"></a>准入控制器链</h4><pre class="mermaid">graph LR
+    REQ[Request Object]
+
+    subgraph "Mutating Admission"
+        NS[NamespaceLifecycle]
+        LIMIT[LimitRanger]
+        SC[ServiceAccount]
+        WEBHOOK1[MutatingWebhook]
+    end
+
+    subgraph "Validating Admission"
+        QUOTA[ResourceQuota]
+        POLICY[PodSecurity]
+        WEBHOOK2[ValidatingWebhook]
+    end
+
+    REQ --> NS
+    NS --> LIMIT
+    LIMIT --> SC
+    SC --> WEBHOOK1
+    WEBHOOK1 --> QUOTA
+    QUOTA --> POLICY
+    POLICY --> WEBHOOK2
+    WEBHOOK2 --> STORE[(etcd)]</pre>
 
 <h4 id="关键准入控制器"><a href="#关键准入控制器" class="headerlink" title="关键准入控制器"></a>关键准入控制器</h4><table>
 <thead>
@@ -284,23 +424,154 @@
 <td>动态验证检查</td>
 </tr>
 </tbody></table>
-<h3 id="5-API机制层"><a href="#5-API机制层" class="headerlink" title="5. API机制层"></a>5. API机制层</h3><h4 id="版本转换机制"><a href="#版本转换机制" class="headerlink" title="版本转换机制"></a>版本转换机制</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;版本转换&quot;</span><br><span class="line">        EXT[External Version&lt;br/&gt;v1beta1]</span><br><span class="line">        INT[Internal Version&lt;br/&gt;__internal]</span><br><span class="line">        STOR[Storage Version&lt;br/&gt;v1]</span><br><span class="line"></span><br><span class="line">        EXT &lt;--&gt; INT</span><br><span class="line">        INT &lt;--&gt; STOR</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;转换注册&quot;</span><br><span class="line">        SCHEME[Scheme Registry]</span><br><span class="line">        CONVERT[Converter]</span><br><span class="line">        VALIDATE[Validator]</span><br><span class="line"></span><br><span class="line">        SCHEME --&gt; CONVERT</span><br><span class="line">        CONVERT --&gt; VALIDATE</span><br><span class="line">    end</span><br></pre></td></tr></table></figure>
+<h3 id="5-API机制层"><a href="#5-API机制层" class="headerlink" title="5. API机制层"></a>5. API机制层</h3><h4 id="版本转换机制"><a href="#版本转换机制" class="headerlink" title="版本转换机制"></a>版本转换机制</h4><pre class="mermaid">graph TB
+    subgraph "版本转换"
+        EXT[External Version<br/>v1beta1]
+        INT[Internal Version<br/>__internal]
+        STOR[Storage Version<br/>v1]
+
+        EXT <--> INT
+        INT <--> STOR
+    end
+
+    subgraph "转换注册"
+        SCHEME[Scheme Registry]
+        CONVERT[Converter]
+        VALIDATE[Validator]
+
+        SCHEME --> CONVERT
+        CONVERT --> VALIDATE
+    end</pre>
 
 <h4 id="对象序列化-反序列化"><a href="#对象序列化-反序列化" class="headerlink" title="对象序列化&#x2F;反序列化"></a>对象序列化&#x2F;反序列化</h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 序列化器接口</span></span><br><span class="line"><span class="keyword">type</span> Serializer <span class="keyword">interface</span> &#123;</span><br><span class="line">    Encode(obj runtime.Object, w io.Writer) <span class="type">error</span></span><br><span class="line">    Decode(data []<span class="type">byte</span>, gvk *schema.GroupVersionKind, obj runtime.Object) (runtime.Object, <span class="type">error</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// JSON序列化器</span></span><br><span class="line"><span class="keyword">type</span> jsonSerializer <span class="keyword">struct</span> &#123;</span><br><span class="line">    scheme *runtime.Scheme</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *jsonSerializer)</span></span> Encode(obj runtime.Object, w io.Writer) <span class="type">error</span> &#123;</span><br><span class="line">    <span class="comment">// 获取对象的GroupVersionKind</span></span><br><span class="line">    gvk := obj.GetObjectKind().GroupVersionKind()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 转换为外部版本</span></span><br><span class="line">    external, err := s.scheme.ConvertToVersion(obj, schema.GroupVersion&#123;</span><br><span class="line">        Group: gvk.Group,</span><br><span class="line">        Version: gvk.Version,</span><br><span class="line">    &#125;)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> err</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// JSON编码</span></span><br><span class="line">    <span class="keyword">return</span> json.NewEncoder(w).Encode(external)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<h3 id="6-存储层架构"><a href="#6-存储层架构" class="headerlink" title="6. 存储层架构"></a>6. 存储层架构</h3><h4 id="通用存储接口"><a href="#通用存储接口" class="headerlink" title="通用存储接口"></a>通用存储接口</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;Storage Interface&quot;</span><br><span class="line">        STORE[Storage Interface]</span><br><span class="line">        GET[Get]</span><br><span class="line">        LIST[List]</span><br><span class="line">        CREATE[Create]</span><br><span class="line">        UPDATE[Update]</span><br><span class="line">        DELETE[Delete]</span><br><span class="line">        WATCH[Watch]</span><br><span class="line"></span><br><span class="line">        STORE --&gt; GET</span><br><span class="line">        STORE --&gt; LIST</span><br><span class="line">        STORE --&gt; CREATE</span><br><span class="line">        STORE --&gt; UPDATE</span><br><span class="line">        STORE --&gt; DELETE</span><br><span class="line">        STORE --&gt; WATCH</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;Implementation&quot;</span><br><span class="line">        ETCD3[etcd3 Store]</span><br><span class="line">        CACHE[Cached Store]</span><br><span class="line">        TRANSFORM[Transformation]</span><br><span class="line"></span><br><span class="line">        GET --&gt; CACHE</span><br><span class="line">        LIST --&gt; CACHE</span><br><span class="line">        CREATE --&gt; ETCD3</span><br><span class="line">        UPDATE --&gt; ETCD3</span><br><span class="line">        DELETE --&gt; ETCD3</span><br><span class="line">        WATCH --&gt; CACHE</span><br><span class="line"></span><br><span class="line">        CACHE --&gt; TRANSFORM</span><br><span class="line">        TRANSFORM --&gt; ETCD3</span><br><span class="line">    end</span><br></pre></td></tr></table></figure>
+<h3 id="6-存储层架构"><a href="#6-存储层架构" class="headerlink" title="6. 存储层架构"></a>6. 存储层架构</h3><h4 id="通用存储接口"><a href="#通用存储接口" class="headerlink" title="通用存储接口"></a>通用存储接口</h4><pre class="mermaid">graph TB
+    subgraph "Storage Interface"
+        STORE[Storage Interface]
+        GET[Get]
+        LIST[List]
+        CREATE[Create]
+        UPDATE[Update]
+        DELETE[Delete]
+        WATCH[Watch]
+
+        STORE --> GET
+        STORE --> LIST
+        STORE --> CREATE
+        STORE --> UPDATE
+        STORE --> DELETE
+        STORE --> WATCH
+    end
+
+    subgraph "Implementation"
+        ETCD3[etcd3 Store]
+        CACHE[Cached Store]
+        TRANSFORM[Transformation]
+
+        GET --> CACHE
+        LIST --> CACHE
+        CREATE --> ETCD3
+        UPDATE --> ETCD3
+        DELETE --> ETCD3
+        WATCH --> CACHE
+
+        CACHE --> TRANSFORM
+        TRANSFORM --> ETCD3
+    end</pre>
 
 <h4 id="etcd存储实现"><a href="#etcd存储实现" class="headerlink" title="etcd存储实现"></a>etcd存储实现</h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// etcd存储接口</span></span><br><span class="line"><span class="keyword">type</span> etcdStore <span class="keyword">struct</span> &#123;</span><br><span class="line">    client      etcdclient.Client</span><br><span class="line">    pathPrefix  <span class="type">string</span></span><br><span class="line">    keyFunc     <span class="function"><span class="keyword">func</span><span class="params">(obj runtime.Object)</span></span> (<span class="type">string</span>, <span class="type">error</span>)</span><br><span class="line">    transformer Transformer</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 创建对象</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *etcdStore)</span></span> Create(ctx context.Context, key <span class="type">string</span>, obj runtime.Object) <span class="type">error</span> &#123;</span><br><span class="line">    <span class="comment">// 序列化对象</span></span><br><span class="line">    data, err := s.transformer.TransformToStorage(obj)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> err</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 存储到etcd</span></span><br><span class="line">    key = path.Join(s.pathPrefix, key)</span><br><span class="line">    _, err = s.client.Put(ctx, key, <span class="type">string</span>(data))</span><br><span class="line">    <span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Watch实现</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *etcdStore)</span></span> Watch(ctx context.Context, prefix <span class="type">string</span>, opts storage.ListOptions) (watch.Interface, <span class="type">error</span>) &#123;</span><br><span class="line">    watchKey := path.Join(s.pathPrefix, prefix)</span><br><span class="line">    watcher := s.client.Watch(ctx, watchKey, clientv3.WithPrefix())</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> newEtcdWatcher(watcher, s.transformer), <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<h2 id="数据流分析"><a href="#数据流分析" class="headerlink" title="数据流分析"></a>数据流分析</h2><h3 id="创建Pod的完整数据流"><a href="#创建Pod的完整数据流" class="headerlink" title="创建Pod的完整数据流"></a>创建Pod的完整数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">    participant C as kubectl</span><br><span class="line">    participant R as Router</span><br><span class="line">    participant A as Auth/Authz</span><br><span class="line">    participant M as Admission</span><br><span class="line">    participant S as Storage</span><br><span class="line">    participant E as etcd</span><br><span class="line"></span><br><span class="line">    C-&gt;&gt;R: POST /api/v1/namespaces/default/pods</span><br><span class="line">    R-&gt;&gt;A: 认证+授权检查</span><br><span class="line">    A-&gt;&gt;M: 准入控制处理</span><br><span class="line">    M-&gt;&gt;M: Mutating Admission (修改对象)</span><br><span class="line">    M-&gt;&gt;M: Validating Admission (验证对象)</span><br><span class="line">    M-&gt;&gt;S: 调用Storage.Create</span><br><span class="line">    S-&gt;&gt;S: 序列化对象</span><br><span class="line">    S-&gt;&gt;E: etcd Put操作</span><br><span class="line">    E-&gt;&gt;S: 返回存储结果</span><br><span class="line">    S-&gt;&gt;M: 返回创建结果</span><br><span class="line">    M-&gt;&gt;A: 返回最终对象</span><br><span class="line">    A-&gt;&gt;R: 返回HTTP响应</span><br><span class="line">    R-&gt;&gt;C: 201 Created + Pod对象</span><br></pre></td></tr></table></figure>
+<h2 id="数据流分析"><a href="#数据流分析" class="headerlink" title="数据流分析"></a>数据流分析</h2><h3 id="创建Pod的完整数据流"><a href="#创建Pod的完整数据流" class="headerlink" title="创建Pod的完整数据流"></a>创建Pod的完整数据流</h3><pre class="mermaid">sequenceDiagram
+    participant C as kubectl
+    participant R as Router
+    participant A as Auth/Authz
+    participant M as Admission
+    participant S as Storage
+    participant E as etcd
 
-<h3 id="Watch事件流"><a href="#Watch事件流" class="headerlink" title="Watch事件流"></a>Watch事件流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">    participant C as Client</span><br><span class="line">    participant W as Watch Handler</span><br><span class="line">    participant S as Storage</span><br><span class="line">    participant E as etcd</span><br><span class="line"></span><br><span class="line">    C-&gt;&gt;W: GET /api/v1/pods?watch=true</span><br><span class="line">    W-&gt;&gt;S: 建立Watch连接</span><br><span class="line">    S-&gt;&gt;E: etcd Watch</span><br><span class="line"></span><br><span class="line">    Note over E: Pod状态变更</span><br><span class="line">    E-&gt;&gt;S: Watch Event</span><br><span class="line">    S-&gt;&gt;S: 反序列化对象</span><br><span class="line">    S-&gt;&gt;W: 发送Event</span><br><span class="line">    W-&gt;&gt;C: Server-Sent Events</span><br></pre></td></tr></table></figure>
+    C->>R: POST /api/v1/namespaces/default/pods
+    R->>A: 认证+授权检查
+    A->>M: 准入控制处理
+    M->>M: Mutating Admission (修改对象)
+    M->>M: Validating Admission (验证对象)
+    M->>S: 调用Storage.Create
+    S->>S: 序列化对象
+    S->>E: etcd Put操作
+    E->>S: 返回存储结果
+    S->>M: 返回创建结果
+    M->>A: 返回最终对象
+    A->>R: 返回HTTP响应
+    R->>C: 201 Created + Pod对象</pre>
 
-<h2 id="性能优化设计"><a href="#性能优化设计" class="headerlink" title="性能优化设计"></a>性能优化设计</h2><h3 id="1-缓存策略"><a href="#1-缓存策略" class="headerlink" title="1. 缓存策略"></a>1. 缓存策略</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;多层缓存&quot;</span><br><span class="line">        L1[Informer Cache&lt;br/&gt;内存缓存]</span><br><span class="line">        L2[etcd Watch Cache&lt;br/&gt;近期变更]</span><br><span class="line">        L3[etcd Storage&lt;br/&gt;持久化存储]</span><br><span class="line"></span><br><span class="line">        L1 --&gt; L2</span><br><span class="line">        L2 --&gt; L3</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;缓存更新&quot;</span><br><span class="line">        EVENT[etcd Events]</span><br><span class="line">        UPDATE[Cache Update]</span><br><span class="line">        NOTIFY[Client Notify]</span><br><span class="line"></span><br><span class="line">        EVENT --&gt; UPDATE</span><br><span class="line">        UPDATE --&gt; NOTIFY</span><br><span class="line">    end</span><br></pre></td></tr></table></figure>
+<h3 id="Watch事件流"><a href="#Watch事件流" class="headerlink" title="Watch事件流"></a>Watch事件流</h3><pre class="mermaid">sequenceDiagram
+    participant C as Client
+    participant W as Watch Handler
+    participant S as Storage
+    participant E as etcd
+
+    C->>W: GET /api/v1/pods?watch=true
+    W->>S: 建立Watch连接
+    S->>E: etcd Watch
+
+    Note over E: Pod状态变更
+    E->>S: Watch Event
+    S->>S: 反序列化对象
+    S->>W: 发送Event
+    W->>C: Server-Sent Events</pre>
+
+<h2 id="性能优化设计"><a href="#性能优化设计" class="headerlink" title="性能优化设计"></a>性能优化设计</h2><h3 id="1-缓存策略"><a href="#1-缓存策略" class="headerlink" title="1. 缓存策略"></a>1. 缓存策略</h3><pre class="mermaid">graph TB
+    subgraph "多层缓存"
+        L1[Informer Cache<br/>内存缓存]
+        L2[etcd Watch Cache<br/>近期变更]
+        L3[etcd Storage<br/>持久化存储]
+
+        L1 --> L2
+        L2 --> L3
+    end
+
+    subgraph "缓存更新"
+        EVENT[etcd Events]
+        UPDATE[Cache Update]
+        NOTIFY[Client Notify]
+
+        EVENT --> UPDATE
+        UPDATE --> NOTIFY
+    end</pre>
 
 <h3 id="2-请求限流"><a href="#2-请求限流" class="headerlink" title="2. 请求限流"></a>2. 请求限流</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 限流配置</span></span><br><span class="line"><span class="keyword">type</span> FlowControlConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">    MaxRequestsInFlight <span class="type">int</span></span><br><span class="line">    MaxRequestWaitTime  time.Duration</span><br><span class="line">    RequestTimeout     time.Duration</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 限流器实现</span></span><br><span class="line"><span class="keyword">type</span> requestLimiter <span class="keyword">struct</span> &#123;</span><br><span class="line">    semaphore <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">    timeout   time.Duration</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(rl *requestLimiter)</span></span> Limit(handler http.Handler) http.Handler &#123;</span><br><span class="line">    <span class="keyword">return</span> http.HandlerFunc(<span class="function"><span class="keyword">func</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> &#123;</span><br><span class="line">        <span class="keyword">select</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> rl.semaphore &lt;- <span class="keyword">struct</span>&#123;&#125;&#123;&#125;:</span><br><span class="line">            <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123; &lt;-rl.semaphore &#125;()</span><br><span class="line">            handler.ServeHTTP(w, r)</span><br><span class="line">        <span class="keyword">case</span> &lt;-time.After(rl.timeout):</span><br><span class="line">            http.Error(w, <span class="string">&quot;Request timeout&quot;</span>, http.StatusTooManyRequests)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<h2 id="高可用架构"><a href="#高可用架构" class="headerlink" title="高可用架构"></a>高可用架构</h2><h3 id="多实例部署"><a href="#多实例部署" class="headerlink" title="多实例部署"></a>多实例部署</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;Load Balancer&quot;</span><br><span class="line">        LB[HAProxy/nginx]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;API Server Cluster&quot;</span><br><span class="line">        API1[kube-apiserver-1]</span><br><span class="line">        API2[kube-apiserver-2]</span><br><span class="line">        API3[kube-apiserver-3]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;etcd Cluster&quot;</span><br><span class="line">        ETCD1[(etcd-1)]</span><br><span class="line">        ETCD2[(etcd-2)]</span><br><span class="line">        ETCD3[(etcd-3)]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    LB --&gt; API1</span><br><span class="line">    LB --&gt; API2</span><br><span class="line">    LB --&gt; API3</span><br><span class="line"></span><br><span class="line">    API1 --&gt; ETCD1</span><br><span class="line">    API1 --&gt; ETCD2</span><br><span class="line">    API1 --&gt; ETCD3</span><br><span class="line"></span><br><span class="line">    API2 --&gt; ETCD1</span><br><span class="line">    API2 --&gt; ETCD2</span><br><span class="line">    API2 --&gt; ETCD3</span><br><span class="line"></span><br><span class="line">    API3 --&gt; ETCD1</span><br><span class="line">    API3 --&gt; ETCD2</span><br><span class="line">    API3 --&gt; ETCD3</span><br></pre></td></tr></table></figure>
+<h2 id="高可用架构"><a href="#高可用架构" class="headerlink" title="高可用架构"></a>高可用架构</h2><h3 id="多实例部署"><a href="#多实例部署" class="headerlink" title="多实例部署"></a>多实例部署</h3><pre class="mermaid">graph TB
+    subgraph "Load Balancer"
+        LB[HAProxy/nginx]
+    end
+
+    subgraph "API Server Cluster"
+        API1[kube-apiserver-1]
+        API2[kube-apiserver-2]
+        API3[kube-apiserver-3]
+    end
+
+    subgraph "etcd Cluster"
+        ETCD1[(etcd-1)]
+        ETCD2[(etcd-2)]
+        ETCD3[(etcd-3)]
+    end
+
+    LB --> API1
+    LB --> API2
+    LB --> API3
+
+    API1 --> ETCD1
+    API1 --> ETCD2
+    API1 --> ETCD3
+
+    API2 --> ETCD1
+    API2 --> ETCD2
+    API2 --> ETCD3
+
+    API3 --> ETCD1
+    API3 --> ETCD2
+    API3 --> ETCD3</pre>
 
 <h3 id="故障转移机制"><a href="#故障转移机制" class="headerlink" title="故障转移机制"></a>故障转移机制</h3><ul>
 <li><strong>健康检查</strong>: <code>/healthz</code> 端点监控</li>

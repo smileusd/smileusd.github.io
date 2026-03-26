@@ -225,10 +225,66 @@
 <li><strong>服务发现</strong>: 支持Watch机制实现实时事件通知</li>
 <li><strong>分布式锁</strong>: 提供领导者选举和分布式锁服务</li>
 </ul>
-<h2 id="在Kubernetes生态中的位置"><a href="#在Kubernetes生态中的位置" class="headerlink" title="在Kubernetes生态中的位置"></a>在Kubernetes生态中的位置</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;Kubernetes Control Plane&quot;</span><br><span class="line">        API[kube-apiserver]</span><br><span class="line">        SCH[kube-scheduler]</span><br><span class="line">        CM[kube-controller-manager]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;etcd Cluster&quot;</span><br><span class="line">        ETCD1[(etcd-1&lt;br/&gt;Leader)]</span><br><span class="line">        ETCD2[(etcd-2&lt;br/&gt;Follower)]</span><br><span class="line">        ETCD3[(etcd-3&lt;br/&gt;Follower)]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;Data Types&quot;</span><br><span class="line">        PODS[Pod Objects]</span><br><span class="line">        SVCS[Service Objects]</span><br><span class="line">        NODES[Node Objects]</span><br><span class="line">        SECRETS[Secret Objects]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    API --&gt; ETCD1</span><br><span class="line">    API --&gt; ETCD2</span><br><span class="line">    API --&gt; ETCD3</span><br><span class="line"></span><br><span class="line">    SCH -.-&gt; API</span><br><span class="line">    CM -.-&gt; API</span><br><span class="line"></span><br><span class="line">    ETCD1 --&gt; PODS</span><br><span class="line">    ETCD1 --&gt; SVCS</span><br><span class="line">    ETCD1 --&gt; NODES</span><br><span class="line">    ETCD1 --&gt; SECRETS</span><br><span class="line"></span><br><span class="line">    ETCD1 &lt;-.-&gt; ETCD2</span><br><span class="line">    ETCD2 &lt;-.-&gt; ETCD3</span><br><span class="line">    ETCD3 &lt;-.-&gt; ETCD1</span><br><span class="line"></span><br><span class="line">    style ETCD1 fill:#ff9999,stroke:#333,stroke-width:4px</span><br><span class="line">    style API fill:#99ccff,stroke:#333,stroke-width:2px</span><br></pre></td></tr></table></figure>
+<h2 id="在Kubernetes生态中的位置"><a href="#在Kubernetes生态中的位置" class="headerlink" title="在Kubernetes生态中的位置"></a>在Kubernetes生态中的位置</h2><pre class="mermaid">graph TB
+    subgraph "Kubernetes Control Plane"
+        API[kube-apiserver]
+        SCH[kube-scheduler]
+        CM[kube-controller-manager]
+    end
+
+    subgraph "etcd Cluster"
+        ETCD1[(etcd-1<br/>Leader)]
+        ETCD2[(etcd-2<br/>Follower)]
+        ETCD3[(etcd-3<br/>Follower)]
+    end
+
+    subgraph "Data Types"
+        PODS[Pod Objects]
+        SVCS[Service Objects]
+        NODES[Node Objects]
+        SECRETS[Secret Objects]
+    end
+
+    API --> ETCD1
+    API --> ETCD2
+    API --> ETCD3
+
+    SCH -.-> API
+    CM -.-> API
+
+    ETCD1 --> PODS
+    ETCD1 --> SVCS
+    ETCD1 --> NODES
+    ETCD1 --> SECRETS
+
+    ETCD1 <-.-> ETCD2
+    ETCD2 <-.-> ETCD3
+    ETCD3 <-.-> ETCD1
+
+    style ETCD1 fill:#ff9999,stroke:#333,stroke-width:4px
+    style API fill:#99ccff,stroke:#333,stroke-width:2px</pre>
 
 <h2 id="核心功能特性"><a href="#核心功能特性" class="headerlink" title="核心功能特性"></a>核心功能特性</h2><h3 id="1-分布式共识算法-🗳️"><a href="#1-分布式共识算法-🗳️" class="headerlink" title="1. 分布式共识算法 🗳️"></a>1. 分布式共识算法 🗳️</h3><p><strong>Raft共识算法</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">    subgraph &quot;Raft角色&quot;</span><br><span class="line">        LEADER[Leader&lt;br/&gt;处理写请求]</span><br><span class="line">        FOLLOWER1[Follower&lt;br/&gt;复制日志]</span><br><span class="line">        FOLLOWER2[Follower&lt;br/&gt;复制日志]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;日志复制流程&quot;</span><br><span class="line">        CLIENT[Client Request] --&gt; LEADER</span><br><span class="line">        LEADER --&gt; REPLICATE[Log Replication]</span><br><span class="line">        REPLICATE --&gt; FOLLOWER1</span><br><span class="line">        REPLICATE --&gt; FOLLOWER2</span><br><span class="line">        FOLLOWER1 --&gt; COMMIT[Majority Commit]</span><br><span class="line">        FOLLOWER2 --&gt; COMMIT</span><br><span class="line">        COMMIT --&gt; RESPONSE[Response to Client]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    style LEADER fill:#ff9999</span><br><span class="line">    style FOLLOWER1 fill:#99ccff</span><br><span class="line">    style FOLLOWER2 fill:#99ccff</span><br></pre></td></tr></table></figure>
+<pre class="mermaid">graph LR
+    subgraph "Raft角色"
+        LEADER[Leader<br/>处理写请求]
+        FOLLOWER1[Follower<br/>复制日志]
+        FOLLOWER2[Follower<br/>复制日志]
+    end
+
+    subgraph "日志复制流程"
+        CLIENT[Client Request] --> LEADER
+        LEADER --> REPLICATE[Log Replication]
+        REPLICATE --> FOLLOWER1
+        REPLICATE --> FOLLOWER2
+        FOLLOWER1 --> COMMIT[Majority Commit]
+        FOLLOWER2 --> COMMIT
+        COMMIT --> RESPONSE[Response to Client]
+    end
+
+    style LEADER fill:#ff9999
+    style FOLLOWER1 fill:#99ccff
+    style FOLLOWER2 fill:#99ccff</pre>
 
 <h3 id="2-MVCC多版本并发控制-📊"><a href="#2-MVCC多版本并发控制-📊" class="headerlink" title="2. MVCC多版本并发控制 📊"></a>2. MVCC多版本并发控制 📊</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># etcd数据存储模型</span></span><br><span class="line">Key: /registry/pods/default/my-pod</span><br><span class="line">Revision: 12345</span><br><span class="line">Value: &#123;Pod JSON data&#125;</span><br><span class="line">CreateRevision: 12340</span><br><span class="line">ModRevision: 12345</span><br><span class="line">Version: 3</span><br></pre></td></tr></table></figure>
 
@@ -293,7 +349,28 @@
 </ul>
 <h3 id="深度分析题-🔍"><a href="#深度分析题-🔍" class="headerlink" title="深度分析题 🔍"></a>深度分析题 🔍</h3><p><strong>Q: 设计一个高性能的etcd集群</strong></p>
 <p><strong>关键考虑因素:</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">mindmap</span><br><span class="line">  root((etcd集群设计))</span><br><span class="line">    (硬件选择)</span><br><span class="line">      SSD存储</span><br><span class="line">      高IOPS磁盘</span><br><span class="line">      低延迟网络</span><br><span class="line">      充足内存</span><br><span class="line">    (网络架构)</span><br><span class="line">      专用网络</span><br><span class="line">      带宽保证</span><br><span class="line">      延迟优化</span><br><span class="line">      网络隔离</span><br><span class="line">    (集群拓扑)</span><br><span class="line">      奇数节点</span><br><span class="line">      跨机架部署</span><br><span class="line">      负载均衡</span><br><span class="line">      故障域隔离</span><br><span class="line">    (性能调优)</span><br><span class="line">      参数优化</span><br><span class="line">      压缩策略</span><br><span class="line">      快照管理</span><br><span class="line">      监控告警</span><br></pre></td></tr></table></figure>
+<pre class="mermaid">mindmap
+  root((etcd集群设计))
+    (硬件选择)
+      SSD存储
+      高IOPS磁盘
+      低延迟网络
+      充足内存
+    (网络架构)
+      专用网络
+      带宽保证
+      延迟优化
+      网络隔离
+    (集群拓扑)
+      奇数节点
+      跨机架部署
+      负载均衡
+      故障域隔离
+    (性能调优)
+      参数优化
+      压缩策略
+      快照管理
+      监控告警</pre>
 
 <h2 id="学习路径建议"><a href="#学习路径建议" class="headerlink" title="学习路径建议"></a>学习路径建议</h2><h3 id="🎯-面试准备-2-3天"><a href="#🎯-面试准备-2-3天" class="headerlink" title="🎯 面试准备 (2-3天)"></a>🎯 面试准备 (2-3天)</h3><ol>
 <li><strong>基本概念</strong>: 分布式一致性、Raft算法、MVCC</li>

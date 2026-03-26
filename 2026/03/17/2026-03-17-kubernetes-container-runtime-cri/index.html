@@ -229,9 +229,78 @@
 <li><strong>存储管理</strong>: 挂载卷和管理容器文件系统</li>
 <li><strong>安全控制</strong>: 实现安全策略和权限控制</li>
 </ul>
-<h2 id="在Kubernetes生态中的位置"><a href="#在Kubernetes生态中的位置" class="headerlink" title="在Kubernetes生态中的位置"></a>在Kubernetes生态中的位置</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;Kubernetes Node&quot;</span><br><span class="line">        KUBELET[kubelet]</span><br><span class="line"></span><br><span class="line">        subgraph &quot;Container Runtime Interface (CRI)&quot;</span><br><span class="line">            CRI_API[CRI gRPC API]</span><br><span class="line">        end</span><br><span class="line"></span><br><span class="line">        subgraph &quot;Container Runtime&quot;</span><br><span class="line">            CONTAINERD[containerd]</span><br><span class="line">            RUNTIME[runc/kata/gvisor]</span><br><span class="line">        end</span><br><span class="line"></span><br><span class="line">        subgraph &quot;Container Layer&quot;</span><br><span class="line">            CONTAINER1[Container 1]</span><br><span class="line">            CONTAINER2[Container 2]</span><br><span class="line">            CONTAINER3[Container 3]</span><br><span class="line">        end</span><br><span class="line"></span><br><span class="line">        subgraph &quot;Infrastructure&quot;</span><br><span class="line">            KERNEL[Linux Kernel]</span><br><span class="line">            CGROUPS[cgroups]</span><br><span class="line">            NAMESPACES[namespaces]</span><br><span class="line">        end</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    KUBELET --&gt; CRI_API</span><br><span class="line">    CRI_API --&gt; CONTAINERD</span><br><span class="line">    CONTAINERD --&gt; RUNTIME</span><br><span class="line">    RUNTIME --&gt; CONTAINER1</span><br><span class="line">    RUNTIME --&gt; CONTAINER2</span><br><span class="line">    RUNTIME --&gt; CONTAINER3</span><br><span class="line"></span><br><span class="line">    CONTAINER1 --&gt; KERNEL</span><br><span class="line">    CONTAINER2 --&gt; KERNEL</span><br><span class="line">    CONTAINER3 --&gt; KERNEL</span><br><span class="line"></span><br><span class="line">    KERNEL --&gt; CGROUPS</span><br><span class="line">    KERNEL --&gt; NAMESPACES</span><br><span class="line"></span><br><span class="line">    style CONTAINERD fill:#ff9999,stroke:#333,stroke-width:4px</span><br><span class="line">    style CRI_API fill:#99ccff,stroke:#333,stroke-width:2px</span><br></pre></td></tr></table></figure>
+<h2 id="在Kubernetes生态中的位置"><a href="#在Kubernetes生态中的位置" class="headerlink" title="在Kubernetes生态中的位置"></a>在Kubernetes生态中的位置</h2><pre class="mermaid">graph TB
+    subgraph "Kubernetes Node"
+        KUBELET[kubelet]
 
-<h2 id="Container-Runtime演进历史"><a href="#Container-Runtime演进历史" class="headerlink" title="Container Runtime演进历史"></a>Container Runtime演进历史</h2><h3 id="发展时间线"><a href="#发展时间线" class="headerlink" title="发展时间线"></a>发展时间线</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">timeline</span><br><span class="line">    title Container Runtime 演进历史</span><br><span class="line"></span><br><span class="line">    2013 : Docker诞生</span><br><span class="line">         : 一体化容器解决方案</span><br><span class="line"></span><br><span class="line">    2015 : OCI标准制定</span><br><span class="line">         : Runtime Spec</span><br><span class="line">         : Image Spec</span><br><span class="line"></span><br><span class="line">    2016 : CRI接口发布</span><br><span class="line">         : Kubernetes 1.5</span><br><span class="line">         : 标准化Runtime接口</span><br><span class="line"></span><br><span class="line">    2017 : containerd独立</span><br><span class="line">         : 从Docker拆分</span><br><span class="line">         : CNCF项目</span><br><span class="line"></span><br><span class="line">    2018 : CRI-O发布</span><br><span class="line">         : 轻量级CRI实现</span><br><span class="line">         : 专为Kubernetes设计</span><br><span class="line"></span><br><span class="line">    2020 : Dockershim弃用</span><br><span class="line">         : Kubernetes 1.20</span><br><span class="line">         : 移除Docker支持</span><br><span class="line"></span><br><span class="line">    2022 : 多样化Runtime</span><br><span class="line">         : gVisor、Kata Containers</span><br><span class="line">         : 安全容器技术</span><br></pre></td></tr></table></figure>
+        subgraph "Container Runtime Interface (CRI)"
+            CRI_API[CRI gRPC API]
+        end
+
+        subgraph "Container Runtime"
+            CONTAINERD[containerd]
+            RUNTIME[runc/kata/gvisor]
+        end
+
+        subgraph "Container Layer"
+            CONTAINER1[Container 1]
+            CONTAINER2[Container 2]
+            CONTAINER3[Container 3]
+        end
+
+        subgraph "Infrastructure"
+            KERNEL[Linux Kernel]
+            CGROUPS[cgroups]
+            NAMESPACES[namespaces]
+        end
+    end
+
+    KUBELET --> CRI_API
+    CRI_API --> CONTAINERD
+    CONTAINERD --> RUNTIME
+    RUNTIME --> CONTAINER1
+    RUNTIME --> CONTAINER2
+    RUNTIME --> CONTAINER3
+
+    CONTAINER1 --> KERNEL
+    CONTAINER2 --> KERNEL
+    CONTAINER3 --> KERNEL
+
+    KERNEL --> CGROUPS
+    KERNEL --> NAMESPACES
+
+    style CONTAINERD fill:#ff9999,stroke:#333,stroke-width:4px
+    style CRI_API fill:#99ccff,stroke:#333,stroke-width:2px</pre>
+
+<h2 id="Container-Runtime演进历史"><a href="#Container-Runtime演进历史" class="headerlink" title="Container Runtime演进历史"></a>Container Runtime演进历史</h2><h3 id="发展时间线"><a href="#发展时间线" class="headerlink" title="发展时间线"></a>发展时间线</h3><pre class="mermaid">timeline
+    title Container Runtime 演进历史
+
+    2013 : Docker诞生
+         : 一体化容器解决方案
+
+    2015 : OCI标准制定
+         : Runtime Spec
+         : Image Spec
+
+    2016 : CRI接口发布
+         : Kubernetes 1.5
+         : 标准化Runtime接口
+
+    2017 : containerd独立
+         : 从Docker拆分
+         : CNCF项目
+
+    2018 : CRI-O发布
+         : 轻量级CRI实现
+         : 专为Kubernetes设计
+
+    2020 : Dockershim弃用
+         : Kubernetes 1.20
+         : 移除Docker支持
+
+    2022 : 多样化Runtime
+         : gVisor、Kata Containers
+         : 安全容器技术</pre>
 
 <h2 id="主流Container-Runtime对比"><a href="#主流Container-Runtime对比" class="headerlink" title="主流Container Runtime对比"></a>主流Container Runtime对比</h2><h3 id="核心Runtime对比"><a href="#核心Runtime对比" class="headerlink" title="核心Runtime对比"></a>核心Runtime对比</h3><table>
 <thead>
@@ -332,14 +401,48 @@
 <td>Serverless</td>
 </tr>
 </tbody></table>
-<h2 id="Container-Runtime-Interface-CRI"><a href="#Container-Runtime-Interface-CRI" class="headerlink" title="Container Runtime Interface (CRI)"></a>Container Runtime Interface (CRI)</h2><h3 id="CRI架构设计"><a href="#CRI架构设计" class="headerlink" title="CRI架构设计"></a>CRI架构设计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;kubelet&quot;</span><br><span class="line">        KUBELET[kubelet process]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;CRI Plugin&quot;</span><br><span class="line">        CRI_RUNTIME[Runtime Service]</span><br><span class="line">        CRI_IMAGE[Image Service]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;Container Runtime&quot;</span><br><span class="line">        CONTAINERD[containerd]</span><br><span class="line">        RUNC[runc]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;gRPC API&quot;</span><br><span class="line">        GRPC[CRI gRPC Interface]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    KUBELET --&gt; GRPC</span><br><span class="line">    GRPC --&gt; CRI_RUNTIME</span><br><span class="line">    GRPC --&gt; CRI_IMAGE</span><br><span class="line"></span><br><span class="line">    CRI_RUNTIME --&gt; CONTAINERD</span><br><span class="line">    CRI_IMAGE --&gt; CONTAINERD</span><br><span class="line">    CONTAINERD --&gt; RUNC</span><br></pre></td></tr></table></figure>
+<h2 id="Container-Runtime-Interface-CRI"><a href="#Container-Runtime-Interface-CRI" class="headerlink" title="Container Runtime Interface (CRI)"></a>Container Runtime Interface (CRI)</h2><h3 id="CRI架构设计"><a href="#CRI架构设计" class="headerlink" title="CRI架构设计"></a>CRI架构设计</h3><pre class="mermaid">graph TB
+    subgraph "kubelet"
+        KUBELET[kubelet process]
+    end
+
+    subgraph "CRI Plugin"
+        CRI_RUNTIME[Runtime Service]
+        CRI_IMAGE[Image Service]
+    end
+
+    subgraph "Container Runtime"
+        CONTAINERD[containerd]
+        RUNC[runc]
+    end
+
+    subgraph "gRPC API"
+        GRPC[CRI gRPC Interface]
+    end
+
+    KUBELET --> GRPC
+    GRPC --> CRI_RUNTIME
+    GRPC --> CRI_IMAGE
+
+    CRI_RUNTIME --> CONTAINERD
+    CRI_IMAGE --> CONTAINERD
+    CONTAINERD --> RUNC</pre>
 
 <h3 id="CRI接口定义"><a href="#CRI接口定义" class="headerlink" title="CRI接口定义"></a>CRI接口定义</h3><figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Runtime Service</span></span><br><span class="line"><span class="keyword">service </span><span class="title class_">RuntimeService</span> &#123;</span><br><span class="line">    <span class="comment">// Pod sandbox 管理</span></span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> RunPodSandbox(RunPodSandboxRequest) <span class="keyword">returns</span> (RunPodSandboxResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> StopPodSandbox(StopPodSandboxRequest) <span class="keyword">returns</span> (StopPodSandboxResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> RemovePodSandbox(RemovePodSandboxRequest) <span class="keyword">returns</span> (RemovePodSandboxResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> PodSandboxStatus(PodSandboxStatusRequest) <span class="keyword">returns</span> (PodSandboxStatusResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> ListPodSandbox(ListPodSandboxRequest) <span class="keyword">returns</span> (ListPodSandboxResponse) </span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Container 管理</span></span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> CreateContainer(CreateContainerRequest) <span class="keyword">returns</span> (CreateContainerResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> StartContainer(StartContainerRequest) <span class="keyword">returns</span> (StartContainerResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> StopContainer(StopContainerRequest) <span class="keyword">returns</span> (StopContainerResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> RemoveContainer(RemoveContainerRequest) <span class="keyword">returns</span> (RemoveContainerResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> ListContainers(ListContainersRequest) <span class="keyword">returns</span> (ListContainersResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> ContainerStatus(ContainerStatusRequest) <span class="keyword">returns</span> (ContainerStatusResponse) </span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 执行和连接</span></span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> ExecSync(ExecSyncRequest) <span class="keyword">returns</span> (ExecSyncResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> Exec(ExecRequest) <span class="keyword">returns</span> (ExecResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> Attach(AttachRequest) <span class="keyword">returns</span> (AttachResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> PortForward(PortForwardRequest) <span class="keyword">returns</span> (PortForwardResponse) </span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 状态和统计</span></span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> ContainerStats(ContainerStatsRequest) <span class="keyword">returns</span> (ContainerStatsResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> ListContainerStats(ListContainerStatsRequest) <span class="keyword">returns</span> (ListContainerStatsResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> UpdateRuntimeConfig(UpdateRuntimeConfigRequest) <span class="keyword">returns</span> (UpdateRuntimeConfigResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> Status(StatusRequest) <span class="keyword">returns</span> (StatusResponse) </span>&#123;&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Image Service</span></span><br><span class="line"><span class="keyword">service </span><span class="title class_">ImageService</span> &#123;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> ListImages(ListImagesRequest) <span class="keyword">returns</span> (ListImagesResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> ImageStatus(ImageStatusRequest) <span class="keyword">returns</span> (ImageStatusResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> PullImage(PullImageRequest) <span class="keyword">returns</span> (PullImageResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> RemoveImage(RemoveImageRequest) <span class="keyword">returns</span> (RemoveImageResponse) </span>&#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">rpc</span> ImageFsInfo(ImageFsInfoRequest) <span class="keyword">returns</span> (ImageFsInfoResponse) </span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <h2 id="核心功能特性"><a href="#核心功能特性" class="headerlink" title="核心功能特性"></a>核心功能特性</h2><h3 id="1-Pod-Sandbox模型-🏗️"><a href="#1-Pod-Sandbox模型-🏗️" class="headerlink" title="1. Pod Sandbox模型 🏗️"></a>1. Pod Sandbox模型 🏗️</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Pod Sandbox概念</span></span><br><span class="line">Pod Sandbox = 共享网络命名空间 + 共享IPC + 共享PID(可选)</span><br><span class="line">├── pause容器 (Infrastructure Container)</span><br><span class="line">├── 应用容器1</span><br><span class="line">├── 应用容器2</span><br><span class="line">└── sidecar容器</span><br></pre></td></tr></table></figure>
 
 <p><strong>Sandbox生命周期:</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">stateDiagram-v2</span><br><span class="line">    [*] --&gt; Created : RunPodSandbox</span><br><span class="line">    Created --&gt; Ready : 网络配置完成</span><br><span class="line">    Ready --&gt; Running : 容器启动</span><br><span class="line">    Running --&gt; Stopped : StopPodSandbox</span><br><span class="line">    Stopped --&gt; [*] : RemovePodSandbox</span><br><span class="line"></span><br><span class="line">    Ready --&gt; Failed : 配置失败</span><br><span class="line">    Running --&gt; Failed : 运行时错误</span><br><span class="line">    Failed --&gt; [*] : 清理资源</span><br></pre></td></tr></table></figure>
+<pre class="mermaid">stateDiagram-v2
+    [*] --> Created : RunPodSandbox
+    Created --> Ready : 网络配置完成
+    Ready --> Running : 容器启动
+    Running --> Stopped : StopPodSandbox
+    Stopped --> [*] : RemovePodSandbox
+
+    Ready --> Failed : 配置失败
+    Running --> Failed : 运行时错误
+    Failed --> [*] : 清理资源</pre>
 
 <h3 id="2-容器生命周期管理-♻️"><a href="#2-容器生命周期管理-♻️" class="headerlink" title="2. 容器生命周期管理 ♻️"></a>2. 容器生命周期管理 ♻️</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 容器状态定义</span></span><br><span class="line"><span class="keyword">type</span> ContainerState <span class="type">int32</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> (</span><br><span class="line">    CONTAINER_CREATED ContainerState = <span class="number">0</span>  <span class="comment">// 已创建</span></span><br><span class="line">    CONTAINER_RUNNING ContainerState = <span class="number">1</span>  <span class="comment">// 运行中</span></span><br><span class="line">    CONTAINER_EXITED  ContainerState = <span class="number">2</span>  <span class="comment">// 已退出</span></span><br><span class="line">    CONTAINER_UNKNOWN ContainerState = <span class="number">3</span>  <span class="comment">// 状态未知</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 容器配置</span></span><br><span class="line"><span class="keyword">type</span> ContainerConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">    Metadata     *ContainerMetadata</span><br><span class="line">    Image        *ImageSpec</span><br><span class="line">    Command      []<span class="type">string</span>           <span class="comment">// 启动命令</span></span><br><span class="line">    Args         []<span class="type">string</span>          <span class="comment">// 命令参数</span></span><br><span class="line">    WorkingDir   <span class="type">string</span>           <span class="comment">// 工作目录</span></span><br><span class="line">    Envs         []*KeyValue      <span class="comment">// 环境变量</span></span><br><span class="line">    Mounts       []*Mount         <span class="comment">// 挂载点</span></span><br><span class="line">    Devices      []*Device        <span class="comment">// 设备</span></span><br><span class="line">    Labels       <span class="keyword">map</span>[<span class="type">string</span>]<span class="type">string</span> <span class="comment">// 标签</span></span><br><span class="line">    Annotations  <span class="keyword">map</span>[<span class="type">string</span>]<span class="type">string</span> <span class="comment">// 注解</span></span><br><span class="line">    LogPath      <span class="type">string</span>           <span class="comment">// 日志路径</span></span><br><span class="line">    Linux        *LinuxContainerConfig <span class="comment">// Linux特定配置</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
@@ -379,7 +482,28 @@
 </ul>
 <h3 id="深度分析题-🔍"><a href="#深度分析题-🔍" class="headerlink" title="深度分析题 🔍"></a>深度分析题 🔍</h3><p><strong>Q: 设计一个高安全性的容器运行时</strong></p>
 <p><strong>考虑因素:</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">mindmap</span><br><span class="line">  root((安全Container Runtime))</span><br><span class="line">    (隔离技术)</span><br><span class="line">      虚拟化隔离</span><br><span class="line">      用户空间内核</span><br><span class="line">      安全容器</span><br><span class="line">      Hardware TEE</span><br><span class="line">    (权限控制)</span><br><span class="line">      最小权限原则</span><br><span class="line">      SELinux/AppArmor</span><br><span class="line">      Seccomp过滤</span><br><span class="line">      Capabilities控制</span><br><span class="line">    (镜像安全)</span><br><span class="line">      镜像签名验证</span><br><span class="line">      漏洞扫描</span><br><span class="line">      准入控制</span><br><span class="line">      内容信任</span><br><span class="line">    (运行时安全)</span><br><span class="line">      行为监控</span><br><span class="line">      异常检测</span><br><span class="line">      资源限制</span><br><span class="line">      网络隔离</span><br></pre></td></tr></table></figure>
+<pre class="mermaid">mindmap
+  root((安全Container Runtime))
+    (隔离技术)
+      虚拟化隔离
+      用户空间内核
+      安全容器
+      Hardware TEE
+    (权限控制)
+      最小权限原则
+      SELinux/AppArmor
+      Seccomp过滤
+      Capabilities控制
+    (镜像安全)
+      镜像签名验证
+      漏洞扫描
+      准入控制
+      内容信任
+    (运行时安全)
+      行为监控
+      异常检测
+      资源限制
+      网络隔离</pre>
 
 <h2 id="学习路径建议"><a href="#学习路径建议" class="headerlink" title="学习路径建议"></a>学习路径建议</h2><h3 id="🎯-面试准备-2-3天"><a href="#🎯-面试准备-2-3天" class="headerlink" title="🎯 面试准备 (2-3天)"></a>🎯 面试准备 (2-3天)</h3><ol>
 <li><strong>基本概念</strong>: CRI接口、Pod Sandbox、容器生命周期</li>

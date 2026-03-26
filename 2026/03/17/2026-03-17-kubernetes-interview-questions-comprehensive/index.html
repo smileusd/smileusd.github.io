@@ -252,7 +252,23 @@
 </ol>
 <h3 id="深度分析题"><a href="#深度分析题" class="headerlink" title="深度分析题"></a>深度分析题</h3><p><strong>Q3: API Server如何处理一个Pod创建请求？</strong></p>
 <p><strong>答案</strong>: 完整流程</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">    participant U as kubectl</span><br><span class="line">    participant A as API Server</span><br><span class="line">    participant E as etcd</span><br><span class="line">    participant S as Scheduler</span><br><span class="line">    participant K as kubelet</span><br><span class="line"></span><br><span class="line">    U-&gt;&gt;A: POST /api/v1/pods</span><br><span class="line">    A-&gt;&gt;A: 认证+授权+准入控制</span><br><span class="line">    A-&gt;&gt;A: 对象验证+版本转换</span><br><span class="line">    A-&gt;&gt;E: 持久化Pod spec</span><br><span class="line">    A-&gt;&gt;U: 201 Created</span><br><span class="line"></span><br><span class="line">    S-&gt;&gt;A: Watch Pod events</span><br><span class="line">    S-&gt;&gt;A: 绑定Pod到Node</span><br><span class="line">    K-&gt;&gt;A: Watch Pod events</span><br><span class="line">    K-&gt;&gt;K: 创建容器</span><br></pre></td></tr></table></figure>
+<pre class="mermaid">sequenceDiagram
+    participant U as kubectl
+    participant A as API Server
+    participant E as etcd
+    participant S as Scheduler
+    participant K as kubelet
+
+    U->>A: POST /api/v1/pods
+    A->>A: 认证+授权+准入控制
+    A->>A: 对象验证+版本转换
+    A->>E: 持久化Pod spec
+    A->>U: 201 Created
+
+    S->>A: Watch Pod events
+    S->>A: 绑定Pod到Node
+    K->>A: Watch Pod events
+    K->>K: 创建容器</pre>
 
 <p><strong>Q4: 如何设计API Server的高可用架构？</strong></p>
 <p><strong>答案</strong>: 关键要素</p>

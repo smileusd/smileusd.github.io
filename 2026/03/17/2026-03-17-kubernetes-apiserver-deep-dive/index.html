@@ -225,11 +225,45 @@
 <li><strong>版本管理</strong>: 处理API版本兼容性和演进</li>
 <li><strong>扩展支持</strong>: 支持自定义资源和API聚合</li>
 </ul>
-<h2 id="在Kubernetes生态中的位置"><a href="#在Kubernetes生态中的位置" class="headerlink" title="在Kubernetes生态中的位置"></a>在Kubernetes生态中的位置</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;外部客户端&quot;</span><br><span class="line">        KUBECTL[kubectl]</span><br><span class="line">        WEB[Web UI]</span><br><span class="line">        SDK[Client SDKs]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;Control Plane&quot;</span><br><span class="line">        API[kube-apiserver&lt;br/&gt;🎯 API网关]</span><br><span class="line">        ETCD[(etcd)]</span><br><span class="line">        SCH[kube-scheduler]</span><br><span class="line">        CM[kube-controller-manager]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;Node组件&quot;</span><br><span class="line">        KUBELET[kubelet]</span><br><span class="line">        PROXY[kube-proxy]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    KUBECTL --&gt; API</span><br><span class="line">    WEB --&gt; API</span><br><span class="line">    SDK --&gt; API</span><br><span class="line"></span><br><span class="line">    API --&gt; ETCD</span><br><span class="line">    SCH --&gt; API</span><br><span class="line">    CM --&gt; API</span><br><span class="line">    KUBELET --&gt; API</span><br><span class="line">    PROXY --&gt; API</span><br><span class="line"></span><br><span class="line">    style API fill:#ff9999,stroke:#333,stroke-width:4px</span><br></pre></td></tr></table></figure>
+<h2 id="在Kubernetes生态中的位置"><a href="#在Kubernetes生态中的位置" class="headerlink" title="在Kubernetes生态中的位置"></a>在Kubernetes生态中的位置</h2><pre class="mermaid">graph TB
+    subgraph "外部客户端"
+        KUBECTL[kubectl]
+        WEB[Web UI]
+        SDK[Client SDKs]
+    end
+
+    subgraph "Control Plane"
+        API[kube-apiserver<br/>🎯 API网关]
+        ETCD[(etcd)]
+        SCH[kube-scheduler]
+        CM[kube-controller-manager]
+    end
+
+    subgraph "Node组件"
+        KUBELET[kubelet]
+        PROXY[kube-proxy]
+    end
+
+    KUBECTL --> API
+    WEB --> API
+    SDK --> API
+
+    API --> ETCD
+    SCH --> API
+    CM --> API
+    KUBELET --> API
+    PROXY --> API
+
+    style API fill:#ff9999,stroke:#333,stroke-width:4px</pre>
 
 <h2 id="核心功能列表"><a href="#核心功能列表" class="headerlink" title="核心功能列表"></a>核心功能列表</h2><h3 id="1-RESTful-API服务-🌐"><a href="#1-RESTful-API服务-🌐" class="headerlink" title="1. RESTful API服务 🌐"></a>1. RESTful API服务 🌐</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># API资源访问模式</span></span><br><span class="line">GET    /api/v1/pods                    <span class="comment"># 列出所有Pod</span></span><br><span class="line">POST   /api/v1/namespaces/default/pods <span class="comment"># 创建Pod</span></span><br><span class="line">PUT    /api/v1/namespaces/default/pods/my-pod <span class="comment"># 更新Pod</span></span><br><span class="line">DELETE /api/v1/namespaces/default/pods/my-pod <span class="comment"># 删除Pod</span></span><br></pre></td></tr></table></figure>
 
-<h3 id="2-多层安全控制-🔐"><a href="#2-多层安全控制-🔐" class="headerlink" title="2. 多层安全控制 🔐"></a>2. 多层安全控制 🔐</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">    REQ[Request] --&gt; AUTH[Authentication]</span><br><span class="line">    AUTH --&gt; AUTHZ[Authorization]</span><br><span class="line">    AUTHZ --&gt; ADMIT[Admission Control]</span><br><span class="line">    ADMIT --&gt; VALID[Validation]</span><br><span class="line">    VALID --&gt; ETCD[(etcd)]</span><br></pre></td></tr></table></figure>
+<h3 id="2-多层安全控制-🔐"><a href="#2-多层安全控制-🔐" class="headerlink" title="2. 多层安全控制 🔐"></a>2. 多层安全控制 🔐</h3><pre class="mermaid">graph LR
+    REQ[Request] --> AUTH[Authentication]
+    AUTH --> AUTHZ[Authorization]
+    AUTHZ --> ADMIT[Admission Control]
+    ADMIT --> VALID[Validation]
+    VALID --> ETCD[(etcd)]</pre>
 
 <h3 id="3-资源版本管理-📊"><a href="#3-资源版本管理-📊" class="headerlink" title="3. 资源版本管理 📊"></a>3. 资源版本管理 📊</h3><table>
 <thead>
@@ -308,7 +342,24 @@
 </ol>
 <h3 id="深度分析题-🔍"><a href="#深度分析题-🔍" class="headerlink" title="深度分析题 🔍"></a>深度分析题 🔍</h3><p><strong>Q: 如何设计一个高性能的API Server？</strong></p>
 <p><strong>A: 关键设计要素</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">mindmap</span><br><span class="line">  root((API Server性能))</span><br><span class="line">    (缓存策略)</span><br><span class="line">      Informer Cache</span><br><span class="line">      本地缓存</span><br><span class="line">      etcd Watch缓存</span><br><span class="line">    (请求处理)</span><br><span class="line">      连接池管理</span><br><span class="line">      请求限流</span><br><span class="line">      优先级队列</span><br><span class="line">    (存储优化)</span><br><span class="line">      etcd压缩</span><br><span class="line">      分页查询</span><br><span class="line">      字段选择</span><br><span class="line">    (网络优化)</span><br><span class="line">      HTTP/2复用</span><br><span class="line">      gRPC协议</span><br><span class="line">      压缩传输</span><br></pre></td></tr></table></figure>
+<pre class="mermaid">mindmap
+  root((API Server性能))
+    (缓存策略)
+      Informer Cache
+      本地缓存
+      etcd Watch缓存
+    (请求处理)
+      连接池管理
+      请求限流
+      优先级队列
+    (存储优化)
+      etcd压缩
+      分页查询
+      字段选择
+    (网络优化)
+      HTTP/2复用
+      gRPC协议
+      压缩传输</pre>
 
 <p><strong>Q: API Server故障会影响什么？</strong></p>
 <p><strong>A: 影响范围分析</strong></p>

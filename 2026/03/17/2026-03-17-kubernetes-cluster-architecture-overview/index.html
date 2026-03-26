@@ -218,7 +218,33 @@
     
     
     
-    <div class="post-body" itemprop="articleBody"><h1 id="Kubernetes集群架构概览"><a href="#Kubernetes集群架构概览" class="headerlink" title="Kubernetes集群架构概览"></a>Kubernetes集群架构概览</h1><h2 id="核心组件架构"><a href="#核心组件架构" class="headerlink" title="核心组件架构"></a>核心组件架构</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">graph TB</span><br><span class="line">    subgraph &quot;Control Plane&quot;</span><br><span class="line">        API[kube-apiserver]</span><br><span class="line">        ETCD[(etcd)]</span><br><span class="line">        SCH[kube-scheduler]</span><br><span class="line">        CM[kube-controller-manager]</span><br><span class="line">        CCM[cloud-controller-manager]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;Node Components&quot;</span><br><span class="line">        KUBELET[kubelet]</span><br><span class="line">        PROXY[kube-proxy]</span><br><span class="line">        CRI[Container Runtime]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    subgraph &quot;Add-ons&quot;</span><br><span class="line">        DNS[CoreDNS]</span><br><span class="line">        DASH[Dashboard]</span><br><span class="line">        NET[Network Plugin]</span><br><span class="line">    end</span><br><span class="line"></span><br><span class="line">    API --&gt; ETCD</span><br><span class="line">    API --&gt; SCH</span><br><span class="line">    API --&gt; CM</span><br><span class="line">    KUBELET --&gt; API</span><br><span class="line">    KUBELET --&gt; CRI</span><br><span class="line">    PROXY --&gt; API</span><br></pre></td></tr></table></figure>
+    <div class="post-body" itemprop="articleBody"><h1 id="Kubernetes集群架构概览"><a href="#Kubernetes集群架构概览" class="headerlink" title="Kubernetes集群架构概览"></a>Kubernetes集群架构概览</h1><h2 id="核心组件架构"><a href="#核心组件架构" class="headerlink" title="核心组件架构"></a>核心组件架构</h2><pre class="mermaid">graph TB
+    subgraph "Control Plane"
+        API[kube-apiserver]
+        ETCD[(etcd)]
+        SCH[kube-scheduler]
+        CM[kube-controller-manager]
+        CCM[cloud-controller-manager]
+    end
+
+    subgraph "Node Components"
+        KUBELET[kubelet]
+        PROXY[kube-proxy]
+        CRI[Container Runtime]
+    end
+
+    subgraph "Add-ons"
+        DNS[CoreDNS]
+        DASH[Dashboard]
+        NET[Network Plugin]
+    end
+
+    API --> ETCD
+    API --> SCH
+    API --> CM
+    KUBELET --> API
+    KUBELET --> CRI
+    PROXY --> API</pre>
 
 <h2 id="组件职责概述"><a href="#组件职责概述" class="headerlink" title="组件职责概述"></a>组件职责概述</h2><h3 id="Control-Plane组件"><a href="#Control-Plane组件" class="headerlink" title="Control Plane组件"></a>Control Plane组件</h3><h4 id="kube-apiserver"><a href="#kube-apiserver" class="headerlink" title="kube-apiserver"></a>kube-apiserver</h4><ul>
 <li><strong>核心职责</strong>: 所有组件的统一API入口，处理REST请求</li>
@@ -245,7 +271,29 @@
 <li><strong>关键功能</strong>: 容器生命周期、镜像管理、资源隔离</li>
 <li><strong>面试重点</strong>: CRI标准、安全隔离、性能优化</li>
 </ul>
-<h2 id="数据流向分析"><a href="#数据流向分析" class="headerlink" title="数据流向分析"></a>数据流向分析</h2><h3 id="Pod创建流程"><a href="#Pod创建流程" class="headerlink" title="Pod创建流程"></a>Pod创建流程</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">    participant U as User/kubectl</span><br><span class="line">    participant API as kube-apiserver</span><br><span class="line">    participant E as etcd</span><br><span class="line">    participant S as kube-scheduler</span><br><span class="line">    participant K as kubelet</span><br><span class="line">    participant CR as Container Runtime</span><br><span class="line"></span><br><span class="line">    U-&gt;&gt;API: POST /api/v1/pods</span><br><span class="line">    API-&gt;&gt;API: 认证+授权+准入控制</span><br><span class="line">    API-&gt;&gt;E: 存储Pod spec</span><br><span class="line">    API-&gt;&gt;U: 201 Created</span><br><span class="line"></span><br><span class="line">    S-&gt;&gt;API: Watch Pod events</span><br><span class="line">    S-&gt;&gt;S: 调度算法计算</span><br><span class="line">    S-&gt;&gt;API: 绑定Pod到Node</span><br><span class="line">    API-&gt;&gt;E: 更新Pod.spec.nodeName</span><br><span class="line"></span><br><span class="line">    K-&gt;&gt;API: Watch Pod events</span><br><span class="line">    K-&gt;&gt;CR: 创建容器</span><br><span class="line">    CR-&gt;&gt;K: 容器状态</span><br><span class="line">    K-&gt;&gt;API: 更新Pod状态</span><br><span class="line">    API-&gt;&gt;E: 持久化状态</span><br></pre></td></tr></table></figure>
+<h2 id="数据流向分析"><a href="#数据流向分析" class="headerlink" title="数据流向分析"></a>数据流向分析</h2><h3 id="Pod创建流程"><a href="#Pod创建流程" class="headerlink" title="Pod创建流程"></a>Pod创建流程</h3><pre class="mermaid">sequenceDiagram
+    participant U as User/kubectl
+    participant API as kube-apiserver
+    participant E as etcd
+    participant S as kube-scheduler
+    participant K as kubelet
+    participant CR as Container Runtime
+
+    U->>API: POST /api/v1/pods
+    API->>API: 认证+授权+准入控制
+    API->>E: 存储Pod spec
+    API->>U: 201 Created
+
+    S->>API: Watch Pod events
+    S->>S: 调度算法计算
+    S->>API: 绑定Pod到Node
+    API->>E: 更新Pod.spec.nodeName
+
+    K->>API: Watch Pod events
+    K->>CR: 创建容器
+    CR->>K: 容器状态
+    K->>API: 更新Pod状态
+    API->>E: 持久化状态</pre>
 
 <h2 id="关键设计原则"><a href="#关键设计原则" class="headerlink" title="关键设计原则"></a>关键设计原则</h2><h3 id="1-声明式API设计"><a href="#1-声明式API设计" class="headerlink" title="1. 声明式API设计"></a>1. 声明式API设计</h3><ul>
 <li><strong>期望状态vs当前状态</strong>: 用户声明期望，系统负责达成</li>
