@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Prow Manual-Trigger 深度解析：架构、工作流程与实战📚 前言本文深入剖析 Kubernetes test-infra 仓库中的 prow&#x2F;cmd&#x2F;manual-trigger 项目，详细讲解其技术架构、工作流程和使用方法。Manual-Trigger 是一个 HTTP 服务，允许用户手动触发 Prow CI&#x2F;CD 任务，而无需依赖 GitHub webhook 事件。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Prow Manual-Trigger 深度解析：架构、工作流程与实战">
+<meta property="og:url" content="https://smileusd.github.io/2026/03/28/2026-03-28-prow-manual-trigger-deep-dive/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Prow Manual-Trigger 深度解析：架构、工作流程与实战📚 前言本文深入剖析 Kubernetes test-infra 仓库中的 prow&#x2F;cmd&#x2F;manual-trigger 项目，详细讲解其技术架构、工作流程和使用方法。Manual-Trigger 是一个 HTTP 服务，允许用户手动触发 Prow CI&#x2F;CD 任务，而无需依赖 GitHub webhook 事件。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-03-28T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-03-28T05:03:50.107Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Prow">
+<meta property="article:tag" content="CI&#x2F;CD">
+<meta property="article:tag" content="Go">
+<meta property="article:tag" content="DevOps">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/03/28/2026-03-28-prow-manual-trigger-deep-dive/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/03/28/2026-03-28-prow-manual-trigger-deep-dive/","path":"2026/03/28/2026-03-28-prow-manual-trigger-deep-dive/","title":"Prow Manual-Trigger 深度解析：架构、工作流程与实战"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Prow Manual-Trigger 深度解析：架构、工作流程与实战 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Prow-Manual-Trigger-%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90%EF%BC%9A%E6%9E%B6%E6%9E%84%E3%80%81%E5%B7%A5%E4%BD%9C%E6%B5%81%E7%A8%8B%E4%B8%8E%E5%AE%9E%E6%88%98"><span class="nav-number">1.</span> <span class="nav-text">Prow Manual-Trigger 深度解析：架构、工作流程与实战</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%F0%9F%93%9A-%E5%89%8D%E8%A8%80"><span class="nav-number">1.1.</span> <span class="nav-text">📚 前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81Test-Infra-%E4%BB%93%E5%BA%93%E6%95%B4%E4%BD%93%E6%A6%82%E8%BF%B0"><span class="nav-number">1.2.</span> <span class="nav-text">一、Test-Infra 仓库整体概述</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-Test-Infra-%E6%98%AF%E4%BB%80%E4%B9%88%EF%BC%9F"><span class="nav-number">1.2.1.</span> <span class="nav-text">1.1 Test-Infra 是什么？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6-Prow"><span class="nav-number">1.2.2.</span> <span class="nav-text">1.2 核心组件 - Prow</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81Manual-Trigger-%E9%A1%B9%E7%9B%AE%E6%B7%B1%E5%BA%A6%E5%89%96%E6%9E%90"><span class="nav-number">1.3.</span> <span class="nav-text">二、Manual-Trigger 项目深度剖析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E9%A1%B9%E7%9B%AE%E5%AE%9A%E4%BD%8D"><span class="nav-number">1.3.1.</span> <span class="nav-text">2.1 项目定位</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E6%8A%80%E6%9C%AF%E6%9E%B6%E6%9E%84"><span class="nav-number">1.3.2.</span> <span class="nav-text">2.2 技术架构</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#2-2-1-%E6%8A%80%E6%9C%AF%E6%A0%88"><span class="nav-number">1.3.2.1.</span> <span class="nav-text">2.2.1 技术栈</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-2-2-%E6%9E%B6%E6%9E%84%E5%9B%BE"><span class="nav-number">1.3.2.2.</span> <span class="nav-text">2.2.2 架构图</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E5%B7%A5%E4%BD%9C%E6%B5%81%E7%A8%8B%E8%AF%A6%E8%A7%A3"><span class="nav-number">1.4.</span> <span class="nav-text">三、工作流程详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%A0%B8%E5%BF%83%E5%B7%A5%E4%BD%9C%E6%B5%81-Step-by-Step"><span class="nav-number">1.4.1.</span> <span class="nav-text">3.1 核心工作流 (Step by Step)</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4-1-%E6%8E%A5%E6%94%B6-HTTP-%E8%AF%B7%E6%B1%82"><span class="nav-number">1.4.1.1.</span> <span class="nav-text">步骤 1: 接收 HTTP 请求</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4-2-%E8%AF%B7%E6%B1%82%E8%A7%A3%E6%9E%90%E4%B8%8E%E9%AA%8C%E8%AF%81"><span class="nav-number">1.4.1.2.</span> <span class="nav-text">步骤 2: 请求解析与验证</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4-3-%E6%9F%A5%E6%89%BE%E4%BB%BB%E5%8A%A1%E9%85%8D%E7%BD%AE"><span class="nav-number">1.4.1.3.</span> <span class="nav-text">步骤 3: 查找任务配置</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4-4-%E5%88%9B%E5%BB%BA-ProwJob-%E8%A7%84%E8%8C%83"><span class="nav-number">1.4.1.4.</span> <span class="nav-text">步骤 4: 创建 ProwJob 规范</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4-5-%E6%8F%90%E4%BA%A4%E5%88%B0-Kubernetes"><span class="nav-number">1.4.1.5.</span> <span class="nav-text">步骤 5: 提交到 Kubernetes</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4-6-%E8%BF%94%E5%9B%9E%E5%93%8D%E5%BA%94"><span class="nav-number">1.4.1.6.</span> <span class="nav-text">步骤 6: 返回响应</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4-7-Prow-%E6%89%A7%E8%A1%8C%E4%BB%BB%E5%8A%A1"><span class="nav-number">1.4.1.7.</span> <span class="nav-text">步骤 7: Prow 执行任务</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.4.2.</span> <span class="nav-text">3.2 核心数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#ProwJob-CRD-%E7%BB%93%E6%9E%84"><span class="nav-number">1.4.2.1.</span> <span class="nav-text">ProwJob CRD 结构</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%85%B3%E9%94%AE%E7%89%B9%E6%80%A7%E8%AF%A6%E8%A7%A3"><span class="nav-number">1.5.</span> <span class="nav-text">四、关键特性详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E7%81%B5%E6%B4%BB%E7%9A%84%E7%B1%BB%E5%9E%8B%E8%BD%AC%E6%8D%A2"><span class="nav-number">1.5.1.</span> <span class="nav-text">4.1 灵活的类型转换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E8%87%AA%E5%AE%9A%E4%B9%89%E7%8E%AF%E5%A2%83%E5%8F%98%E9%87%8F%E6%B3%A8%E5%85%A5"><span class="nav-number">1.5.2.</span> <span class="nav-text">4.2 自定义环境变量注入</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-BuildID-%E7%AD%89%E5%BE%85%E6%9C%BA%E5%88%B6"><span class="nav-number">1.5.3.</span> <span class="nav-text">4.3 BuildID 等待机制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E9%83%A8%E7%BD%B2%E6%9E%B6%E6%9E%84"><span class="nav-number">1.6.</span> <span class="nav-text">五、部署架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-Kubernetes-%E9%83%A8%E7%BD%B2%E6%B8%85%E5%8D%95"><span class="nav-number">1.6.1.</span> <span class="nav-text">5.1 Kubernetes 部署清单</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%AE%B9%E5%99%A8%E9%95%9C%E5%83%8F%E6%9E%84%E5%BB%BA"><span class="nav-number">1.6.2.</span> <span class="nav-text">5.2 容器镜像构建</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E4%BD%BF%E7%94%A8%E7%A4%BA%E4%BE%8B"><span class="nav-number">1.7.</span> <span class="nav-text">六、使用示例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E5%9F%BA%E7%A1%80%E4%BD%BF%E7%94%A8"><span class="nav-number">1.7.1.</span> <span class="nav-text">6.1 基础使用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E8%A7%A6%E5%8F%91-presubmit-%E4%BB%BB%E5%8A%A1"><span class="nav-number">1.7.2.</span> <span class="nav-text">6.2 触发 presubmit 任务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E5%B0%86-presubmit-%E4%BB%BB%E5%8A%A1%E4%BD%9C%E4%B8%BA-postsubmit-%E8%BF%90%E8%A1%8C"><span class="nav-number">1.7.3.</span> <span class="nav-text">6.3 将 presubmit 任务作为 postsubmit 运行</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-Shell-%E8%84%9A%E6%9C%AC%E5%B0%81%E8%A3%85"><span class="nav-number">1.7.4.</span> <span class="nav-text">6.4 Shell 脚本封装</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E4%B8%8E-Prow-%E7%94%9F%E6%80%81%E7%9A%84%E9%9B%86%E6%88%90"><span class="nav-number">1.8.</span> <span class="nav-text">七、与 Prow 生态的集成</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-Prow-%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6"><span class="nav-number">1.8.1.</span> <span class="nav-text">7.1 Prow 配置文件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E4%B8%8E%E5%85%B6%E4%BB%96-Prow-%E7%BB%84%E4%BB%B6%E4%BA%A4%E4%BA%92"><span class="nav-number">1.8.2.</span> <span class="nav-text">7.2 与其他 Prow 组件交互</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E5%AE%89%E5%85%A8%E4%B8%8E%E7%9B%91%E6%8E%A7"><span class="nav-number">1.9.</span> <span class="nav-text">八、安全与监控</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-RBAC-%E6%9D%83%E9%99%90"><span class="nav-number">1.9.1.</span> <span class="nav-text">8.1 RBAC 权限</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-%E7%9B%91%E6%8E%A7%E6%8C%87%E6%A0%87"><span class="nav-number">1.9.2.</span> <span class="nav-text">8.2 监控指标</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-%E8%BF%90%E8%A1%8C%E5%AE%89%E5%85%A8"><span class="nav-number">1.9.3.</span> <span class="nav-text">8.3 运行安全</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%9D%E3%80%81%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5"><span class="nav-number">1.10.</span> <span class="nav-text">九、故障排查</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#9-1-%E5%B8%B8%E8%A7%81%E9%94%99%E8%AF%AF"><span class="nav-number">1.10.1.</span> <span class="nav-text">9.1 常见错误</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%94%99%E8%AF%AF-1-Job-not-found-in-config"><span class="nav-number">1.10.1.1.</span> <span class="nav-text">错误 1: Job not found in config</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%94%99%E8%AF%AF-2-Pull-request-number-is-required"><span class="nav-number">1.10.1.2.</span> <span class="nav-text">错误 2: Pull request number is required</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-2-%E8%B0%83%E8%AF%95%E6%8A%80%E5%B7%A7"><span class="nav-number">1.10.2.</span> <span class="nav-text">9.2 调试技巧</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9F%A5%E7%9C%8B-ProwJob-%E7%8A%B6%E6%80%81"><span class="nav-number">1.10.2.1.</span> <span class="nav-text">查看 ProwJob 状态</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9F%A5%E7%9C%8B%E6%9C%8D%E5%8A%A1%E6%97%A5%E5%BF%97"><span class="nav-number">1.10.2.2.</span> <span class="nav-text">查看服务日志</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%81%E3%80%81%E6%80%BB%E7%BB%93"><span class="nav-number">1.11.</span> <span class="nav-text">十、总结</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#10-1-Manual-Trigger-%E7%9A%84%E6%A0%B8%E5%BF%83%E4%BB%B7%E5%80%BC"><span class="nav-number">1.11.1.</span> <span class="nav-text">10.1 Manual-Trigger 的核心价值</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-2-%E6%8A%80%E6%9C%AF%E4%BA%AE%E7%82%B9"><span class="nav-number">1.11.2.</span> <span class="nav-text">10.2 技术亮点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-3-%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-number">1.11.3.</span> <span class="nav-text">10.3 适用场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-4-%E6%89%A9%E5%B1%95%E9%98%85%E8%AF%BB"><span class="nav-number">1.11.4.</span> <span class="nav-text">10.4 扩展阅读</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">1.12.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">55</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">22</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">123</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/03/28/2026-03-28-prow-manual-trigger-deep-dive/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Prow Manual-Trigger 深度解析：架构、工作流程与实战 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Prow Manual-Trigger 深度解析：架构、工作流程与实战
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-03-28 10:00:00 / Modified: 13:03:50" itemprop="dateCreated datePublished" datetime="2026-03-28T10:00:00+08:00">2026-03-28</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%8A%80%E6%9C%AF%E6%B7%B1%E5%BA%A6/" itemprop="url" rel="index"><span itemprop="name">技术深度</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%8A%80%E6%9C%AF%E6%B7%B1%E5%BA%A6/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="Prow-Manual-Trigger-深度解析：架构、工作流程与实战"><a href="#Prow-Manual-Trigger-深度解析：架构、工作流程与实战" class="headerlink" title="Prow Manual-Trigger 深度解析：架构、工作流程与实战"></a>Prow Manual-Trigger 深度解析：架构、工作流程与实战</h1><h2 id="📚-前言"><a href="#📚-前言" class="headerlink" title="📚 前言"></a>📚 前言</h2><p>本文深入剖析 Kubernetes test-infra 仓库中的 <code>prow/cmd/manual-trigger</code> 项目，详细讲解其技术架构、工作流程和使用方法。Manual-Trigger 是一个 HTTP 服务，允许用户手动触发 Prow CI&#x2F;CD 任务，而无需依赖 GitHub webhook 事件。</p>
+<span id="more"></span>
+
+<h2 id="一、Test-Infra-仓库整体概述"><a href="#一、Test-Infra-仓库整体概述" class="headerlink" title="一、Test-Infra 仓库整体概述"></a>一、Test-Infra 仓库整体概述</h2><h3 id="1-1-Test-Infra-是什么？"><a href="#1-1-Test-Infra-是什么？" class="headerlink" title="1.1 Test-Infra 是什么？"></a>1.1 Test-Infra 是什么？</h3><p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/test-infra">test-infra</a> 是 <strong>Kubernetes 官方的测试基础设施仓库</strong>，包含了 Kubernetes 项目的所有 CI&#x2F;CD 工具和配置文件。它是一个大型的测试自动化框架，主要用于：</p>
+<ul>
+<li><strong>CI 任务管理</strong>: 自动化测试、构建、部署流程</li>
+<li><strong>代码审查</strong>: PR 自动化测试和合并管理</li>
+<li><strong>测试结果展示</strong>: 历史测试数据和失败分析</li>
+<li><strong>资源管理</strong>: GCP 项目池、GitHub API 代理等</li>
+</ul>
+<h3 id="1-2-核心组件-Prow"><a href="#1-2-核心组件-Prow" class="headerlink" title="1.2 核心组件 - Prow"></a>1.2 核心组件 - Prow</h3><p><strong>Prow</strong> 是这个仓库的核心，它是一个基于 Kubernetes 的 CI&#x2F;CD 系统，专为 GitHub 设计。Prow 的主要组件包括：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Hook</strong></td>
+<td>监听 GitHub webhook 事件</td>
+</tr>
+<tr>
+<td><strong>Plank</strong></td>
+<td>调度和管理 ProwJob</td>
+</tr>
+<tr>
+<td><strong>Deck</strong></td>
+<td>Web UI，展示任务状态</td>
+</tr>
+<tr>
+<td><strong>Tide</strong></td>
+<td>自动合并 PR</td>
+</tr>
+<tr>
+<td><strong>Crier</strong></td>
+<td>上报任务结果到 GitHub</td>
+</tr>
+<tr>
+<td><strong>Manual-Trigger</strong></td>
+<td>手动触发任务（本文重点）</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="二、Manual-Trigger-项目深度剖析"><a href="#二、Manual-Trigger-项目深度剖析" class="headerlink" title="二、Manual-Trigger 项目深度剖析"></a>二、Manual-Trigger 项目深度剖析</h2><h3 id="2-1-项目定位"><a href="#2-1-项目定位" class="headerlink" title="2.1 项目定位"></a>2.1 项目定位</h3><p><strong>Manual-Trigger</strong> 是一个 <strong>HTTP 服务</strong>，允许用户<strong>手动触发 Prow 任务</strong>，而无需通过 GitHub 事件（如 push、PR）。这在以下场景非常有用：</p>
+<p>✅ 手动测试 CI 任务<br>✅ 对特定代码版本运行测试<br>✅ 运维和维护操作<br>✅ 使用自定义参数触发任务</p>
+<h3 id="2-2-技术架构"><a href="#2-2-技术架构" class="headerlink" title="2.2 技术架构"></a>2.2 技术架构</h3><h4 id="2-2-1-技术栈"><a href="#2-2-1-技术栈" class="headerlink" title="2.2.1 技术栈"></a>2.2.1 技术栈</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">编程语言:</span> <span class="string">Go</span> <span class="number">1.21</span></span><br><span class="line"><span class="string">框架:</span> <span class="string">标准库</span> <span class="string">net/http</span></span><br><span class="line"><span class="attr">Kubernetes:</span> <span class="string">通过</span> <span class="string">client-go</span> <span class="string">与</span> <span class="string">K8s</span> <span class="string">API</span> <span class="string">交互</span></span><br><span class="line"><span class="string">依赖:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">Prow</span> <span class="string">API</span> <span class="string">(prowjobs/v1)</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">Kubernetes</span> <span class="string">Core</span> <span class="string">API</span> <span class="string">(corev1)</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">Prow</span> <span class="string">配置管理</span> <span class="string">(config.Agent)</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="2-2-2-架构图"><a href="#2-2-2-架构图" class="headerlink" title="2.2.2 架构图"></a>2.2.2 架构图</h4><pre class="mermaid">graph TB
+    A[用户/客户端] -->|HTTP POST| B[Manual-Trigger 服务]
+    B -->|读取配置| C[Config Agent]
+    B -->|创建 ProwJob| D[ProwJob Client]
+    D -->|提交 CRD| E[Kubernetes API Server]
+    E -->|存储| F[ProwJob Custom Resource]
+    F -->|监听| G[Prow Plank]
+    G -->|创建 Pod| H[Kubernetes Pod]
+    H -->|执行任务| I[CI/CD 任务]
+    B -->|返回结果| A</pre>
+
+<p><strong>核心组件说明</strong>:</p>
+<ol>
+<li><strong>HTTP Handler</strong>: 接收和解析用户请求</li>
+<li><strong>Config Agent</strong>: 读取 Prow 配置文件，查找任务定义</li>
+<li><strong>ProwJob Client</strong>: Kubernetes 客户端，用于创建 ProwJob CRD</li>
+<li><strong>Prow Plank</strong>: 监听 ProwJob 创建事件，调度 Pod 执行</li>
+</ol>
+<hr>
+<h2 id="三、工作流程详解"><a href="#三、工作流程详解" class="headerlink" title="三、工作流程详解"></a>三、工作流程详解</h2><h3 id="3-1-核心工作流-Step-by-Step"><a href="#3-1-核心工作流-Step-by-Step" class="headerlink" title="3.1 核心工作流 (Step by Step)"></a>3.1 核心工作流 (Step by Step)</h3><h4 id="步骤-1-接收-HTTP-请求"><a href="#步骤-1-接收-HTTP-请求" class="headerlink" title="步骤 1: 接收 HTTP 请求"></a><strong>步骤 1: 接收 HTTP 请求</strong></h4><p>用户发送 POST 请求到 <code>/manual-trigger</code> 端点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">curl -X POST <span class="string">&quot;http://manual-trigger.tessprow/manual-trigger&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: application/json&quot;</span> \</span><br><span class="line">  -d <span class="string">&#x27;&#123;</span></span><br><span class="line"><span class="string">    &quot;org&quot;: &quot;tess&quot;,</span></span><br><span class="line"><span class="string">    &quot;repo&quot;: &quot;tessops&quot;,</span></span><br><span class="line"><span class="string">    &quot;base_ref&quot;: &quot;master&quot;,</span></span><br><span class="line"><span class="string">    &quot;prowtype&quot;: &quot;postsubmit&quot;,</span></span><br><span class="line"><span class="string">    &quot;prowjob&quot;: &quot;sddz-e2e-k8s-1.32&quot;,</span></span><br><span class="line"><span class="string">    &quot;user&quot;: &quot;fesu&quot;</span></span><br><span class="line"><span class="string">  &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>参数说明</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+<th>必需</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>org</code></td>
+<td>GitHub 组织名</td>
+<td>✅</td>
+<td><code>tess</code></td>
+</tr>
+<tr>
+<td><code>repo</code></td>
+<td>仓库名</td>
+<td>✅</td>
+<td><code>tessops</code></td>
+</tr>
+<tr>
+<td><code>base_ref</code></td>
+<td>基础分支</td>
+<td>✅</td>
+<td><code>master</code></td>
+</tr>
+<tr>
+<td><code>prowtype</code></td>
+<td>任务类型</td>
+<td>✅</td>
+<td><code>postsubmit</code></td>
+</tr>
+<tr>
+<td><code>prowjob</code></td>
+<td>任务名称</td>
+<td>✅</td>
+<td><code>sddz-e2e-k8s-1.32</code></td>
+</tr>
+<tr>
+<td><code>pullrequest</code></td>
+<td>PR 号（presubmit 必需）</td>
+<td>条件</td>
+<td><code>123</code></td>
+</tr>
+<tr>
+<td><code>user</code></td>
+<td>自定义用户名</td>
+<td>❌</td>
+<td><code>fesu</code></td>
+</tr>
+</tbody></table>
+<h4 id="步骤-2-请求解析与验证"><a href="#步骤-2-请求解析与验证" class="headerlink" title="步骤 2: 请求解析与验证"></a><strong>步骤 2: 请求解析与验证</strong></h4><p><code>handleManualTrigger</code> 函数处理请求：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. 支持两种输入格式:</span></span><br><span class="line"><span class="comment">//    - JSON body</span></span><br><span class="line"><span class="comment">//    - URL query 参数</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 2. 验证必需参数</span></span><br><span class="line"><span class="keyword">if</span> req.Org == <span class="string">&quot;&quot;</span> || req.Repo == <span class="string">&quot;&quot;</span> || req.BaseRef == <span class="string">&quot;&quot;</span> ||</span><br><span class="line">   req.ProwType == <span class="string">&quot;&quot;</span> || req.ProwJob == <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">    <span class="comment">// 返回错误</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 3. 特殊验证: presubmit 任务必须提供 PR 号</span></span><br><span class="line"><span class="keyword">if</span> req.ProwType == <span class="string">&quot;presubmit&quot;</span> &amp;&amp; req.PullRequest &lt;= <span class="number">0</span> &#123;</span><br><span class="line">    <span class="comment">// 返回错误</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="步骤-3-查找任务配置"><a href="#步骤-3-查找任务配置" class="headerlink" title="步骤 3: 查找任务配置"></a><strong>步骤 3: 查找任务配置</strong></h4><p>从 Prow 配置中查找对应的任务定义：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取 Prow 配置</span></span><br><span class="line">cfg := s.configAgent.Config()</span><br><span class="line"></span><br><span class="line"><span class="comment">// 优先在 presubmits 中查找</span></span><br><span class="line"><span class="keyword">if</span> presubmits, ok := cfg.PresubmitsStatic[req.Org+<span class="string">&quot;/&quot;</span>+req.Repo]; ok &#123;</span><br><span class="line">    <span class="keyword">for</span> _, p := <span class="keyword">range</span> presubmits &#123;</span><br><span class="line">        <span class="keyword">if</span> p.Name == req.ProwJob &#123;</span><br><span class="line">            prowJob, err = s.createProwJobFromPresubmit(p, req)</span><br><span class="line">            <span class="keyword">break</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 如果没找到，在 postsubmits 中查找</span></span><br><span class="line"><span class="keyword">if</span> prowJob == <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> postsubmits, ok := cfg.PostsubmitsStatic[req.Org+<span class="string">&quot;/&quot;</span>+req.Repo]; ok &#123;</span><br><span class="line">        <span class="comment">// ...类似逻辑</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="步骤-4-创建-ProwJob-规范"><a href="#步骤-4-创建-ProwJob-规范" class="headerlink" title="步骤 4: 创建 ProwJob 规范"></a><strong>步骤 4: 创建 ProwJob 规范</strong></h4><p>根据任务类型创建 ProwJob 对象：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *server)</span></span> createProwJobFromPresubmit(presubmit config.Presubmit, req triggerRequest) (*prowapi.ProwJob, <span class="type">error</span>) &#123;</span><br><span class="line">    <span class="comment">// 1. 构建 Refs (代码引用)</span></span><br><span class="line">    refs := prowapi.Refs&#123;</span><br><span class="line">        Org:      req.Org,</span><br><span class="line">        Repo:     req.Repo,</span><br><span class="line">        BaseRef:  req.BaseRef,</span><br><span class="line">        RepoLink: fmt.Sprintf(<span class="string">&quot;https://github.corp.ebay.com/%s/%s&quot;</span>, req.Org, req.Repo),</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. 如果是 presubmit，添加 PR 信息</span></span><br><span class="line">    <span class="keyword">if</span> req.ProwType == <span class="string">&quot;presubmit&quot;</span> &amp;&amp; req.PullRequest &gt; <span class="number">0</span> &#123;</span><br><span class="line">        refs.Pulls = []prowapi.Pull&#123;</span><br><span class="line">            &#123;</span><br><span class="line">                Number: req.PullRequest,</span><br><span class="line">                Link:   fmt.Sprintf(<span class="string">&quot;https://github.corp.ebay.com/%s/%s/pull/%d&quot;</span>,</span><br><span class="line">                                    req.Org, req.Repo, req.PullRequest),</span><br><span class="line">            &#125;,</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 3. 创建 ProwJob Spec</span></span><br><span class="line">    spec := pjutil.PresubmitSpec(presubmit, refs)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 4. 如果指定为 postsubmit 类型，覆盖类型</span></span><br><span class="line">    <span class="keyword">if</span> req.ProwType == <span class="string">&quot;postsubmit&quot;</span> &#123;</span><br><span class="line">        spec.Type = prowapi.PostsubmitJob</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 5. 添加标签和注解</span></span><br><span class="line">    pj := pjutil.NewProwJob(spec, labels, annotations)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 6. 如果提供了 user 参数，注入 AUTHOR 环境变量</span></span><br><span class="line">    <span class="keyword">if</span> req.User != <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">        s.addAuthorEnvToProwJob(&amp;pj, req.User)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> &amp;pj, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="步骤-5-提交到-Kubernetes"><a href="#步骤-5-提交到-Kubernetes" class="headerlink" title="步骤 5: 提交到 Kubernetes"></a><strong>步骤 5: 提交到 Kubernetes</strong></h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 创建 ProwJob CRD 资源</span></span><br><span class="line"><span class="keyword">if</span> !s.dryRun &#123;</span><br><span class="line">    ctx := context.Background()</span><br><span class="line">    _, err = s.prowJobClient.Create(ctx, prowJob, metav1.CreateOptions&#123;&#125;)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="comment">// 处理错误</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 等待 BuildID 生成 (最多 15 秒)</span></span><br><span class="line">    <span class="comment">// BuildID 用于生成日志链接</span></span><br><span class="line">    ctx, cancel := context.WithTimeout(context.Background(), <span class="number">15</span>*time.Second)</span><br><span class="line">    <span class="keyword">defer</span> cancel()</span><br><span class="line"></span><br><span class="line">    ticker := time.NewTicker(<span class="number">500</span> * time.Millisecond)</span><br><span class="line">    <span class="keyword">defer</span> ticker.Stop()</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        <span class="keyword">select</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> &lt;-ctx.Done():</span><br><span class="line">            <span class="comment">// 超时</span></span><br><span class="line">            <span class="keyword">goto</span> buildResponse</span><br><span class="line">        <span class="keyword">case</span> &lt;-ticker.C:</span><br><span class="line">            latestProwJob, _ := s.prowJobClient.Get(context.Background(), prowJob.Name, metav1.GetOptions&#123;&#125;)</span><br><span class="line">            <span class="keyword">if</span> latestProwJob.Status.BuildID != <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">                prowJob = latestProwJob</span><br><span class="line">                <span class="keyword">goto</span> buildResponse</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="步骤-6-返回响应"><a href="#步骤-6-返回响应" class="headerlink" title="步骤 6: 返回响应"></a><strong>步骤 6: 返回响应</strong></h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 生成状态链接和日志链接</span></span><br><span class="line">statusLink := fmt.Sprintf(<span class="string">&quot;https://%s/prowjob?prowjob=%s&quot;</span>, baseURL, prowJob.Name)</span><br><span class="line">logLink := fmt.Sprintf(<span class="string">&quot;https://%s/log?job=%s&amp;id=%s&quot;</span>, baseURL, req.ProwJob, prowJob.Status.BuildID)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 返回 JSON 响应</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="string">&quot;success&quot;</span>: <span class="literal">true</span>,</span><br><span class="line">  <span class="string">&quot;message&quot;</span>: <span class="string">&quot;ProwJob created successfully&quot;</span>,</span><br><span class="line">  <span class="string">&quot;job_name&quot;</span>: <span class="string">&quot;715c1a56-f815-11f0-b860-8acb6d93d6ad&quot;</span>,</span><br><span class="line">  <span class="string">&quot;status_link&quot;</span>: <span class="string">&quot;https://prow.example.com/prowjob?prowjob=...&quot;</span>,</span><br><span class="line">  <span class="string">&quot;log_link&quot;</span>: <span class="string">&quot;https://prow.example.com/log?job=...&amp;id=...&quot;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="步骤-7-Prow-执行任务"><a href="#步骤-7-Prow-执行任务" class="headerlink" title="步骤 7: Prow 执行任务"></a><strong>步骤 7: Prow 执行任务</strong></h4><p>一旦 ProwJob CRD 被创建：</p>
+<ol>
+<li><strong>Plank</strong> 组件监听到新的 ProwJob</li>
+<li>Plank 根据 <code>spec.PodSpec</code> 创建 Kubernetes Pod</li>
+<li>Pod 执行测试&#x2F;构建任务</li>
+<li>Plank 更新 ProwJob 的 <code>status</code> 字段</li>
+<li><strong>Deck</strong> 在 Web UI 上展示任务状态</li>
+<li><strong>Crier</strong> 可以将结果上报到外部系统</li>
+</ol>
+<hr>
+<h3 id="3-2-核心数据结构"><a href="#3-2-核心数据结构" class="headerlink" title="3.2 核心数据结构"></a>3.2 核心数据结构</h3><h4 id="ProwJob-CRD-结构"><a href="#ProwJob-CRD-结构" class="headerlink" title="ProwJob CRD 结构"></a><strong>ProwJob CRD 结构</strong></h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ProwJob <span class="keyword">struct</span> &#123;</span><br><span class="line">    metav1.TypeMeta</span><br><span class="line">    metav1.ObjectMeta</span><br><span class="line"></span><br><span class="line">    Spec   ProwJobSpec   <span class="comment">// 任务定义</span></span><br><span class="line">    Status ProwJobStatus <span class="comment">// 运行时状态</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ProwJobSpec <span class="keyword">struct</span> &#123;</span><br><span class="line">    Type      ProwJobType   <span class="comment">// presubmit, postsubmit, periodic, batch</span></span><br><span class="line">    Agent     ProwJobAgent  <span class="comment">// kubernetes, jenkins, tekton-pipeline</span></span><br><span class="line">    Cluster   <span class="type">string</span>        <span class="comment">// 运行集群</span></span><br><span class="line">    Job       <span class="type">string</span>        <span class="comment">// 任务名称</span></span><br><span class="line">    Refs      *Refs         <span class="comment">// Git 引用信息</span></span><br><span class="line">    PodSpec   *corev1.PodSpec  <span class="comment">// Pod 定义</span></span><br><span class="line">    <span class="comment">// ...更多字段</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Refs <span class="keyword">struct</span> &#123;</span><br><span class="line">    Org      <span class="type">string</span>   <span class="comment">// GitHub 组织</span></span><br><span class="line">    Repo     <span class="type">string</span>   <span class="comment">// 仓库名</span></span><br><span class="line">    BaseRef  <span class="type">string</span>   <span class="comment">// 基础分支</span></span><br><span class="line">    BaseSHA  <span class="type">string</span>   <span class="comment">// 基础 commit SHA</span></span><br><span class="line">    Pulls    []Pull   <span class="comment">// PR 列表</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ProwJobStatus <span class="keyword">struct</span> &#123;</span><br><span class="line">    State          ProwJobState  <span class="comment">// triggered, pending, success, failure, aborted, error</span></span><br><span class="line">    BuildID        <span class="type">string</span>        <span class="comment">// 构建 ID</span></span><br><span class="line">    StartTime      metav1.Time</span><br><span class="line">    CompletionTime *metav1.Time</span><br><span class="line">    URL            <span class="type">string</span>        <span class="comment">// 任务详情 URL</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>ProwJob 生命周期状态</strong>:</p>
+<pre class="mermaid">stateDiagram-v2
+    [*] --> Triggered: ProwJob 创建
+    Triggered --> Pending: Pod 开始运行
+    Pending --> Success: 任务成功 (exit 0)
+    Pending --> Failure: 任务失败 (exit non-zero)
+    Pending --> Aborted: 被提前终止
+    Pending --> Error: 调度失败
+    Success --> [*]
+    Failure --> [*]
+    Aborted --> [*]
+    Error --> [*]</pre>
+
+<hr>
+<h2 id="四、关键特性详解"><a href="#四、关键特性详解" class="headerlink" title="四、关键特性详解"></a>四、关键特性详解</h2><h3 id="4-1-灵活的类型转换"><a href="#4-1-灵活的类型转换" class="headerlink" title="4.1 灵活的类型转换"></a>4.1 灵活的类型转换</h3><p>Manual-Trigger 支持将 <strong>presubmit 任务作为 postsubmit 运行</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 即使任务在配置中定义为 presubmit</span></span><br><span class="line"><span class="comment">// 也可以通过设置 prowtype=postsubmit 将其作为 postsubmit 运行</span></span><br><span class="line"><span class="keyword">if</span> req.ProwType == <span class="string">&quot;postsubmit&quot;</span> &#123;</span><br><span class="line">    spec := pjutil.PresubmitSpec(presubmit, refs)</span><br><span class="line">    spec.Type = prowapi.PostsubmitJob  <span class="comment">// 覆盖类型</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>使用场景</strong>: 想在某个分支上运行测试，但不想创建 PR</p>
+<h3 id="4-2-自定义环境变量注入"><a href="#4-2-自定义环境变量注入" class="headerlink" title="4.2 自定义环境变量注入"></a>4.2 自定义环境变量注入</h3><p>通过 <code>user</code> 参数可以注入 <code>AUTHOR</code> 环境变量：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *server)</span></span> addAuthorEnvToProwJob(pj *prowapi.ProwJob, user <span class="type">string</span>) &#123;</span><br><span class="line">    <span class="keyword">if</span> pj.Spec.PodSpec != <span class="literal">nil</span> &amp;&amp; pj.Spec.PodSpec.Containers != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">for</span> i := <span class="keyword">range</span> pj.Spec.PodSpec.Containers &#123;</span><br><span class="line">            authorEnv := corev1.EnvVar&#123;</span><br><span class="line">                Name:  <span class="string">&quot;AUTHOR&quot;</span>,</span><br><span class="line">                Value: user,</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 检查是否已存在，存在则更新，否则追加</span></span><br><span class="line">            found := <span class="literal">false</span></span><br><span class="line">            <span class="keyword">for</span> j := <span class="keyword">range</span> pj.Spec.PodSpec.Containers[i].Env &#123;</span><br><span class="line">                <span class="keyword">if</span> pj.Spec.PodSpec.Containers[i].Env[j].Name == <span class="string">&quot;AUTHOR&quot;</span> &#123;</span><br><span class="line">                    pj.Spec.PodSpec.Containers[i].Env[j].Value = user</span><br><span class="line">                    found = <span class="literal">true</span></span><br><span class="line">                    <span class="keyword">break</span></span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span> !found &#123;</span><br><span class="line">                pj.Spec.PodSpec.Containers[i].Env = <span class="built_in">append</span>(pj.Spec.PodSpec.Containers[i].Env, authorEnv)</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>使用场景</strong>: 任务脚本可以根据 <code>AUTHOR</code> 环境变量执行不同逻辑</p>
+<h3 id="4-3-BuildID-等待机制"><a href="#4-3-BuildID-等待机制" class="headerlink" title="4.3 BuildID 等待机制"></a>4.3 BuildID 等待机制</h3><p>为了提供完整的日志链接，服务会等待 BuildID 生成：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 轮询最多 15 秒</span></span><br><span class="line">ctx, cancel := context.WithTimeout(context.Background(), <span class="number">15</span>*time.Second)</span><br><span class="line"><span class="keyword">defer</span> cancel()</span><br><span class="line"></span><br><span class="line">ticker := time.NewTicker(<span class="number">500</span> * time.Millisecond)</span><br><span class="line"><span class="keyword">defer</span> ticker.Stop()</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> &#123;</span><br><span class="line">    <span class="keyword">select</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> &lt;-ctx.Done():</span><br><span class="line">        <span class="comment">// 超时，BuildID 仍未生成</span></span><br><span class="line">        <span class="keyword">goto</span> buildResponse</span><br><span class="line">    <span class="keyword">case</span> &lt;-ticker.C:</span><br><span class="line">        <span class="comment">// 每 500ms 查询一次</span></span><br><span class="line">        latestProwJob, err := s.prowJobClient.Get(context.Background(), prowJob.Name, metav1.GetOptions&#123;&#125;)</span><br><span class="line">        <span class="keyword">if</span> latestProwJob.Status.BuildID != <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">            <span class="comment">// BuildID 已生成</span></span><br><span class="line">            <span class="keyword">goto</span> buildResponse</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、部署架构"><a href="#五、部署架构" class="headerlink" title="五、部署架构"></a>五、部署架构</h2><h3 id="5-1-Kubernetes-部署清单"><a href="#5-1-Kubernetes-部署清单" class="headerlink" title="5.1 Kubernetes 部署清单"></a>5.1 Kubernetes 部署清单</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># ServiceAccount: 服务账户</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ServiceAccount</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">manual-trigger</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">tessprow</span></span><br><span class="line"></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="comment"># Role: 定义权限 (最小权限原则)</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">rbac.authorization.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Role</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">manual-trigger</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">tessprow</span></span><br><span class="line"><span class="attr">rules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">apiGroups:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">prow.k8s.io</span></span><br><span class="line">    <span class="attr">resources:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">prowjobs</span></span><br><span class="line">    <span class="attr">verbs:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">create</span>  <span class="comment"># 创建 ProwJob</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">get</span>     <span class="comment"># 获取 ProwJob 状态</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">list</span>    <span class="comment"># 列出 ProwJob</span></span><br><span class="line"></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="comment"># RoleBinding: 绑定权限</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">rbac.authorization.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">RoleBinding</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">manual-trigger</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">tessprow</span></span><br><span class="line"><span class="attr">roleRef:</span></span><br><span class="line">  <span class="attr">apiGroup:</span> <span class="string">rbac.authorization.k8s.io</span></span><br><span class="line">  <span class="attr">kind:</span> <span class="string">Role</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">manual-trigger</span></span><br><span class="line"><span class="attr">subjects:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">kind:</span> <span class="string">ServiceAccount</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">manual-trigger</span></span><br><span class="line">    <span class="attr">namespace:</span> <span class="string">tessprow</span></span><br><span class="line"></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="comment"># Deployment: 运行服务</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">manual-trigger</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">tessprow</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">manual-trigger</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">1</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">manual-trigger</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">manual-trigger</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">serviceAccountName:</span> <span class="string">manual-trigger</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">manual-trigger</span></span><br><span class="line">          <span class="attr">image:</span> <span class="string">hub.tess.io/prowimages/manual-trigger:latest</span></span><br><span class="line">          <span class="attr">imagePullPolicy:</span> <span class="string">Always</span></span><br><span class="line">          <span class="attr">args:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">--config-path=/etc/config/config.yaml</span>  <span class="comment"># Prow 配置文件</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">--dry-run=false</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">--port=8080</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">--namespace=tessprow</span></span><br><span class="line">          <span class="attr">ports:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">              <span class="attr">containerPort:</span> <span class="number">8080</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">metrics</span></span><br><span class="line">              <span class="attr">containerPort:</span> <span class="number">9090</span>  <span class="comment"># Prometheus metrics</span></span><br><span class="line">          <span class="attr">livenessProbe:</span></span><br><span class="line">            <span class="attr">httpGet:</span></span><br><span class="line">              <span class="attr">path:</span> <span class="string">/</span></span><br><span class="line">              <span class="attr">port:</span> <span class="number">8080</span></span><br><span class="line">            <span class="attr">initialDelaySeconds:</span> <span class="number">10</span></span><br><span class="line">            <span class="attr">periodSeconds:</span> <span class="number">10</span></span><br><span class="line">          <span class="attr">readinessProbe:</span></span><br><span class="line">            <span class="attr">httpGet:</span></span><br><span class="line">              <span class="attr">path:</span> <span class="string">/</span></span><br><span class="line">              <span class="attr">port:</span> <span class="number">8080</span></span><br><span class="line">            <span class="attr">initialDelaySeconds:</span> <span class="number">5</span></span><br><span class="line">            <span class="attr">periodSeconds:</span> <span class="number">5</span></span><br><span class="line">          <span class="attr">resources:</span></span><br><span class="line">            <span class="attr">requests:</span></span><br><span class="line">              <span class="attr">cpu:</span> <span class="string">100m</span></span><br><span class="line">              <span class="attr">memory:</span> <span class="string">128Mi</span></span><br><span class="line">            <span class="attr">limits:</span></span><br><span class="line">              <span class="attr">cpu:</span> <span class="string">500m</span></span><br><span class="line">              <span class="attr">memory:</span> <span class="string">512Mi</span></span><br><span class="line">          <span class="attr">volumeMounts:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">config</span></span><br><span class="line">              <span class="attr">mountPath:</span> <span class="string">/etc/config</span></span><br><span class="line">              <span class="attr">readOnly:</span> <span class="literal">true</span></span><br><span class="line">      <span class="attr">volumes:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">config</span></span><br><span class="line">          <span class="attr">configMap:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">config</span>  <span class="comment"># Prow 配置的 ConfigMap</span></span><br><span class="line"></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="comment"># Service: 暴露服务</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">manual-trigger</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">tessprow</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">manual-trigger</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">ClusterIP</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">      <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">      <span class="attr">targetPort:</span> <span class="number">8080</span></span><br><span class="line">      <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">metrics</span></span><br><span class="line">      <span class="attr">port:</span> <span class="number">9090</span></span><br><span class="line">      <span class="attr">targetPort:</span> <span class="number">9090</span></span><br><span class="line">      <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">manual-trigger</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-容器镜像构建"><a href="#5-2-容器镜像构建" class="headerlink" title="5.2 容器镜像构建"></a>5.2 容器镜像构建</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 第一阶段: 编译</span></span><br><span class="line"><span class="keyword">FROM</span> golang:<span class="number">1.21</span> AS builder</span><br><span class="line"><span class="keyword">WORKDIR</span><span class="language-bash"> /workspace</span></span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> . .</span></span><br><span class="line"><span class="keyword">WORKDIR</span><span class="language-bash"> /workspace/prow/cmd/manual-trigger</span></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manual-trigger .</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 第二阶段: 运行</span></span><br><span class="line"><span class="keyword">FROM</span> hub.tess.io/tess/ubuntu-<span class="number">22.04</span>:hardened</span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> --from=builder /workspace/prow/cmd/manual-trigger/manual-trigger /usr/local/bin/manual-trigger</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建非 root 用户 (安全最佳实践)</span></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> useradd -r -u 1000 -g root prow &amp;&amp; \</span></span><br><span class="line"><span class="language-bash">    <span class="built_in">chmod</span> +x /usr/local/bin/manual-trigger</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">USER</span> <span class="number">1000</span>:<span class="number">0</span></span><br><span class="line"><span class="keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="string">&quot;/usr/local/bin/manual-trigger&quot;</span>]</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>构建命令</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">docker build -t hub.tess.io/fesu/manual-trigger:latest \</span><br><span class="line">  -f prow/cmd/manual-trigger/Dockerfile .</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="六、使用示例"><a href="#六、使用示例" class="headerlink" title="六、使用示例"></a>六、使用示例</h2><h3 id="6-1-基础使用"><a href="#6-1-基础使用" class="headerlink" title="6.1 基础使用"></a>6.1 基础使用</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 触发 postsubmit 任务</span></span><br><span class="line">curl -X POST <span class="string">&quot;http://manual-trigger.tessprow/manual-trigger&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: application/json&quot;</span> \</span><br><span class="line">  -d <span class="string">&#x27;&#123;</span></span><br><span class="line"><span class="string">    &quot;org&quot;: &quot;tess&quot;,</span></span><br><span class="line"><span class="string">    &quot;repo&quot;: &quot;tessops&quot;,</span></span><br><span class="line"><span class="string">    &quot;base_ref&quot;: &quot;master&quot;,</span></span><br><span class="line"><span class="string">    &quot;prowtype&quot;: &quot;postsubmit&quot;,</span></span><br><span class="line"><span class="string">    &quot;prowjob&quot;: &quot;sddz-e2e-k8s-1.32&quot;,</span></span><br><span class="line"><span class="string">    &quot;user&quot;: &quot;admin&quot;</span></span><br><span class="line"><span class="string">  &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>响应示例</strong>:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;success&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;message&quot;</span><span class="punctuation">:</span> <span class="string">&quot;ProwJob created successfully&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;job_name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;715c1a56-f815-11f0-b860-8acb6d93d6ad&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;status_link&quot;</span><span class="punctuation">:</span> <span class="string">&quot;https://prow.tessprow/prowjob?prowjob=715c1a56-f815-11f0-b860-8acb6d93d6ad&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;log_link&quot;</span><span class="punctuation">:</span> <span class="string">&quot;https://prow.tessprow/log?job=sddz-e2e-k8s-1.32&amp;id=20260328-100000&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-触发-presubmit-任务"><a href="#6-2-触发-presubmit-任务" class="headerlink" title="6.2 触发 presubmit 任务"></a>6.2 触发 presubmit 任务</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 必须提供 pullrequest 参数</span></span><br><span class="line">curl -X POST <span class="string">&quot;http://manual-trigger.tessprow/manual-trigger&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: application/json&quot;</span> \</span><br><span class="line">  -d <span class="string">&#x27;&#123;</span></span><br><span class="line"><span class="string">    &quot;org&quot;: &quot;tess&quot;,</span></span><br><span class="line"><span class="string">    &quot;repo&quot;: &quot;tessops&quot;,</span></span><br><span class="line"><span class="string">    &quot;base_ref&quot;: &quot;master&quot;,</span></span><br><span class="line"><span class="string">    &quot;prowtype&quot;: &quot;presubmit&quot;,</span></span><br><span class="line"><span class="string">    &quot;prowjob&quot;: &quot;sddz-e2e-k8s-1.32&quot;,</span></span><br><span class="line"><span class="string">    &quot;pullrequest&quot;: 123</span></span><br><span class="line"><span class="string">  &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-将-presubmit-任务作为-postsubmit-运行"><a href="#6-3-将-presubmit-任务作为-postsubmit-运行" class="headerlink" title="6.3 将 presubmit 任务作为 postsubmit 运行"></a>6.3 将 presubmit 任务作为 postsubmit 运行</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 即使任务定义为 presubmit，也可以在分支上运行</span></span><br><span class="line">curl -X POST <span class="string">&quot;http://manual-trigger.tessprow/manual-trigger&quot;</span> \</span><br><span class="line">  -d <span class="string">&#x27;&#123;</span></span><br><span class="line"><span class="string">    &quot;org&quot;: &quot;tess&quot;,</span></span><br><span class="line"><span class="string">    &quot;repo&quot;: &quot;tessops&quot;,</span></span><br><span class="line"><span class="string">    &quot;base_ref&quot;: &quot;feature-branch&quot;,</span></span><br><span class="line"><span class="string">    &quot;prowtype&quot;: &quot;postsubmit&quot;,</span></span><br><span class="line"><span class="string">    &quot;prowjob&quot;: &quot;sddz-e2e-k8s-1.32&quot;</span></span><br><span class="line"><span class="string">  &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-4-Shell-脚本封装"><a href="#6-4-Shell-脚本封装" class="headerlink" title="6.4 Shell 脚本封装"></a>6.4 Shell 脚本封装</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"></span><br><span class="line">MANUAL_TRIGGER_URL=<span class="string">&quot;http://manual-trigger.tessprow/manual-trigger&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 触发任务函数</span></span><br><span class="line"><span class="function"><span class="title">trigger_job</span></span>() &#123;</span><br><span class="line">  <span class="built_in">local</span> org=<span class="variable">$1</span></span><br><span class="line">  <span class="built_in">local</span> repo=<span class="variable">$2</span></span><br><span class="line">  <span class="built_in">local</span> branch=<span class="variable">$3</span></span><br><span class="line">  <span class="built_in">local</span> job=<span class="variable">$4</span></span><br><span class="line">  <span class="built_in">local</span> <span class="built_in">type</span>=<span class="variable">$&#123;5:-postsubmit&#125;</span></span><br><span class="line">  <span class="built_in">local</span> <span class="built_in">pr</span>=<span class="variable">$6</span></span><br><span class="line">  <span class="built_in">local</span> user=<span class="variable">$&#123;7:-&quot;&quot;&#125;</span></span><br><span class="line"></span><br><span class="line">  <span class="built_in">local</span> data=<span class="string">&quot;&#123;\&quot;org\&quot;:\&quot;<span class="variable">$org</span>\&quot;,\&quot;repo\&quot;:\&quot;<span class="variable">$repo</span>\&quot;,\&quot;base_ref\&quot;:\&quot;<span class="variable">$branch</span>\&quot;,\&quot;prowtype\&quot;:\&quot;<span class="variable">$type</span>\&quot;,\&quot;prowjob\&quot;:\&quot;<span class="variable">$job</span>\&quot;&#125;&quot;</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> [ ! -z <span class="string">&quot;<span class="variable">$pr</span>&quot;</span> ]; <span class="keyword">then</span></span><br><span class="line">    data=$(<span class="built_in">echo</span> <span class="variable">$data</span> | sed <span class="string">&quot;s/&#125;$/,\&quot;pullrequest\&quot;:<span class="variable">$pr</span>&#125;/&quot;</span>)</span><br><span class="line">  <span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> [ ! -z <span class="string">&quot;<span class="variable">$user</span>&quot;</span> ]; <span class="keyword">then</span></span><br><span class="line">    data=$(<span class="built_in">echo</span> <span class="variable">$data</span> | sed <span class="string">&quot;s/&#125;$/,\&quot;user\&quot;:\&quot;<span class="variable">$user</span>\&quot;&#125;/&quot;</span>)</span><br><span class="line">  <span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line">  <span class="built_in">echo</span> <span class="string">&quot;📤 触发任务: <span class="variable">$data</span>&quot;</span></span><br><span class="line">  response=$(curl -s -X POST <span class="variable">$MANUAL_TRIGGER_URL</span> \</span><br><span class="line">    -H <span class="string">&quot;Content-Type: application/json&quot;</span> \</span><br><span class="line">    -d <span class="string">&quot;<span class="variable">$data</span>&quot;</span>)</span><br><span class="line"></span><br><span class="line">  <span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$response</span>&quot;</span> | jq .</span><br><span class="line"></span><br><span class="line">  <span class="comment"># 提取日志链接</span></span><br><span class="line">  log_link=$(<span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$response</span>&quot;</span> | jq -r <span class="string">&#x27;.log_link&#x27;</span>)</span><br><span class="line">  <span class="keyword">if</span> [ <span class="string">&quot;<span class="variable">$log_link</span>&quot;</span> != <span class="string">&quot;null&quot;</span> ] &amp;&amp; [ ! -z <span class="string">&quot;<span class="variable">$log_link</span>&quot;</span> ]; <span class="keyword">then</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;📊 日志链接: <span class="variable">$log_link</span>&quot;</span></span><br><span class="line">  <span class="keyword">fi</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用示例</span></span><br><span class="line">trigger_job <span class="string">&quot;tess&quot;</span> <span class="string">&quot;tessops&quot;</span> <span class="string">&quot;master&quot;</span> <span class="string">&quot;sddz-e2e-k8s-1.32&quot;</span> <span class="string">&quot;postsubmit&quot;</span> <span class="string">&quot;&quot;</span> <span class="string">&quot;admin&quot;</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="七、与-Prow-生态的集成"><a href="#七、与-Prow-生态的集成" class="headerlink" title="七、与 Prow 生态的集成"></a>七、与 Prow 生态的集成</h2><h3 id="7-1-Prow-配置文件"><a href="#7-1-Prow-配置文件" class="headerlink" title="7.1 Prow 配置文件"></a>7.1 Prow 配置文件</h3><p>Manual-Trigger 依赖 Prow 配置文件来查找任务定义：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># config/jobs/tess/tessops/tessops-presubmits.yaml</span></span><br><span class="line"><span class="attr">presubmits:</span></span><br><span class="line">  <span class="attr">tess/tessops:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">sddz-e2e-k8s-1.32</span></span><br><span class="line">      <span class="attr">always_run:</span> <span class="literal">true</span></span><br><span class="line">      <span class="attr">decorate:</span> <span class="literal">true</span></span><br><span class="line">      <span class="attr">spec:</span></span><br><span class="line">        <span class="attr">containers:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">image:</span> <span class="string">gcr.io/k8s-testimages/kubekins-e2e:latest</span></span><br><span class="line">            <span class="attr">command:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">runner.sh</span></span><br><span class="line">            <span class="attr">args:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">make</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">test</span></span><br><span class="line">            <span class="attr">env:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">AUTHOR</span></span><br><span class="line">                <span class="attr">value:</span> <span class="string">&quot;&quot;</span>  <span class="comment"># 会被 manual-trigger 覆盖</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-与其他-Prow-组件交互"><a href="#7-2-与其他-Prow-组件交互" class="headerlink" title="7.2 与其他 Prow 组件交互"></a>7.2 与其他 Prow 组件交互</h3><pre class="mermaid">graph LR
+    A[Manual-Trigger] -->|创建 ProwJob| B[Kubernetes API]
+    B --> C[Plank 调度器]
+    B --> D[Deck Web UI]
+    B --> E[Crier 通知器]
+    C -->|创建 Pod| F[执行任务]
+    D -->|展示状态| G[用户界面]
+    E -->|上报结果| H[GitHub/Slack]</pre>
+
+<hr>
+<h2 id="八、安全与监控"><a href="#八、安全与监控" class="headerlink" title="八、安全与监控"></a>八、安全与监控</h2><h3 id="8-1-RBAC-权限"><a href="#8-1-RBAC-权限" class="headerlink" title="8.1 RBAC 权限"></a>8.1 RBAC 权限</h3><p><strong>最小权限原则</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>权限</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>create</code></td>
+<td>只能创建 ProwJob</td>
+</tr>
+<tr>
+<td><code>get</code></td>
+<td>只能查询 ProwJob 状态</td>
+</tr>
+<tr>
+<td><code>list</code></td>
+<td>只能列出 ProwJob</td>
+</tr>
+<tr>
+<td>❌ <code>delete</code></td>
+<td>不能删除 ProwJob</td>
+</tr>
+<tr>
+<td>❌ <code>update</code></td>
+<td>不能更新 ProwJob</td>
+</tr>
+</tbody></table>
+<h3 id="8-2-监控指标"><a href="#8-2-监控指标" class="headerlink" title="8.2 监控指标"></a>8.2 监控指标</h3><p>服务暴露 Prometheus metrics (端口 9090)：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 在 main() 中启用</span></span><br><span class="line">metrics.ExposeMetrics(<span class="string">&quot;manual-trigger&quot;</span>, configAgent.Config().PushGateway, o.instrumentationOptions.MetricsPort)</span><br></pre></td></tr></table></figure>
+
+<p><strong>可监控的指标</strong>:</p>
+<ul>
+<li>HTTP 请求计数</li>
+<li>请求延迟</li>
+<li>错误率</li>
+<li>ProwJob 创建成功&#x2F;失败次数</li>
+</ul>
+<p><strong>Prometheus 查询示例</strong>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"># 每秒请求数</span><br><span class="line">rate(http_requests_total&#123;job=&quot;manual-trigger&quot;&#125;[5m])</span><br><span class="line"></span><br><span class="line"># 错误率</span><br><span class="line">rate(http_requests_total&#123;job=&quot;manual-trigger&quot;,code=~&quot;4..&quot;&#125;[5m])</span><br><span class="line">/ rate(http_requests_total&#123;job=&quot;manual-trigger&quot;&#125;[5m])</span><br><span class="line"></span><br><span class="line"># P95 延迟</span><br><span class="line">histogram_quantile(0.95, http_request_duration_seconds_bucket&#123;job=&quot;manual-trigger&quot;&#125;)</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-3-运行安全"><a href="#8-3-运行安全" class="headerlink" title="8.3 运行安全"></a>8.3 运行安全</h3><ul>
+<li>✅ <strong>非 root 用户</strong>: UID 1000</li>
+<li>✅ <strong>只读配置</strong>: ConfigMap 挂载为 readOnly</li>
+<li>✅ <strong>健康检查</strong>: liveness 和 readiness probe</li>
+<li>✅ <strong>资源限制</strong>: CPU 和内存限制</li>
+</ul>
+<hr>
+<h2 id="九、故障排查"><a href="#九、故障排查" class="headerlink" title="九、故障排查"></a>九、故障排查</h2><h3 id="9-1-常见错误"><a href="#9-1-常见错误" class="headerlink" title="9.1 常见错误"></a>9.1 常见错误</h3><h4 id="错误-1-Job-not-found-in-config"><a href="#错误-1-Job-not-found-in-config" class="headerlink" title="错误 1: Job not found in config"></a><strong>错误 1: Job not found in config</strong></h4><figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;success&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;message&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Job sddz-e2e-k8s-1.32 not found in config for tess/tessops&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>原因</strong>:</p>
+<ul>
+<li>任务名称拼写错误</li>
+<li>任务未在 Prow 配置中定义</li>
+<li>org&#x2F;repo 组合错误</li>
+</ul>
+<p><strong>解决方法</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查 Prow 配置</span></span><br><span class="line">kubectl get configmap config -n tessprow -o yaml | grep <span class="string">&quot;sddz-e2e-k8s-1.32&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 或查看配置文件</span></span><br><span class="line"><span class="built_in">cat</span> config/jobs/tess/tessops/tessops-presubmits.yaml | grep <span class="string">&quot;name:&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="错误-2-Pull-request-number-is-required"><a href="#错误-2-Pull-request-number-is-required" class="headerlink" title="错误 2: Pull request number is required"></a><strong>错误 2: Pull request number is required</strong></h4><figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;success&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;message&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Pull request number is required for presubmit jobs. Please provide &#x27;pullrequest&#x27; parameter.&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>原因</strong>: presubmit 任务必须提供 PR 号</p>
+<p><strong>解决方法</strong>: 添加 <code>pullrequest</code> 参数或改用 <code>prowtype=postsubmit</code></p>
+<h3 id="9-2-调试技巧"><a href="#9-2-调试技巧" class="headerlink" title="9.2 调试技巧"></a>9.2 调试技巧</h3><h4 id="查看-ProwJob-状态"><a href="#查看-ProwJob-状态" class="headerlink" title="查看 ProwJob 状态"></a><strong>查看 ProwJob 状态</strong></h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 列出最近的 ProwJobs</span></span><br><span class="line">kubectl get prowjobs -n tessprow --sort-by=.metadata.creationTimestamp | <span class="built_in">tail</span> -10</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看特定 ProwJob 详情</span></span><br><span class="line">kubectl get prowjob &lt;job_name&gt; -n tessprow -o yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 Pod 日志</span></span><br><span class="line">kubectl logs -n tessprow &lt;pod_name&gt;</span><br></pre></td></tr></table></figure>
+
+<h4 id="查看服务日志"><a href="#查看服务日志" class="headerlink" title="查看服务日志"></a><strong>查看服务日志</strong></h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看 manual-trigger 日志</span></span><br><span class="line">kubectl logs -n tessprow -l app=manual-trigger --<span class="built_in">tail</span>=100 -f</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十、总结"><a href="#十、总结" class="headerlink" title="十、总结"></a>十、总结</h2><h3 id="10-1-Manual-Trigger-的核心价值"><a href="#10-1-Manual-Trigger-的核心价值" class="headerlink" title="10.1 Manual-Trigger 的核心价值"></a>10.1 Manual-Trigger 的核心价值</h3><table>
+<thead>
+<tr>
+<th>价值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>灵活性</strong></td>
+<td>绕过 GitHub webhook，手动控制 CI 任务</td>
+</tr>
+<tr>
+<td><strong>可测试性</strong></td>
+<td>在不创建 PR 的情况下测试任务</td>
+</tr>
+<tr>
+<td><strong>可运维性</strong></td>
+<td>用于维护、热修复、紧急部署</td>
+</tr>
+<tr>
+<td><strong>可扩展性</strong></td>
+<td>支持自定义参数和环境变量</td>
+</tr>
+</tbody></table>
+<h3 id="10-2-技术亮点"><a href="#10-2-技术亮点" class="headerlink" title="10.2 技术亮点"></a>10.2 技术亮点</h3><p>✅ <strong>简洁的架构</strong>: 单一 HTTP 服务，职责清晰<br>✅ <strong>Kubernetes 原生</strong>: 使用 CRD，与 Prow 生态无缝集成<br>✅ <strong>类型安全</strong>: Go 强类型，减少运行时错误<br>✅ <strong>优雅的错误处理</strong>: 详细的错误信息，易于调试<br>✅ <strong>等待机制</strong>: BuildID 轮询，提供完整的用户体验</p>
+<h3 id="10-3-适用场景"><a href="#10-3-适用场景" class="headerlink" title="10.3 适用场景"></a>10.3 适用场景</h3><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>手动测试</td>
+<td>开发新 CI 任务时，手动触发测试</td>
+</tr>
+<tr>
+<td>紧急修复</td>
+<td>需要立即在特定分支运行测试</td>
+</tr>
+<tr>
+<td>批量触发</td>
+<td>脚本批量触发多个任务</td>
+</tr>
+<tr>
+<td>定制化执行</td>
+<td>使用自定义环境变量运行任务</td>
+</tr>
+<tr>
+<td>无 PR 测试</td>
+<td>在分支上运行 presubmit 类型的任务</td>
+</tr>
+</tbody></table>
+<h3 id="10-4-扩展阅读"><a href="#10-4-扩展阅读" class="headerlink" title="10.4 扩展阅读"></a>10.4 扩展阅读</h3><ul>
+<li><a target="_blank" rel="noopener" href="https://docs.prow.k8s.io/">Prow 官方文档</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes/test-infra">Kubernetes test-infra GitHub</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes/test-infra/blob/master/prow/apis/prowjobs/v1/types.go">ProwJob CRD 定义</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes/test-infra/tree/master/prow/plank">Plank 调度器源码</a></li>
+</ul>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes/test-infra">Kubernetes test-infra 仓库</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.prow.k8s.io/">Prow 官方文档</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes/test-infra/tree/master/prow/cmd/manual-trigger">Manual-Trigger 源码</a></li>
+<li><a target="_blank" rel="noopener" href="https://pkg.go.dev/k8s.io/test-infra/prow/apis/prowjobs/v1">ProwJob API 定义</a></li>
+</ol>
+<hr>
+<p><strong>作者</strong>: Tashen<br><strong>日期</strong>: 2026-03-28<br><strong>标签</strong>: #Kubernetes #Prow #CI&#x2F;CD #Go #DevOps</p>
+<hr>
+<blockquote>
+<p>💡 <strong>提示</strong>: 如果你在使用 Manual-Trigger 过程中遇到问题，欢迎在评论区讨论！</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Prow/" rel="tag"># Prow</a>
+              <a href="/tags/CI-CD/" rel="tag"># CI/CD</a>
+              <a href="/tags/Go/" rel="tag"># Go</a>
+              <a href="/tags/DevOps/" rel="tag"># DevOps</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/03/18/2026-03-18-kubernetes-apiserver-troubleshooting-guide/" rel="prev" title="Kubernetes API Server故障排查完整指南 - 诊断工具与恢复策略">
+                  <i class="fa fa-angle-left"></i> Kubernetes API Server故障排查完整指南 - 诊断工具与恢复策略
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
