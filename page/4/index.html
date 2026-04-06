@@ -112,18 +112,18 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">55</span>
+          <span class="site-state-item-count">56</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
           <a href="/categories/">
-        <span class="site-state-item-count">22</span>
+        <span class="site-state-item-count">24</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
           <a href="/tags/">
-        <span class="site-state-item-count">123</span>
+        <span class="site-state-item-count">126</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -140,6 +140,133 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2023-12-15-blktrace-block-io-lifecycle/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2023-12-15-blktrace-block-io-lifecycle/" class="post-title-link" itemprop="url">blktrace block io lifecycle</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:54:25" itemprop="dateCreated datePublished" datetime="2024-03-10T12:54:25+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h3 id="Question-trace-the-life-of-IO-by-blktrace-blkparse"><a href="#Question-trace-the-life-of-IO-by-blktrace-blkparse" class="headerlink" title="Question: trace the life of IO by blktrace&#x2F;blkparse"></a>Question: trace the life of IO by blktrace&#x2F;blkparse</h3><p><a target="_blank" rel="noopener" href="https://linux.die.net/man/8/blktrace">blktrace</a></p>
+<p><a target="_blank" rel="noopener" href="https://linux.die.net/man/1/blkparse">blkparse</a></p>
+<p>Investigate the blktrace implementation to understand the trace hook of the blk IO stack?</p>
+<h3 id="blktrace-to-parse-the-block-io"><a href="#blktrace-to-parse-the-block-io" class="headerlink" title="blktrace to parse the block io"></a>blktrace to parse the block io</h3><p><code>blktrace</code> explores the Linux kernel tracepoint infrastructure to track requests in-flight through the block I&#x2F;O stack. It traces everything that goes through to block devices, while observing timing information. </p>
+<p>First we using <code>dd</code> command to make a write IO (the read IO is the same). </p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// write to a file with direct io by dd command</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash"><span class="built_in">dd</span> <span class="keyword">if</span>=/dev/zero of=testfile bs=16k count=1024000 oflag=direct</span></span><br><span class="line">1024000+0 records in</span><br><span class="line">1024000+0 records out</span><br><span class="line">16777216000 bytes (17 GB, 16 GiB) copied, 111.433 s, 151 MB/s</span><br></pre></td></tr></table></figure>
+
+<p>Using<code>blktrace</code> and <code>blkparse</code> analize results:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">blktrace -d /dev/vda -o res</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">blkparse -i res</span></span><br><span class="line">device  </span><br><span class="line">252,0   10        3     0.000238760       0  C  WS 49724200 + 32 [0]</span><br><span class="line">252,0    0       17     0.000261770 3418552  A  WS 48720712 + 32 &lt;- (253,0) 48718664</span><br><span class="line">252,0    0       18     0.000262000 3418552  A  WS 49724232 + 32 &lt;- (252,3) 48720712</span><br><span class="line">252,0    0       19     0.000262192 3418552  Q  WS 49724232 + 32 [dd]</span><br><span class="line">252,0    0       20     0.000263132 3418552  G  WS 49724232 + 32 [dd]</span><br><span class="line">252,0    0       21     0.000263335 3418552  P   N [dd]</span><br><span class="line">252,0    0       22     0.000263494 3418552  U   N [dd] 1</span><br><span class="line">252,0    0       23     0.000263719 3418552  I  WS 49724232 + 32 [dd]</span><br><span class="line">252,0    0       24     0.000264296 3418552  D  WS 49724232 + 32 [dd]</span><br><span class="line">252,0   10        4     0.000341566       0  C  WS 49724232 + 32 [0]</span><br><span class="line">252,0    0       25     0.000366914 3418552  A  WS 48720744 + 32 &lt;- (253,0) 48718696</span><br><span class="line">252,0    0       26     0.000367235 3418552  A  WS 49724264 + 32 &lt;- (252,3) 48720744</span><br><span class="line">252,0    0       27     0.000367410 3418552  Q  WS 49724264 + 32 [dd]</span><br><span class="line">252,0    0       28     0.000368423 3418552  G  WS 49724264 + 32 [dd]</span><br><span class="line">252,0    0       29     0.000368612 3418552  P   N [dd]</span><br><span class="line">252,0    0       30     0.000368797 3418552  U   N [dd] 1</span><br><span class="line">252,0    0       31     0.000369036 3418552  I  WS 49724264 + 32 [dd]</span><br><span class="line">252,0    0       32     0.000369730 3418552  D  WS 49724264 + 32 [dd]</span><br><span class="line">252,0   10        5     0.000453876       0  C  WS 49724264 + 32 [0]</span><br><span class="line">...</span><br><span class="line">252,0   10    91033     2.279081418 3405085  C  WS 50399976 + 32 [0]</span><br><span class="line">252,0   10   232460     5.618988454 3405085  C  WS 51349952 + 32 [0]</span><br><span class="line">252,0   10   318363     8.424729857 3405085  C  WM 39888904 + 16 [0]</span><br><span class="line">252,0   10   318364     8.424732534 3405085  C  WM 267886593 + 1 [0]</span><br><span class="line">252,0   10   318365     8.424734981 3405085  C  WM 267886600 + 16 [0]</span><br><span class="line">252,0   10   318366     8.424737948 3405085  C  WM 267925376 + 32 [0]</span><br><span class="line">252,0   10   318367     8.424750755 3405085  C  WM 267924512 + 32 [0]</span><br><span class="line"></span><br><span class="line">...</span><br><span class="line">Total (res):</span><br><span class="line"> Reads Queued:           0,        0KiB  Writes Queued:       70567,     1128MiB</span><br><span class="line"> Read Dispatches:        3,        0KiB  Write Dispatches:    70559,     1128MiB</span><br><span class="line"> Reads Requeued:         0               Writes Requeued:         0</span><br><span class="line"> Reads Completed:        3,        0KiB  Writes Completed:    70563,     1128MiB</span><br><span class="line"> Read Merges:            0,        0KiB  Write Merges:            6,       24KiB</span><br><span class="line"> IO unplugs:         70545               Timer unplugs:           0</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">tracing 267886608</span></span><br><span class="line">252,0    6       71     8.424115456   585  A  WM 267886608 + 8 &lt;- (252,3) 266883088</span><br><span class="line">252,0    6       72     8.424115630   585  Q  WM 267886608 + 8 [xfsaild/dm-0]</span><br><span class="line">252,0    6       73     8.424115962   585  M  WM 267886608 + 8 [xfsaild/dm-0]</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">tracing 4555007</span></span><br><span class="line">252,0    9        2     8.423915195 3374227  A WFSM 4555007 + 31 &lt;- (252,3) 3551487</span><br><span class="line">252,0    9        3     8.423915869 3374227  Q WFSM 4555007 + 31 [kworker/9:4]</span><br><span class="line">252,0    9        4     8.423918485 3374227  G WFSM 4555007 + 31 [kworker/9:4]</span><br><span class="line">252,0    9        5     8.423927401   240  D WSM 4555007 + 31 [kworker/9:1H]</span><br><span class="line">252,0   10   318350     8.424051685     0  C WSM 4555007 + 31 [0]</span><br><span class="line">252,0   10   318353     8.424169747     0  C WSM 4555007 [0]</span><br></pre></td></tr></table></figure>
+
+<p>![*Screenshot 2023-12-25 at 13.37.09*](&#x2F;Users&#x2F;tashen&#x2F;Library&#x2F;Application Support&#x2F;typora-user-images&#x2F;Screenshot 2023-12-25 at 13.37.09.png)</p>
+<h4 id="ACTION-IDENTIFIERS"><a href="#ACTION-IDENTIFIERS" class="headerlink" title="ACTION IDENTIFIERS"></a>ACTION IDENTIFIERS</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">The following table shows the various actions which may be</span><br><span class="line">       output:</span><br><span class="line"></span><br><span class="line">       A      IO was remapped to a different device</span><br><span class="line"></span><br><span class="line">       B      IO bounced</span><br><span class="line"></span><br><span class="line">       C      IO completion</span><br><span class="line"></span><br><span class="line">       D      IO issued to driver</span><br><span class="line"></span><br><span class="line">       F      IO front merged with request on queue</span><br><span class="line"></span><br><span class="line">       G      Get request</span><br><span class="line"></span><br><span class="line">       I      IO inserted onto request queue</span><br><span class="line"></span><br><span class="line">       M      IO back merged with request on queue</span><br><span class="line"></span><br><span class="line">       P      Plug request</span><br><span class="line"></span><br><span class="line">       Q      IO handled by request queue code</span><br><span class="line"></span><br><span class="line">       S      Sleep request</span><br><span class="line"></span><br><span class="line">       T      Unplug due to timeout</span><br><span class="line"></span><br><span class="line">       U      Unplug request</span><br><span class="line"></span><br><span class="line">       X      Split</span><br></pre></td></tr></table></figure>
+
+<p>The result is long and there only paste few of them. I try to trace an different sectors and behaviors of block layer.</p>
+<p><code>blkparse</code> command still hard to know the total metrics and statistics, so we can use <code>btt</code> to see the statistic of whole table and picture, this is the part of results:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">blkparse -q -i res   -d sda.blk.bin</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">btt -i sda.blk.bin</span></span><br><span class="line"></span><br><span class="line">==================== All Devices ====================</span><br><span class="line"></span><br><span class="line">            ALL           MIN           AVG           MAX           N</span><br><span class="line">--------------- ------------- ------------- ------------- -----------</span><br><span class="line"></span><br><span class="line">Q2Q               0.000001441   0.000119382   0.802839654       70564</span><br><span class="line">Q2G               0.000000497   0.000000797   0.000025123       70559</span><br><span class="line">G2I               0.000000406   0.000000654   0.000128249       70558</span><br><span class="line">Q2M               0.000000133   0.000000271   0.000000631           6</span><br><span class="line">I2D               0.000000411   0.000000663   0.000017267       70558</span><br><span class="line">M2D               0.000031518   0.000071988   0.000116699           6</span><br><span class="line">D2C               0.000064651   0.000079818   0.002640604       70565</span><br><span class="line">Q2C               0.000066315   0.000081939   0.002643331       70565</span><br><span class="line"></span><br><span class="line">==================== Device Overhead ====================</span><br><span class="line"></span><br><span class="line">       DEV |       Q2G       G2I       Q2M       I2D       D2C</span><br><span class="line">---------- | --------- --------- --------- --------- ---------</span><br><span class="line"> (252,  0) |   0.9723%   0.7983%   0.0000%   0.8096%  97.4121%</span><br><span class="line">---------- | --------- --------- --------- --------- ---------</span><br><span class="line">   Overall |   0.9723%   0.7983%   0.0000%   0.8096%  97.4121%</span><br><span class="line"></span><br><span class="line">==================== Device Merge Information ====================</span><br><span class="line"></span><br><span class="line">       DEV |       #Q       #D   Ratio |   BLKmin   BLKavg   BLKmax    Total</span><br><span class="line">---------- | -------- -------- ------- | -------- -------- -------- --------</span><br><span class="line"> (252,  0) |    70565    70559     1.0 |        1       31       32  2257605</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Q-------&gt;G------------&gt;I---------&gt;M-------------------&gt;D-----------------------------&gt;C</span><br><span class="line">|-Q time-|-Insert time-|</span><br><span class="line">|--------- merge time ------------|-merge with other IO|</span><br><span class="line">|----------------scheduler time time-------------------|---driver,adapter,storagetime--|</span><br><span class="line"></span><br><span class="line">|----------------------- await time in iostat output ----------------------------------|</span><br></pre></td></tr></table></figure>
+
+<p>Q2Q — time between requests sent to the block layer </p>
+<p>Q2G — time from a block I&#x2F;O is queued to the time it gets a request allocated for it</p>
+<p>G2I — time from a request is allocated to the time it is inserted into the device’s queue </p>
+<p>Q2M — time from a block I&#x2F;O is queued to the time it gets merged with an existing request </p>
+<p>I2D — time from a request is inserted into the device’s queue to the time it is actually issued to the device (time the I&#x2F;O is “idle” on the request queue)</p>
+<p>M2D — time from  a block I&#x2F;O is merged with an exiting request until the request is issued to the device </p>
+<p>D2C — service time of the request by the device (time the I&#x2F;O is “active” in the driver and on the device)</p>
+<p>Q2C — total time spent in the block layer  for a request</p>
+<p>Actually the blktrace’s implement is using various linux kernel tracepoint to trace different phase of IO. Here are some of the key tracepoints used by <code>blktrace</code>:</p>
+<ol>
+<li><code>block_rq_insert</code>: This tracepoint is hit when a request is inserted into the request queue.(Q)</li>
+<li><code>block_rq_issue</code>: This tracepoint is hit when a request is issued to the device.(I)</li>
+<li><code>block_rq_complete</code>: This tracepoint is hit when a request is completed.(C)</li>
+<li><code>block_bio_queue</code>: This tracepoint is hit when a bio is queued.(Q)</li>
+<li><code>block_bio_backmerge</code>: This tracepoint is hit when a bio is being merged with the last bio in the request.</li>
+<li><code>block_bio_frontmerge</code>: This tracepoint is hit when a bio is being merged with the first bio in the request.</li>
+<li><code>block_bio_bounce</code>: This tracepoint is hit when a bio is bounced.</li>
+<li><code>block_getrq</code>: This tracepoint is hit when get_request() is called to allocate a request.</li>
+<li><code>block_sleeprq</code>: This tracepoint is hit when a process is going to sleep waiting for a request to be available.</li>
+<li><code>block_plug</code>: This tracepoint is hit when a plug is inserted into the request queue.</li>
+<li><code>block_unplug</code>: This tracepoint is hit when a plug is removed from the request queue.</li>
+</ol>
+<h3 id="Main-data-structure-in-block-layer"><a href="#Main-data-structure-in-block-layer" class="headerlink" title="Main data structure in block layer"></a>Main data structure in block layer</h3><p>To deepdiv the block layer, i read the code and finding as followes:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * main unit of I/O for the block layer and lower layers (ie drivers and</span></span><br><span class="line"><span class="comment"> * stacking drivers)</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bio</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">bio</span>		*<span class="title">bi_next</span>;</span>	<span class="comment">/* request queue link */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">block_device</span>	*<span class="title">bi_bdev</span>;</span></span><br><span class="line">  <span class="type">unsigned</span> <span class="type">long</span>       bi_rw; <span class="comment">/* read or write */</span></span><br><span class="line">  ...</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span>		*<span class="title">bi_io_vec</span>;</span>	<span class="comment">/* the actual vec list */</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">bvec_iter</span>	<span class="title">bi_iter</span>;</span></span><br><span class="line"></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * struct bio_vec - a contiguous range of physical memory addresses</span></span><br><span class="line"><span class="comment"> * @bv_page:   First page associated with the address range.</span></span><br><span class="line"><span class="comment"> * @bv_len:    Number of bytes in the address range.</span></span><br><span class="line"><span class="comment"> * @bv_offset: Start of the address range relative to the start of @bv_page.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * The following holds for a bvec if n * PAGE_SIZE &lt; bv_offset + bv_len:</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> *   nth_page(@bv_page, n) == @bv_page + n</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * This holds because page_is_mergeable() checks the above property.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">page</span>	*<span class="title">bv_page</span>;</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>	bv_len;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>	bv_offset;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bvec_iter</span> &#123;</span></span><br><span class="line">	<span class="type">sector_t</span>		bi_sector;	<span class="comment">/* device address in 512 byte</span></span><br><span class="line"><span class="comment">						   sectors */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>		bi_size;	<span class="comment">/* residual I/O count */</span></span><br><span class="line"></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>		bi_idx;		<span class="comment">/* current index into bvl_vec */</span></span><br><span class="line"></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>            bi_bvec_done;	<span class="comment">/* number of bytes completed in</span></span><br><span class="line"><span class="comment">						   current bvec */</span></span><br><span class="line">&#125; __packed;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">block_device</span> &#123;</span></span><br><span class="line">	<span class="type">sector_t</span>		bd_start_sect;</span><br><span class="line">	<span class="type">sector_t</span>		bd_nr_sectors;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">gendisk</span> *	<span class="title">bd_disk</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> *	<span class="title">bd_queue</span>;</span></span><br><span class="line">  <span class="type">bool</span>			bd_has_submit_bio;</span><br><span class="line">  ...</span><br><span class="line">&#125; __randomize_layout;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Try to put the fields that are referenced together in the same cacheline.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * If you modify this structure, make sure to update blk_rq_init() and</span></span><br><span class="line"><span class="comment"> * especially blk_mq_rq_ctx_init() to take care of the added fields.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">request</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> *<span class="title">q</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">bio</span> *<span class="title">bio</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">bio</span> *<span class="title">biotail</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">queuelist</span>;</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">request</span> *<span class="title">rq_next</span>;</span></span><br><span class="line">	&#125;;</span><br><span class="line">	<span class="class"><span class="keyword">enum</span> <span class="title">mq_rq_state</span> <span class="title">state</span>;</span></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * The hash is used inside the scheduler, and killed once the</span></span><br><span class="line"><span class="comment">	 * request reaches the dispatch list. The ipi_list is only used</span></span><br><span class="line"><span class="comment">	 * to queue the request for softirq completion, which is long</span></span><br><span class="line"><span class="comment">	 * after the request has been unhashed (and even removed from</span></span><br><span class="line"><span class="comment">	 * the dispatch list).</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">hlist_node</span> <span class="title">hash</span>;</span>	<span class="comment">/* merge hash */</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">llist_node</span> <span class="title">ipi_list</span>;</span></span><br><span class="line">	&#125;;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * The rb_node is only used inside the io scheduler, requests</span></span><br><span class="line"><span class="comment">	 * are pruned when moved to the dispatch queue. So let the</span></span><br><span class="line"><span class="comment">	 * completion_data share space with the rb_node.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">rb_node</span> <span class="title">rb_node</span>;</span>	<span class="comment">/* sort/lookup */</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span> <span class="title">special_vec</span>;</span></span><br><span class="line">		<span class="type">void</span> *completion_data;</span><br><span class="line">	&#125;;</span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * completion callback.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	rq_end_io_fn *end_io;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request</span>		*<span class="title">last_merge</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">elevator_queue</span>	*<span class="title">elevator</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">rq_qos</span>		*<span class="title">rq_qos</span>;</span></span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ops</span>	*<span class="title">mq_ops</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">queue_limits</span>	<span class="title">limits</span>;</span></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * for flush operations</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">blk_flush_queue</span>	*<span class="title">fq</span>;</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * struct blk_mq_hw_ctx - State for a hardware queue facing the hardware</span></span><br><span class="line"><span class="comment"> * block device</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_hw_ctx</span> &#123;</span></span><br><span class="line">	<span class="comment">/**</span></span><br><span class="line"><span class="comment">	 * @queue: Pointer to the request queue that owns this hardware context.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span>	*<span class="title">queue</span>;</span></span><br><span class="line">  	<span class="comment">/**</span></span><br><span class="line"><span class="comment">	 * @dispatch_busy: Number used by blk_mq_update_dispatch_busy() to</span></span><br><span class="line"><span class="comment">	 * decide if the hw_queue is busy using Exponential Weighted Moving</span></span><br><span class="line"><span class="comment">	 * Average algorithm.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>		dispatch_busy;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://s3.bmp.ovh/imgs/2021/09/09b73ed1c3ac78a1.webp" alt="bio逻辑架构"></p>
+<h3 id="code-flow-in-block-layer"><a href="#code-flow-in-block-layer" class="headerlink" title="code flow in block layer"></a>code flow in block layer</h3><p><img src="https://pic2.zhimg.com/80/v2-5b898fe018554749f56c270e77261a4d_1440w.webp" alt="img"></p>
+<p>Bio -&gt;  Request -&gt; plug request list -&gt; staging request queue in sheduler -&gt; hardware request queue</p>
+<p>![Screenshot 2023-12-25 at 13.54.30](&#x2F;Users&#x2F;tashen&#x2F;Library&#x2F;Application Support&#x2F;typora-user-images&#x2F;Screenshot 2023-12-25 at 13.54.30.png)</p>
+<p>![Screenshot 2023-12-25 at 13.57.23](&#x2F;Users&#x2F;tashen&#x2F;Library&#x2F;Application Support&#x2F;typora-user-images&#x2F;Screenshot 2023-12-25 at 13.57.23.png)</p>
+<p>These pictures records the total main code and function flow from the filessystem to block layer and to driver layder. It also prints the tracepoint mapping to the acation in output of the blktrace  where they trace from. By these tracepoint, we can understand the block io process flow more clearly. </p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -243,141 +370,6 @@
 <p><a target="_blank" rel="noopener" href="https://www.spinics.net/lists/stable/msg669695.html"><em>https://www.spinics.net/lists/stable/msg669695.html</em></a></p>
 <p>In this patch, the fix is using <em>spin_lock_irqsave</em> to replace <em>spin_lock_irq</em> in the function of “<em>adjust_inuse_and_calc_cost</em>” to block the irq when unlocked.</p>
 <p>We will cherry-pick the patch into our 5.15 kernel.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-repair-thinpool/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
-<ol>
-<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>repair meta and active pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>active pool</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
-
-<p>Below are the steps which happen while running the consistency check:</p>
-<ol>
-<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
-<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
-</ol>
-<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
-
-<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
-<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
-<ol>
-<li><p>create temporary small LV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>replace pool’s metadata volume with this tempLV</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>(say ‘y’ to swap)</p>
-<ol>
-<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
-<p>so create:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
-
-<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
-<ol>
-<li><p>swap deactivated repaired volume back to your thin-pool</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
-</ol>
-<p>try to activate pool - if it doesn’t work report more problems.</p>
-<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
-<ol>
-<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Repair thin pool with lvconvert –repair.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>Check and repair file system with fsck.</p>
-</li>
-</ol>
-</li>
-</ol>
-</li>
-</ol>
 
       
     </div>
@@ -545,6 +537,141 @@
 <li>[4] dm-raid, <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt">https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt</a></li>
 <li>[5] How To Create RAID Arrays with mdadm on Ubuntu 16.04, <a target="_blank" rel="noopener" href="https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04">https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04</a></li>
 </ul>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-repair-thinpool/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
+<ol>
+<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>repair meta and active pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>active pool</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
+
+<p>Below are the steps which happen while running the consistency check:</p>
+<ol>
+<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
+<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
+</ol>
+<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
+
+<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
+<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
+<ol>
+<li><p>create temporary small LV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>replace pool’s metadata volume with this tempLV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>(say ‘y’ to swap)</p>
+<ol>
+<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
+<p>so create:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
+
+<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
+<ol>
+<li><p>swap deactivated repaired volume back to your thin-pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>try to activate pool - if it doesn’t work report more problems.</p>
+<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
+<ol>
+<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Repair thin pool with lvconvert –repair.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Check and repair file system with fsck.</p>
+</li>
+</ol>
+</li>
+</ol>
+</li>
+</ol>
 
       
     </div>
@@ -1200,7 +1327,7 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-ceph/">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-07-02-golang-map/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1218,7 +1345,7 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-ceph/" class="post-title-link" itemprop="url">ceph introduction</a>
+          <a href="/2024/03/10/2018-07-02-golang-map/" class="post-title-link" itemprop="url">golang map 内存布局和原理</a>
         </h2>
 
         <div class="post-meta-container">
@@ -1228,8 +1355,9 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
+      
 
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+      <time title="Created: 2024-03-10 12:35:02 / Modified: 12:37:57" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -1237,7 +1365,7 @@
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/architecture/" itemprop="url" rel="index"><span itemprop="name">architecture</span></a>
+          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
         </span>
     </span>
 
@@ -1251,212 +1379,106 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>ceph相当庞大, 准备用一个系列来学习, 先来看看基础的架构和基本概念.</p>
-<h4 id="基本架构"><a href="#基本架构" class="headerlink" title="基本架构"></a>基本架构</h4><p><a target="_blank" rel="noopener" href="http://docs.ceph.com/docs/master/_images/stack.png"><img src="http://docs.ceph.com/docs/master/_images/stack.png" alt="ceph_arcihitecture"></a></p>
-<p>ceph提供对象, 块,和文件系统存储, 它也支持直接使用librados库做存储开发. 在底层都要通过<a target="_blank" rel="noopener" href="https://ceph.com/wp-content/uploads/2016/08/weil-rados-pdsw07.pdf">RADOS</a>服务, 它是可靠的分布式对象存储服务. 也就是说无论上层对外提供的是何种类型的服务, ceph最终都将它转换成二进制对象进行存储.</p>
-<h5 id="可扩展性和高可用性"><a href="#可扩展性和高可用性" class="headerlink" title="可扩展性和高可用性"></a>可扩展性和高可用性</h5><p>一个ceph存储集群包括两种类型的Daemon:</p>
-<ol>
-<li>ceph monitor: 维护一个集群map的副本. ceph monitor是高可用的.</li>
-<li>ceph osd daemon: 检查自己的状态和其他osd的状态, 然后发送给monitor. ceph client和ceph osd daemon都使用<a target="_blank" rel="noopener" href="https://ceph.com/wp-content/uploads/2016/08/weil-crush-sc06.pdf">CRUSH算法</a>有效计算数据位置信息, 而不是依赖于一个中心化的查询表.</li>
-</ol>
-<p>Ceph OSD Daemon将所有数据以对象的形式保存在一个扁平的命名空间(而不是树形结构). 一个对象有一个全局唯一的ID号, 二进制数据和元数据(key&#x2F;value键值对组成). 对象的语意完全由ceph客户端决定.</p>
-<p><a target="_blank" rel="noopener" href="http://docs.ceph.com/docs/master/_images/ditaa-ae8b394e1d31afd181408bab946ca4a216ca44b7.png"><img src="http://docs.ceph.com/docs/master/_images/ditaa-ae8b394e1d31afd181408bab946ca4a216ca44b7.png" alt="数据结构"></a></p>
-<p>ceph消除了中心化的gateway, 让Ceph client直接与ceph osd daemon交互, ceph osd daemon将数据在不同的ceph 节点 创建对象的副本, 保证数据的可用性.</p>
-<h5 id="集群map"><a href="#集群map" class="headerlink" title="集群map"></a>集群map</h5><ol>
-<li><p>monitor map: 包含集群fsid, 位置, 命名地址和每个monitor的端口. epoch表示版本, 通过ceph mon dump查看</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@ceph-1 ~]# ceph mon dump</span><br><span class="line">dumped monmap epoch 1</span><br><span class="line">epoch 1</span><br><span class="line">fsid a6af0fa0-0e86-4685-920a-6e999c83ba8f</span><br><span class="line">last_changed 2018-07-09 15:07:50.144554</span><br><span class="line">created 2018-07-09 15:07:50.144554</span><br><span class="line">0: 10.0.11.9:6789/0 mon.ceph-1</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>OSD map: 包含集群fsid. a list of pools, replica sizes, PG numbers, a list of OSDs and their status (e.g., <code>up</code>, <code>in</code>).</p>
-</li>
-<li><p>The PG map: 包含PG version, its time stamp, the last OSD map epoch, the full ratios, and details on each placement group such as the PG ID, the Up Set, the Acting Set, the state of the PG (e.g., <code>active + clean</code>), and data usage statistics for each pool</p>
-</li>
-<li><p>The CRUSH map: 存储设备列表, 失败的Domain, 已经写入数据的水平路由规则.</p>
-</li>
-<li><p>The MDS Map: Contains the current MDS map epoch, when the map was created, and the last time it changed</p>
-</li>
-</ol>
-<h4 id="Ceph-Crush"><a href="#Ceph-Crush" class="headerlink" title="Ceph Crush"></a>Ceph Crush</h4><blockquote>
-<p>那么问题来了，把一份数据存到一群Server中分几步？</p>
-</blockquote>
-<p>Ceph的答案是：两步。</p>
-<ol>
-<li>计算PG</li>
-<li>计算OSD</li>
-</ol>
-<h5 id="计算PG"><a href="#计算PG" class="headerlink" title="计算PG"></a>计算PG</h5><p>在Ceph中，一切皆对象。</p>
-<p>那么用什么来区分两个对象呢？<strong>对象名</strong>。也就是说，每个不同的对象都有不一样的对象名。于是，开篇的问题就变成了：</p>
+          <h4 id="map数据结构"><a href="#map数据结构" class="headerlink" title="map数据结构"></a>map数据结构</h4><p>golang的map是hashmap实现的, 代码在&#x2F;src&#x2F;runtime&#x2F;hashmap.go. 对比C++用红黑树实现的map，Go的map是unordered map，即无法对key值排序遍历。跟传统的hashmap的实现方法一样，它通过一个buckets数组实现，所有元素被hash到数组的bucket中，<strong>buckets</strong>就是指向了这个内存连续分配的数组. </p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> maptype <span class="keyword">struct</span> &#123;</span><br><span class="line">	typ           _type</span><br><span class="line">	key           *_type</span><br><span class="line">	elem          *_type</span><br><span class="line">	bucket        *_type <span class="comment">// internal type representing a hash bucket</span></span><br><span class="line">	hmap          *_type <span class="comment">// internal type representing a hmap</span></span><br><span class="line">	keysize       <span class="type">uint8</span>  <span class="comment">// size of key slot</span></span><br><span class="line">	indirectkey   <span class="type">bool</span>   <span class="comment">// store ptr to key instead of key itself</span></span><br><span class="line">	valuesize     <span class="type">uint8</span>  <span class="comment">// size of value slot</span></span><br><span class="line">	indirectvalue <span class="type">bool</span>   <span class="comment">// store ptr to value instead of value itself</span></span><br><span class="line">	bucketsize    <span class="type">uint16</span> <span class="comment">// size of bucket</span></span><br><span class="line">	reflexivekey  <span class="type">bool</span>   <span class="comment">// true if k==k for all keys</span></span><br><span class="line">	needkeyupdate <span class="type">bool</span>   <span class="comment">// true if we need to update key on an overwrite</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A header for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> hmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	count <span class="type">int</span> <span class="comment">// len()返回的map的大小 即有多少kv对</span></span><br><span class="line">	flags <span class="type">uint8</span></span><br><span class="line">	B     <span class="type">uint8</span>  <span class="comment">// 表示hash table总共有2^B个buckets </span></span><br><span class="line">	hash0 <span class="type">uint32</span> <span class="comment">// hash seed</span></span><br><span class="line"></span><br><span class="line">	buckets    unsafe.Pointer <span class="comment">// 一系列桶的头指针, 按照low hash值可查找的连续分配的数组，初始时为16个Buckets.</span></span><br><span class="line">	oldbuckets unsafe.Pointer </span><br><span class="line">	nevacuate  <span class="type">uintptr</span>      </span><br><span class="line"></span><br><span class="line">	overflow *[<span class="number">2</span>]*[]*bmap <span class="comment">//溢出链 当初始buckets都满了之后会使用overflow</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// A bucket for a Go map.</span></span><br><span class="line"><span class="keyword">type</span> bmap <span class="keyword">struct</span> &#123;</span><br><span class="line">	tophash [bucketCnt]<span class="type">uint8</span></span><br><span class="line">	<span class="comment">// Followed by bucketCnt keys and then bucketCnt values.</span></span><br><span class="line">	<span class="comment">// <span class="doctag">NOTE:</span> packing all the keys together and then all the values together makes the</span></span><br><span class="line">	<span class="comment">// code a bit more complicated than alternating key/value/key/value/... but it allows</span></span><br><span class="line">	<span class="comment">// us to eliminate padding which would be needed for, e.g., map[int64]int8.</span></span><br><span class="line">	<span class="comment">// Followed by an overflow pointer.</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如上所示, maptype表示map类型, 其中的hmap表示hashmap, 它的指针就是map的实体.  桶一个连续分配的数组组成, 而buckets是这个数组的头指针(起始地址), bmap是每个bucket的实体. 每个bucket有一个长度为8的数组叫做tophash, 他存储了8个key的高八位的值, 这样当我们找的时候, 先用key hash的低八位找到对应的桶, 再匹配key高8位值找到对应的tophash, 如果正确了再去找对应的key是否相等. 在对key&#x2F;value对增删查的时候，先比较key的hash值高八位是否相等，然后再比较具体的key值。根据官方注释在tophash数组之后跟着8个key&#x2F;value对，每一对都对应tophash当中的一条记录。最后bucket中还包含指向链表下一个bucket的指针。内存布局如下图。</p>
+<p><img src="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/hashmap.png" alt="image"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">之所以把所有k1k2放一起而不是k1v1是因为key和value的数据类型内存大小可能差距很大，比如map[int64]int8，考虑到字节对齐，kv存在一起会浪费很多空间。</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="map创建和初始化"><a href="#map创建和初始化" class="headerlink" title="map创建和初始化"></a>map创建和初始化</h4><p>我们首先来看make过程, 看一个map是如何创建的.</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// makemap implements a Go map creation make(map[k]v, hint)</span></span><br><span class="line"><span class="comment">// If the compiler has determined that the map or the first bucket</span></span><br><span class="line"><span class="comment">// can be created on the stack, h and/or bucket may be non-nil.</span></span><br><span class="line"><span class="comment">// If h != nil, the map can be created directly in h.</span></span><br><span class="line"><span class="comment">// If bucket != nil, bucket can be used as the first bucket.</span></span><br><span class="line"><span class="comment">// hint是map大小, h过不等于空就直接使用这个hmap, bucket不为空就当做第一个bucket.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">makemap</span><span class="params">(t *maptype, hint <span class="type">int64</span>, h *hmap, bucket unsafe.Pointer)</span></span> *hmap &#123;</span><br><span class="line">    <span class="keyword">if</span> sz := unsafe.Sizeof(hmap&#123;&#125;); sz &gt; <span class="number">48</span> || sz != t.hmap.size &#123;</span><br><span class="line">		<span class="built_in">println</span>(<span class="string">&quot;runtime: sizeof(hmap) =&quot;</span>, sz, <span class="string">&quot;, t.hmap.size =&quot;</span>, t.hmap.size)</span><br><span class="line">		throw(<span class="string">&quot;bad hmap size&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// hint值不符合规范, 置0</span></span><br><span class="line">	<span class="keyword">if</span> hint &lt; <span class="number">0</span> || hint &gt; <span class="type">int64</span>(maxSliceCap(t.bucket.size)) &#123;</span><br><span class="line">		hint = <span class="number">0</span></span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// 按照是否实现hash()来判断是否支持map类型</span></span><br><span class="line">	<span class="keyword">if</span> !ismapkey(t.key) &#123;</span><br><span class="line">		throw(<span class="string">&quot;runtime.makemap: unsupported map key type&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 检查key和value大小</span></span><br><span class="line">	<span class="keyword">if</span> t.key.size &gt; maxKeySize &amp;&amp; (!t.indirectkey || t.keysize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.key.size &lt;= maxKeySize &amp;&amp; (t.indirectkey || t.keysize != <span class="type">uint8</span>(t.key.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size &gt; maxValueSize &amp;&amp; (!t.indirectvalue || t.valuesize != <span class="type">uint8</span>(sys.PtrSize)) ||</span><br><span class="line">		t.elem.size &lt;= maxValueSize &amp;&amp; (t.indirectvalue || t.valuesize != <span class="type">uint8</span>(t.elem.size)) &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size wrong&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 检查各种编译的规范, 跳过</span></span><br><span class="line">	<span class="comment">// invariants we depend on. We should probably check these at compile time</span></span><br><span class="line">	<span class="comment">// somewhere, but for now we&#x27;ll do it here.</span></span><br><span class="line">	<span class="keyword">if</span> t.key.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;key align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.align &gt; bucketCnt &#123;</span><br><span class="line">		throw(<span class="string">&quot;value align too big&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.key.size%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;key size not a multiple of key align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.elem.size%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;value size not a multiple of value align&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> bucketCnt &lt; <span class="number">8</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;bucketsize too small for proper alignment&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.key.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (key)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> dataOffset%<span class="type">uintptr</span>(t.elem.align) != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;need padding in bucket (value)&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 把hint参数对应成2进制的上确界那个数. 例如size=6, B就是3, 因为2^2 &lt; 6 &lt; 2^3</span></span><br><span class="line">	B := <span class="type">uint8</span>(<span class="number">0</span>)</span><br><span class="line">	<span class="keyword">for</span> ; overLoadFactor(hint, B); B++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 使用malloc分配2^B个buckets给h.</span></span><br><span class="line">	<span class="comment">// allocate initial hash table</span></span><br><span class="line">	<span class="comment">// if B == 0, the buckets field is allocated lazily later (in mapassign)</span></span><br><span class="line">	<span class="comment">// If hint is large zeroing this memory could take a while.</span></span><br><span class="line">	buckets := bucket</span><br><span class="line">	<span class="keyword">var</span> extra *mapextra</span><br><span class="line">	<span class="keyword">if</span> B != <span class="number">0</span> &#123;</span><br><span class="line">		<span class="keyword">var</span> nextOverflow *bmap</span><br><span class="line">		buckets, nextOverflow = makeBucketArray(t, B)</span><br><span class="line">		<span class="keyword">if</span> nextOverflow != <span class="literal">nil</span> &#123;</span><br><span class="line">			extra = <span class="built_in">new</span>(mapextra)</span><br><span class="line">			extra.nextOverflow = nextOverflow</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// initialize Hmap</span></span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		h = (*hmap)(newobject(t.hmap))</span><br><span class="line">	&#125;</span><br><span class="line">	h.count = <span class="number">0</span></span><br><span class="line">	h.B = B</span><br><span class="line">	h.extra = extra</span><br><span class="line">	h.flags = <span class="number">0</span></span><br><span class="line">	h.hash0 = fastrand()</span><br><span class="line">	h.buckets = buckets</span><br><span class="line">	h.oldbuckets = <span class="literal">nil</span></span><br><span class="line">	h.nevacuate = <span class="number">0</span></span><br><span class="line">	h.noverflow = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> h</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="map存值"><a href="#map存值" class="headerlink" title="map存值"></a>map存值</h4><p>存储的步骤和第一部分的分析一致。首先用key的hash值低8位找到bucket，然后在bucket内部比对tophash和高8位与其对应的key值与入参key是否相等，若找到则更新这个值。若key不存在，则key优先存入在查找的过程中遇到的空的tophash数组位置。若当前的bucket已满则需要另外分配空间给这个key，新分配的bucket将挂在overflow链表后。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Like mapaccess, but allocates a slot for the key if it is not present in the map.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapassign</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> unsafe.Pointer &#123;</span><br><span class="line">	<span class="keyword">if</span> h == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(plainError(<span class="string">&quot;assignment to entry in nil map&quot;</span>))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> raceenabled &#123;</span><br><span class="line">		callerpc := getcallerpc(unsafe.Pointer(&amp;t))</span><br><span class="line">		pc := funcPC(mapassign)</span><br><span class="line">		racewritepc(unsafe.Pointer(h), callerpc, pc)</span><br><span class="line">		raceReadObjectPC(t.key, key, callerpc, pc)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> msanenabled &#123;</span><br><span class="line">		msanread(key, t.key.size)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting != <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	alg := t.key.alg</span><br><span class="line">	hash := alg.hash(key, <span class="type">uintptr</span>(h.hash0))</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Set hashWriting after calling alg.hash, since alg.hash may panic,</span></span><br><span class="line">	<span class="comment">// in which case we have not actually done a write.</span></span><br><span class="line">	h.flags |= hashWriting</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> h.buckets == <span class="literal">nil</span> &#123;</span><br><span class="line">		h.buckets = newarray(t.bucket, <span class="number">1</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">again:</span><br><span class="line">    <span class="comment">// 用hash值的低八位找到bucket</span></span><br><span class="line">	bucket := hash &amp; (<span class="type">uintptr</span>(<span class="number">1</span>)&lt;&lt;h.B - <span class="number">1</span>)</span><br><span class="line">	<span class="keyword">if</span> h.growing() &#123;</span><br><span class="line">		growWork(t, h, bucket)</span><br><span class="line">	&#125;</span><br><span class="line">	b := (*bmap)(unsafe.Pointer(<span class="type">uintptr</span>(h.buckets) + bucket*<span class="type">uintptr</span>(t.bucketsize)))</span><br><span class="line">    <span class="comment">// 拿到高八位的hash值用于比对tophash</span></span><br><span class="line">	top := <span class="type">uint8</span>(hash &gt;&gt; (sys.PtrSize*<span class="number">8</span> - <span class="number">8</span>))</span><br><span class="line">	<span class="keyword">if</span> top &lt; minTopHash &#123;</span><br><span class="line">		top += minTopHash</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> inserti *<span class="type">uint8</span></span><br><span class="line">	<span class="keyword">var</span> insertk unsafe.Pointer</span><br><span class="line">	<span class="keyword">var</span> val unsafe.Pointer</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> i := <span class="type">uintptr</span>(<span class="number">0</span>); i &lt; bucketCnt; i++ &#123;</span><br><span class="line">            <span class="comment">// 遍历tophash, 找到对应的key</span></span><br><span class="line">			<span class="keyword">if</span> b.tophash[i] != top &#123;</span><br><span class="line">                <span class="comment">// 如果没有找到key, 说明是第一次, 将这个key插入到insertk(第i+1个key所在的)的位置, 将value插入到val(第i+1个value所在)的位置, 并且将tophash的当前地址赋值给inserti, 用于记录是否插入以及插入的位置.</span></span><br><span class="line">				<span class="keyword">if</span> b.tophash[i] == empty &amp;&amp; inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">					inserti = &amp;b.tophash[i]</span><br><span class="line">					insertk = add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">					val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">				&#125;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 如果找到了key的tophash, 就将拿对应的key跟现在的key对比, 看是否相等, 如果不相等就跳过继续找key, 如果相等就更新它的value的值.</span></span><br><span class="line">			k := add(unsafe.Pointer(b), dataOffset+i*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">			<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">				k = *((*unsafe.Pointer)(k))</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> !alg.equal(key, k) &#123;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 如果需要更新key, 就覆盖key的值.</span></span><br><span class="line">			<span class="keyword">if</span> t.needkeyupdate &#123;</span><br><span class="line">				typedmemmove(t.key, k, key)</span><br><span class="line">			&#125;</span><br><span class="line">            <span class="comment">// 返回val的地址, 这个函数并不真正更新value, 只是找到value所在的地址.</span></span><br><span class="line">			val = add(unsafe.Pointer(b), dataOffset+bucketCnt*<span class="type">uintptr</span>(t.keysize)+i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">		&#125;</span><br><span class="line">        <span class="comment">// 如这个bucket没找到, 找他的overflow链表, 拿下一个bucket循环操作.</span></span><br><span class="line">		ovf := b.overflow(t)</span><br><span class="line">		<span class="keyword">if</span> ovf == <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		b = ovf</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果都没有找到对应的值, 就可能做两件事:</span></span><br><span class="line">    <span class="comment">// 1) 建立新的overflow, 然后把值加到这个overflow的bucket中.</span></span><br><span class="line">    <span class="comment">// 2) 如果此时map的len()超过了overLoadFactor(6.5默认值)*桶的数量(2^B, 每个桶最多8个kv), 或者overflow的bucket太多了, golang就会扩大map的容量. </span></span><br><span class="line">	<span class="comment">// Did not find mapping for key. Allocate new cell &amp; add entry.</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// If we hit the max load factor or we have too many overflow buckets,</span></span><br><span class="line">	<span class="comment">// and we&#x27;re not already in the middle of growing, start growing.</span></span><br><span class="line">	<span class="keyword">if</span> !h.growing() &amp;&amp; (overLoadFactor(<span class="type">int64</span>(h.count), h.B) || tooManyOverflowBuckets(h.noverflow, h.B)) &#123;</span><br><span class="line">		hashGrow(t, h)</span><br><span class="line">		<span class="keyword">goto</span> again <span class="comment">// Growing the table invalidates everything, so try again</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> inserti == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// all current buckets are full, allocate a new one.</span></span><br><span class="line">		newb := h.newoverflow(t, b)</span><br><span class="line">		inserti = &amp;newb.tophash[<span class="number">0</span>]</span><br><span class="line">		insertk = add(unsafe.Pointer(newb), dataOffset)</span><br><span class="line">		val = add(insertk, bucketCnt*<span class="type">uintptr</span>(t.keysize))</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// store new key/value at insert position</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">		kmem := newobject(t.key)</span><br><span class="line">		*(*unsafe.Pointer)(insertk) = kmem</span><br><span class="line">		insertk = kmem</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		vmem := newobject(t.elem)</span><br><span class="line">		*(*unsafe.Pointer)(val) = vmem</span><br><span class="line">	&#125;</span><br><span class="line">	typedmemmove(t.key, insertk, key)</span><br><span class="line">	*inserti = top</span><br><span class="line">	h.count++</span><br><span class="line"></span><br><span class="line">done:</span><br><span class="line">    <span class="comment">// 不支持并发map的写.</span></span><br><span class="line">	<span class="keyword">if</span> h.flags&amp;hashWriting == <span class="number">0</span> &#123;</span><br><span class="line">		throw(<span class="string">&quot;concurrent map writes&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	h.flags &amp;^= hashWriting</span><br><span class="line">	<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">		val = *((*unsafe.Pointer)(val))</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> val</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在往map中存值时若所有的bucket已满，需要在堆中new新的空间时需要计算是否需要扩容。扩容的时机是count &gt; loadFactor(2^B)。这里的loadfactor选择为6.5。<strong>扩容时机的物理意义的理解</strong> 在没有溢出时hashmap总共可以存储8*(2^B)个KV对，当hashmap已经存储到6.5*(2^B)个KV对时表示hashmap已经趋于溢出，即很有可能在存值时用到overflow链表，这样会增加hitprobe和missprobe。为了使hashmap保持读取和超找的高性能，在hashmap快满时需要在新分配的bucket中重新hash元素并拷贝，源码中称之为evacuate。</p>
 <blockquote>
-<p>把一个对象存到一群Server中分几步？</p>
+<p>overflow溢出率是指平均一个bucket有多少个kv的时候会溢出。bytes&#x2F;entry是指平均存一个kv需要额外存储多少字节的数据。hitprobe是指找一个存在的key平均需要找多少次。missprobe是指找一个不存在的key平均需要找多少次。选取6.5是为了平衡这组数据。</p>
 </blockquote>
-<p>这里的一群Server，由Ceph组织成一个集群，这个集群由若干的磁盘组成，也就是由若干的OSD组成。于是，继续简化问题：</p>
-<blockquote>
-<p>把一个对象存到一堆OSD中分几步?</p>
-</blockquote>
-<h4 id="Ceph中的逻辑层"><a href="#Ceph中的逻辑层" class="headerlink" title="Ceph中的逻辑层"></a>Ceph中的逻辑层</h4><p>Ceph为了保存一个对象，对上构建了一个逻辑层，也就是池(pool)，用于保存对象.</p>
-<p>Pool再一次进行了细分，即将一个pool划分为若干的PG(归置组 Placement Group)，这类似于棋盘上的方格，所有的方格构成了整个棋盘，也就是说所有的PG构成了一个pool。</p>
-<p>现在需要解决的问题是，对象怎么知道要保存到哪个PG上，假定这里我们的pool名叫rbd，共有256个PG，给每个PG编个号分别叫做<code>0x0, 0x1, ...0xF, 0x10, 0x11... 0xFE, 0xFF</code>。</p>
-<p>要解决这个问题，我们先看看我们拥有什么，1，不同的对象名。2，不同的PG编号。这里就可以引入Ceph的计算方法了 : HASH。</p>
-<p>对于对象名分别为<code>bar</code>和<code>foo</code>的两个对象，对他们的对象名进行计算即:</p>
-<ul>
-<li>HASH(‘bar’) &#x3D; 0x3E0A4162</li>
-<li>HASH(‘foo’) &#x3D; 0x7FE391A0</li>
-<li>HASH(‘bar’) &#x3D; 0x3E0A4162</li>
-</ul>
-<p>对于一个同样的对象名，计算出来的结果永远都是一样的.</p>
-<p>有了这个输出，我们使用小学就会的方法：求余数！用随机数除以PG的总数256，得到的余数一定会落在[0x0, 0xFF]之间，也就是这256个PG中的某一个：</p>
-<ul>
-<li>0x3E0A4162 % 0xFF &#x3D;&#x3D;&#x3D;&gt; 0x62</li>
-<li>0x7FE391A0 % 0xFF &#x3D;&#x3D;&#x3D;&gt; 0xA0</li>
-</ul>
-<p>于是乎，对象<code>bar</code>保存到编号为<code>0x62</code>的PG中，对象<code>foo</code>保存到编号为<code>0xA0</code>的PG中。</p>
-<p>所以每个对象自有名字开始，他们要保存到的PG就已经确定了。那么爱思考的小明同学就会提出一个问题，难道不管对象的高矮胖瘦都是一样的使用这种方法计算PG吗，答案是，YES! 也就是说Ceph不区分对象的真实大小内容以及任何形式的格式，只认对象名。毕竟当对象数达到百万级时，对象的分布从宏观上来看还是平均的。</p>
-<p>这里给出更Ceph一点的说明，实际上在Ceph中，存在着多个pool，每个pool里面存在着若干的PG，如果两个pool里面的PG编号相同，Ceph怎么区分呢? 于是乎，Ceph对每个pool进行了编号，比如刚刚的rbd池，给予编号0，再建一个pool就给予编号1，那么在Ceph里，PG的实际编号是由<code>pool_id+.+PG_id</code>组成的，也就是说，刚刚的<code>bar</code>对象会保存在<code>0.62</code>这个PG里，<code>foo</code>这个对象会保存在<code>0.A0</code>这个PG里。其他池里的PG名称可能为<code>1.12f, 2.aa1,10.aa1</code>等。</p>
-<h4 id="Ceph中的物理层"><a href="#Ceph中的物理层" class="headerlink" title="Ceph中的物理层"></a>Ceph中的物理层</h4><p>理解了刚刚的逻辑层，我们再看一下Ceph里的物理层，对下，也就是我们若干的服务器上的磁盘，通常，Ceph将一个磁盘看作一个OSD(实际上，OSD是管理一个磁盘的程序)，于是物理层由若干的OSD组成，我们的最终目标是将对象保存到磁盘上，在逻辑层里，对象是保存到PG里面的，那么现在的任务就是<code>打通PG和OSD之间的隧道</code>。PG相当于一堆余数相同的对象的组合，PG把这一部分对象打了个包，现在我们需要把很多的包平均的安放在各个OSD上，这就是CRUSH算法所要做的事情：<code>CRUSH计算PG-&gt;OSD的映射关系</code>。</p>
-<p>加上刚刚的对象映射到PG的方法，我们将开篇的两步表示成如下的两个计算公式：</p>
-<ul>
-<li>池ID + HASH(‘对象名’) % pg_num &#x3D;&#x3D;&#x3D;&gt; PG_ID</li>
-<li>CRUSH(PG_ID) &#x3D;&#x3D;&#x3D;&gt; OSD</li>
-</ul>
-<p>在讨论CRUSH算法之前，我们来做一点思考，可以发现，上面两个计算公式有点类似，为何我们不把</p>
-<ul>
-<li><code>CRUSH(PG_ID) ===&gt; OSD</code><br>改为</li>
-<li><code>HASH(PG_ID) %OSD_num ===&gt; OSD</code></li>
-</ul>
-<p>我可以如下几个由此假设带来的副作用：</p>
-<ul>
-<li>如果挂掉一个OSD，<code>OSD_num-1</code>，于是所有的<code>PG % OSD_num</code>的余数都会变化，也就是说这个PG保存的磁盘发生了变化，对这最简单的解释就是，这个PG上的数据要从一个磁盘全部迁移到另一个磁盘上去，一个优秀的存储架构应当在磁盘损坏时使得数据迁移量降到最低，CRUSH可以做到。(这一点一致性哈希也能做到)</li>
-<li>如果保存多个副本，我们希望得到多个OSD结果的输出，HASH只能获得一个，但是CRUSH可以获得任意多个。</li>
-<li>如果增加OSD的数量，OSD_num增大了，同样会导致PG在OSD之间的胡乱迁移，但是CRUSH可以保证数据向新增机器均匀的扩散。</li>
-</ul>
-<p>所以HASH只适用于一对一的映射关系计算，并且两个映射组合(对象名和PG总数)不能变化，因此这里的假设不适用于PG-&gt;OSD的映射计算。因此，这里开始引入CRUSH算法。</p>
-<h4 id="CRUSH算法"><a href="#CRUSH算法" class="headerlink" title="CRUSH算法"></a>CRUSH算法</h4><p>首先来看我们要做什么：</p>
-<ul>
-<li>把已有的PG_ID映射到OSD上，有了映射关系就可以把一个PG保存到一个磁盘上。</li>
-<li>如果我们想保存三个副本，可以把一个PG映射到三个不同的OSD上，这三个OSD上保存着一模一样的PG内容。</li>
-</ul>
-<p>再来看我们有了什么：</p>
-<ul>
-<li>互不相同的PG_ID。</li>
-<li>如果给OSD也编个号，那么就有了互不相同的OSD_ID。</li>
-<li>每个OSD最大的不同的就是它们的容量，即4T还是800G的容量，我们将每个OSD的容量又称为OSD的权重(weight)，规定4T权重为4，800G为0.8，也就是以T为单位的值。</li>
-</ul>
-<p>现在问题转化为：如何将PG_ID映射到有各自权重的OSD上。这里我直接使用CRUSH里面采取的<code>Straw</code>算法，翻译过来就是抽签，说白了就是挑个最长的签，这里的签指的是OSD的权重。</p>
-<ul>
-<li>CRUSH_HASH( PG_ID, OSD_ID, r ) &#x3D;&#x3D;&#x3D;&gt; draw</li>
-<li>( draw &amp;0xffff ) * osd_weight &#x3D;&#x3D;&#x3D;&gt; osd_straw</li>
-<li>pick up high_osd_straw</li>
-</ul>
-<p>第一行，我们姑且把r当做一个常数，第一行实际上就做了搓一搓的事情:将PG_ID, OSD_ID和r一起当做CRUSH_HASH的输入，求出一个十六进制输出，这和HASH(对象名)完全类似，只是多了两个输入。所以需要强调的是，对于相同的三个输入，计算得出的<code>draw</code>的值是一定相同的。</p>
-<p>这个<code>draw</code>到底有啥用？其实，CRUSH希望得到一个随机数，也就是这里的<code>draw</code>，然后拿这个随机数去乘以OSD的权重，这样把随机数和OSD的权重搓在一起，就得到了每个OSD的实际签长，而且每个签都不一样长(极大概率)，就很容易从中挑一个最长的。</p>
-<p>说白了，CRUSH希望<code>随机</code>挑一个OSD出来，但是还要满足权重越大的OSD被挑中的概率越大，为了达到随机的目的，它在挑之前让每个OSD都拿着自己的权重乘以一个随机数，再取乘积最大的那个。那么这里我们再定个小目标：挑个一亿次！从宏观来看，同样是乘以一个随机数，在样本容量足够大之后，这个随机数对挑中的结果不再有影响，起决定性影响的是OSD的权重，也就是说，OSD的权重越大，宏观来看被挑中的概率越大。</p>
-<p>如果看到这里你已经被搅晕了，那让我再简单梳理下PG选择一个OSD时做的事情：</p>
-<ul>
-<li>给出一个PG_ID，作为CRUSH_HASH的输入。</li>
-<li>CRUSH_HASH(PG_ID, OSD_ID, r) 得出一个随机数(重点是随机数，不是HASH)。</li>
-<li>对于所有的OSD用他们的权重乘以每个OSD_ID对应的随机数，得到乘积。</li>
-<li>选出乘积最大的OSD。</li>
-<li>这个PG就会保存到这个OSD上。</li>
-</ul>
-<p>现在趁热打铁，解决一个PG映射到多个OSD的问题，还记得那个常量<code>r</code>吗？我们把<code>r+1</code>，再求一遍随机数，再去乘以每个OSD的权重，再去选出乘积最大的OSD，如果和之前的OSD编号不一样，那么就选中它，如果和之前的OSD编号一样的话，那么再把<code>r+2</code>，再次选一次，直到选出我们需要的三个不一样编号的OSD为止！</p>
-<p>当然实际选择过程还要稍微复杂一点，我这里只是用最简单的方法来解释CRUSH在选择OSD的时候所做的事情。</p>
-<p>基于这样的结构选择OSD，我们提出了新的要求：</p>
-<ul>
-<li>一共选出三个OSD。</li>
-<li>这三个OSD需要都位于一个row下面。</li>
-<li>每个cabinet内至多有一个OSD。</li>
-</ul>
-<p>这样的要求，如果用上一节的CRUSH选OSD的方法，不能满足二三两个要求，因为OSD的分布是随机的。</p>
+<table>
+<thead>
+<tr>
+<th>loadFactor</th>
+<th>%overflow</th>
+<th>bytes&#x2F;entry</th>
+<th>hitprobe</th>
+<th>missprobe</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4.00</td>
+<td>2.13</td>
+<td>20.77</td>
+<td>3.00</td>
+<td>4.00</td>
+</tr>
+<tr>
+<td>4.50</td>
+<td>4.05</td>
+<td>17.30</td>
+<td>3.25</td>
+<td>4.50</td>
+</tr>
+<tr>
+<td>5.00</td>
+<td>6.85</td>
+<td>14.77</td>
+<td>3.50</td>
+<td>5.00</td>
+</tr>
+<tr>
+<td>5.50</td>
+<td>10.55</td>
+<td>12.94</td>
+<td>3.75</td>
+<td>5.50</td>
+</tr>
+<tr>
+<td>6.00</td>
+<td>15.27</td>
+<td>11.67</td>
+<td>4.00</td>
+<td>6.00</td>
+</tr>
+<tr>
+<td>6.50</td>
+<td>20.90</td>
+<td>10.79</td>
+<td>4.25</td>
+<td>6.50</td>
+</tr>
+<tr>
+<td>7.00</td>
+<td>27.14</td>
+<td>10.15</td>
+<td>4.50</td>
+<td>7.00</td>
+</tr>
+<tr>
+<td>7.50</td>
+<td>34.03</td>
+<td>9.73</td>
+<td>4.75</td>
+<td>7.50</td>
+</tr>
+<tr>
+<td>8.00</td>
+<td>41.10</td>
+<td>9.40</td>
+<td>5.00</td>
+<td>8.00</td>
+</tr>
+</tbody></table>
+<p>但这个迁移并没有在扩容之后一次性完成，而是逐步完成的，每一次insert或remove时迁移1到2个pair，即增量扩容。<a target="_blank" rel="noopener" href="https://ninokop.github.io/2017/10/24/Go-Hashmap%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%92%8C%E5%AE%9E%E7%8E%B0/">增量扩容的原因</a> 主要是缩短map容器的响应时间。若hashmap很大扩容时很容易导致系统停顿无响应。增量扩容本质上就是将总的扩容时间分摊到了每一次hash操作上。由于这个工作是逐渐完成的，导致数据一部分在old table中一部分在new table中。old的bucket不会删除，只是加上一个已删除的标记。只有当所有的bucket都从old table里迁移后才会将其释放掉。</p>
+<h4 id="Map的取值"><a href="#Map的取值" class="headerlink" title="Map的取值"></a>Map的取值</h4><p>map取值和存值前面的过程差不多, 代码在<code>mapaccess1</code>中, 这里不做赘述.</p>
+<h4 id="Map-的删除"><a href="#Map-的删除" class="headerlink" title="Map 的删除"></a>Map 的删除</h4><p>删除的前面部分也是找到对应的key和value, 此处省略.</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapdelete</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> &#123;</span><br><span class="line"><span class="comment">// 查找位置, 省略</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的地址, 将地址变为nil</span></span><br><span class="line">				*(*unsafe.Pointer)(k) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的值, 清空key的值</span></span><br><span class="line">				typedmemclr(t.key, k)</span><br><span class="line">			&#125;</span><br><span class="line">			v := unsafe.Pointer(<span class="type">uintptr</span>(unsafe.Pointer(b)) + dataOffset + bucketCnt*<span class="type">uintptr</span>(t.keysize) + i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">    	<span class="comment">// 同理</span></span><br><span class="line">			<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">				*(*unsafe.Pointer)(v) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				typedmemclr(t.elem, v)</span><br><span class="line">			&#125;</span><br><span class="line">    		<span class="comment">//将tophash相应位置标记为空, kv数量-1.</span></span><br><span class="line">			b.tophash[i] = empty</span><br><span class="line">			h.count--</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-29-use-operator-sdk/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-29-use-operator-sdk/" class="post-title-link" itemprop="url">operator-framework的使用和调查</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>准备用CRD做一个数据迁移的operator, 将不同结点的pvc迁移. 于是决定使用operator-sdk.</p>
-<p>operator-sdk能够自动生成operator相关代码, 并能够直接部署到k8s集群中, 使用起来还是相当方便的.</p>
-<p>operator-sdk需要搭配operator-lifecycle-manager来使用, 安装配置方法这里不做赘述, 可以参考官网,或者这篇文章:<a target="_blank" rel="noopener" href="https://devops.college/developing-kubernetes-operator-is-now-easy-with-operator-framework-d3194a7428ff">Developing Kubernetes Operator is now easy with Operator Framework</a></p>
-<p>operator的大体框架如下所示:</p>
-<pre class="mermaid">graph LR
-A[operaotr] -->|Watch|B[custom resource]
-A[operaotr] -->|handler|F[Handler] 
-F --> E(All Resources)
-C(CRD) --> A    
-D(Deployment) --> A</pre>
-
-<p>通过operator-sdk可以自动生成 crd.yaml, operator.yaml, cr.yaml, rbac.yaml. 这些都需要手动部署到k8s. </p>
-<p>operator.yaml是最重要的一个. 里面包含handle逻辑和type结构, 它是你需要去实现和填充的业务逻辑, 理论上handle可以实现任何逻辑, 比如对修改apiserver中的某些资源内容, 或者创建新的资源, 或者起一个pod和job做一些hack的事情. </p>
-<p>做完这些就可以生成operator了, 他会build一个image, operator是一个deployment的, 它去拉这个image然后watch你定义的cr, 当你创建或者删除cr, 就会触发handle操作.	</p>
 
       
     </div>
