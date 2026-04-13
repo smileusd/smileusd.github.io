@@ -112,7 +112,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">62</span>
+          <span class="site-state-item-count">63</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
@@ -123,7 +123,7 @@
       </div>
       <div class="site-state-item site-state-tags">
           <a href="/tags/">
-        <span class="site-state-item-count">141</span>
+        <span class="site-state-item-count">142</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -140,6 +140,173 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-raid/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-raid/" class="post-title-link" itemprop="url">raid</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="RAID"><a href="#RAID" class="headerlink" title="RAID"></a>RAID</h1><p>RAID是用于增加数据存储的性能和可靠性的技术。全程为Redundant Array of Inexpensive Disks（廉价磁盘冗余阵列）</p>
+<ul>
+<li>RAID 0 - strping</li>
+<li>RAID 1 - mirroring</li>
+<li>RAID 5 - striping with parity</li>
+<li>RAID 6 - striping with double parity</li>
+<li>RAID 10 - combining mirroring and striping</li>
+</ul>
+<h4 id="准备"><a href="#准备" class="headerlink" title="准备"></a>准备</h4><p>mdadm目前是Linux标准RAID管理工具, 能够支持多种模式，可以对RAID进行创建，管理，添加和移除设备等，还能查看RAID设备的详细信息。功能非常强大。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$yum install mdadm -y</span><br><span class="line">$git clone git://neil.brown.name/mdadm</span><br></pre></td></tr></table></figure>
+
+
+
+<p>devicemapper 也能创建RAID设备.</p>
+<p>用dd创建4个镜像作为loop设备</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$dd if=/dev/zero of=disk1.img bs=512 count=4096000</span><br><span class="line">$losetup /dev/loop2 disk1.img</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="RAID-level-0-–-Striping"><a href="#RAID-level-0-–-Striping" class="headerlink" title="RAID level 0 – Striping"></a>RAID level 0 – Striping</h3><p><a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-0-striping.svg"><img src="http://www.prepressure.com/images/raid-level-0-striping.svg" alt="image"></a></p>
+<p>Raid 0 将数据进行条带化，同时向多个磁盘(至少2个)写数据.不做数据冗余，理想的情况，每个磁盘使用单独的控制器管理。</p>
+<h4 id="优点"><a href="#优点" class="headerlink" title="优点"></a>优点</h4><ul>
+<li><p>读写性能好，没有数据冗余。</p>
+</li>
+<li><p>所有磁盘都有用.</p>
+</li>
+<li><p>容易实现.</p>
+<h4 id="缺点"><a href="#缺点" class="headerlink" title="缺点"></a>缺点</h4></li>
+<li><p>没有容错机制</p>
+<h4 id="mdadm"><a href="#mdadm" class="headerlink" title="mdadm"></a>mdadm</h4></li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">mdadm --create --verbose /dev/md0 --level=stripe --raid-devices=2 /dev/loop2 /dev/loop3</span><br><span class="line">mdadm --manage --stop /dev/md0</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">$fdisk -l</span><br><span class="line">...</span><br><span class="line">Disk /dev/md0: 4192 MB, 4192206848 bytes, 8187904 sectors</span><br><span class="line">Units = sectors of 1 * 512 = 512 bytes</span><br><span class="line">Sector size (logical/physical): 512 bytes / 512 bytes</span><br><span class="line">I/O size (minimum/optimal): 524288 bytes / 1048576 bytes</span><br><span class="line"></span><br><span class="line">$lsblk</span><br><span class="line">NAME  MAJ:MIN RM   SIZE RO TYPE  MOUNTPOINT</span><br><span class="line">...</span><br><span class="line">loop2  7:2    0     2G  0 loop  </span><br><span class="line">└─md0  9:0    0   3.9G  0 raid0 </span><br><span class="line">loop3  7:3    0     2G  0 loop  </span><br><span class="line">└─md0  9:0    0   3.9G  0 raid0</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="devicemapper"><a href="#devicemapper" class="headerlink" title="devicemapper"></a>devicemapper</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">// 创建4设备组成的raid0设备，16384000是4个设备总的Sector数量， 0 是每个设备的偏移量</span><br><span class="line">$dmsetup create test-raid0 --table &#x27;0 16384000 striped 4 128 /dev/loop4 0 /dev/loop5 0 /dev/loop6 0 /dev/loop7 0&#x27;</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">$lsblk</span><br><span class="line">loop4         7:4    0     2G  0 loop  </span><br><span class="line">└─test-raid0  253:23   0   7.8G  0 dm    </span><br><span class="line">loop5         7:5    0     2G  0 loop  </span><br><span class="line">└─test-raid0  53:23   0   7.8G  0 dm    </span><br><span class="line">loop6         7:6    0     2G  0 loop  </span><br><span class="line">└─test-raid0  253:23   0   7.8G  0 dm    </span><br><span class="line">loop7         7:7    0     2G  0 loop  </span><br><span class="line">└─test-raid0  253:23   0   7.8G  0 dm</span><br><span class="line"></span><br><span class="line">$fdisk -l</span><br><span class="line">...</span><br><span class="line">Disk /dev/mapper/test-raid0: 8388 MB, 8388608000 bytes, 16384000 sectors</span><br><span class="line">Units = sectors of 1 * 512 = 512 bytes</span><br><span class="line">Sector size (logical/physical): 512 bytes / 512 bytes</span><br><span class="line">I/O size (minimum/optimal): 65536 bytes / 262144 bytes</span><br><span class="line"></span><br><span class="line">$dmsetup status test-raid0</span><br><span class="line">0 16384000 striped 4 7:4 7:5 7:6 7:7 1 AAAA</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="RAID-level-1-–-Mirroring"><a href="#RAID-level-1-–-Mirroring" class="headerlink" title="RAID level 1 – Mirroring"></a>RAID level 1 – Mirroring</h3><h3 id=""><a href="#" class="headerlink" title=""></a><a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-1-mirroring.svg"><img src="http://www.prepressure.com/images/raid-level-1-mirroring.svg" alt="image"></a></h3><p>RAID 1 数据存储两次，如果一个drive挂了，控制器会使用另外一个drive或者直接拷贝另一个drive的数据给它。</p>
+<p>RAID 1的优缺点很明显，值得一提的的是，它不能保证热交换磁盘，也就是说，当一块盘坏了之后，需要将计算机停机，然后才能更换磁盘。</p>
+<h4 id="mdadm-1"><a href="#mdadm-1" class="headerlink" title="mdadm"></a>mdadm</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$mdadm --create --verbose /dev/md0 --level=mirror --raid-devices=2 /dev/loop2 /dev/loop3</span><br></pre></td></tr></table></figure>
+
+<h4 id="devicemapper-1"><a href="#devicemapper-1" class="headerlink" title="devicemapper"></a>devicemapper</h4><p>devicemapper中mirror与raid1是有差别的</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">// 4096000是单个设备的sector数量，因为mirror没有扩大容量，2是设备数量， - 表示没有metadata 设备</span><br><span class="line">$dmsetup create test-raid1 --table &#x27;0 4096000 raid raid1 3 0 region_size 1024 2 - /dev/loop4 - /dev/loop5&#x27;</span><br><span class="line">//下面的是有metadata设备的raid1创建</span><br><span class="line">$dmsetup create test-raid1 --table &#x27;0 4096000 raid raid1 3 0 region_size 1024 2 /dev/loop4 /dev/loop5 /dev/loop6 /dev/loop7&#x27;</span><br><span class="line"></span><br><span class="line">$dmsetup status test-raid1</span><br><span class="line">0 4096000 raid raid1 2 AA 4096000/4096000 idle 0</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="RAID-level-5"><a href="#RAID-level-5" class="headerlink" title="RAID level 5"></a>RAID level 5</h3><p>最为普遍的RAID方式。要求至少3个drive，其中一个drive的一个磁盘作为奇偶校验盘，其他块做striping。所有奇偶校验盘会广泛分布在所有drive上。当有某个盘挂掉后，可以利用其他块以及奇偶校验盘来恢复数据，但如果同一个块中有两个设备挂掉，那么整个RAID就挂了。也就是说，RAID5能够支持单drive失败。<a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-5-striping-with-parity.svg"><br><img src="http://www.prepressure.com/images/raid-level-5-striping-with-parity.svg" alt="image"></a></p>
+<p>RAID5的优点是兼顾了读写性能和安全性，能够支持单drive的失败情况。缺点在于实现比较复杂，恢复数据比较慢，如果在恢复的过程中其他drive也发生故障，那么整个RAID就挂了。</p>
+<h4 id="mdadm-2"><a href="#mdadm-2" class="headerlink" title="mdadm"></a>mdadm</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">// spare device指定备用磁盘，创建3块盘的RAID5</span><br><span class="line">$mdadm --create --verbose /dev/md1 --level=5 --raid-devices=3 /dev/loop4 /dev/loop5 /dev/loop6 --spare-devices=1 /dev/loop7</span><br></pre></td></tr></table></figure>
+
+<p>查看信息</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">`$mdadm --detail /dev/md1/dev/md1:        Version : 1.2  Creation Time : Tue Mar  7 16:57:39 2017     Raid Level : raid5     Array Size : 4093952 (3.90 GiB 4.19 GB)  Used Dev Size : 2046976 (1999.34 MiB 2096.10 MB)   Raid Devices : 3  Total Devices : 4    Persistence : Superblock is persistent    Update Time : Tue Mar  7 16:57:57 2017          State : clean  Active Devices : 3Working Devices : 4 Failed Devices : 0  Spare Devices : 1         Layout : left-symmetric     Chunk Size : 512K           Name : st-integrat-node00:1  (local to host st-integrat-node00)           UUID : 071d2e75:2029e9a2:2e427dd9:d2ab804f         Events : 18    Number   Major   Minor   RaidDevice State       0       7        4        0      active sync   /dev/loop4       1       7        5        1      active sync   /dev/loop5       4       7        6        2      active sync   /dev/loop6       3       7        7        -      spare   /dev/loop7`</span><br></pre></td></tr></table></figure>
+
+<h4 id="device-mapper"><a href="#device-mapper" class="headerlink" title="device-mapper"></a>device-mapper</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// 这里创建了没有metadata设备的4个设备的raid5，因此大小是3倍磁盘扇区大小，有一个作为奇偶校验。 </span><br><span class="line">$dmsetup create test-raid5 --table &#x27;0 12288000 raid raid5_ls 3 64 region_size 1024 4 - /dev/loop4 - /dev/loop5 - /dev/loop6 - /dev/loop7&#x27;</span><br><span class="line">// metadata设备的创建过程和前面RAID1的类似，这里略过。</span><br><span class="line">//devicemapper还可以创建degraded RAID5,只需将最后一个设备置为 - 即可。</span><br><span class="line">$dmsetup create test-raid5 --table &#x27;0 12288000 raid raid5_ls 3 64 region_size 1024 4 - /dev/loop4 - /dev/loop5 - - -</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// resync 表示正在同步， 4096000/4096000表示全部同步完成。</span><br><span class="line"><span class="meta prompt_">$</span><span class="language-bash">dmsetup status test-raid5</span></span><br><span class="line">0 12288000 raid raid5_ls 4 aaaa 2048064/4096000 resync 0</span><br><span class="line">0 12288000 raid raid5_ls 4 AAAA 4096000/4096000 idle 0</span><br><span class="line">//同步过程中也是可以删除设备的</span><br></pre></td></tr></table></figure>
+
+<h3 id="RAID-level-6-–-Striping-with-double-parity"><a href="#RAID-level-6-–-Striping-with-double-parity" class="headerlink" title="RAID level 6 – Striping with double parity"></a>RAID level 6 – Striping with double parity</h3><p><a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-6-striping-with-dual-parity.svg"><img src="http://www.prepressure.com/images/raid-level-6-striping-with-dual-parity.svg" alt="image"></a><br>RAID6改进了RAID5，使用了两块奇偶校验盘，<br>RAID6的创建过程和RAID5相似.</p>
+<h3 id="RAID-level-10-–-combining-RAID-1-RAID-0"><a href="#RAID-level-10-–-combining-RAID-1-RAID-0" class="headerlink" title="RAID level 10 – combining RAID 1 &amp; RAID 0"></a>RAID level 10 – combining RAID 1 &amp; RAID 0</h3><p>RAID10可以看做是RAID1和RAID0的结合。<br><a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-1-and-0-striping-mirroring.svg"><img src="http://www.prepressure.com/images/raid-level-1-and-0-striping-mirroring.svg" alt="image"></a></p>
+<p>RAID10的优点在于恢复数据速度很快，但相比与RAID5和6，使用设备的代价更大。</p>
+<h4 id="mdadm-3"><a href="#mdadm-3" class="headerlink" title="mdadm"></a>mdadm</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">$mdadm --create --verbose /dev/md1 --level=10 --raid-devices=4 /dev/loop4 /dev/loop5 /dev/loop6 /dev/loop7</span><br><span class="line">mdadm: layout defaults to n2</span><br><span class="line">mdadm: layout defaults to n2</span><br><span class="line">mdadm: chunk size defaults to 512K</span><br><span class="line">mdadm: size set to 2046976K</span><br><span class="line">mdadm: Defaulting to version 1.2 metadata</span><br><span class="line">mdadm: array /dev/md1 started.</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">$mdadm --detail /dev/md1</span><br><span class="line">/dev/md1:</span><br><span class="line">        Version : 1.2</span><br><span class="line">  Creation Time : Tue Mar  7 17:44:43 2017</span><br><span class="line">     Raid Level : raid10</span><br><span class="line">     Array Size : 4093952 (3.90 GiB 4.19 GB)</span><br><span class="line">  Used Dev Size : 2046976 (1999.34 MiB 2096.10 MB)</span><br><span class="line">   Raid Devices : 4</span><br><span class="line">  Total Devices : 4</span><br><span class="line">    Persistence : Superblock is persistent</span><br><span class="line"></span><br><span class="line">    Update Time : Tue Mar  7 17:45:04 2017</span><br><span class="line">          State : clean </span><br><span class="line"> Active Devices : 4</span><br><span class="line">Working Devices : 4</span><br><span class="line"> Failed Devices : 0</span><br><span class="line">  Spare Devices : 0</span><br><span class="line"></span><br><span class="line">         Layout : near=2</span><br><span class="line">     Chunk Size : 512K</span><br><span class="line"></span><br><span class="line">           Name : st-integrat-node00:1  (local to host st-integrat-node00)</span><br><span class="line">           UUID : 643b371a:eeadc82d:7d4effee:cf00411c</span><br><span class="line">         Events : 17</span><br><span class="line"></span><br><span class="line">    Number   Major   Minor   RaidDevice State</span><br><span class="line">       0       7        4        0      active sync set-A   /dev/loop4</span><br><span class="line">       1       7        5        1      active sync set-B   /dev/loop5</span><br><span class="line">       2       7        6        2      active sync set-A   /dev/loop6</span><br><span class="line">       3       7        7        3      active sync set-B   /dev/loop7</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="device-mapper-1"><a href="#device-mapper-1" class="headerlink" title="device-mapper"></a>device-mapper</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">// 创建4个drive的RAID10，一半做镜像，所以大小为2倍drive sector大小。</span><br><span class="line">$dmsetup create test-raid10 --table &#x27;0 8192000 raid raid10 3 64 region_size 1024 4 - /dev/loop4 - /dev/loop5 - /dev/loop6 - /dev/loop7&#x27;</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$dmsetup status test-raid10</span><br><span class="line">0 8192000 raid raid10 4 AAAA 8192000/8192000 idle 0</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h3><ul>
+<li>[1] RAID, <a target="_blank" rel="noopener" href="https://www.prepressure.com/library/technology/raid/">https://www.prepressure.com/library/technology/raid/</a></li>
+<li>[2] Device-mapper, <a target="_blank" rel="noopener" href="https://wiki.gentoo.org/wiki/Device-mapper">https://wiki.gentoo.org/wiki/Device-mapper</a></li>
+<li>[3] RAID-Setup, <a target="_blank" rel="noopener" href="https://raid.wiki.kernel.org/index.php/RAID_setup">https://raid.wiki.kernel.org/index.php/RAID_setup</a></li>
+<li>[4] dm-raid, <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt">https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt</a></li>
+<li>[5] How To Create RAID Arrays with mdadm on Ubuntu 16.04, <a target="_blank" rel="noopener" href="https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04">https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04</a></li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -1343,101 +1510,6 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
 <p>该pod没有匹配所有的taint, 因此他不能被调度到这个节点， 但如果调度了，他不会被移除， 因为他只有第三个<code>NoSchedule</code>的taint不匹配。</p>
 <h5 id="注意"><a href="#注意" class="headerlink" title="注意"></a>注意</h5><p>在1.6之后， 官方加了一些内置的taint， 他会将pod evctied掉：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">node.kubernetes.io/not-ready: notready.</span><br><span class="line">node.alpha.kubernetes.io/unreachable: Unknown</span><br><span class="line">node.kubernetes.io/out-of-disk: Node becomes out of disk.</span><br><span class="line">node.kubernetes.io/memory-pressure: Node has memory pressure.</span><br><span class="line">node.kubernetes.io/disk-pressure: Node has disk pressure.</span><br><span class="line">node.kubernetes.io/network-unavailable: Node’s network is unavailable.</span><br><span class="line">node.cloudprovider.kubernetes.io/uninitialized: When kubelet is started with “external” cloud provider, it sets this taint on a node to mark it as unusable. When a controller from the cloud-controller-manager initializes this node, kubelet removes this taint.</span><br></pre></td></tr></table></figure>
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-29-golang-rename/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-29-golang-rename/" class="post-title-link" itemprop="url">记一次疑云重重的kubelet延迟很高的问题</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>最近在调查一个kubernetes中发现Kubelet的pods目录:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/xxx/volumes/</span><br></pre></td></tr></table></figure>
-<p>下出现了大量的包含”deleting~” 的目录:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~859156558</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~912994645</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~096627888</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~361944655</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~827756898</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~850958169</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~435144420</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~573873907</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~817019830</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~300298653</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~414447192</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~453118423</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~634999626</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~329196065</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~705907980</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~060876539</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~371568670</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~473777381</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~852926720</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~911951455</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~221614642</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~643761641</span><br></pre></td></tr></table></figure>
-<p>导致每次reconciler将这些多余的”deleting~”加入到”ActualOfWorld”中, 然后触发大量的Umount操作, 使得reconciler很久才Loop一次, 现象就是pod create和delete都变得非常得慢.<br>一. 一开始, 我发现自己写的plugin中使用了pkg&#x2F;volume&#x2F;volume.go中的RenameDirectory函数, 函数如下:</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">RenameDirectory</span><span class="params">(oldPath, newName <span class="type">string</span>)</span></span> (<span class="type">string</span>, <span class="type">error</span>) &#123;</span><br><span class="line">	newPath, err := ioutil.TempDir(filepath.Dir(oldPath), newName)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// os.Rename call fails on windows (https://github.com/golang/go/issues/14527)</span></span><br><span class="line">	<span class="comment">// Replacing with copyFolder to the newPath and deleting the oldPath directory</span></span><br><span class="line">	<span class="keyword">if</span> runtime.GOOS == <span class="string">&quot;windows&quot;</span> &#123;</span><br><span class="line">		err = copyFolder(oldPath, newPath)</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			glog.Errorf(<span class="string">&quot;Error copying folder from: %s to: %s with error: %v&quot;</span>, oldPath, newPath, err)</span><br><span class="line">			<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">		&#125;</span><br><span class="line">		os.RemoveAll(oldPath)</span><br><span class="line">		<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	err = os.Rename(oldPath, newPath)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-<p>在每次删除目录时, 并不是直接删除, 而是先创建一个随机的空目录, 然后将原目录rename到随机目录, 最后再将这个随机目录删除掉.<br>看似没有什么问题, 但不巧的是, 在golang1.8之后, os.Rename的实现发生了变化</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">rename</span><span class="params">(oldname, newname <span class="type">string</span>)</span></span> <span class="type">error</span> &#123;</span><br><span class="line">	fi, err := Lstat(newname)</span><br><span class="line">	<span class="keyword">if</span> err == <span class="literal">nil</span> &amp;&amp; fi.IsDir() &#123;</span><br><span class="line">		<span class="comment">// There are two independent errors this function can return:</span></span><br><span class="line">		<span class="comment">// one for a bad oldname, and one for a bad newname.</span></span><br><span class="line">		<span class="comment">// At this point we&#x27;ve determined the newname is bad.</span></span><br><span class="line">		<span class="comment">// But just in case oldname is also bad, prioritize returning</span></span><br><span class="line">		<span class="comment">// the oldname error because that&#x27;s what we did historically.</span></span><br><span class="line">		<span class="keyword">if</span> _, err := Lstat(oldname); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">if</span> pe, ok := err.(*PathError); ok &#123;</span><br><span class="line">				err = pe.Err</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, syscall.EEXIST&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">//------------------------版本分割线1.8</span></span><br><span class="line">	err = syscall.Rename(oldname, newname)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>在虚线以上是go1.8之后新加的内容, 如果rename之后的目录存在, 就会打印”File Exits”错误, 这样就会创建大量的”deleting~”目录. 相关修改和讨论在<a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/issues/43534">Bugs in EmptyDir Teardown path</a>.</p>
-<p>以为问题就这样解决了, 然而不是, 我检查了版本, 使用的是1.7.4, 同时查看了日志, 并没有打印”FILE Exist”的log, 而是打印了”device or resource busy”. 通过多种测试, 发现rename操作无论是进程占用还是进程对文件的读写, 都不会导致device busy问题. 这说明我找到了出问题的地方, 却没找到背后的原因. </p>
-<p>二. 如果rename没有返回错误, 那么只能是之后的remove操作返回的错误. 然而却有几个疑点:</p>
-<ol>
-<li>查看rename出来的deleting目录中都是空目录, 里面并没有数据</li>
-<li>手动可以remove掉这些目录</li>
-<li>原目录并没有消失, 而是存在且有大量的正在更新的数据.</li>
-</ol>
-<p>​    显然问题比我想象的更加复杂. 有一个可能的解释是在我操作delete之后由于太长时间没有删掉导致Kubelet直接暴力删除了这个pod, statefulset又重启了新的pod, 原来的container虽然删掉但相应的namespaces中依然有应用程序在读写, 这种情况导致remove busy, 而且数据在更新.</p>
-<p>这些问题要调查起来都很费力. 显然直接删掉rename逻辑可以解决这个问题, 于是不再追究.</p>
-
       
     </div>
 
