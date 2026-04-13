@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="vLLM Deep Dive Series: Understanding Modern LLM ServingSeries OverviewThis series provides a comprehensive technical deep-dive into vLLM, one of the most important open-source projects for LLM inferen">
+<meta property="og:type" content="article">
+<meta property="og:title" content="vLLM Deep Dive Series: Understanding Modern LLM Serving">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-00-series-overview/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="vLLM Deep Dive Series: Understanding Modern LLM ServingSeries OverviewThis series provides a comprehensive technical deep-dive into vLLM, one of the most important open-source projects for LLM inferen">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-13T05:58:00.000Z">
+<meta property="article:modified_time" content="2026-04-13T13:24:34.475Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="vLLM">
+<meta property="article:tag" content="LLM">
+<meta property="article:tag" content="Machine Learning">
+<meta property="article:tag" content="AI Infrastructure">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-00-series-overview/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-00-series-overview/","path":"2026/04/13/2026-04-13-vllm-deep-dive-00-series-overview/","title":"vLLM Deep Dive Series: Understanding Modern LLM Serving"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>vLLM Deep Dive Series: Understanding Modern LLM Serving | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#vLLM-Deep-Dive-Series-Understanding-Modern-LLM-Serving"><span class="nav-number">1.</span> <span class="nav-text">vLLM Deep Dive Series: Understanding Modern LLM Serving</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Series-Overview"><span class="nav-number">1.1.</span> <span class="nav-text">Series Overview</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Why-vLLM-Matters"><span class="nav-number">1.2.</span> <span class="nav-text">Why vLLM Matters</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#What-Makes-This-Series-Different"><span class="nav-number">1.3.</span> <span class="nav-text">What Makes This Series Different</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Series-Structure"><span class="nav-number">1.4.</span> <span class="nav-text">Series Structure</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-1-Architecture-Overview"><span class="nav-number">1.4.1.</span> <span class="nav-text">Part 1: Architecture Overview</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-2-PagedAttention-The-Core-Innovation"><span class="nav-number">1.4.2.</span> <span class="nav-text">Part 2: PagedAttention - The Core Innovation</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-3-The-Scheduler-Brain-of-vLLM"><span class="nav-number">1.4.3.</span> <span class="nav-text">Part 3: The Scheduler - Brain of vLLM</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-4-KV-Cache-Management"><span class="nav-number">1.4.4.</span> <span class="nav-text">Part 4: KV Cache Management</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-5-Request-Processing-Pipeline"><span class="nav-number">1.4.5.</span> <span class="nav-text">Part 5: Request Processing Pipeline</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-6-Distributed-Execution"><span class="nav-number">1.4.6.</span> <span class="nav-text">Part 6: Distributed Execution</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-7-Model-Execution-and-Workers"><span class="nav-number">1.4.7.</span> <span class="nav-text">Part 7: Model Execution and Workers</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-8-Advanced-Features"><span class="nav-number">1.4.8.</span> <span class="nav-text">Part 8: Advanced Features</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-9-Performance-Optimizations"><span class="nav-number">1.4.9.</span> <span class="nav-text">Part 9: Performance Optimizations</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Part-10-V1-vs-V0-Architecture"><span class="nav-number">1.4.10.</span> <span class="nav-text">Part 10: V1 vs V0 Architecture</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Target-Audience"><span class="nav-number">1.5.</span> <span class="nav-text">Target Audience</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Prerequisites"><span class="nav-number">1.6.</span> <span class="nav-text">Prerequisites</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Code-References"><span class="nav-number">1.7.</span> <span class="nav-text">Code References</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Let%E2%80%99s-Begin"><span class="nav-number">1.8.</span> <span class="nav-text">Let’s Begin</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">62</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">141</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-00-series-overview/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="vLLM Deep Dive Series: Understanding Modern LLM Serving | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          vLLM Deep Dive Series: Understanding Modern LLM Serving
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-13 13:58:00 / Modified: 21:24:34" itemprop="dateCreated datePublished" datetime="2026-04-13T13:58:00+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/AI-ML/" itemprop="url" rel="index"><span itemprop="name">AI/ML</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="vLLM-Deep-Dive-Series-Understanding-Modern-LLM-Serving"><a href="#vLLM-Deep-Dive-Series-Understanding-Modern-LLM-Serving" class="headerlink" title="vLLM Deep Dive Series: Understanding Modern LLM Serving"></a>vLLM Deep Dive Series: Understanding Modern LLM Serving</h1><h2 id="Series-Overview"><a href="#Series-Overview" class="headerlink" title="Series Overview"></a>Series Overview</h2><p>This series provides a comprehensive technical deep-dive into vLLM, one of the most important open-source projects for LLM inference and serving. Originally developed at UC Berkeley’s Sky Computing Lab, vLLM has become the de facto standard for high-performance LLM serving in production environments.</p>
+<span id="more"></span>
+
+<h2 id="Why-vLLM-Matters"><a href="#Why-vLLM-Matters" class="headerlink" title="Why vLLM Matters"></a>Why vLLM Matters</h2><p>vLLM revolutionized LLM serving through several key innovations:</p>
+<ol>
+<li><strong>PagedAttention</strong>: A novel memory management technique that applies virtual memory concepts to attention computation, dramatically reducing memory waste</li>
+<li><strong>Continuous Batching</strong>: Dynamic batching of requests with different lengths and states</li>
+<li><strong>State-of-the-art Performance</strong>: Industry-leading throughput for LLM inference</li>
+<li><strong>Production-Ready</strong>: Battle-tested in real-world deployments serving billions of requests</li>
+</ol>
+<h2 id="What-Makes-This-Series-Different"><a href="#What-Makes-This-Series-Different" class="headerlink" title="What Makes This Series Different"></a>What Makes This Series Different</h2><p>Most documentation focuses on how to use vLLM. This series goes deep into how vLLM actually works under the hood. We’ll explore:</p>
+<ul>
+<li>The complete architecture from API server to CUDA kernels</li>
+<li>How PagedAttention actually works at the implementation level</li>
+<li>The scheduler’s decision-making process</li>
+<li>Memory management and KV cache coordination</li>
+<li>Distributed execution across multiple GPUs</li>
+<li>Kernel optimizations and CUDA graph usage</li>
+</ul>
+<h2 id="Series-Structure"><a href="#Series-Structure" class="headerlink" title="Series Structure"></a>Series Structure</h2><h3 id="Part-1-Architecture-Overview"><a href="#Part-1-Architecture-Overview" class="headerlink" title="Part 1: Architecture Overview"></a>Part 1: Architecture Overview</h3><ul>
+<li>System architecture and process model</li>
+<li>Request lifecycle from API to output</li>
+<li>Core components: LLMEngine, Scheduler, Worker, ModelRunner</li>
+</ul>
+<h3 id="Part-2-PagedAttention-The-Core-Innovation"><a href="#Part-2-PagedAttention-The-Core-Innovation" class="headerlink" title="Part 2: PagedAttention - The Core Innovation"></a>Part 2: PagedAttention - The Core Innovation</h3><ul>
+<li>The memory problem in LLM serving</li>
+<li>PagedAttention design and implementation</li>
+<li>Block pool management and allocation</li>
+<li>Prefix caching for shared prompts</li>
+</ul>
+<h3 id="Part-3-The-Scheduler-Brain-of-vLLM"><a href="#Part-3-The-Scheduler-Brain-of-vLLM" class="headerlink" title="Part 3: The Scheduler - Brain of vLLM"></a>Part 3: The Scheduler - Brain of vLLM</h3><ul>
+<li>Continuous batching implementation</li>
+<li>Request prioritization and preemption</li>
+<li>Chunked prefill strategy</li>
+<li>Token budget management</li>
+</ul>
+<h3 id="Part-4-KV-Cache-Management"><a href="#Part-4-KV-Cache-Management" class="headerlink" title="Part 4: KV Cache Management"></a>Part 4: KV Cache Management</h3><ul>
+<li>KV cache coordinator architecture</li>
+<li>Block allocation and deallocation</li>
+<li>Prefix matching and cache hits</li>
+<li>Multi-group cache management</li>
+</ul>
+<h3 id="Part-5-Request-Processing-Pipeline"><a href="#Part-5-Request-Processing-Pipeline" class="headerlink" title="Part 5: Request Processing Pipeline"></a>Part 5: Request Processing Pipeline</h3><ul>
+<li>Input processing and tokenization</li>
+<li>Request state management</li>
+<li>Output processing and streaming</li>
+<li>Multi-turn conversation handling</li>
+</ul>
+<h3 id="Part-6-Distributed-Execution"><a href="#Part-6-Distributed-Execution" class="headerlink" title="Part 6: Distributed Execution"></a>Part 6: Distributed Execution</h3><ul>
+<li>Tensor parallelism implementation</li>
+<li>Pipeline parallelism</li>
+<li>Data parallelism with multiple engines</li>
+<li>Cross-process communication via ZMQ</li>
+</ul>
+<h3 id="Part-7-Model-Execution-and-Workers"><a href="#Part-7-Model-Execution-and-Workers" class="headerlink" title="Part 7: Model Execution and Workers"></a>Part 7: Model Execution and Workers</h3><ul>
+<li>Worker process architecture</li>
+<li>Model runner and forward pass</li>
+<li>CUDA graph optimization</li>
+<li>Kernel fusion and optimization</li>
+</ul>
+<h3 id="Part-8-Advanced-Features"><a href="#Part-8-Advanced-Features" class="headerlink" title="Part 8: Advanced Features"></a>Part 8: Advanced Features</h3><ul>
+<li>Speculative decoding (EAGLE, n-gram)</li>
+<li>Structured output generation</li>
+<li>Multi-modal model support</li>
+<li>LoRA adapter management</li>
+</ul>
+<h3 id="Part-9-Performance-Optimizations"><a href="#Part-9-Performance-Optimizations" class="headerlink" title="Part 9: Performance Optimizations"></a>Part 9: Performance Optimizations</h3><ul>
+<li>Quantization support (FP8, INT8, INT4)</li>
+<li>Fused kernels and custom CUDA operations</li>
+<li>FlashAttention integration</li>
+<li>Memory-efficient attention backends</li>
+</ul>
+<h3 id="Part-10-V1-vs-V0-Architecture"><a href="#Part-10-V1-vs-V0-Architecture" class="headerlink" title="Part 10: V1 vs V0 Architecture"></a>Part 10: V1 vs V0 Architecture</h3><ul>
+<li>The V1 refactoring</li>
+<li>Multi-process architecture benefits</li>
+<li>Backward compatibility</li>
+<li>Migration considerations</li>
+</ul>
+<h2 id="Target-Audience"><a href="#Target-Audience" class="headerlink" title="Target Audience"></a>Target Audience</h2><p>This series is for:</p>
+<ul>
+<li>Machine Learning Engineers building LLM applications</li>
+<li>Systems Engineers optimizing inference infrastructure</li>
+<li>Researchers working on LLM serving</li>
+<li>Contributors to vLLM or similar projects</li>
+<li>Anyone curious about production LLM systems</li>
+</ul>
+<h2 id="Prerequisites"><a href="#Prerequisites" class="headerlink" title="Prerequisites"></a>Prerequisites</h2><p>To get the most out of this series, you should have:</p>
+<ul>
+<li>Basic understanding of transformer models and attention mechanisms</li>
+<li>Familiarity with Python and PyTorch</li>
+<li>General knowledge of distributed systems</li>
+<li>Some exposure to CUDA programming (helpful but not required)</li>
+</ul>
+<h2 id="Code-References"><a href="#Code-References" class="headerlink" title="Code References"></a>Code References</h2><p>All code examples are based on vLLM’s main branch as of April 2026. The codebase is located at:</p>
+<ul>
+<li>GitHub: <a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm">https://github.com/vllm-project/vllm</a></li>
+<li>Documentation: <a target="_blank" rel="noopener" href="https://docs.vllm.ai/">https://docs.vllm.ai</a></li>
+</ul>
+<p>Key files we’ll reference throughout:</p>
+<ul>
+<li><code>vllm/v1/engine/llm_engine.py</code> - Main engine implementation</li>
+<li><code>vllm/v1/core/sched/scheduler.py</code> - Scheduler logic</li>
+<li><code>vllm/v1/core/kv_cache_manager.py</code> - KV cache management</li>
+<li><code>vllm/v1/worker/gpu_worker.py</code> - GPU worker implementation</li>
+<li><code>vllm/v1/attention/</code> - Attention implementations</li>
+</ul>
+<h2 id="Let’s-Begin"><a href="#Let’s-Begin" class="headerlink" title="Let’s Begin"></a>Let’s Begin</h2><p>The journey through vLLM’s internals will give you a deep appreciation for the engineering challenges in serving large language models at scale. We’ll see how clever algorithms, careful systems design, and low-level optimizations combine to make LLM serving practical and efficient.</p>
+<p>Ready? Let’s dive into Part 1: Architecture Overview.</p>
+<hr>
+<p><em>This is a living document series. As vLLM evolves, we’ll update the posts to reflect the latest architecture and best practices.</em></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/vLLM/" rel="tag"># vLLM</a>
+              <a href="/tags/LLM/" rel="tag"># LLM</a>
+              <a href="/tags/Machine-Learning/" rel="tag"># Machine Learning</a>
+              <a href="/tags/AI-Infrastructure/" rel="tag"># AI Infrastructure</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-filesystem-series-overview/" rel="prev" title="Linux 存储与文件系统深度剖析系列（一）：总览与架构">
+                  <i class="fa fa-angle-left"></i> Linux 存储与文件系统深度剖析系列（一）：总览与架构
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/13/2026-04-13-vllm-deep-dive-01-architecture/" rel="next" title="vLLM Deep Dive Part 1: Architecture Overview">
+                  vLLM Deep Dive Part 1: Architecture Overview <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

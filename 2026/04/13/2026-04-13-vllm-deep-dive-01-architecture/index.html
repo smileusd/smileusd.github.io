@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Part 1: vLLM Architecture OverviewIntroductionBefore diving into specific components, we need to understand vLLM’s overall architecture. This post maps out the major components and how they interact,">
+<meta property="og:type" content="article">
+<meta property="og:title" content="vLLM Deep Dive Part 1: Architecture Overview">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-01-architecture/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Part 1: vLLM Architecture OverviewIntroductionBefore diving into specific components, we need to understand vLLM’s overall architecture. This post maps out the major components and how they interact,">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-13T06:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-13T13:25:15.256Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="vLLM">
+<meta property="article:tag" content="LLM">
+<meta property="article:tag" content="Architecture">
+<meta property="article:tag" content="System Design">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-01-architecture/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-01-architecture/","path":"2026/04/13/2026-04-13-vllm-deep-dive-01-architecture/","title":"vLLM Deep Dive Part 1: Architecture Overview"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>vLLM Deep Dive Part 1: Architecture Overview | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Part-1-vLLM-Architecture-Overview"><span class="nav-number">1.</span> <span class="nav-text">Part 1: vLLM Architecture Overview</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Introduction"><span class="nav-number">1.1.</span> <span class="nav-text">Introduction</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#The-30-000-Foot-View"><span class="nav-number">1.2.</span> <span class="nav-text">The 30,000-Foot View</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#High-Level-Data-Flow"><span class="nav-number">1.3.</span> <span class="nav-text">High-Level Data Flow</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#V1-Multi-Process-Architecture"><span class="nav-number">1.4.</span> <span class="nav-text">V1 Multi-Process Architecture</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-API-Server-Process"><span class="nav-number">1.4.1.</span> <span class="nav-text">1. API Server Process</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Engine-Core-Process"><span class="nav-number">1.4.2.</span> <span class="nav-text">2. Engine Core Process</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-GPU-Worker-Processes"><span class="nav-number">1.4.3.</span> <span class="nav-text">3. GPU Worker Processes</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-DP-Coordinator-Process-Conditional"><span class="nav-number">1.4.4.</span> <span class="nav-text">4. DP Coordinator Process (Conditional)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Process-Count-Examples"><span class="nav-number">1.5.</span> <span class="nav-text">Process Count Examples</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Example-1-Single-GPU"><span class="nav-number">1.5.1.</span> <span class="nav-text">Example 1: Single GPU</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Example-2-Tensor-Parallelism-4-GPUs"><span class="nav-number">1.5.2.</span> <span class="nav-text">Example 2: Tensor Parallelism (4 GPUs)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Example-3-Data-Parallelism-4-GPUs"><span class="nav-number">1.5.3.</span> <span class="nav-text">Example 3: Data Parallelism (4 GPUs)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Example-4-Mixed-Parallelism-8-GPUs"><span class="nav-number">1.5.4.</span> <span class="nav-text">Example 4: Mixed Parallelism (8 GPUs)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Core-Components-Deep-Dive"><span class="nav-number">1.6.</span> <span class="nav-text">Core Components Deep Dive</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#LLMEngine"><span class="nav-number">1.6.1.</span> <span class="nav-text">LLMEngine</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Scheduler"><span class="nav-number">1.6.2.</span> <span class="nav-text">Scheduler</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#KV-Cache-Manager"><span class="nav-number">1.6.3.</span> <span class="nav-text">KV Cache Manager</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Worker-and-ModelRunner"><span class="nav-number">1.6.4.</span> <span class="nav-text">Worker and ModelRunner</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Request-Lifecycle"><span class="nav-number">1.7.</span> <span class="nav-text">Request Lifecycle</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Request-Arrives"><span class="nav-number">1.7.1.</span> <span class="nav-text">1. Request Arrives</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-API-Server-Processing"><span class="nav-number">1.7.2.</span> <span class="nav-text">2. API Server Processing</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Engine-Core-Receives"><span class="nav-number">1.7.3.</span> <span class="nav-text">3. Engine Core Receives</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-First-Scheduling-Iteration"><span class="nav-number">1.7.4.</span> <span class="nav-text">4. First Scheduling Iteration</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-Worker-Execution"><span class="nav-number">1.7.5.</span> <span class="nav-text">5. Worker Execution</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-Output-Processing"><span class="nav-number">1.7.6.</span> <span class="nav-text">6. Output Processing</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-API-Server-Streaming"><span class="nav-number">1.7.7.</span> <span class="nav-text">7. API Server Streaming</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-Subsequent-Iterations"><span class="nav-number">1.7.8.</span> <span class="nav-text">8. Subsequent Iterations</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-Request-Completion"><span class="nav-number">1.7.9.</span> <span class="nav-text">9. Request Completion</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Configuration-and-Initialization"><span class="nav-number">1.8.</span> <span class="nav-text">Configuration and Initialization</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Class-Hierarchy"><span class="nav-number">1.9.</span> <span class="nav-text">Class Hierarchy</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Inter-Process-Communication"><span class="nav-number">1.10.</span> <span class="nav-text">Inter-Process Communication</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ZMQ-Sockets"><span class="nav-number">1.10.1.</span> <span class="nav-text">ZMQ Sockets</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NCCL-for-GPU-Communication"><span class="nav-number">1.10.2.</span> <span class="nav-text">NCCL for GPU Communication</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Memory-Layout"><span class="nav-number">1.11.</span> <span class="nav-text">Memory Layout</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#GPU-Memory-Breakdown"><span class="nav-number">1.11.1.</span> <span class="nav-text">GPU Memory Breakdown</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#KV-Cache-Memory"><span class="nav-number">1.11.2.</span> <span class="nav-text">KV Cache Memory</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Performance-Characteristics"><span class="nav-number">1.12.</span> <span class="nav-text">Performance Characteristics</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#What%E2%80%99s-Next"><span class="nav-number">1.13.</span> <span class="nav-text">What’s Next</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Key-Takeaways"><span class="nav-number">1.14.</span> <span class="nav-text">Key Takeaways</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#References"><span class="nav-number">1.15.</span> <span class="nav-text">References</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">62</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">141</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-01-architecture/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="vLLM Deep Dive Part 1: Architecture Overview | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          vLLM Deep Dive Part 1: Architecture Overview
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-13 14:00:00 / Modified: 21:25:15" itemprop="dateCreated datePublished" datetime="2026-04-13T14:00:00+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/AI-ML/" itemprop="url" rel="index"><span itemprop="name">AI/ML</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="Part-1-vLLM-Architecture-Overview"><a href="#Part-1-vLLM-Architecture-Overview" class="headerlink" title="Part 1: vLLM Architecture Overview"></a>Part 1: vLLM Architecture Overview</h1><h2 id="Introduction"><a href="#Introduction" class="headerlink" title="Introduction"></a>Introduction</h2><p>Before diving into specific components, we need to understand vLLM’s overall architecture. This post maps out the major components and how they interact, providing the foundation for deeper exploration in subsequent parts.</p>
+<h2 id="The-30-000-Foot-View"><a href="#The-30-000-Foot-View" class="headerlink" title="The 30,000-Foot View"></a>The 30,000-Foot View</h2><p>vLLM is designed around a few key principles:</p>
+<ol>
+<li><strong>Separation of Concerns</strong>: Different aspects (scheduling, execution, serving) are handled by distinct components</li>
+<li><strong>Process Isolation</strong>: V1 architecture uses multiple processes for robustness and CPU efficiency</li>
+<li><strong>Asynchronous Processing</strong>: Requests flow through pipelines without blocking</li>
+<li><strong>Distributed by Default</strong>: Built from the ground up to support multi-GPU execution</li>
+</ol>
+<h2 id="High-Level-Data-Flow"><a href="#High-Level-Data-Flow" class="headerlink" title="High-Level Data Flow"></a>High-Level Data Flow</h2><p>Here’s what happens when you send a request to vLLM:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">User Request (HTTP/gRPC)</span><br><span class="line">    ↓</span><br><span class="line">API Server Process</span><br><span class="line">    ↓ (ZMQ Socket)</span><br><span class="line">Engine Core Process</span><br><span class="line">    ↓</span><br><span class="line">Scheduler</span><br><span class="line">    ↓</span><br><span class="line">GPU Worker Processes</span><br><span class="line">    ↓ (NCCL/Collective Ops)</span><br><span class="line">Model Execution</span><br><span class="line">    ↓</span><br><span class="line">Output Processing</span><br><span class="line">    ↓ (ZMQ Socket)</span><br><span class="line">API Server Process</span><br><span class="line">    ↓</span><br><span class="line">Streaming Response to User</span><br></pre></td></tr></table></figure>
+
+<h2 id="V1-Multi-Process-Architecture"><a href="#V1-Multi-Process-Architecture" class="headerlink" title="V1 Multi-Process Architecture"></a>V1 Multi-Process Architecture</h2><p>The V1 architecture (introduced in late 2024) uses a multi-process design for better CPU utilization and isolation. Let’s understand each process type:</p>
+<h3 id="1-API-Server-Process"><a href="#1-API-Server-Process" class="headerlink" title="1. API Server Process"></a>1. API Server Process</h3><p><strong>Purpose</strong>: Handle HTTP&#x2F;gRPC requests and I&#x2F;O operations</p>
+<p><strong>Responsibilities</strong>:</p>
+<ul>
+<li>Receive and validate HTTP requests</li>
+<li>Tokenize input text</li>
+<li>Load multi-modal data (images, audio)</li>
+<li>Stream outputs back to clients</li>
+<li>Handle API authentication and rate limiting</li>
+</ul>
+<p><strong>Key Implementation</strong>: <code>vllm/entrypoints/openai/api_server.py</code></p>
+<p>The API server is stateless with respect to model execution. It doesn’t know about GPU memory, KV caches, or model weights. It simply:</p>
+<ol>
+<li>Converts user requests to <code>EngineCoreRequest</code> objects</li>
+<li>Sends them to engine cores via ZMQ</li>
+<li>Receives <code>EngineCoreOutput</code> objects back</li>
+<li>Converts them to API responses</li>
+</ol>
+<p><strong>Process Count</strong>: By default, 1 API server. With data parallelism (<code>--data-parallel-size N</code>), automatically scales to N API servers.</p>
+<p><strong>CPU Threads</strong>: Uses <code>VLLM_MEDIA_LOADING_THREAD_COUNT</code> threads (default 8) for parallel media loading.</p>
+<h3 id="2-Engine-Core-Process"><a href="#2-Engine-Core-Process" class="headerlink" title="2. Engine Core Process"></a>2. Engine Core Process</h3><p><strong>Purpose</strong>: Schedule requests and coordinate model execution</p>
+<p><strong>Responsibilities</strong>:</p>
+<ul>
+<li>Maintain the request queue</li>
+<li>Run the scheduler to decide what to compute</li>
+<li>Manage KV cache allocation</li>
+<li>Coordinate GPU workers</li>
+<li>Handle request preemption and swapping</li>
+</ul>
+<p><strong>Key Implementation</strong>: <code>vllm/v1/engine/core.py</code></p>
+<p>The engine core runs a tight loop:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">    <span class="comment"># 1. Receive new requests from API servers</span></span><br><span class="line">    new_requests = receive_requests()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 2. Schedule which requests to process</span></span><br><span class="line">    scheduler_output = scheduler.schedule()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 3. Dispatch work to GPU workers</span></span><br><span class="line">    dispatch_to_workers(scheduler_output)</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 4. Collect outputs and send back to API servers</span></span><br><span class="line">    outputs = collect_outputs()</span><br><span class="line">    send_outputs(outputs)</span><br></pre></td></tr></table></figure>
+
+<p><strong>Process Count</strong>: One per data parallel rank. For <code>--data-parallel-size 4</code>, you get 4 engine cores.</p>
+<p><strong>CPU Usage</strong>: Runs a busy loop for low-latency scheduling decisions.</p>
+<h3 id="3-GPU-Worker-Processes"><a href="#3-GPU-Worker-Processes" class="headerlink" title="3. GPU Worker Processes"></a>3. GPU Worker Processes</h3><p><strong>Purpose</strong>: Execute model forward passes on GPUs</p>
+<p><strong>Responsibilities</strong>:</p>
+<ul>
+<li>Load model weights onto GPU</li>
+<li>Execute forward passes</li>
+<li>Manage GPU memory</li>
+<li>Run CUDA kernels (attention, FFN, etc.)</li>
+<li>Participate in collective operations (for tensor&#x2F;pipeline parallelism)</li>
+</ul>
+<p><strong>Key Implementation</strong>: <code>vllm/v1/worker/gpu_worker.py</code></p>
+<p>Each GPU gets its own worker process. The worker:</p>
+<ol>
+<li>Loads its shard of model weights</li>
+<li>Receives execution requests from its engine core</li>
+<li>Runs the model forward pass</li>
+<li>Returns outputs (logits, KV cache updates)</li>
+</ol>
+<p><strong>Process Count</strong>: One per GPU. For 8 GPUs with <code>--tensor-parallel-size 4 --data-parallel-size 2</code>:</p>
+<ul>
+<li>8 GPU workers total</li>
+<li>2 groups of 4 (tensor parallel groups)</li>
+<li>2 engine cores (one per data parallel rank)</li>
+</ul>
+<h3 id="4-DP-Coordinator-Process-Conditional"><a href="#4-DP-Coordinator-Process-Conditional" class="headerlink" title="4. DP Coordinator Process (Conditional)"></a>4. DP Coordinator Process (Conditional)</h3><p><strong>Purpose</strong>: Coordinate data parallel engines</p>
+<p><strong>Responsibilities</strong>:</p>
+<ul>
+<li>Load balance across data parallel ranks</li>
+<li>Synchronize MoE model execution</li>
+<li>Route requests to least-loaded engine</li>
+</ul>
+<p><strong>Key Implementation</strong>: <code>vllm/v1/engine/coordinator.py</code></p>
+<p><strong>Process Count</strong>: 1 if <code>--data-parallel-size &gt; 1</code>, otherwise 0.</p>
+<h2 id="Process-Count-Examples"><a href="#Process-Count-Examples" class="headerlink" title="Process Count Examples"></a>Process Count Examples</h2><p>Let’s see some concrete examples:</p>
+<h3 id="Example-1-Single-GPU"><a href="#Example-1-Single-GPU" class="headerlink" title="Example 1: Single GPU"></a>Example 1: Single GPU</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-8B</span><br></pre></td></tr></table></figure>
+
+<p>Processes:</p>
+<ul>
+<li>1 API Server</li>
+<li>1 Engine Core</li>
+<li>1 GPU Worker</li>
+<li><strong>Total: 3 processes</strong></li>
+</ul>
+<h3 id="Example-2-Tensor-Parallelism-4-GPUs"><a href="#Example-2-Tensor-Parallelism-4-GPUs" class="headerlink" title="Example 2: Tensor Parallelism (4 GPUs)"></a>Example 2: Tensor Parallelism (4 GPUs)</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-70B --tensor-parallel-size 4</span><br></pre></td></tr></table></figure>
+
+<p>Processes:</p>
+<ul>
+<li>1 API Server</li>
+<li>1 Engine Core</li>
+<li>4 GPU Workers (one per GPU)</li>
+<li><strong>Total: 6 processes</strong></li>
+</ul>
+<h3 id="Example-3-Data-Parallelism-4-GPUs"><a href="#Example-3-Data-Parallelism-4-GPUs" class="headerlink" title="Example 3: Data Parallelism (4 GPUs)"></a>Example 3: Data Parallelism (4 GPUs)</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-8B --data-parallel-size 4</span><br></pre></td></tr></table></figure>
+
+<p>Processes:</p>
+<ul>
+<li>4 API Servers (scales with DP)</li>
+<li>4 Engine Cores (one per DP rank)</li>
+<li>4 GPU Workers (one per GPU)</li>
+<li>1 DP Coordinator</li>
+<li><strong>Total: 13 processes</strong></li>
+</ul>
+<h3 id="Example-4-Mixed-Parallelism-8-GPUs"><a href="#Example-4-Mixed-Parallelism-8-GPUs" class="headerlink" title="Example 4: Mixed Parallelism (8 GPUs)"></a>Example 4: Mixed Parallelism (8 GPUs)</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-70B --tensor-parallel-size 2 --data-parallel-size 4</span><br></pre></td></tr></table></figure>
+
+<p>Processes:</p>
+<ul>
+<li>4 API Servers</li>
+<li>4 Engine Cores (one per DP rank)</li>
+<li>8 GPU Workers (2 per DP rank, one per GPU)</li>
+<li>1 DP Coordinator</li>
+<li><strong>Total: 17 processes</strong></li>
+</ul>
+<h2 id="Core-Components-Deep-Dive"><a href="#Core-Components-Deep-Dive" class="headerlink" title="Core Components Deep Dive"></a>Core Components Deep Dive</h2><h3 id="LLMEngine"><a href="#LLMEngine" class="headerlink" title="LLMEngine"></a>LLMEngine</h3><p>The <code>LLMEngine</code> class is the main entry point for offline inference (using the Python API directly).</p>
+<p><strong>Location</strong>: <code>vllm/v1/engine/llm_engine.py</code></p>
+<p>Key responsibilities:</p>
+<ul>
+<li>Create and manage the engine core</li>
+<li>Process inputs via <code>InputProcessor</code></li>
+<li>Convert outputs via <code>OutputProcessor</code></li>
+<li>Handle request lifecycle</li>
+</ul>
+<p><strong>Usage example</strong>:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> vllm <span class="keyword">import</span> LLM, SamplingParams</span><br><span class="line"></span><br><span class="line"><span class="comment"># Initialize engine</span></span><br><span class="line">llm = LLM(model=<span class="string">&quot;meta-llama/Llama-3-8B&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Generate</span></span><br><span class="line">outputs = llm.generate(</span><br><span class="line">    [<span class="string">&quot;Hello, my name is&quot;</span>],</span><br><span class="line">    SamplingParams(temperature=<span class="number">0.8</span>, top_p=<span class="number">0.95</span>)</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p>Under the hood, <code>LLM</code> creates an <code>LLMEngine</code>, which creates an <code>EngineCore</code>, which coordinates the workers.</p>
+<h3 id="Scheduler"><a href="#Scheduler" class="headerlink" title="Scheduler"></a>Scheduler</h3><p>The scheduler is the brain of vLLM. It decides:</p>
+<ul>
+<li>Which requests to process in each iteration</li>
+<li>How many tokens to compute for each request</li>
+<li>When to preempt requests (and which ones)</li>
+<li>How to allocate KV cache blocks</li>
+</ul>
+<p><strong>Location</strong>: <code>vllm/v1/core/sched/scheduler.py</code></p>
+<p>The scheduler maintains three queues:</p>
+<ol>
+<li><strong>Waiting</strong>: New requests waiting to start</li>
+<li><strong>Running</strong>: Requests being actively processed</li>
+<li><strong>Skipped Waiting</strong>: Requests temporarily skipped due to dependencies</li>
+</ol>
+<p><strong>Scheduling algorithm</strong> (simplified):</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">schedule</span>(<span class="params">self</span>) -&gt; SchedulerOutput:</span><br><span class="line">    scheduled_requests = []</span><br><span class="line">    token_budget = max_num_scheduled_tokens</span><br><span class="line"></span><br><span class="line">    <span class="comment"># First, schedule running requests (priority)</span></span><br><span class="line">    <span class="keyword">for</span> req <span class="keyword">in</span> running:</span><br><span class="line">        <span class="keyword">if</span> token_budget &gt; <span class="number">0</span>:</span><br><span class="line">            num_tokens = <span class="built_in">min</span>(req.remaining_tokens, token_budget)</span><br><span class="line">            scheduled_requests.append((req, num_tokens))</span><br><span class="line">            token_budget -= num_tokens</span><br><span class="line"></span><br><span class="line">    <span class="comment"># Then, schedule waiting requests</span></span><br><span class="line">    <span class="keyword">for</span> req <span class="keyword">in</span> waiting:</span><br><span class="line">        <span class="keyword">if</span> token_budget &gt;= req.num_prompt_tokens:</span><br><span class="line">            scheduled_requests.append((req, req.num_prompt_tokens))</span><br><span class="line">            token_budget -= req.num_prompt_tokens</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="keyword">break</span>  <span class="comment"># Not enough budget</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> SchedulerOutput(scheduled_requests)</span><br></pre></td></tr></table></figure>
+
+<p>We’ll explore the scheduler in depth in Part 3.</p>
+<h3 id="KV-Cache-Manager"><a href="#KV-Cache-Manager" class="headerlink" title="KV Cache Manager"></a>KV Cache Manager</h3><p>Manages memory for attention key-value caches using PagedAttention.</p>
+<p><strong>Location</strong>: <code>vllm/v1/core/kv_cache_manager.py</code></p>
+<p>Key concepts:</p>
+<ul>
+<li><strong>Block</strong>: Fixed-size chunk of KV cache (e.g., 16 tokens)</li>
+<li><strong>Block Pool</strong>: Pre-allocated pool of blocks</li>
+<li><strong>Block Table</strong>: Mapping from logical positions to physical blocks</li>
+<li><strong>Prefix Cache</strong>: Shared blocks for common prompt prefixes</li>
+</ul>
+<p><strong>Example</strong>: If block size is 16 and we have 1000 blocks, we can serve:</p>
+<ul>
+<li>1 request with 16,000 tokens, or</li>
+<li>16 requests with 1,000 tokens each, or</li>
+<li>Any combination that fits in 1000 blocks</li>
+</ul>
+<p>We’ll dive deep into PagedAttention in Part 2.</p>
+<h3 id="Worker-and-ModelRunner"><a href="#Worker-and-ModelRunner" class="headerlink" title="Worker and ModelRunner"></a>Worker and ModelRunner</h3><p>The worker process loads the model and executes forward passes.</p>
+<p><strong>Worker</strong> (<code>vllm/v1/worker/gpu_worker.py</code>):</p>
+<ul>
+<li>Manages GPU device</li>
+<li>Initializes model weights</li>
+<li>Coordinates with other workers (for TP&#x2F;PP)</li>
+</ul>
+<p><strong>ModelRunner</strong> (varies by backend):</p>
+<ul>
+<li>Prepares input tensors</li>
+<li>Executes model forward pass</li>
+<li>Applies CUDA graph optimization</li>
+<li>Returns output logits</li>
+</ul>
+<h2 id="Request-Lifecycle"><a href="#Request-Lifecycle" class="headerlink" title="Request Lifecycle"></a>Request Lifecycle</h2><p>Let’s trace a complete request through the system:</p>
+<h3 id="1-Request-Arrives"><a href="#1-Request-Arrives" class="headerlink" title="1. Request Arrives"></a>1. Request Arrives</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">POST /v1/completions</span><br><span class="line">&#123;</span><br><span class="line">  <span class="string">&quot;model&quot;</span>: <span class="string">&quot;meta-llama/Llama-3-8B&quot;</span>,</span><br><span class="line">  <span class="string">&quot;prompt&quot;</span>: <span class="string">&quot;The capital of France is&quot;</span>,</span><br><span class="line">  <span class="string">&quot;max_tokens&quot;</span>: <span class="number">50</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-API-Server-Processing"><a href="#2-API-Server-Processing" class="headerlink" title="2. API Server Processing"></a>2. API Server Processing</h3><ul>
+<li>Validate request</li>
+<li>Tokenize prompt: <code>[791, 3139, 315, 9822, 374]</code></li>
+<li>Create <code>EngineCoreRequest</code> object</li>
+<li>Send to engine core via ZMQ</li>
+</ul>
+<h3 id="3-Engine-Core-Receives"><a href="#3-Engine-Core-Receives" class="headerlink" title="3. Engine Core Receives"></a>3. Engine Core Receives</h3><ul>
+<li>Add request to scheduler’s waiting queue</li>
+<li>Assign request ID: <code>&quot;req_abc123&quot;</code></li>
+<li>Initialize request state</li>
+</ul>
+<h3 id="4-First-Scheduling-Iteration"><a href="#4-First-Scheduling-Iteration" class="headerlink" title="4. First Scheduling Iteration"></a>4. First Scheduling Iteration</h3><ul>
+<li>Scheduler sees new request in waiting queue</li>
+<li>Check KV cache: 5 tokens need computation</li>
+<li>Allocate KV cache blocks (1 block for 16-token block size)</li>
+<li>Schedule for prefill: compute all 5 tokens</li>
+</ul>
+<h3 id="5-Worker-Execution"><a href="#5-Worker-Execution" class="headerlink" title="5. Worker Execution"></a>5. Worker Execution</h3><ul>
+<li>Receive schedule from engine core</li>
+<li>Prepare input tensors</li>
+<li>Run model forward pass</li>
+<li>Generate first token (e.g., token ID 330 &#x3D; “Paris”)</li>
+<li>Return logits to engine core</li>
+</ul>
+<h3 id="6-Output-Processing"><a href="#6-Output-Processing" class="headerlink" title="6. Output Processing"></a>6. Output Processing</h3><ul>
+<li>Engine core receives logits</li>
+<li>Sample next token: 330 (“Paris”)</li>
+<li>Update request state: add token to output</li>
+<li>Send output to API server via ZMQ</li>
+</ul>
+<h3 id="7-API-Server-Streaming"><a href="#7-API-Server-Streaming" class="headerlink" title="7. API Server Streaming"></a>7. API Server Streaming</h3><ul>
+<li>Receive token from engine core</li>
+<li>Detokenize: “Paris”</li>
+<li>Stream to client: <code>data: &#123;&quot;text&quot;: &quot;Paris&quot;, &quot;finish_reason&quot;: null&#125;</code></li>
+</ul>
+<h3 id="8-Subsequent-Iterations"><a href="#8-Subsequent-Iterations" class="headerlink" title="8. Subsequent Iterations"></a>8. Subsequent Iterations</h3><ul>
+<li>Request moves to running queue</li>
+<li>Scheduler continues allocating tokens</li>
+<li>Each iteration: compute 1 new token (decode phase)</li>
+<li>Stream each token to client</li>
+</ul>
+<h3 id="9-Request-Completion"><a href="#9-Request-Completion" class="headerlink" title="9. Request Completion"></a>9. Request Completion</h3><ul>
+<li>Either max_tokens reached or EOS generated</li>
+<li>Free KV cache blocks (or keep in prefix cache)</li>
+<li>Send final completion to client</li>
+<li>Remove request from scheduler</li>
+</ul>
+<h2 id="Configuration-and-Initialization"><a href="#Configuration-and-Initialization" class="headerlink" title="Configuration and Initialization"></a>Configuration and Initialization</h2><p>vLLM’s configuration is centralized in <code>VllmConfig</code>:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> vllm.config <span class="keyword">import</span> VllmConfig</span><br><span class="line"></span><br><span class="line">vllm_config = VllmConfig(</span><br><span class="line">    model_config=ModelConfig(...),</span><br><span class="line">    cache_config=CacheConfig(...),</span><br><span class="line">    scheduler_config=SchedulerConfig(...),</span><br><span class="line">    parallel_config=ParallelConfig(...),</span><br><span class="line">    <span class="comment"># ... more configs</span></span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p>All components receive the same <code>VllmConfig</code> object, ensuring consistency.</p>
+<p><strong>Key configs</strong>:</p>
+<ul>
+<li><strong>ModelConfig</strong>: Model name, dtype, tokenizer</li>
+<li><strong>CacheConfig</strong>: KV cache size, block size, prefix caching</li>
+<li><strong>SchedulerConfig</strong>: Max batch size, scheduling policy</li>
+<li><strong>ParallelConfig</strong>: TP&#x2F;PP&#x2F;DP sizes, distributed backend</li>
+</ul>
+<h2 id="Class-Hierarchy"><a href="#Class-Hierarchy" class="headerlink" title="Class Hierarchy"></a>Class Hierarchy</h2><p>The class hierarchy follows a consistent pattern:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">LLMEngine</span><br><span class="line">  ├── InputProcessor (tokenization, preprocessing)</span><br><span class="line">  ├── EngineCore</span><br><span class="line">  │   ├── Scheduler</span><br><span class="line">  │   │   ├── KVCacheManager</span><br><span class="line">  │   │   ├── EncoderCacheManager</span><br><span class="line">  │   │   └── StructuredOutputManager</span><br><span class="line">  │   └── Executor</span><br><span class="line">  │       └── Workers (one per GPU)</span><br><span class="line">  │           └── ModelRunner</span><br><span class="line">  │               └── Model (nn.Module)</span><br><span class="line">  └── OutputProcessor (detokenization, streaming)</span><br></pre></td></tr></table></figure>
+
+<p>Every class accepts <code>VllmConfig</code> in its constructor, providing access to all configuration options.</p>
+<h2 id="Inter-Process-Communication"><a href="#Inter-Process-Communication" class="headerlink" title="Inter-Process Communication"></a>Inter-Process Communication</h2><h3 id="ZMQ-Sockets"><a href="#ZMQ-Sockets" class="headerlink" title="ZMQ Sockets"></a>ZMQ Sockets</h3><p>API servers and engine cores communicate via ZMQ:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># API Server side</span></span><br><span class="line">zmq_socket.send(pickle.dumps(request))</span><br><span class="line"></span><br><span class="line"><span class="comment"># Engine Core side</span></span><br><span class="line">request = pickle.loads(zmq_socket.recv())</span><br></pre></td></tr></table></figure>
+
+<p><strong>Why ZMQ?</strong></p>
+<ul>
+<li>High performance (microsecond latency)</li>
+<li>Flexible patterns (req-rep, pub-sub, push-pull)</li>
+<li>Built-in queue management</li>
+<li>Language agnostic</li>
+</ul>
+<h3 id="NCCL-for-GPU-Communication"><a href="#NCCL-for-GPU-Communication" class="headerlink" title="NCCL for GPU Communication"></a>NCCL for GPU Communication</h3><p>GPU workers use NCCL for collective operations:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Tensor parallelism: all-reduce across GPUs</span></span><br><span class="line">torch.distributed.all_reduce(</span><br><span class="line">    tensor,</span><br><span class="line">    op=torch.distributed.ReduceOp.SUM,</span><br><span class="line">    group=tensor_parallel_group</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p><strong>Communication patterns</strong>:</p>
+<ul>
+<li><strong>Tensor Parallel</strong>: All-reduce after attention&#x2F;FFN</li>
+<li><strong>Pipeline Parallel</strong>: Send&#x2F;recv between stages</li>
+<li><strong>Data Parallel</strong>: No communication during forward pass</li>
+</ul>
+<h2 id="Memory-Layout"><a href="#Memory-Layout" class="headerlink" title="Memory Layout"></a>Memory Layout</h2><p>Understanding memory is crucial for vLLM:</p>
+<h3 id="GPU-Memory-Breakdown"><a href="#GPU-Memory-Breakdown" class="headerlink" title="GPU Memory Breakdown"></a>GPU Memory Breakdown</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Total GPU Memory: 80GB (H100)</span><br><span class="line">├── Model Weights: 16GB (Llama-3-8B in FP16)</span><br><span class="line">├── KV Cache: 60GB (dynamically allocated blocks)</span><br><span class="line">├── Activation Memory: 2GB (for batch processing)</span><br><span class="line">└── Framework Overhead: 2GB (PyTorch, CUDA)</span><br></pre></td></tr></table></figure>
+
+<h3 id="KV-Cache-Memory"><a href="#KV-Cache-Memory" class="headerlink" title="KV Cache Memory"></a>KV Cache Memory</h3><p>For a 16-token block size with 8B model:</p>
+<ul>
+<li>Each block stores K and V for 32 attention layers</li>
+<li>Per block: 16 tokens × 32 layers × 2 (K,V) × 4096 dim × 2 bytes &#x3D; 8.4 MB</li>
+<li>With 60GB for KV cache: ~7,100 blocks</li>
+<li>Total capacity: ~113,600 tokens across all requests</li>
+</ul>
+<h2 id="Performance-Characteristics"><a href="#Performance-Characteristics" class="headerlink" title="Performance Characteristics"></a>Performance Characteristics</h2><p>Typical performance on H100 GPU:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Throughput</td>
+<td>~8,000 tokens&#x2F;sec (Llama-3-8B)</td>
+</tr>
+<tr>
+<td>Latency (TTFT)</td>
+<td>~20-50ms</td>
+</tr>
+<tr>
+<td>Latency (TPOT)</td>
+<td>~10-15ms</td>
+</tr>
+<tr>
+<td>Max Batch Size</td>
+<td>~256 concurrent requests</td>
+</tr>
+<tr>
+<td>Memory Efficiency</td>
+<td>~95% (vs ~60% without PagedAttention)</td>
+</tr>
+</tbody></table>
+<h2 id="What’s-Next"><a href="#What’s-Next" class="headerlink" title="What’s Next"></a>What’s Next</h2><p>Now that we understand the overall architecture, we can dive deeper into specific components:</p>
+<ul>
+<li><strong>Part 2</strong>: PagedAttention and KV cache management</li>
+<li><strong>Part 3</strong>: The scheduler’s decision-making process</li>
+<li><strong>Part 4</strong>: Request processing and state management</li>
+<li><strong>Part 5</strong>: Distributed execution and parallelism</li>
+</ul>
+<h2 id="Key-Takeaways"><a href="#Key-Takeaways" class="headerlink" title="Key Takeaways"></a>Key Takeaways</h2><ol>
+<li><strong>V1 uses multi-process architecture</strong> for better CPU utilization and fault isolation</li>
+<li><strong>Scheduler is the central coordinator</strong>, deciding what to compute each iteration</li>
+<li><strong>KV cache management</strong> (PagedAttention) is key to memory efficiency</li>
+<li><strong>Process count scales</strong> with parallelism: typically <code>API servers + Engine cores + GPU workers + (optional DP coordinator)</code></li>
+<li><strong>ZMQ enables efficient</strong> inter-process communication</li>
+<li><strong>All components share</strong> a unified <code>VllmConfig</code> for consistency</li>
+</ol>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://docs.vllm.ai/en/latest/design/arch_overview.html">vLLM Architecture Documentation</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core.py">Engine Core Implementation</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/sched/scheduler.py">Scheduler Implementation</a></li>
+<li><a target="_blank" rel="noopener" href="https://arxiv.org/abs/2309.06180">PagedAttention Paper</a></li>
+</ul>
+<hr>
+<p>In the next post, we’ll explore PagedAttention in detail, understanding how vLLM achieves near-zero memory waste through clever memory management.</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/vLLM/" rel="tag"># vLLM</a>
+              <a href="/tags/LLM/" rel="tag"># LLM</a>
+              <a href="/tags/Architecture/" rel="tag"># Architecture</a>
+              <a href="/tags/System-Design/" rel="tag"># System Design</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/13/2026-04-13-vllm-deep-dive-00-series-overview/" rel="prev" title="vLLM Deep Dive Series: Understanding Modern LLM Serving">
+                  <i class="fa fa-angle-left"></i> vLLM Deep Dive Series: Understanding Modern LLM Serving
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/13/2026-04-13-vllm-deep-dive-02-paged-attention/" rel="next" title="vLLM Deep Dive Part 2: PagedAttention - The Core Innovation">
+                  vLLM Deep Dive Part 2: PagedAttention - The Core Innovation <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

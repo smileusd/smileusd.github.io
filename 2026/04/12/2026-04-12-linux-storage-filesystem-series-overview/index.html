@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Linux 存储与文件系统深度剖析系列（一）：总览与架构系列介绍欢迎来到 Linux 存储与文件系统深度剖析系列！本系列将从代码级别深入探讨 Linux 内核中的存储子系统和文件系统实现，基于 Linux 6.4-rc1 内核源码进行分析。 系列文章目录 总览与架构（本文） VFS 虚拟文件系统层深度剖析 块设备层（Block Layer）详解 页缓存（Page Cache）与缓冲区缓存机制 Ex">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 存储与文件系统深度剖析系列（一）：总览与架构">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-filesystem-series-overview/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Linux 存储与文件系统深度剖析系列（一）：总览与架构系列介绍欢迎来到 Linux 存储与文件系统深度剖析系列！本系列将从代码级别深入探讨 Linux 内核中的存储子系统和文件系统实现，基于 Linux 6.4-rc1 内核源码进行分析。 系列文章目录 总览与架构（本文） VFS 虚拟文件系统层深度剖析 块设备层（Block Layer）详解 页缓存（Page Cache）与缓冲区缓存机制 Ex">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-12T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-12T02:15:47.397Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Storage">
+<meta property="article:tag" content="Filesystem">
+<meta property="article:tag" content="VFS">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-filesystem-series-overview/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-filesystem-series-overview/","path":"2026/04/12/2026-04-12-linux-storage-filesystem-series-overview/","title":"Linux 存储与文件系统深度剖析系列（一）：总览与架构"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 存储与文件系统深度剖析系列（一）：总览与架构 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Linux-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%B7%B1%E5%BA%A6%E5%89%96%E6%9E%90%E7%B3%BB%E5%88%97%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E6%80%BB%E8%A7%88%E4%B8%8E%E6%9E%B6%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">Linux 存储与文件系统深度剖析系列（一）：总览与架构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%B3%BB%E5%88%97%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.1.</span> <span class="nav-text">系列介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%B3%BB%E5%88%97%E6%96%87%E7%AB%A0%E7%9B%AE%E5%BD%95"><span class="nav-number">1.1.1.</span> <span class="nav-text">系列文章目录</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Linux-%E5%AD%98%E5%82%A8%E6%A0%88%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="nav-number">1.2.</span> <span class="nav-text">Linux 存储栈整体架构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E6%A6%82%E8%A7%88"><span class="nav-number">1.3.</span> <span class="nav-text">核心数据结构概览</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-VFS-%E5%B1%82%E6%A0%B8%E5%BF%83%E7%BB%93%E6%9E%84"><span class="nav-number">1.3.1.</span> <span class="nav-text">1. VFS 层核心结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Block-Layer-%E6%A0%B8%E5%BF%83%E7%BB%93%E6%9E%84"><span class="nav-number">1.3.2.</span> <span class="nav-text">2. Block Layer 核心结构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E9%94%AE%E6%BA%90%E7%A0%81%E6%96%87%E4%BB%B6%E4%BD%8D%E7%BD%AE"><span class="nav-number">1.4.</span> <span class="nav-text">关键源码文件位置</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#VFS-%E5%B1%82"><span class="nav-number">1.4.1.</span> <span class="nav-text">VFS 层</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Block-Layer"><span class="nav-number">1.4.2.</span> <span class="nav-text">Block Layer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#IO-Schedulers"><span class="nav-number">1.4.3.</span> <span class="nav-text">IO Schedulers</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%B7%E4%BD%93%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F"><span class="nav-number">1.4.4.</span> <span class="nav-text">具体文件系统</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Page-Cache"><span class="nav-number">1.4.5.</span> <span class="nav-text">Page Cache</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E4%B8%AA%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E7%9A%84%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B"><span class="nav-number">1.5.</span> <span class="nav-text">一个文件读取的完整流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5%E8%A7%A3%E6%9E%90"><span class="nav-number">1.6.</span> <span class="nav-text">核心概念解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%A1%B5%E7%BC%93%E5%AD%98%EF%BC%88Page-Cache%EF%BC%89"><span class="nav-number">1.6.1.</span> <span class="nav-text">1. 页缓存（Page Cache）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%9D%97-I-O-%E5%B1%82%EF%BC%88Block-Layer%EF%BC%89"><span class="nav-number">1.6.2.</span> <span class="nav-text">2. 块 I&#x2F;O 层（Block Layer）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-VFS%EF%BC%88Virtual-Filesystem-Switch%EF%BC%89"><span class="nav-number">1.6.3.</span> <span class="nav-text">3. VFS（Virtual Filesystem Switch）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%A3%E7%A0%81%E7%A4%BA%E4%BE%8B%EF%BC%9A%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E7%9A%84%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F"><span class="nav-number">1.7.</span> <span class="nav-text">代码示例：创建一个简单的文件系统</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%A7%E8%83%BD%E5%85%B3%E9%94%AE%E8%B7%AF%E5%BE%84"><span class="nav-number">1.8.</span> <span class="nav-text">性能关键路径</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%BF%AB%E9%80%9F%E8%B7%AF%E5%BE%84%EF%BC%88Fast-Path%EF%BC%89"><span class="nav-number">1.8.1.</span> <span class="nav-text">1. 快速路径（Fast Path）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%85%A2%E9%80%9F%E8%B7%AF%E5%BE%84%EF%BC%88Slow-Path%EF%BC%89"><span class="nav-number">1.8.2.</span> <span class="nav-text">2. 慢速路径（Slow Path）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B0%83%E8%AF%95%E5%B7%A5%E5%85%B7"><span class="nav-number">1.9.</span> <span class="nav-text">调试工具</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%B3%BB%E7%BB%9F%E5%B7%A5%E5%85%B7"><span class="nav-number">1.9.1.</span> <span class="nav-text">系统工具</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%85%E6%A0%B8%E5%B7%A5%E5%85%B7"><span class="nav-number">1.9.2.</span> <span class="nav-text">内核工具</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8B%E4%B8%80%E7%AF%87%E9%A2%84%E5%91%8A"><span class="nav-number">1.10.</span> <span class="nav-text">下一篇预告</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">1.11.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">62</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">141</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-filesystem-series-overview/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 存储与文件系统深度剖析系列（一）：总览与架构 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 存储与文件系统深度剖析系列（一）：总览与架构
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-12 10:00:00 / Modified: 10:15:47" itemprop="dateCreated datePublished" datetime="2026-04-12T10:00:00+08:00">2026-04-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="Linux-存储与文件系统深度剖析系列（一）：总览与架构"><a href="#Linux-存储与文件系统深度剖析系列（一）：总览与架构" class="headerlink" title="Linux 存储与文件系统深度剖析系列（一）：总览与架构"></a>Linux 存储与文件系统深度剖析系列（一）：总览与架构</h1><h2 id="系列介绍"><a href="#系列介绍" class="headerlink" title="系列介绍"></a>系列介绍</h2><p>欢迎来到 Linux 存储与文件系统深度剖析系列！本系列将从代码级别深入探讨 Linux 内核中的存储子系统和文件系统实现，基于 <strong>Linux 6.4-rc1</strong> 内核源码进行分析。</p>
+<h3 id="系列文章目录"><a href="#系列文章目录" class="headerlink" title="系列文章目录"></a>系列文章目录</h3><ol>
+<li><strong>总览与架构</strong>（本文）</li>
+<li>VFS 虚拟文件系统层深度剖析</li>
+<li>块设备层（Block Layer）详解</li>
+<li>页缓存（Page Cache）与缓冲区缓存机制</li>
+<li>Ext4 文件系统源码分析</li>
+<li>Btrfs 文件系统核心原理</li>
+<li>XFS 文件系统实现细节</li>
+<li>IO 调度器深度剖析</li>
+<li>直接 IO 与异步 IO 实现</li>
+<li>文件系统性能优化与调试</li>
+</ol>
+<h2 id="Linux-存储栈整体架构"><a href="#Linux-存储栈整体架构" class="headerlink" title="Linux 存储栈整体架构"></a>Linux 存储栈整体架构</h2><p>Linux 存储栈是一个复杂的分层架构，从用户空间到物理硬件，主要包含以下几层：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────┐</span><br><span class="line">│          用户空间应用                        │</span><br><span class="line">│    (read, write, open, close, mmap...)      │</span><br><span class="line">└─────────────────┬───────────────────────────┘</span><br><span class="line">                  │ System Call Interface</span><br><span class="line">┌─────────────────▼───────────────────────────┐</span><br><span class="line">│        VFS (Virtual Filesystem Switch)      │</span><br><span class="line">│    - struct inode, dentry, file, super      │</span><br><span class="line">│    - 通用文件操作接口                         │</span><br><span class="line">└─────────────────┬───────────────────────────┘</span><br><span class="line">                  │</span><br><span class="line">      ┌───────────┼───────────┐</span><br><span class="line">      │           │           │</span><br><span class="line">┌─────▼────┐ ┌───▼────┐ ┌───▼────┐</span><br><span class="line">│   Ext4   │ │ Btrfs  │ │  XFS   │  ... (具体文件系统)</span><br><span class="line">└─────┬────┘ └───┬────┘ └───┬────┘</span><br><span class="line">      │          │          │</span><br><span class="line">      └──────────┼──────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│         Page Cache / Buffer Cache           │</span><br><span class="line">│    (struct address_space, struct page)      │</span><br><span class="line">└────────────────┬────────────────────────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│          Block Layer (块设备层)              │</span><br><span class="line">│    - struct bio, struct request             │</span><br><span class="line">│    - 块设备通用操作                           │</span><br><span class="line">└────────────────┬────────────────────────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│          IO Scheduler (IO调度器)            │</span><br><span class="line">│    - mq-deadline, BFQ, Kyber                │</span><br><span class="line">└────────────────┬────────────────────────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│      Block Device Drivers (块设备驱动)       │</span><br><span class="line">│    - SCSI, NVMe, virtio-blk, ...            │</span><br><span class="line">└────────────────┬────────────────────────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│          Physical Storage (物理存储)         │</span><br><span class="line">│    - HDD, SSD, NVMe, RAID, ...              │</span><br><span class="line">└─────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<h2 id="核心数据结构概览"><a href="#核心数据结构概览" class="headerlink" title="核心数据结构概览"></a>核心数据结构概览</h2><h3 id="1-VFS-层核心结构"><a href="#1-VFS-层核心结构" class="headerlink" title="1. VFS 层核心结构"></a>1. VFS 层核心结构</h3><p>在 Linux 内核中，VFS 使用以下核心数据结构：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/linux/fs.h</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// inode: 代表文件系统中的一个对象（文件、目录等）</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">inode</span> &#123;</span></span><br><span class="line">    <span class="type">umode_t</span>                 i_mode;      <span class="comment">// 文件类型和权限</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>          i_opflags;</span><br><span class="line">    <span class="type">kuid_t</span>                  i_uid;       <span class="comment">// 所有者 UID</span></span><br><span class="line">    <span class="type">kgid_t</span>                  i_gid;       <span class="comment">// 所有者 GID</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            i_flags;</span><br><span class="line"></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">inode_operations</span> *<span class="title">i_op</span>;</span>  <span class="comment">// inode 操作方法</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">super_block</span>      *<span class="title">i_sb</span>;</span>        <span class="comment">// 所属超级块</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">address_space</span>    *<span class="title">i_mapping</span>;</span>   <span class="comment">// 页缓存映射</span></span><br><span class="line"></span><br><span class="line">    <span class="type">loff_t</span>                  i_size;       <span class="comment">// 文件大小（字节）</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">timespec64</span>       <span class="title">i_atime</span>;</span>      <span class="comment">// 访问时间</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">timespec64</span>       <span class="title">i_mtime</span>;</span>      <span class="comment">// 修改时间</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">timespec64</span>       <span class="title">i_ctime</span>;</span>      <span class="comment">// 状态改变时间</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           i_ino;        <span class="comment">// inode 编号</span></span><br><span class="line">    <span class="type">dev_t</span>                   i_rdev;       <span class="comment">// 设备号（设备文件）</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// dentry: 目录项，连接路径名和 inode</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">dentry</span> &#123;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> d_flags;</span><br><span class="line">    <span class="type">seqcount_spinlock_t</span> d_seq;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">hlist_bl_node</span> <span class="title">d_hash</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dentry</span> *<span class="title">d_parent</span>;</span>              <span class="comment">// 父目录项</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">qstr</span> <span class="title">d_name</span>;</span>                   <span class="comment">// 文件名</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">d_inode</span>;</span>                <span class="comment">// 关联的 inode</span></span><br><span class="line"></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">dentry_operations</span> *<span class="title">d_op</span>;</span> <span class="comment">// dentry 操作方法</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">super_block</span> *<span class="title">d_sb</span>;</span>             <span class="comment">// 所属超级块</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// file: 代表打开的文件</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">file</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">path</span>             <span class="title">f_path</span>;</span>       <span class="comment">// 包含 dentry 和 vfsmount</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span>            *<span class="title">f_inode</span>;</span>     <span class="comment">// 缓存的 inode 指针</span></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> *<span class="title">f_op</span>;</span>   <span class="comment">// 文件操作方法</span></span><br><span class="line"></span><br><span class="line">    <span class="type">spinlock_t</span>              f_lock;</span><br><span class="line">    <span class="type">atomic_long_t</span>           f_count;      <span class="comment">// 引用计数</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            f_flags;      <span class="comment">// 打开标志</span></span><br><span class="line">    <span class="type">fmode_t</span>                 f_mode;       <span class="comment">// 文件模式</span></span><br><span class="line">    <span class="type">loff_t</span>                  f_pos;        <span class="comment">// 文件位置指针</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">address_space</span>    *<span class="title">f_mapping</span>;</span>   <span class="comment">// 页缓存映射</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// super_block: 超级块，代表已挂载的文件系统</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">super_block</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>        <span class="title">s_list</span>;</span></span><br><span class="line">    <span class="type">dev_t</span>                   s_dev;        <span class="comment">// 设备号</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span>           s_blocksize_bits;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           s_blocksize;  <span class="comment">// 块大小</span></span><br><span class="line">    <span class="type">loff_t</span>                  s_maxbytes;   <span class="comment">// 最大文件大小</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file_system_type</span> *<span class="title">s_type</span>;</span>      <span class="comment">// 文件系统类型</span></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">super_operations</span> *<span class="title">s_op</span>;</span>  <span class="comment">// 超级块操作方法</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           s_flags;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           s_magic;      <span class="comment">// 魔数</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dentry</span>           *<span class="title">s_root</span>;</span>      <span class="comment">// 根目录项</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-Block-Layer-核心结构"><a href="#2-Block-Layer-核心结构" class="headerlink" title="2. Block Layer 核心结构"></a>2. Block Layer 核心结构</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/linux/blk_types.h</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// bio: Block I/O，描述一次块 I/O 操作</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bio</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>              *<span class="title">bi_next</span>;</span>     <span class="comment">// 请求队列链表</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">block_device</span>     *<span class="title">bi_bdev</span>;</span>     <span class="comment">// 目标块设备</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            bi_opf;       <span class="comment">// 操作标志（读/写等）</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>          bi_vcnt;      <span class="comment">// bio_vec 数组大小</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>          bi_max_vecs;  <span class="comment">// bio_vec 最大数量</span></span><br><span class="line"></span><br><span class="line">    <span class="type">atomic_t</span>                __bi_cnt;     <span class="comment">// 引用计数</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span>          *<span class="title">bi_io_vec</span>;</span>   <span class="comment">// 指向页向量数组</span></span><br><span class="line"></span><br><span class="line">    <span class="type">bio_end_io_t</span>            *bi_end_io;   <span class="comment">// I/O 完成回调</span></span><br><span class="line">    <span class="type">void</span>                    *bi_private;  <span class="comment">// 私有数据</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// request: 代表一个或多个 bio 组成的请求</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">request</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span>    *<span class="title">q</span>;</span>           <span class="comment">// 所属请求队列</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ctx</span>       *<span class="title">mq_ctx</span>;</span>      <span class="comment">// 多队列上下文</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_hw_ctx</span>    *<span class="title">mq_hctx</span>;</span>     <span class="comment">// 硬件队列上下文</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            cmd_flags;    <span class="comment">// 命令标志</span></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">rq_qos_id</span>          <span class="title">rq_qos_id</span>;</span>    <span class="comment">// QoS ID</span></span><br><span class="line"></span><br><span class="line">    <span class="type">sector_t</span>                __sector;     <span class="comment">// 起始扇区</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            __data_len;   <span class="comment">// 数据长度</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>              *<span class="title">bio</span>;</span>         <span class="comment">// bio 链表头</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>              *<span class="title">biotail</span>;</span>     <span class="comment">// bio 链表尾</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h2 id="关键源码文件位置"><a href="#关键源码文件位置" class="headerlink" title="关键源码文件位置"></a>关键源码文件位置</h2><p>基于 Linux 6.4-rc1 内核，以下是主要的源码文件位置：</p>
+<h3 id="VFS-层"><a href="#VFS-层" class="headerlink" title="VFS 层"></a>VFS 层</h3><ul>
+<li><code>fs/</code> - 文件系统核心代码<ul>
+<li><code>fs/namei.c</code> - 路径查找和解析</li>
+<li><code>fs/open.c</code> - 文件打开操作</li>
+<li><code>fs/read_write.c</code> - 读写操作</li>
+<li><code>fs/inode.c</code> - inode 管理</li>
+<li><code>fs/dcache.c</code> - dentry 缓存</li>
+<li><code>fs/super.c</code> - 超级块管理</li>
+</ul>
+</li>
+</ul>
+<h3 id="Block-Layer"><a href="#Block-Layer" class="headerlink" title="Block Layer"></a>Block Layer</h3><ul>
+<li><code>block/</code> - 块设备层代码<ul>
+<li><code>block/blk-core.c</code> - 核心功能</li>
+<li><code>block/blk-mq.c</code> - 多队列实现</li>
+<li><code>block/bio.c</code> - bio 处理</li>
+<li><code>block/blk-merge.c</code> - 请求合并</li>
+<li><code>block/blk-settings.c</code> - 块设备设置</li>
+</ul>
+</li>
+</ul>
+<h3 id="IO-Schedulers"><a href="#IO-Schedulers" class="headerlink" title="IO Schedulers"></a>IO Schedulers</h3><ul>
+<li><code>block/mq-deadline.c</code> - Deadline 调度器</li>
+<li><code>block/bfq-iosched.c</code> - BFQ (Budget Fair Queueing) 调度器</li>
+<li><code>block/kyber-iosched.c</code> - Kyber 调度器</li>
+</ul>
+<h3 id="具体文件系统"><a href="#具体文件系统" class="headerlink" title="具体文件系统"></a>具体文件系统</h3><ul>
+<li><code>fs/ext4/</code> - Ext4 文件系统</li>
+<li><code>fs/btrfs/</code> - Btrfs 文件系统</li>
+<li><code>fs/xfs/</code> - XFS 文件系统</li>
+</ul>
+<h3 id="Page-Cache"><a href="#Page-Cache" class="headerlink" title="Page Cache"></a>Page Cache</h3><ul>
+<li><code>mm/filemap.c</code> - 文件映射和页缓存</li>
+<li><code>mm/readahead.c</code> - 预读机制</li>
+<li><code>fs/buffer.c</code> - 缓冲区缓存</li>
+</ul>
+<h2 id="一个文件读取的完整流程"><a href="#一个文件读取的完整流程" class="headerlink" title="一个文件读取的完整流程"></a>一个文件读取的完整流程</h2><p>让我们通过一个简单的 <code>read()</code> 系统调用，看看数据是如何从磁盘流向用户空间的：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line">用户程序: read(fd, buffer, size)</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">系统调用入口: sys_read()  (fs/read_write.c)</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">VFS 层: vfs_read()</span><br><span class="line">    | - 检查权限和文件状态</span><br><span class="line">    | - 调用 file-&gt;f_op-&gt;read_iter()</span><br><span class="line">    v</span><br><span class="line">文件系统层: ext4_file_read_iter()  (以 Ext4 为例)</span><br><span class="line">    | - 调用 generic_file_read_iter()</span><br><span class="line">    v</span><br><span class="line">Page Cache: filemap_read()  (mm/filemap.c)</span><br><span class="line">    | - 在页缓存中查找数据</span><br><span class="line">    | - 如果缓存命中，直接返回</span><br><span class="line">    | - 如果缓存未命中，继续...</span><br><span class="line">    v</span><br><span class="line">文件系统 readpage: ext4_readpage()</span><br><span class="line">    | - 准备从磁盘读取数据</span><br><span class="line">    | - 创建 bio 结构</span><br><span class="line">    v</span><br><span class="line">Block Layer: submit_bio()  (block/bio.c)</span><br><span class="line">    | - 将 bio 提交到块设备层</span><br><span class="line">    | - 可能进行请求合并</span><br><span class="line">    v</span><br><span class="line">IO Scheduler: 调度器处理请求</span><br><span class="line">    | - mq-deadline / BFQ / Kyber</span><br><span class="line">    | - 优化 I/O 顺序</span><br><span class="line">    v</span><br><span class="line">Block Driver: SCSI/NVMe/... 驱动程序</span><br><span class="line">    | - 向硬件发送命令</span><br><span class="line">    v</span><br><span class="line">Hardware: 物理存储设备执行读取</span><br><span class="line">    |</span><br><span class="line">    v (中断返回)</span><br><span class="line">Block Driver: 中断处理程序</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">Block Layer: bio_endio()</span><br><span class="line">    | - 调用 bio-&gt;bi_end_io() 回调</span><br><span class="line">    v</span><br><span class="line">Page Cache: 将数据标记为最新</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">VFS: 将数据复制到用户空间缓冲区</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">用户程序: read() 返回</span><br></pre></td></tr></table></figure>
+
+<h2 id="核心概念解析"><a href="#核心概念解析" class="headerlink" title="核心概念解析"></a>核心概念解析</h2><h3 id="1-页缓存（Page-Cache）"><a href="#1-页缓存（Page-Cache）" class="headerlink" title="1. 页缓存（Page Cache）"></a>1. 页缓存（Page Cache）</h3><p>页缓存是 Linux 内存管理的核心组件之一，它缓存文件内容在内存中，避免重复的磁盘访问。</p>
+<p><strong>关键特性：</strong></p>
+<ul>
+<li>以页（通常 4KB）为单位缓存文件数据</li>
+<li>使用 <code>struct address_space</code> 管理文件到物理页的映射</li>
+<li>支持预读（readahead）机制优化顺序读取</li>
+<li>支持回写（writeback）机制延迟写入</li>
+</ul>
+<p><strong>代码位置：</strong> <code>mm/filemap.c</code></p>
+<h3 id="2-块-I-O-层（Block-Layer）"><a href="#2-块-I-O-层（Block-Layer）" class="headerlink" title="2. 块 I&#x2F;O 层（Block Layer）"></a>2. 块 I&#x2F;O 层（Block Layer）</h3><p>块设备层是连接文件系统和设备驱动的中间层。</p>
+<p><strong>核心功能：</strong></p>
+<ul>
+<li>将文件系统的 I&#x2F;O 请求转换为块设备请求</li>
+<li>I&#x2F;O 请求的合并和重排序</li>
+<li>支持多队列（blk-mq）架构</li>
+<li>提供 I&#x2F;O 统计和 QoS 控制</li>
+</ul>
+<p><strong>代码位置：</strong> <code>block/</code></p>
+<h3 id="3-VFS（Virtual-Filesystem-Switch）"><a href="#3-VFS（Virtual-Filesystem-Switch）" class="headerlink" title="3. VFS（Virtual Filesystem Switch）"></a>3. VFS（Virtual Filesystem Switch）</h3><p>VFS 是所有文件系统的抽象层，提供统一的接口。</p>
+<p><strong>设计理念：</strong></p>
+<ul>
+<li>对上层提供统一的系统调用接口</li>
+<li>对下层提供标准的文件系统操作接口</li>
+<li>使用面向对象的设计思想（通过函数指针实现多态）</li>
+</ul>
+<p><strong>代码位置：</strong> <code>fs/</code></p>
+<h2 id="代码示例：创建一个简单的文件系统"><a href="#代码示例：创建一个简单的文件系统" class="headerlink" title="代码示例：创建一个简单的文件系统"></a>代码示例：创建一个简单的文件系统</h2><p>为了更好地理解 VFS，让我们看一个极简的文件系统示例（基于 ramfs）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 超级块操作</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">super_operations</span> <span class="title">simple_super_ops</span> =</span> &#123;</span><br><span class="line">    .statfs     = simple_statfs,</span><br><span class="line">    .drop_inode = generic_delete_inode,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// inode 操作</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">inode_operations</span> <span class="title">simple_dir_inode_operations</span> =</span> &#123;</span><br><span class="line">    .create     = simple_create,</span><br><span class="line">    .lookup     = simple_lookup,</span><br><span class="line">    .link       = simple_link,</span><br><span class="line">    .unlink     = simple_unlink,</span><br><span class="line">    .mkdir      = simple_mkdir,</span><br><span class="line">    .rmdir      = simple_rmdir,</span><br><span class="line">    .mknod      = simple_mknod,</span><br><span class="line">    .rename     = simple_rename,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 文件操作</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> <span class="title">simple_file_operations</span> =</span> &#123;</span><br><span class="line">    .read_iter  = generic_file_read_iter,</span><br><span class="line">    .write_iter = generic_file_write_iter,</span><br><span class="line">    .mmap       = generic_file_mmap,</span><br><span class="line">    .fsync      = noop_fsync,</span><br><span class="line">    .llseek     = generic_file_llseek,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 填充超级块</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">simple_fill_super</span><span class="params">(<span class="keyword">struct</span> super_block *sb, <span class="type">void</span> *data, <span class="type">int</span> silent)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span>;</span></span><br><span class="line"></span><br><span class="line">    sb-&gt;s_blocksize = PAGE_SIZE;</span><br><span class="line">    sb-&gt;s_blocksize_bits = PAGE_SHIFT;</span><br><span class="line">    sb-&gt;s_magic = <span class="number">0x12345678</span>;</span><br><span class="line">    sb-&gt;s_op = &amp;simple_super_ops;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 创建根 inode</span></span><br><span class="line">    inode = new_inode(sb);</span><br><span class="line">    <span class="keyword">if</span> (!inode)</span><br><span class="line">        <span class="keyword">return</span> -ENOMEM;</span><br><span class="line"></span><br><span class="line">    inode-&gt;i_ino = <span class="number">1</span>;</span><br><span class="line">    inode-&gt;i_mode = S_IFDIR | <span class="number">0755</span>;</span><br><span class="line">    inode-&gt;i_op = &amp;simple_dir_inode_operations;</span><br><span class="line">    inode-&gt;i_fop = &amp;simple_file_operations;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 创建根 dentry</span></span><br><span class="line">    sb-&gt;s_root = d_make_root(inode);</span><br><span class="line">    <span class="keyword">if</span> (!sb-&gt;s_root)</span><br><span class="line">        <span class="keyword">return</span> -ENOMEM;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="性能关键路径"><a href="#性能关键路径" class="headerlink" title="性能关键路径"></a>性能关键路径</h2><p>在 Linux 存储栈中，以下是几个性能关键路径：</p>
+<h3 id="1-快速路径（Fast-Path）"><a href="#1-快速路径（Fast-Path）" class="headerlink" title="1. 快速路径（Fast Path）"></a>1. 快速路径（Fast Path）</h3><ul>
+<li>页缓存命中</li>
+<li>零拷贝操作（sendfile, splice）</li>
+<li>直接 I&#x2F;O（绕过页缓存）</li>
+</ul>
+<h3 id="2-慢速路径（Slow-Path）"><a href="#2-慢速路径（Slow-Path）" class="headerlink" title="2. 慢速路径（Slow Path）"></a>2. 慢速路径（Slow Path）</h3><ul>
+<li>页缓存未命中导致的磁盘 I&#x2F;O</li>
+<li>同步写入和 fsync 操作</li>
+<li>元数据操作（创建、删除文件）</li>
+</ul>
+<h2 id="调试工具"><a href="#调试工具" class="headerlink" title="调试工具"></a>调试工具</h2><p>在学习和调试存储系统时，以下工具非常有用：</p>
+<h3 id="系统工具"><a href="#系统工具" class="headerlink" title="系统工具"></a>系统工具</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看块设备 I/O 统计</span></span><br><span class="line">iostat -x 1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪块 I/O</span></span><br><span class="line">blktrace -d /dev/sda -o - | blkparse -i -</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看文件系统缓存统计</span></span><br><span class="line"><span class="built_in">cat</span> /proc/meminfo | grep -i cache</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 VFS 统计</span></span><br><span class="line"><span class="built_in">cat</span> /proc/sys/fs/dentry-state</span><br><span class="line"><span class="built_in">cat</span> /proc/sys/fs/inode-state</span><br></pre></td></tr></table></figure>
+
+<h3 id="内核工具"><a href="#内核工具" class="headerlink" title="内核工具"></a>内核工具</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 动态追踪（需要 CONFIG_DYNAMIC_FTRACE）</span></span><br><span class="line">trace-cmd record -e block:* -e vfs:* <span class="built_in">command</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># BPF 工具</span></span><br><span class="line">biolatency   <span class="comment"># I/O 延迟分布</span></span><br><span class="line">biosnoop     <span class="comment"># 追踪块 I/O 事件</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="下一篇预告"><a href="#下一篇预告" class="headerlink" title="下一篇预告"></a>下一篇预告</h2><p>在下一篇文章中，我们将深入探讨 <strong>VFS 虚拟文件系统层</strong>，包括：</p>
+<ul>
+<li>inode、dentry、file 的生命周期管理</li>
+<li>路径查找算法的实现细节</li>
+<li>dcache（dentry cache）的设计与优化</li>
+<li>VFS 如何处理各种文件操作的源码分析</li>
+</ul>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li>Linux 内核源码（v6.4-rc1）：<a target="_blank" rel="noopener" href="https://git.kernel.org/">https://git.kernel.org/</a></li>
+<li>Linux 内核文档：<code>Documentation/filesystems/</code></li>
+<li>《深入 Linux 内核架构》</li>
+<li>《Linux 内核设计与实现》</li>
+</ol>
+<hr>
+<p><strong>作者注：</strong> 本系列所有源码分析基于 Linux 6.4-rc1 内核版本。随着内核的演进，部分实现细节可能会有所变化，但核心设计理念保持相对稳定。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Storage/" rel="tag"># Storage</a>
+              <a href="/tags/Filesystem/" rel="tag"># Filesystem</a>
+              <a href="/tags/VFS/" rel="tag"># VFS</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/06/understanding-cimaster-cluster-coordination/" rel="prev" title="Understanding CIMaster: Intelligent CI Cluster Coordination at Scale">
+                  <i class="fa fa-angle-left"></i> Understanding CIMaster: Intelligent CI Cluster Coordination at Scale
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/13/2026-04-13-vllm-deep-dive-00-series-overview/" rel="next" title="vLLM Deep Dive Series: Understanding Modern LLM Serving">
+                  vLLM Deep Dive Series: Understanding Modern LLM Serving <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

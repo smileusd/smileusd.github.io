@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Part 2: PagedAttention - The Core InnovationIntroductionPagedAttention is vLLM’s breakthrough innovation that revolutionized LLM serving. Before PagedAttention, serving LLMs efficiently was plagued by">
+<meta property="og:type" content="article">
+<meta property="og:title" content="vLLM Deep Dive Part 2: PagedAttention - The Core Innovation">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-02-paged-attention/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Part 2: PagedAttention - The Core InnovationIntroductionPagedAttention is vLLM’s breakthrough innovation that revolutionized LLM serving. Before PagedAttention, serving LLMs efficiently was plagued by">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-13T06:10:00.000Z">
+<meta property="article:modified_time" content="2026-04-13T13:25:15.321Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="vLLM">
+<meta property="article:tag" content="PagedAttention">
+<meta property="article:tag" content="Memory Management">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-02-paged-attention/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-02-paged-attention/","path":"2026/04/13/2026-04-13-vllm-deep-dive-02-paged-attention/","title":"vLLM Deep Dive Part 2: PagedAttention - The Core Innovation"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>vLLM Deep Dive Part 2: PagedAttention - The Core Innovation | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Part-2-PagedAttention-The-Core-Innovation"><span class="nav-number">1.</span> <span class="nav-text">Part 2: PagedAttention - The Core Innovation</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Introduction"><span class="nav-number">1.1.</span> <span class="nav-text">Introduction</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#The-Memory-Problem-in-LLM-Serving"><span class="nav-number">1.2.</span> <span class="nav-text">The Memory Problem in LLM Serving</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Understanding-KV-Cache"><span class="nav-number">1.2.1.</span> <span class="nav-text">Understanding KV Cache</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#The-Fragmentation-Problem"><span class="nav-number">1.2.2.</span> <span class="nav-text">The Fragmentation Problem</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#The-PagedAttention-Solution"><span class="nav-number">1.3.</span> <span class="nav-text">The PagedAttention Solution</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Virtual-Memory-Analogy"><span class="nav-number">1.3.1.</span> <span class="nav-text">Virtual Memory Analogy</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Block-Based-Storage"><span class="nav-number">1.3.2.</span> <span class="nav-text">Block-Based Storage</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Implementation-Deep-Dive"><span class="nav-number">1.4.</span> <span class="nav-text">Implementation Deep Dive</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Block-Structure"><span class="nav-number">1.4.1.</span> <span class="nav-text">Block Structure</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Block-Pool"><span class="nav-number">1.4.2.</span> <span class="nav-text">Block Pool</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Block-Table"><span class="nav-number">1.4.3.</span> <span class="nav-text">Block Table</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#KVCacheManager"><span class="nav-number">1.4.4.</span> <span class="nav-text">KVCacheManager</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Prefix-Caching-Sharing-Across-Requests"><span class="nav-number">1.5.</span> <span class="nav-text">Prefix Caching: Sharing Across Requests</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Block-Hashing"><span class="nav-number">1.5.1.</span> <span class="nav-text">Block Hashing</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Cache-Lookup"><span class="nav-number">1.5.2.</span> <span class="nav-text">Cache Lookup</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Reference-Counting"><span class="nav-number">1.5.3.</span> <span class="nav-text">Reference Counting</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Cache-Eviction"><span class="nav-number">1.5.4.</span> <span class="nav-text">Cache Eviction</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Attention-Computation-with-Blocks"><span class="nav-number">1.6.</span> <span class="nav-text">Attention Computation with Blocks</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Prefill-Phase"><span class="nav-number">1.6.1.</span> <span class="nav-text">Prefill Phase</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Decode-Phase"><span class="nav-number">1.6.2.</span> <span class="nav-text">Decode Phase</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Multi-Group-KV-Cache"><span class="nav-number">1.7.</span> <span class="nav-text">Multi-Group KV Cache</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Performance-Impact"><span class="nav-number">1.8.</span> <span class="nav-text">Performance Impact</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Memory-Efficiency"><span class="nav-number">1.8.1.</span> <span class="nav-text">Memory Efficiency</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Throughput-Gains"><span class="nav-number">1.8.2.</span> <span class="nav-text">Throughput Gains</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Prefix-Caching-Benefits"><span class="nav-number">1.8.3.</span> <span class="nav-text">Prefix Caching Benefits</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Advanced-Topics"><span class="nav-number">1.9.</span> <span class="nav-text">Advanced Topics</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Sliding-Window-Attention"><span class="nav-number">1.9.1.</span> <span class="nav-text">Sliding Window Attention</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Copy-on-Write-for-Speculative-Decoding"><span class="nav-number">1.9.2.</span> <span class="nav-text">Copy-on-Write for Speculative Decoding</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Implementation-Gotchas"><span class="nav-number">1.10.</span> <span class="nav-text">Implementation Gotchas</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Hash-Collisions"><span class="nav-number">1.10.1.</span> <span class="nav-text">Hash Collisions</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Partial-Blocks"><span class="nav-number">1.10.2.</span> <span class="nav-text">Partial Blocks</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Thread-Safety"><span class="nav-number">1.10.3.</span> <span class="nav-text">Thread Safety</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Key-Takeaways"><span class="nav-number">1.11.</span> <span class="nav-text">Key Takeaways</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#What%E2%80%99s-Next"><span class="nav-number">1.12.</span> <span class="nav-text">What’s Next</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#References"><span class="nav-number">1.13.</span> <span class="nav-text">References</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">62</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">141</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-02-paged-attention/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="vLLM Deep Dive Part 2: PagedAttention - The Core Innovation | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          vLLM Deep Dive Part 2: PagedAttention - The Core Innovation
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-13 14:10:00 / Modified: 21:25:15" itemprop="dateCreated datePublished" datetime="2026-04-13T14:10:00+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/AI-ML/" itemprop="url" rel="index"><span itemprop="name">AI/ML</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="Part-2-PagedAttention-The-Core-Innovation"><a href="#Part-2-PagedAttention-The-Core-Innovation" class="headerlink" title="Part 2: PagedAttention - The Core Innovation"></a>Part 2: PagedAttention - The Core Innovation</h1><h2 id="Introduction"><a href="#Introduction" class="headerlink" title="Introduction"></a>Introduction</h2><p>PagedAttention is vLLM’s breakthrough innovation that revolutionized LLM serving. Before PagedAttention, serving LLMs efficiently was plagued by memory fragmentation and waste. This post dives deep into how PagedAttention works, why it matters, and how it’s implemented in vLLM.</p>
+<h2 id="The-Memory-Problem-in-LLM-Serving"><a href="#The-Memory-Problem-in-LLM-Serving" class="headerlink" title="The Memory Problem in LLM Serving"></a>The Memory Problem in LLM Serving</h2><h3 id="Understanding-KV-Cache"><a href="#Understanding-KV-Cache" class="headerlink" title="Understanding KV Cache"></a>Understanding KV Cache</h3><p>In transformer models, attention layers compute key (K) and value (V) vectors for each token. During generation:</p>
+<ol>
+<li><strong>Prefill phase</strong>: Compute K, V for all prompt tokens</li>
+<li><strong>Decode phase</strong>: For each new token, compute its K, V and attend to all previous K, V</li>
+</ol>
+<p><strong>The challenge</strong>: We must store all previous K, V tensors (the “KV cache”) to avoid recomputation.</p>
+<p><strong>Memory size</strong>: For Llama-3-8B:</p>
+<ul>
+<li>32 attention layers</li>
+<li>4096 hidden dimensions</li>
+<li>FP16 precision (2 bytes)</li>
+<li>Per token: 32 layers × 4096 dim × 2 (K,V) × 2 bytes &#x3D; 512 KB</li>
+</ul>
+<p>For a 2048-token sequence: <strong>1 GB just for KV cache!</strong></p>
+<h3 id="The-Fragmentation-Problem"><a href="#The-Fragmentation-Problem" class="headerlink" title="The Fragmentation Problem"></a>The Fragmentation Problem</h3><p>Traditional serving systems pre-allocate contiguous memory for each request’s maximum length:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Request 1 (max 2048 tokens, actual 512):</span><br><span class="line">[████░░░░░░░░░░░░] 75% wasted</span><br><span class="line"></span><br><span class="line">Request 2 (max 2048 tokens, actual 1800):</span><br><span class="line">[████████████████] 12% wasted</span><br><span class="line"></span><br><span class="line">Request 3 (max 2048 tokens, actual 200):</span><br><span class="line">[██░░░░░░░░░░░░░░] 90% wasted</span><br></pre></td></tr></table></figure>
+
+<p><strong>Problems</strong>:</p>
+<ol>
+<li><strong>Over-allocation</strong>: Must allocate for worst-case length</li>
+<li><strong>Fragmentation</strong>: Can’t use unused space from one request for another</li>
+<li><strong>Low Throughput</strong>: Memory is the bottleneck, not compute</li>
+</ol>
+<p><strong>Real impact</strong>: Without PagedAttention, you might serve 10 concurrent requests. With PagedAttention, you can serve 50+ requests with the same memory!</p>
+<h2 id="The-PagedAttention-Solution"><a href="#The-PagedAttention-Solution" class="headerlink" title="The PagedAttention Solution"></a>The PagedAttention Solution</h2><p>PagedAttention applies virtual memory concepts to attention computation:</p>
+<p><strong>Key idea</strong>: Instead of storing KV cache contiguously, break it into fixed-size blocks. Each request gets a block table mapping logical positions to physical blocks.</p>
+<h3 id="Virtual-Memory-Analogy"><a href="#Virtual-Memory-Analogy" class="headerlink" title="Virtual Memory Analogy"></a>Virtual Memory Analogy</h3><table>
+<thead>
+<tr>
+<th>Virtual Memory (OS)</th>
+<th>PagedAttention (vLLM)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Page</td>
+<td>Block (e.g., 16 tokens)</td>
+</tr>
+<tr>
+<td>Page Table</td>
+<td>Block Table</td>
+</tr>
+<tr>
+<td>Physical Memory</td>
+<td>GPU Memory</td>
+</tr>
+<tr>
+<td>Memory Allocator</td>
+<td>Block Pool</td>
+</tr>
+<tr>
+<td>Page Fault</td>
+<td>Cache Miss</td>
+</tr>
+<tr>
+<td>Copy-on-Write</td>
+<td>Prefix Sharing</td>
+</tr>
+</tbody></table>
+<h3 id="Block-Based-Storage"><a href="#Block-Based-Storage" class="headerlink" title="Block-Based Storage"></a>Block-Based Storage</h3><p>Instead of contiguous allocation:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">Request 1 (512 tokens, 32 blocks):</span><br><span class="line">Blocks: [0, 3, 7, 12, ..., 89]</span><br><span class="line">       Scattered in GPU memory</span><br><span class="line"></span><br><span class="line">Request 2 (1800 tokens, 113 blocks):</span><br><span class="line">Blocks: [1, 2, 4, 5, ..., 105]</span><br><span class="line">       Can reuse freed blocks from other requests</span><br><span class="line"></span><br><span class="line">Request 3 (200 tokens, 13 blocks):</span><br><span class="line">Blocks: [6, 8, 9, ..., 18]</span><br><span class="line">       Minimal waste (only last block partially filled)</span><br></pre></td></tr></table></figure>
+
+<p><strong>Advantages</strong>:</p>
+<ol>
+<li><strong>No over-allocation</strong>: Allocate blocks as needed</li>
+<li><strong>No fragmentation</strong>: Any free block can go to any request</li>
+<li><strong>Near-zero waste</strong>: Only last block of each request may be partially filled</li>
+<li><strong>Sharing</strong>: Common prefixes share physical blocks</li>
+</ol>
+<h2 id="Implementation-Deep-Dive"><a href="#Implementation-Deep-Dive" class="headerlink" title="Implementation Deep Dive"></a>Implementation Deep Dive</h2><h3 id="Block-Structure"><a href="#Block-Structure" class="headerlink" title="Block Structure"></a>Block Structure</h3><p><strong>Location</strong>: <code>vllm/v1/core/kv_cache_utils.py</code></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">KVCacheBlock</span>:</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self, block_id: <span class="built_in">int</span></span>):</span><br><span class="line">        self.block_id = block_id          <span class="comment"># Physical block ID</span></span><br><span class="line">        self.ref_cnt = <span class="number">0</span>                  <span class="comment"># Reference count</span></span><br><span class="line">        self.block_hash: <span class="built_in">int</span> | <span class="literal">None</span> = <span class="literal">None</span> <span class="comment"># Hash for prefix caching</span></span><br><span class="line">        self.is_null = <span class="literal">False</span>              <span class="comment"># Special null block</span></span><br></pre></td></tr></table></figure>
+
+<p>Each block represents a fixed number of token positions (block_size, typically 16).</p>
+<p><strong>Physical storage</strong>:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># In GPU memory, shape: [num_blocks, num_heads, block_size, head_dim]</span></span><br><span class="line">kv_cache = torch.empty(</span><br><span class="line">    (num_blocks, <span class="number">2</span>, num_heads, block_size, head_dim),</span><br><span class="line">    dtype=torch.float16,</span><br><span class="line">    device=<span class="string">&#x27;cuda&#x27;</span></span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<h3 id="Block-Pool"><a href="#Block-Pool" class="headerlink" title="Block Pool"></a>Block Pool</h3><p><strong>Location</strong>: <code>vllm/v1/core/block_pool.py</code></p>
+<p>The BlockPool manages all KV cache blocks:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">BlockPool</span>:</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self, num_gpu_blocks: <span class="built_in">int</span>, enable_caching: <span class="built_in">bool</span>, ...</span>):</span><br><span class="line">        <span class="comment"># All blocks in the pool</span></span><br><span class="line">        self.blocks: <span class="built_in">list</span>[KVCacheBlock] = [</span><br><span class="line">            KVCacheBlock(idx) <span class="keyword">for</span> idx <span class="keyword">in</span> <span class="built_in">range</span>(num_gpu_blocks)</span><br><span class="line">        ]</span><br><span class="line"></span><br><span class="line">        <span class="comment"># Free block queue (doubly-linked list)</span></span><br><span class="line">        self.free_block_queue = FreeKVCacheBlockQueue(self.blocks)</span><br><span class="line"></span><br><span class="line">        <span class="comment"># Cache: block_hash -&gt; KVCacheBlock</span></span><br><span class="line">        self.cached_block_hash_to_block: BlockHashToBlockMap = &#123;&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Free Block Queue</strong>: Implements LRU eviction for cached blocks:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">free_block_queue:</span><br><span class="line">┌─────┐    ┌─────┐    ┌─────┐    ┌─────┐</span><br><span class="line">│ 42  │◄──►│ 17  │◄──►│ 99  │◄──►│ 3   │</span><br><span class="line">└─────┘    └─────┘    └─────┘    └─────┘</span><br><span class="line">  ▲                                  ▲</span><br><span class="line">  │                                  │</span><br><span class="line">LRU (evict first)              Most recently freed</span><br></pre></td></tr></table></figure>
+
+<p><strong>Allocation</strong>:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">allocate</span>(<span class="params">self</span>) -&gt; KVCacheBlock:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Allocate a block from the free queue.&quot;&quot;&quot;</span></span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(self.free_block_queue) == <span class="number">0</span>:</span><br><span class="line">        <span class="comment"># No free blocks - need to evict a cached block</span></span><br><span class="line">        block = self._evict_cached_block()</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="comment"># Pop from free queue</span></span><br><span class="line">        block = self.free_block_queue.popleft()</span><br><span class="line"></span><br><span class="line">    block.ref_cnt += <span class="number">1</span></span><br><span class="line">    <span class="keyword">return</span> block</span><br></pre></td></tr></table></figure>
+
+<p><strong>Deallocation</strong>:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">free</span>(<span class="params">self, block: KVCacheBlock</span>) -&gt; <span class="literal">None</span>:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Free a block back to the pool.&quot;&quot;&quot;</span></span><br><span class="line">    block.ref_cnt -= <span class="number">1</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> block.ref_cnt == <span class="number">0</span>:</span><br><span class="line">        <span class="keyword">if</span> block.block_hash <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="comment"># Cached block - add to eviction queue</span></span><br><span class="line">            self.free_block_queue.append(block)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="comment"># Uncached block - immediately available</span></span><br><span class="line">            self.free_block_queue.appendleft(block)</span><br></pre></td></tr></table></figure>
+
+<h3 id="Block-Table"><a href="#Block-Table" class="headerlink" title="Block Table"></a>Block Table</h3><p>Each request maintains a block table mapping logical to physical blocks:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Example: Request with 50 tokens, block_size=16</span></span><br><span class="line"><span class="comment"># Needs 4 blocks: [0-15], [16-31], [32-47], [48-49]</span></span><br><span class="line"></span><br><span class="line">block_table = [</span><br><span class="line">    [<span class="number">7</span>],    <span class="comment"># Group 0: Logical block 0 → Physical block 7</span></span><br><span class="line">    [<span class="number">23</span>],   <span class="comment"># Group 0: Logical block 1 → Physical block 23</span></span><br><span class="line">    [<span class="number">102</span>],  <span class="comment"># Group 0: Logical block 2 → Physical block 102</span></span><br><span class="line">    [<span class="number">45</span>]    <span class="comment"># Group 0: Logical block 3 → Physical block 45 (partial)</span></span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<p><strong>Lookup during attention</strong>:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">get_physical_block</span>(<span class="params">logical_block_idx: <span class="built_in">int</span></span>) -&gt; <span class="built_in">int</span>:</span><br><span class="line">    <span class="keyword">return</span> block_table[logical_block_idx][<span class="number">0</span>]  <span class="comment"># [0] for first group</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Token 37 is in logical block 2 (37 // 16)</span></span><br><span class="line"><span class="comment"># Physical block: block_table[2][0] = 102</span></span><br><span class="line"><span class="comment"># Position in block: 37 % 16 = 5</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="KVCacheManager"><a href="#KVCacheManager" class="headerlink" title="KVCacheManager"></a>KVCacheManager</h3><p><strong>Location</strong>: <code>vllm/v1/core/kv_cache_manager.py</code></p>
+<p>The KVCacheManager orchestrates block allocation for requests:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">KVCacheManager</span>:</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self, kv_cache_config, max_model_len, ...</span>):</span><br><span class="line">        self.block_pool = BlockPool(...)</span><br><span class="line">        self.enable_caching = enable_caching</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">allocate_slots</span>(<span class="params"></span></span><br><span class="line"><span class="params">        self,</span></span><br><span class="line"><span class="params">        request: Request,</span></span><br><span class="line"><span class="params">        num_tokens: <span class="built_in">int</span>,</span></span><br><span class="line"><span class="params">        num_computed_tokens: <span class="built_in">int</span> = <span class="number">0</span></span></span><br><span class="line"><span class="params">    </span>) -&gt; <span class="built_in">tuple</span>[KVCacheBlocks, <span class="built_in">int</span>]:</span><br><span class="line">        <span class="string">&quot;&quot;&quot;Allocate KV cache blocks for request.&quot;&quot;&quot;</span></span><br><span class="line"></span><br><span class="line">        <span class="comment"># 1. Check prefix cache for hits</span></span><br><span class="line">        cached_blocks, num_cached_tokens = \</span><br><span class="line">            self.get_computed_blocks(request)</span><br><span class="line"></span><br><span class="line">        <span class="comment"># 2. Calculate how many new blocks needed</span></span><br><span class="line">        num_new_tokens = num_tokens - num_cached_tokens</span><br><span class="line">        num_new_blocks = (num_new_tokens + block_size - <span class="number">1</span>) // block_size</span><br><span class="line"></span><br><span class="line">        <span class="comment"># 3. Allocate new blocks</span></span><br><span class="line">        new_blocks = [</span><br><span class="line">            self.block_pool.allocate()</span><br><span class="line">            <span class="keyword">for</span> _ <span class="keyword">in</span> <span class="built_in">range</span>(num_new_blocks)</span><br><span class="line">        ]</span><br><span class="line"></span><br><span class="line">        <span class="comment"># 4. Combine cached + new blocks</span></span><br><span class="line">        total_blocks = cached_blocks + new_blocks</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> total_blocks, num_cached_tokens</span><br></pre></td></tr></table></figure>
+
+<h2 id="Prefix-Caching-Sharing-Across-Requests"><a href="#Prefix-Caching-Sharing-Across-Requests" class="headerlink" title="Prefix Caching: Sharing Across Requests"></a>Prefix Caching: Sharing Across Requests</h2><p>One of PagedAttention’s killer features is prefix caching - sharing KV cache blocks across requests with common prefixes.</p>
+<h3 id="Block-Hashing"><a href="#Block-Hashing" class="headerlink" title="Block Hashing"></a>Block Hashing</h3><p>Each full block gets a hash based on its token content:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">compute_block_hash</span>(<span class="params"></span></span><br><span class="line"><span class="params">    token_ids: <span class="built_in">list</span>[<span class="built_in">int</span>],</span></span><br><span class="line"><span class="params">    start: <span class="built_in">int</span>,</span></span><br><span class="line"><span class="params">    block_size: <span class="built_in">int</span></span></span><br><span class="line"><span class="params"></span>) -&gt; <span class="built_in">int</span>:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Hash a block of tokens.&quot;&quot;&quot;</span></span><br><span class="line">    block_tokens = <span class="built_in">tuple</span>(token_ids[start:start + block_size])</span><br><span class="line"></span><br><span class="line">    <span class="comment"># Include multimodal features, cache salt, etc.</span></span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">hash</span>((block_tokens, extra_keys...))</span><br></pre></td></tr></table></figure>
+
+<p><strong>Example</strong>:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">Prompt A: <span class="string">&quot;Translate to French: Hello world&quot;</span></span><br><span class="line">Tokens: [<span class="number">1</span>, <span class="number">4521</span>, <span class="number">284</span>, <span class="number">1515</span>, <span class="number">25</span>, <span class="number">23748</span>, <span class="number">995</span>]</span><br><span class="line">Block <span class="number">0</span>: <span class="built_in">hash</span>([<span class="number">1</span>, <span class="number">4521</span>, <span class="number">284</span>, <span class="number">1515</span>, <span class="number">25</span>, <span class="number">23748</span>, <span class="number">995</span>, ...])</span><br><span class="line"></span><br><span class="line">Prompt B: <span class="string">&quot;Translate to French: How are you&quot;</span></span><br><span class="line">Tokens: [<span class="number">1</span>, <span class="number">4521</span>, <span class="number">284</span>, <span class="number">1515</span>, <span class="number">25</span>, <span class="number">1374</span>, <span class="number">389</span>, <span class="number">345</span>]</span><br><span class="line">Block <span class="number">0</span>: <span class="built_in">hash</span>([<span class="number">1</span>, <span class="number">4521</span>, <span class="number">284</span>, <span class="number">1515</span>, <span class="number">25</span>, <span class="number">1374</span>, <span class="number">389</span>, ...])</span><br><span class="line"></span><br><span class="line"><span class="comment"># Different hashes - no sharing</span></span><br></pre></td></tr></table></figure>
+
+<p>But with a common system prompt:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">System: <span class="string">&quot;You are a helpful assistant.&quot;</span></span><br><span class="line">Tokens: [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, ..., <span class="number">50</span>]  <span class="comment"># 50 tokens</span></span><br><span class="line"></span><br><span class="line">Request A: System + <span class="string">&quot;What is AI?&quot;</span></span><br><span class="line">Request B: System + <span class="string">&quot;What is ML?&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Both share blocks 0-2 (first 48 tokens of system prompt)</span></span><br><span class="line"><span class="comment"># Only block 3+ differs</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="Cache-Lookup"><a href="#Cache-Lookup" class="headerlink" title="Cache Lookup"></a>Cache Lookup</h3><p>When a new request arrives:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">get_computed_blocks</span>(<span class="params">self, request: Request</span>) -&gt; <span class="built_in">tuple</span>[KVCacheBlocks, <span class="built_in">int</span>]:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Find cached blocks matching request&#x27;s prefix.&quot;&quot;&quot;</span></span><br><span class="line"></span><br><span class="line">    cached_blocks = []</span><br><span class="line">    num_cached_tokens = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> block_idx, block_hash <span class="keyword">in</span> <span class="built_in">enumerate</span>(request.block_hashes):</span><br><span class="line">        <span class="comment"># Try to find a cached block with this hash</span></span><br><span class="line">        cached_block = self.block_pool.get_cached_block(block_hash)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> cached_block <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="comment"># Cache miss - stop searching</span></span><br><span class="line">            <span class="keyword">break</span></span><br><span class="line"></span><br><span class="line">        <span class="comment"># Cache hit!</span></span><br><span class="line">        cached_blocks.append(cached_block)</span><br><span class="line">        cached_block.ref_cnt += <span class="number">1</span>  <span class="comment"># Increment reference</span></span><br><span class="line">        num_cached_tokens += block_size</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> cached_blocks, num_cached_tokens</span><br></pre></td></tr></table></figure>
+
+<h3 id="Reference-Counting"><a href="#Reference-Counting" class="headerlink" title="Reference Counting"></a>Reference Counting</h3><p>Blocks use reference counting for safe sharing:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Request A uses blocks [7, 23, 102]</span></span><br><span class="line">block_7.ref_cnt = <span class="number">1</span></span><br><span class="line">block_23.ref_cnt = <span class="number">1</span></span><br><span class="line">block_102.ref_cnt = <span class="number">1</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Request B shares block 7 (same prefix)</span></span><br><span class="line">block_7.ref_cnt = <span class="number">2</span>  <span class="comment"># Now shared!</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Request A finishes - decrement refs</span></span><br><span class="line">block_7.ref_cnt = <span class="number">1</span>   <span class="comment"># Still in use by B</span></span><br><span class="line">block_23.ref_cnt = <span class="number">0</span>  <span class="comment"># Can be freed</span></span><br><span class="line">block_102.ref_cnt = <span class="number">0</span> <span class="comment"># Can be freed</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Request B finishes</span></span><br><span class="line">block_7.ref_cnt = <span class="number">0</span>   <span class="comment"># Now can be freed</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>Safety</strong>: A block is only freed when <code>ref_cnt == 0</code>.</p>
+<h3 id="Cache-Eviction"><a href="#Cache-Eviction" class="headerlink" title="Cache Eviction"></a>Cache Eviction</h3><p>When the cache is full:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">evict_cached_block</span>(<span class="params">self</span>) -&gt; KVCacheBlock:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Evict LRU cached block with ref_cnt == 0.&quot;&quot;&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># Scan free queue from left (LRU)</span></span><br><span class="line">    <span class="keyword">for</span> block <span class="keyword">in</span> self.free_block_queue:</span><br><span class="line">        <span class="keyword">if</span> block.ref_cnt == <span class="number">0</span>:</span><br><span class="line">            <span class="comment"># Found eviction candidate</span></span><br><span class="line">            self.free_block_queue.remove(block)</span><br><span class="line"></span><br><span class="line">            <span class="comment"># Remove from cache lookup</span></span><br><span class="line">            <span class="keyword">del</span> self.cached_block_hash_to_block[block.block_hash]</span><br><span class="line">            block.block_hash = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">return</span> block</span><br><span class="line"></span><br><span class="line">    <span class="keyword">raise</span> OutOfMemoryError(<span class="string">&quot;No evictable blocks&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<h2 id="Attention-Computation-with-Blocks"><a href="#Attention-Computation-with-Blocks" class="headerlink" title="Attention Computation with Blocks"></a>Attention Computation with Blocks</h2><h3 id="Prefill-Phase"><a href="#Prefill-Phase" class="headerlink" title="Prefill Phase"></a>Prefill Phase</h3><p>During prefill, we compute attention for the entire prompt:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">paged_attention_prefill</span>(<span class="params"></span></span><br><span class="line"><span class="params">    query: Tensor,           <span class="comment"># [batch, seq_len, num_heads, head_dim]</span></span></span><br><span class="line"><span class="params">    kv_cache: Tensor,        <span class="comment"># [num_blocks, 2, num_heads, block_size, head_dim]</span></span></span><br><span class="line"><span class="params">    block_tables: Tensor,    <span class="comment"># [batch, max_num_blocks]</span></span></span><br><span class="line"><span class="params">    context_lens: Tensor     <span class="comment"># [batch]</span></span></span><br><span class="line"><span class="params"></span>) -&gt; Tensor:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;</span></span><br><span class="line"><span class="string">    Compute prefill attention using paged KV cache.</span></span><br><span class="line"><span class="string">    &quot;&quot;&quot;</span></span><br><span class="line"></span><br><span class="line">    batch_size, seq_len, num_heads, head_dim = query.shape</span><br><span class="line">    output = torch.empty_like(query)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> b <span class="keyword">in</span> <span class="built_in">range</span>(batch_size):</span><br><span class="line">        context_len = context_lens[b]</span><br><span class="line">        num_blocks = (context_len + block_size - <span class="number">1</span>) // block_size</span><br><span class="line"></span><br><span class="line">        <span class="comment"># Gather K, V from blocks</span></span><br><span class="line">        k_cache, v_cache = [], []</span><br><span class="line">        <span class="keyword">for</span> block_idx <span class="keyword">in</span> <span class="built_in">range</span>(num_blocks):</span><br><span class="line">            physical_block = block_tables[b, block_idx]</span><br><span class="line">            k, v = kv_cache[physical_block]  <span class="comment"># [2, num_heads, block_size, head_dim]</span></span><br><span class="line">            k_cache.append(k)</span><br><span class="line">            v_cache.append(v)</span><br><span class="line"></span><br><span class="line">        <span class="comment"># Concatenate blocks</span></span><br><span class="line">        k = torch.cat(k_cache, dim=<span class="number">1</span>)  <span class="comment"># [num_heads, context_len, head_dim]</span></span><br><span class="line">        v = torch.cat(v_cache, dim=<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">        <span class="comment"># Standard attention</span></span><br><span class="line">        scores = query[b] @ k.transpose(-<span class="number">2</span>, -<span class="number">1</span>) / sqrt(head_dim)</span><br><span class="line">        attn = softmax(scores, dim=-<span class="number">1</span>)</span><br><span class="line">        output[b] = attn @ v</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> output</span><br></pre></td></tr></table></figure>
+
+<p>In practice, vLLM uses optimized kernels (FlashAttention, FlashInfer) that work directly with block tables.</p>
+<h3 id="Decode-Phase"><a href="#Decode-Phase" class="headerlink" title="Decode Phase"></a>Decode Phase</h3><p>During decode, each request generates one token:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">paged_attention_decode</span>(<span class="params"></span></span><br><span class="line"><span class="params">    query: Tensor,           <span class="comment"># [batch, 1, num_heads, head_dim]</span></span></span><br><span class="line"><span class="params">    kv_cache: Tensor,        <span class="comment"># [num_blocks, 2, num_heads, block_size, head_dim]</span></span></span><br><span class="line"><span class="params">    block_tables: Tensor,    <span class="comment"># [batch, max_num_blocks]</span></span></span><br><span class="line"><span class="params">    context_lens: Tensor     <span class="comment"># [batch]</span></span></span><br><span class="line"><span class="params"></span>) -&gt; Tensor:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;</span></span><br><span class="line"><span class="string">    Optimized decode attention - each query attends to full context.</span></span><br><span class="line"><span class="string">    &quot;&quot;&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># Use fused kernel that directly indexes into blocks</span></span><br><span class="line">    <span class="keyword">return</span> flash_attn_decode(</span><br><span class="line">        q=query,</span><br><span class="line">        k_cache=kv_cache[:, <span class="number">0</span>],  <span class="comment"># K cache</span></span><br><span class="line">        v_cache=kv_cache[:, <span class="number">1</span>],  <span class="comment"># V cache</span></span><br><span class="line">        block_table=block_tables,</span><br><span class="line">        seq_lens=context_lens,</span><br><span class="line">        block_size=block_size</span><br><span class="line">    )</span><br></pre></td></tr></table></figure>
+
+<p>The decode kernel is highly optimized:</p>
+<ul>
+<li>Fused block gathering and attention</li>
+<li>Warp-level parallelism</li>
+<li>Shared memory optimization</li>
+</ul>
+<h2 id="Multi-Group-KV-Cache"><a href="#Multi-Group-KV-Cache" class="headerlink" title="Multi-Group KV Cache"></a>Multi-Group KV Cache</h2><p>vLLM supports models with different cache requirements per layer (MQA, GQA, Mamba):</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">kv_cache_config = KVCacheConfig(</span><br><span class="line">    kv_cache_groups=[</span><br><span class="line">        KVCacheGroup(  <span class="comment"># Group 0: Attention layers</span></span><br><span class="line">            kv_cache_spec=AttentionSpec(</span><br><span class="line">                num_heads=<span class="number">32</span>,</span><br><span class="line">                head_dim=<span class="number">128</span>,</span><br><span class="line">                block_size=<span class="number">16</span></span><br><span class="line">            )</span><br><span class="line">        ),</span><br><span class="line">        KVCacheGroup(  <span class="comment"># Group 1: Mamba layers</span></span><br><span class="line">            kv_cache_spec=MambaSpec(</span><br><span class="line">                state_size=<span class="number">128</span>,</span><br><span class="line">                block_size=<span class="number">16</span></span><br><span class="line">            )</span><br><span class="line">        )</span><br><span class="line">    ]</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p>Each request gets blocks from each group:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Request with 50 tokens</span></span><br><span class="line">blocks = [</span><br><span class="line">    [<span class="number">7</span>, <span class="number">23</span>, <span class="number">102</span>, <span class="number">45</span>],     <span class="comment"># Group 0: Attention cache</span></span><br><span class="line">    [<span class="number">8</span>, <span class="number">24</span>, <span class="number">103</span>, <span class="number">46</span>]      <span class="comment"># Group 1: Mamba cache</span></span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<h2 id="Performance-Impact"><a href="#Performance-Impact" class="headerlink" title="Performance Impact"></a>Performance Impact</h2><h3 id="Memory-Efficiency"><a href="#Memory-Efficiency" class="headerlink" title="Memory Efficiency"></a>Memory Efficiency</h3><p><strong>Before PagedAttention</strong> (contiguous allocation):</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">10 requests × 2048 max length × 512 KB/token = 10.5 GB</span><br><span class="line">Actual usage: 10 requests × 500 avg length = 2.5 GB</span><br><span class="line">Efficiency: 24%</span><br></pre></td></tr></table></figure>
+
+<p><strong>With PagedAttention</strong> (block allocation):</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">500 blocks allocated across all requests</span><br><span class="line">Waste: ~10 blocks (partial last blocks)</span><br><span class="line">Efficiency: 98%</span><br></pre></td></tr></table></figure>
+
+<p><strong>Result</strong>: 4x more concurrent requests!</p>
+<h3 id="Throughput-Gains"><a href="#Throughput-Gains" class="headerlink" title="Throughput Gains"></a>Throughput Gains</h3><p>Real benchmarks (Llama-3-8B on H100):</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Without PagedAttention</th>
+<th>With PagedAttention</th>
+<th>Improvement</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Concurrent Requests</td>
+<td>12</td>
+<td>64</td>
+<td>5.3x</td>
+</tr>
+<tr>
+<td>Throughput (tok&#x2F;s)</td>
+<td>1,500</td>
+<td>8,000</td>
+<td>5.3x</td>
+</tr>
+<tr>
+<td>Memory Usage</td>
+<td>60 GB</td>
+<td>60 GB</td>
+<td>Same</td>
+</tr>
+<tr>
+<td>Latency (TTFT)</td>
+<td>45ms</td>
+<td>42ms</td>
+<td>-7%</td>
+</tr>
+</tbody></table>
+<h3 id="Prefix-Caching-Benefits"><a href="#Prefix-Caching-Benefits" class="headerlink" title="Prefix Caching Benefits"></a>Prefix Caching Benefits</h3><p>With a common system prompt (500 tokens):</p>
+<table>
+<thead>
+<tr>
+<th>Requests</th>
+<th>Without Caching</th>
+<th>With Caching</th>
+<th>Speedup</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1st</td>
+<td>10ms (prefill)</td>
+<td>10ms</td>
+<td>1x</td>
+</tr>
+<tr>
+<td>2nd</td>
+<td>10ms</td>
+<td>1ms</td>
+<td>10x</td>
+</tr>
+<tr>
+<td>100th</td>
+<td>10ms</td>
+<td>1ms</td>
+<td>10x</td>
+</tr>
+</tbody></table>
+<p><strong>Cache hit rate</strong>: Typically 60-80% for chatbots with system prompts.</p>
+<h2 id="Advanced-Topics"><a href="#Advanced-Topics" class="headerlink" title="Advanced Topics"></a>Advanced Topics</h2><h3 id="Sliding-Window-Attention"><a href="#Sliding-Window-Attention" class="headerlink" title="Sliding Window Attention"></a>Sliding Window Attention</h3><p>For models like Mistral with sliding windows:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Only keep last 4096 tokens in cache</span></span><br><span class="line"><span class="keyword">if</span> num_tokens &gt; sliding_window_size:</span><br><span class="line">    <span class="comment"># Free old blocks outside window</span></span><br><span class="line">    blocks_to_free = num_tokens - sliding_window_size</span><br><span class="line">    old_blocks = blocks[:blocks_to_free // block_size]</span><br><span class="line">    <span class="keyword">for</span> block <span class="keyword">in</span> old_blocks:</span><br><span class="line">        self.block_pool.free(block)</span><br></pre></td></tr></table></figure>
+
+<h3 id="Copy-on-Write-for-Speculative-Decoding"><a href="#Copy-on-Write-for-Speculative-Decoding" class="headerlink" title="Copy-on-Write for Speculative Decoding"></a>Copy-on-Write for Speculative Decoding</h3><p>When using speculative decoding:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Draft model proposes N tokens</span></span><br><span class="line">draft_tokens = draft_model.generate(n=<span class="number">5</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Share blocks with draft (copy-on-write)</span></span><br><span class="line">draft_blocks = request.blocks  <span class="comment"># Same physical blocks!</span></span><br><span class="line">draft_blocks[-<span class="number">1</span>].ref_cnt += <span class="number">1</span>  <span class="comment"># Increment last block</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Verify with main model</span></span><br><span class="line">verified = main_model.verify(draft_tokens)</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> <span class="keyword">not</span> all_verified:</span><br><span class="line">    <span class="comment"># Rollback - free draft blocks</span></span><br><span class="line">    <span class="keyword">for</span> block <span class="keyword">in</span> draft_blocks[verified_idx:]:</span><br><span class="line">        block.ref_cnt -= <span class="number">1</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="Implementation-Gotchas"><a href="#Implementation-Gotchas" class="headerlink" title="Implementation Gotchas"></a>Implementation Gotchas</h2><h3 id="Hash-Collisions"><a href="#Hash-Collisions" class="headerlink" title="Hash Collisions"></a>Hash Collisions</h3><p>Block hashes can collide:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Different token sequences with same hash (rare!)</span></span><br><span class="line">block_a = <span class="built_in">hash</span>([<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, ..., <span class="number">16</span>]) = <span class="number">0x123456</span></span><br><span class="line">block_b = <span class="built_in">hash</span>([<span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, ..., <span class="number">19</span>]) = <span class="number">0x123456</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Solution: Map hash to list of blocks</span></span><br><span class="line">cached_blocks[<span class="built_in">hash</span>] = [block_a, block_b]</span><br></pre></td></tr></table></figure>
+
+<h3 id="Partial-Blocks"><a href="#Partial-Blocks" class="headerlink" title="Partial Blocks"></a>Partial Blocks</h3><p>Last block is often partial:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 50 tokens with block_size=16</span></span><br><span class="line"><span class="comment"># Block 3 only has 2 tokens (50 % 16 = 2)</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Must track: num_tokens_in_last_block</span></span><br><span class="line"><span class="comment"># For attention: mask out unused positions</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="Thread-Safety"><a href="#Thread-Safety" class="headerlink" title="Thread Safety"></a>Thread Safety</h3><p>Block allocation must be thread-safe:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">BlockPool</span>:</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">allocate</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="keyword">with</span> self.lock:  <span class="comment"># Critical section</span></span><br><span class="line">            <span class="keyword">return</span> self._allocate_unsafe()</span><br></pre></td></tr></table></figure>
+
+<h2 id="Key-Takeaways"><a href="#Key-Takeaways" class="headerlink" title="Key Takeaways"></a>Key Takeaways</h2><ol>
+<li><p><strong>PagedAttention breaks KV cache into fixed-size blocks</strong>, eliminating fragmentation and over-allocation</p>
+</li>
+<li><p><strong>Block tables map logical to physical blocks</strong>, similar to virtual memory page tables</p>
+</li>
+<li><p><strong>Prefix caching shares blocks across requests</strong>, dramatically reducing redundant computation</p>
+</li>
+<li><p><strong>Reference counting ensures safe sharing</strong>, preventing premature deallocation</p>
+</li>
+<li><p><strong>Near-zero memory waste</strong> enables 4-5x higher throughput in practice</p>
+</li>
+<li><p><strong>Attention kernels are optimized</strong> to work directly with block-indexed storage</p>
+</li>
+</ol>
+<h2 id="What’s-Next"><a href="#What’s-Next" class="headerlink" title="What’s Next"></a>What’s Next</h2><p>In Part 3, we’ll explore the <strong>Scheduler</strong> - vLLM’s brain that decides which requests to process, when to preempt, and how to maximize GPU utilization using continuous batching.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://arxiv.org/abs/2309.06180">PagedAttention Paper</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/block_pool.py">Block Pool Implementation</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/kv_cache_manager.py">KVCacheManager</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/Dao-AILab/flash-attention">Flash Attention with Paging</a></li>
+</ul>
+<hr>
+<p>PagedAttention is the foundation that makes vLLM’s exceptional performance possible. In the next post, we’ll see how the Scheduler builds on top of this to orchestrate request execution.</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Performance/" rel="tag"># Performance</a>
+              <a href="/tags/vLLM/" rel="tag"># vLLM</a>
+              <a href="/tags/PagedAttention/" rel="tag"># PagedAttention</a>
+              <a href="/tags/Memory-Management/" rel="tag"># Memory Management</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/13/2026-04-13-vllm-deep-dive-01-architecture/" rel="prev" title="vLLM Deep Dive Part 1: Architecture Overview">
+                  <i class="fa fa-angle-left"></i> vLLM Deep Dive Part 1: Architecture Overview
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/13/2026-04-13-vllm-deep-dive-03-scheduler/" rel="next" title="vLLM Deep Dive Part 3: The Scheduler - Brain of vLLM">
+                  vLLM Deep Dive Part 3: The Scheduler - Brain of vLLM <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
