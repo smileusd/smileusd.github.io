@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="在前几篇的基础上，本文聚焦于 Linux 网络栈中性能极限的挖掘：从硬件卸载、多队列扩展，到内核旁路（Kernel Bypass）技术，再到发送路径的零拷贝优化，最后落地到实际的诊断工具链。所有代码片段均取自 Linux 6.4-rc1 源码树，并附有源文件路径与行号，供读者对照阅读。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 网络内核协议栈深度剖析（九）：网络性能优化与高性能技术">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part9-performance/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="在前几篇的基础上，本文聚焦于 Linux 网络栈中性能极限的挖掘：从硬件卸载、多队列扩展，到内核旁路（Kernel Bypass）技术，再到发送路径的零拷贝优化，最后落地到实际的诊断工具链。所有代码片段均取自 Linux 6.4-rc1 源码树，并附有源文件路径与行号，供读者对照阅读。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-14T03:20:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T03:07:59.024Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Network Performance">
+<meta property="article:tag" content="TSO">
+<meta property="article:tag" content="GRO">
+<meta property="article:tag" content="RSS">
+<meta property="article:tag" content="DPDK">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part9-performance/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part9-performance/","path":"2026/04/14/2026-04-14-linux-net-stack-part9-performance/","title":"Linux 网络内核协议栈深度剖析（九）：网络性能优化与高性能技术"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 网络内核协议栈深度剖析（九）：网络性能优化与高性能技术 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E7%A1%AC%E4%BB%B6%E5%8D%B8%E8%BD%BD%E7%89%B9%E6%80%A7%EF%BC%88Hardware-Offload%EF%BC%89"><span class="nav-number">1.</span> <span class="nav-text">一、硬件卸载特性（Hardware Offload）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E5%8D%B8%E8%BD%BD%E7%89%B9%E6%80%A7%E7%9A%84%E8%A1%A8%E7%A4%BA%E5%B1%82%EF%BC%9Anetdev-features-t"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 卸载特性的表示层：netdev_features_t</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-TSO%EF%BC%9ATCP-%E5%88%86%E6%AE%B5%E5%8D%B8%E8%BD%BD%EF%BC%88Transmit-Side%EF%BC%89"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 TSO：TCP 分段卸载（Transmit Side）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-GSO%EF%BC%9A%E9%80%9A%E7%94%A8%E5%88%86%E6%AE%B5%E5%8D%B8%E8%BD%BD%EF%BC%88%E8%BD%AF%E4%BB%B6%E5%85%9C%E5%BA%95%EF%BC%89"><span class="nav-number">1.3.</span> <span class="nav-text">1.3 GSO：通用分段卸载（软件兜底）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-GRO%EF%BC%9A%E9%80%9A%E7%94%A8%E6%8E%A5%E6%94%B6%E5%8D%B8%E8%BD%BD"><span class="nav-number">1.4.</span> <span class="nav-text">1.4 GRO：通用接收卸载</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-5-Checksum-Offload"><span class="nav-number">1.5.</span> <span class="nav-text">1.5 Checksum Offload</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-6-LRO-vs-GRO"><span class="nav-number">1.6.</span> <span class="nav-text">1.6 LRO vs GRO</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81RSS-%E4%B8%8E%E5%A4%9A%E9%98%9F%E5%88%97%E6%8E%A5%E6%94%B6"><span class="nav-number">2.</span> <span class="nav-text">二、RSS 与多队列接收</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-RSS-%E5%8E%9F%E7%90%86"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 RSS 原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-RPS%EF%BC%9A%E8%BD%AF%E4%BB%B6%E7%89%88-RSS"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 RPS：软件版 RSS</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-RFS%EF%BC%9A%E6%8E%A5%E6%94%B6%E6%B5%81%E5%BC%95%E5%AF%BC"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 RFS：接收流引导</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-XPS%EF%BC%9A%E5%8F%91%E9%80%81%E5%8C%85%E5%BC%95%E5%AF%BC"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 XPS：发送包引导</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81Kernel-Bypass-%E6%8A%80%E6%9C%AF"><span class="nav-number">3.</span> <span class="nav-text">三、Kernel Bypass 技术</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-DPDK%EF%BC%9A%E5%AE%8C%E5%85%A8%E7%94%A8%E6%88%B7%E6%80%81%E9%A9%B1%E5%8A%A8"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 DPDK：完全用户态驱动</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-AF-XDP%EF%BC%9A%E5%86%85%E6%A0%B8-eBPF-%E5%8A%A0%E6%8C%81%E7%9A%84%E9%9B%B6%E6%8B%B7%E8%B4%9D%E6%8E%A5%E6%94%B6"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 AF_XDP：内核 eBPF 加持的零拷贝接收</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-XDP-vs-DPDK-vs-%E4%BC%A0%E7%BB%9F%E5%86%85%E6%A0%B8%E7%BD%91%E7%BB%9C%E5%AF%B9%E6%AF%94"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 XDP vs DPDK vs 传统内核网络对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%8F%91%E9%80%81%E8%B7%AF%E5%BE%84%E4%BC%98%E5%8C%96"><span class="nav-number">4.</span> <span class="nav-text">四、发送路径优化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-dev-queue-xmit-%E4%B8%AD%E7%9A%84-qdisc-bypass"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 __dev_queue_xmit 中的 qdisc bypass</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-MSG-ZEROCOPY%EF%BC%9A%E9%9B%B6%E6%8B%B7%E8%B4%9D%E5%8F%91%E9%80%81"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 MSG_ZEROCOPY：零拷贝发送</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-sendfile-%E4%B8%8E-splice%EF%BC%9A%E5%86%85%E6%A0%B8%E5%86%85%E9%9B%B6%E6%8B%B7%E8%B4%9D"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 sendfile 与 splice：内核内零拷贝</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E4%BC%98%E5%8C%96"><span class="nav-number">5.</span> <span class="nav-text">五、内存分配优化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-skb-%E5%88%86%E9%85%8D%E7%BC%93%E5%AD%98%E6%B1%A0"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 skb 分配缓存池</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-NUMA-%E6%84%9F%E7%9F%A5%E7%9A%84%E7%BD%91%E7%BB%9C%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 NUMA 感知的网络内存分配</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81TCP-%E6%80%A7%E8%83%BD%E8%B0%83%E4%BC%98%E5%8F%82%E6%95%B0"><span class="nav-number">6.</span> <span class="nav-text">六、TCP 性能调优参数</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E8%BF%9E%E6%8E%A5%E7%A7%AF%E5%8E%8B%E9%98%9F%E5%88%97"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 连接积压队列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E8%BD%AF%E4%B8%AD%E6%96%AD%E6%94%B6%E5%8C%85%E9%98%9F%E5%88%97"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 软中断收包队列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-TCP-%E7%BC%93%E5%86%B2%E5%8C%BA"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 TCP 缓冲区</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-TCP-Fast-Open"><span class="nav-number">6.4.</span> <span class="nav-text">6.4 TCP Fast Open</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-5-%E5%86%85%E6%A0%B8%E5%BF%99%E8%BD%AE%E8%AF%A2"><span class="nav-number">6.5.</span> <span class="nav-text">6.5 内核忙轮询</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E6%80%A7%E8%83%BD%E8%AF%8A%E6%96%AD%E5%85%A8%E6%B5%81%E7%A8%8B"><span class="nav-number">7.</span> <span class="nav-text">七、性能诊断全流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E6%9F%A5%E7%9C%8B%E4%B8%8E%E4%BF%AE%E6%94%B9%E5%8D%B8%E8%BD%BD%E7%89%B9%E6%80%A7"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 查看与修改卸载特性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E8%B0%83%E6%95%B4%E9%98%9F%E5%88%97%E6%95%B0"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 调整队列数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-IRQ-%E4%BA%B2%E5%92%8C%E6%80%A7%E7%BB%91%E5%AE%9A"><span class="nav-number">7.3.</span> <span class="nav-text">7.3 IRQ 亲和性绑定</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E5%AE%9E%E6%97%B6%E7%BD%91%E7%BB%9C%E7%9B%91%E6%8E%A7"><span class="nav-number">7.4.</span> <span class="nav-text">7.4 实时网络监控</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-%E5%85%B3%E9%94%AE%E8%AE%A1%E6%95%B0%E5%99%A8%E8%A7%A3%E8%AF%BB"><span class="nav-number">7.5.</span> <span class="nav-text">7.5 关键计数器解读</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-6-bpftrace-%E8%BF%BD%E8%B8%AA-softirq-%E5%A4%84%E7%90%86%E5%BB%B6%E8%BF%9F"><span class="nav-number">7.6.</span> <span class="nav-text">7.6 bpftrace 追踪 softirq 处理延迟</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">29</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">200</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part9-performance/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 网络内核协议栈深度剖析（九）：网络性能优化与高性能技术 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 网络内核协议栈深度剖析（九）：网络性能优化与高性能技术
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 11:20:00 / Modified: 11:07:59" itemprop="dateCreated datePublished" datetime="2026-04-14T11:20:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Networking/" itemprop="url" rel="index"><span itemprop="name">Networking</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>在前几篇的基础上，本文聚焦于 Linux 网络栈中<strong>性能极限</strong>的挖掘：从硬件卸载、多队列扩展，到内核旁路（Kernel Bypass）技术，再到发送路径的零拷贝优化，最后落地到实际的诊断工具链。所有代码片段均取自 Linux 6.4-rc1 源码树，并附有源文件路径与行号，供读者对照阅读。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="一、硬件卸载特性（Hardware-Offload）"><a href="#一、硬件卸载特性（Hardware-Offload）" class="headerlink" title="一、硬件卸载特性（Hardware Offload）"></a>一、硬件卸载特性（Hardware Offload）</h2><h3 id="1-1-卸载特性的表示层：netdev-features-t"><a href="#1-1-卸载特性的表示层：netdev-features-t" class="headerlink" title="1.1 卸载特性的表示层：netdev_features_t"></a>1.1 卸载特性的表示层：<code>netdev_features_t</code></h3><p>Linux 用一个 64 位整型 <code>netdev_features_t</code> 描述网卡能力，定义在 <code>include/linux/netdev_features.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/netdev_features.h */</span></span><br><span class="line"><span class="keyword">typedef</span> u64 <span class="type">netdev_features_t</span>;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">    NETIF_F_SG_BIT,           <span class="comment">/* Scatter/gather IO. */</span></span><br><span class="line">    NETIF_F_IP_CSUM_BIT,      <span class="comment">/* Can checksum TCP/UDP over IPv4. */</span></span><br><span class="line">    NETIF_F_HW_CSUM_BIT,      <span class="comment">/* Can checksum all the packets. */</span></span><br><span class="line">    NETIF_F_IPV6_CSUM_BIT,    <span class="comment">/* Can checksum TCP/UDP over IPV6 */</span></span><br><span class="line">    NETIF_F_GSO_BIT,          <span class="comment">/* Enable software GSO. */</span></span><br><span class="line">    NETIF_F_GRO_BIT,          <span class="comment">/* Generic receive offload */</span></span><br><span class="line">    NETIF_F_LRO_BIT,          <span class="comment">/* large receive offload */</span></span><br><span class="line">    NETIF_F_TSO_BIT,          <span class="comment">/* ... TCPv4 segmentation */</span></span><br><span class="line">    NETIF_F_TSO6_BIT,         <span class="comment">/* ... TCPv6 segmentation */</span></span><br><span class="line">    NETIF_F_GSO_UDP_L4_BIT,   <span class="comment">/* ... UDP payload GSO (not UFO) */</span></span><br><span class="line">    NETIF_F_RXHASH_BIT,       <span class="comment">/* Receive hashing offload */</span></span><br><span class="line">    NETIF_F_RXCSUM_BIT,       <span class="comment">/* Receive checksumming offload */</span></span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NETIF_F_TSO     __NETIF_F(TSO)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NETIF_F_GRO     __NETIF_F(GRO)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NETIF_F_GSO     __NETIF_F(GSO)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NETIF_F_IP_CSUM __NETIF_F(IP_CSUM)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NETIF_F_HW_CSUM __NETIF_F(HW_CSUM)</span></span><br></pre></td></tr></table></figure>
+
+<p>每一位对应一项卸载能力。驱动在 <code>probe</code> 阶段通过 <code>dev-&gt;features |= NETIF_F_TSO | NETIF_F_GRO | ...</code> 声明支持的特性，内核在发送&#x2F;接收路径中检查这些标志，决定由硬件还是软件完成分段、校验和等工作。</p>
+<h3 id="1-2-TSO：TCP-分段卸载（Transmit-Side）"><a href="#1-2-TSO：TCP-分段卸载（Transmit-Side）" class="headerlink" title="1.2 TSO：TCP 分段卸载（Transmit Side）"></a>1.2 TSO：TCP 分段卸载（Transmit Side）</h3><p><strong>TSO（TCP Segmentation Offload）</strong> 让内核把一个超大 skb（最大可达 64 KB，受 <code>gso_size</code> 字段控制）直接交给网卡，由网卡硬件完成 TCP&#x2F;IP 分段，而不是内核在 <code>validate_xmit_skb</code> 阶段用 GSO 软件分段。</p>
+<p>工作流程：</p>
+<ol>
+<li>TCP 发送路径（<code>tcp_sendmsg</code>）构建一个大 skb，<code>skb_shinfo(skb)-&gt;gso_size</code> 设置为 MSS，<code>gso_segs</code> 设置为段数。</li>
+<li><code>__dev_queue_xmit</code> → <code>validate_xmit_skb</code> 检查 <code>netif_needs_gso(skb, features)</code>：若网卡声明了 <code>NETIF_F_TSO</code>，且协议匹配，则直接透传给驱动，<strong>不做 CPU 分段</strong>。</li>
+<li>网卡 DMA 引擎读取整块数据，自行按 MSS 切割，填写各段的 TCP 序号、IP 长度和校验和，最终发送多个帧。</li>
+</ol>
+<p>收益：每次系统调用可减少 CPU 对 IP&#x2F;TCP 头的重复处理。一个 64 KB 的 GSO skb 可以省去约 45 次独立的 IP 头写入和校验和计算。</p>
+<h3 id="1-3-GSO：通用分段卸载（软件兜底）"><a href="#1-3-GSO：通用分段卸载（软件兜底）" class="headerlink" title="1.3 GSO：通用分段卸载（软件兜底）"></a>1.3 GSO：通用分段卸载（软件兜底）</h3><p>当网卡不支持 TSO，或 skb 通过隧道（如 VXLAN）封装导致硬件无法识别时，内核在 CPU 上完成分段——这就是 <strong>GSO（Generic Segmentation Offload）</strong>。实现入口在 <code>net/core/dev.c</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/core/dev.c，第 3352 行 */</span></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * __skb_gso_segment - Perform segmentation on skb.</span></span><br><span class="line"><span class="comment"> * @skb: buffer to segment</span></span><br><span class="line"><span class="comment"> * @features: features for the output path (see dev-&gt;features)</span></span><br><span class="line"><span class="comment"> * @tx_path: whether it is called in TX path</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * This function segments the given skb and returns a list of segments.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sk_buff</span> *__<span class="title">skb_gso_segment</span>(<span class="keyword">struct</span> <span class="title">sk_buff</span> *<span class="title">skb</span>,</span></span><br><span class="line"><span class="class">                  <span class="title">netdev_features_t</span> <span class="title">features</span>, <span class="title">bool</span> <span class="title">tx_path</span>)</span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sk_buff</span> *<span class="title">segs</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (unlikely(skb_needs_check(skb, tx_path))) &#123;</span><br><span class="line">        <span class="type">int</span> err;</span><br><span class="line">        err = skb_cow_head(skb, <span class="number">0</span>);</span><br><span class="line">        <span class="keyword">if</span> (err &lt; <span class="number">0</span>)</span><br><span class="line">            <span class="keyword">return</span> ERR_PTR(err);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (features &amp; NETIF_F_GSO_PARTIAL) &#123;</span><br><span class="line">        <span class="type">netdev_features_t</span> partial_features = NETIF_F_GSO_ROBUST;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">net_device</span> *<span class="title">dev</span> =</span> skb-&gt;dev;</span><br><span class="line">        partial_features |= dev-&gt;features &amp; dev-&gt;gso_partial_features;</span><br><span class="line">        <span class="keyword">if</span> (!skb_gso_ok(skb, features | partial_features))</span><br><span class="line">            features &amp;= ~NETIF_F_GSO_PARTIAL;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    SKB_GSO_CB(skb)-&gt;mac_offset = skb_headroom(skb);</span><br><span class="line">    SKB_GSO_CB(skb)-&gt;encap_level = <span class="number">0</span>;</span><br><span class="line">    skb_reset_mac_header(skb);</span><br><span class="line">    skb_reset_mac_len(skb);</span><br><span class="line"></span><br><span class="line">    segs = skb_mac_gso_segment(skb, features);</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">    <span class="keyword">return</span> segs;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(__skb_gso_segment);</span><br></pre></td></tr></table></figure>
+
+<p><code>validate_xmit_skb</code>（同文件第 3643 行）在检测到 <code>netif_needs_gso</code> 时调用 <code>skb_gso_segment</code>，将大 skb 切割为链表，再逐一送入驱动 <code>ndo_start_xmit</code>。</p>
+<p><strong>GSO 与 TSO 的关键区别</strong>：TSO 由网卡硬件分段（零 CPU 开销），GSO 由内核 CPU 分段（有 CPU 开销，但仍比每次 <code>sendmsg</code> 单独发送效率高，因为协议栈的路由查找、防火墙规则等只需执行一次）。</p>
+<h3 id="1-4-GRO：通用接收卸载"><a href="#1-4-GRO：通用接收卸载" class="headerlink" title="1.4 GRO：通用接收卸载"></a>1.4 GRO：通用接收卸载</h3><p><strong>GRO（Generic Receive Offload）</strong> 是接收方向的对称技术，在 NAPI 轮询期间将属于同一 TCP 流的多个小 skb 合并成一个大 skb，再交给上层协议栈，减少协议栈的处理次数。</p>
+<p>核心入口在 <code>net/core/gro.c</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/core/gro.c，第 648 行 */</span></span><br><span class="line"><span class="type">gro_result_t</span> <span class="title function_">napi_gro_receive</span><span class="params">(<span class="keyword">struct</span> napi_struct *napi, <span class="keyword">struct</span> sk_buff *skb)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">gro_result_t</span> ret;</span><br><span class="line"></span><br><span class="line">    skb_mark_napi_id(skb, napi);</span><br><span class="line">    trace_napi_gro_receive_entry(skb);</span><br><span class="line"></span><br><span class="line">    skb_gro_reset_offset(skb, <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">    ret = napi_skb_finish(napi, skb, dev_gro_receive(napi, skb));</span><br><span class="line">    trace_napi_gro_receive_exit(ret);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(napi_gro_receive);</span><br></pre></td></tr></table></figure>
+
+<p>驱动在 NAPI 回调中调用 <code>napi_gro_receive</code>，内核进入 <code>dev_gro_receive</code>（同文件第 482 行）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/core/gro.c，第 482 行（精简） */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">enum</span> gro_result <span class="title function_">dev_gro_receive</span><span class="params">(<span class="keyword">struct</span> napi_struct *napi, <span class="keyword">struct</span> sk_buff *skb)</span></span><br><span class="line">&#123;</span><br><span class="line">    u32 bucket = skb_get_hash_raw(skb) &amp; (GRO_HASH_BUCKETS - <span class="number">1</span>);</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">gro_list</span> *<span class="title">gro_list</span> =</span> &amp;napi-&gt;gro_hash[bucket];</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">    <span class="comment">/* 设置 GRO CB，记录校验和状态 */</span></span><br><span class="line">    <span class="keyword">switch</span> (skb-&gt;ip_summed) &#123;</span><br><span class="line">    <span class="keyword">case</span> CHECKSUM_COMPLETE:</span><br><span class="line">        NAPI_GRO_CB(skb)-&gt;csum = skb-&gt;csum;</span><br><span class="line">        NAPI_GRO_CB(skb)-&gt;csum_valid = <span class="number">1</span>;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    <span class="keyword">case</span> CHECKSUM_UNNECESSARY:</span><br><span class="line">        NAPI_GRO_CB(skb)-&gt;csum_cnt = skb-&gt;csum_level + <span class="number">1</span>;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 调用协议特定的 gro_receive（如 inet_gro_receive）*/</span></span><br><span class="line">    pp = INDIRECT_CALL_INET(ptype-&gt;callbacks.gro_receive,</span><br><span class="line">                ipv6_gro_receive, inet_gro_receive,</span><br><span class="line">                &amp;gro_list-&gt;<span class="built_in">list</span>, skb);</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">    same_flow = NAPI_GRO_CB(skb)-&gt;same_flow;</span><br><span class="line">    ret = NAPI_GRO_CB(skb)-&gt;<span class="built_in">free</span> ? GRO_MERGED_FREE : GRO_MERGED;</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>哈希桶：每个 NAPI 实例维护 <code>GRO_HASH_BUCKETS</code>（默认 8）个哈希桶，按 <code>skb</code> 的流哈希分桶，避免跨流错误合并。</li>
+<li><code>MAX_GRO_SKBS = 8</code>：每个哈希桶最多缓存 8 个待合并 skb，超出后强制 flush。</li>
+<li>合并结果：<code>GRO_MERGED</code> 表示成功合并、<code>GRO_MERGED_FREE</code> 表示合并后原 skb 被释放、<code>GRO_NORMAL</code> 表示未合并直接上送。</li>
+</ul>
+<h3 id="1-5-Checksum-Offload"><a href="#1-5-Checksum-Offload" class="headerlink" title="1.5 Checksum Offload"></a>1.5 Checksum Offload</h3><p><code>ip_summed</code> 字段（位于 <code>struct sk_buff</code>）描述当前 skb 的校验和状态：</p>
+<table>
+<thead>
+<tr>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CHECKSUM_NONE</code></td>
+<td>校验和未经验证，软件需完整计算</td>
+</tr>
+<tr>
+<td><code>CHECKSUM_UNNECESSARY</code></td>
+<td>网卡已验证（<code>NETIF_F_RXCSUM</code>），软件无需重算</td>
+</tr>
+<tr>
+<td><code>CHECKSUM_COMPLETE</code></td>
+<td>网卡提供了完整的硬件校验和（<code>skb-&gt;csum</code>），软件可用于增量验证</td>
+</tr>
+<tr>
+<td><code>CHECKSUM_PARTIAL</code></td>
+<td>发送方向：软件已填写伪头校验和，网卡负责补全（<code>NETIF_F_IP_CSUM</code> &#x2F; <code>NETIF_F_HW_CSUM</code>）</td>
+</tr>
+</tbody></table>
+<p><code>NETIF_F_IP_CSUM</code> 仅卸载 IPv4 上的 TCP&#x2F;UDP，<code>NETIF_F_HW_CSUM</code> 可卸载所有协议。</p>
+<h3 id="1-6-LRO-vs-GRO"><a href="#1-6-LRO-vs-GRO" class="headerlink" title="1.6 LRO vs GRO"></a>1.6 LRO vs GRO</h3><p><strong>LRO（Large Receive Offload）</strong> 由网卡硬件合并数据包（对应 <code>NETIF_F_LRO</code>），粒度更粗、效率更高，但存在两个主要缺陷：</p>
+<ol>
+<li><strong>转发场景破坏</strong>：LRO 合并后的超大包无法直接转发（转发需要原始 MSS 大小的帧）。</li>
+<li><strong>IP 头丢失</strong>：合并后中间包的 IP 选项、TTL 等信息丢失，导致防火墙&#x2F;路由规则失效。</li>
+</ol>
+<p><strong>GRO</strong> 在软件层面实现，保留了完整的协议层控制。内核中 LRO 和 GRO 不能同时开启：若驱动声明 <code>NETIF_F_LRO</code>，内核会在注册时自动清除 <code>NETIF_F_GRO</code>。现代生产系统几乎一律使用 GRO。</p>
+<hr>
+<h2 id="二、RSS-与多队列接收"><a href="#二、RSS-与多队列接收" class="headerlink" title="二、RSS 与多队列接收"></a>二、RSS 与多队列接收</h2><h3 id="2-1-RSS-原理"><a href="#2-1-RSS-原理" class="headerlink" title="2.1 RSS 原理"></a>2.1 RSS 原理</h3><p><strong>RSS（Receive Side Scaling）</strong> 是网卡硬件特性：网卡通过对数据包的五元组（源&#x2F;目 IP、源&#x2F;目端口、协议）做哈希，将不同流分配到不同的 RX 队列，每个队列绑定一个 CPU 核心，从而实现多核并行收包。</p>
+<p>驱动在初始化时通过以下函数告知内核实际使用的队列数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/core/dev.c，第 2865 行 */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">netif_set_real_num_tx_queues</span><span class="params">(<span class="keyword">struct</span> net_device *dev, <span class="type">unsigned</span> <span class="type">int</span> txq)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">/* ... 更新 kobject、TC 配置、qdisc ... */</span></span><br><span class="line">    dev-&gt;real_num_tx_queues = txq;</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(netif_set_real_num_tx_queues);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* net/core/dev.c，第 2917 行 */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">netif_set_real_num_rx_queues</span><span class="params">(<span class="keyword">struct</span> net_device *dev, <span class="type">unsigned</span> <span class="type">int</span> rxq)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">    dev-&gt;real_num_rx_queues = rxq;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(netif_set_real_num_rx_queues);</span><br></pre></td></tr></table></figure>
+
+<p>每个 RX 队列独立触发 MSIX 中断，绑定到专属 CPU 核心，彻底消除单 CPU 的收包瓶颈。</p>
+<h3 id="2-2-RPS：软件版-RSS"><a href="#2-2-RPS：软件版-RSS" class="headerlink" title="2.2 RPS：软件版 RSS"></a>2.2 RPS：软件版 RSS</h3><p>当网卡不支持硬件 RSS 时，<strong>RPS（Receive Packet Steering）</strong> 在软件层面实现类似效果。核心函数 <code>get_rps_cpu</code>（<code>net/core/dev.c</code> 第 4428 行）负责根据流哈希选择目标 CPU：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/core/dev.c，第 4427 行 */</span></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * get_rps_cpu is called from netif_receive_skb and returns the target</span></span><br><span class="line"><span class="comment"> * CPU from the RPS map of the receiving queue for a given skb.</span></span><br><span class="line"><span class="comment"> * rcu_read_lock must be held on entry.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">get_rps_cpu</span><span class="params">(<span class="keyword">struct</span> net_device *dev, <span class="keyword">struct</span> sk_buff *skb,</span></span><br><span class="line"><span class="params">               <span class="keyword">struct</span> rps_dev_flow **rflowp)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">rps_sock_flow_table</span> *<span class="title">sock_flow_table</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">netdev_rx_queue</span> *<span class="title">rxqueue</span> =</span> dev-&gt;_rx;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rps_dev_flow_table</span> *<span class="title">flow_table</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rps_map</span> *<span class="title">map</span>;</span></span><br><span class="line">    <span class="type">int</span> cpu = <span class="number">-1</span>;</span><br><span class="line">    u32 hash;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 读取 per-queue 的 rps_map（用户通过</span></span><br><span class="line"><span class="comment">     * /sys/class/net/eth0/queues/rx-0/rps_cpus 设置）*/</span></span><br><span class="line">    flow_table = rcu_dereference(rxqueue-&gt;rps_flow_table);</span><br><span class="line">    <span class="built_in">map</span> = rcu_dereference(rxqueue-&gt;rps_map);</span><br><span class="line">    <span class="keyword">if</span> (!flow_table &amp;&amp; !<span class="built_in">map</span>)</span><br><span class="line">        <span class="keyword">goto</span> done;</span><br><span class="line"></span><br><span class="line">    hash = skb_get_hash(skb);</span><br><span class="line">    <span class="keyword">if</span> (!hash)</span><br><span class="line">        <span class="keyword">goto</span> done;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 先查 RFS 全局流表，再退回 RPS CPU 位图 */</span></span><br><span class="line">    sock_flow_table = rcu_dereference(rps_sock_flow_table);</span><br><span class="line">    <span class="keyword">if</span> (flow_table &amp;&amp; sock_flow_table) &#123;</span><br><span class="line">        ident = sock_flow_table-&gt;ents[hash &amp; sock_flow_table-&gt;mask];</span><br><span class="line">        <span class="keyword">if</span> ((ident ^ hash) &amp; ~rps_cpu_mask)</span><br><span class="line">            <span class="keyword">goto</span> try_rps;</span><br><span class="line">        <span class="comment">/* 匹配到 RFS 记录，使用应用所在 CPU */</span></span><br><span class="line">        next_cpu = ident &amp; rps_cpu_mask;</span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>匹配到目标 CPU 后，<code>enqueue_to_backlog</code> 将 skb 放入目标 CPU 的 <code>input_pkt_queue</code>，通过 IPI（Inter-Processor Interrupt）触发软中断处理。</p>
+<p><strong>配置 RPS</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 将 rx-0 队列的包分发到 CPU 0-3（位图 0xf）</span></span><br><span class="line"><span class="built_in">echo</span> f &gt; /sys/class/net/eth0/queues/rx-0/rps_cpus</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-RFS：接收流引导"><a href="#2-3-RFS：接收流引导" class="headerlink" title="2.3 RFS：接收流引导"></a>2.3 RFS：接收流引导</h3><p><strong>RFS（Receive Flow Steering）</strong> 在 RPS 基础上更进一步：将数据包引导到<strong>应用正在运行的 CPU</strong>，利用 CPU L1&#x2F;L2 缓存热度，避免跨核传递 socket 数据导致的缓存 miss。</p>
+<p>记录应用 CPU 位置的函数定义在 <code>include/linux/netdevice.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/netdevice.h，第 761 行 */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title function_">rps_record_sock_flow</span><span class="params">(<span class="keyword">struct</span> rps_sock_flow_table *table,</span></span><br><span class="line"><span class="params">                    u32 hash)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (table &amp;&amp; hash) &#123;</span><br><span class="line">        <span class="type">unsigned</span> <span class="type">int</span> index = hash &amp; table-&gt;mask;</span><br><span class="line">        u32 val = hash &amp; ~rps_cpu_mask;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* We only give a hint, preemption can change CPU under us */</span></span><br><span class="line">        val |= raw_smp_processor_id();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (table-&gt;ents[index] != val)</span><br><span class="line">            table-&gt;ents[index] = val;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>每当 socket 在某 CPU 上被 <code>recvmsg</code> 系统调用访问时（<code>include/net/sock.h</code> 第 1134 行调用此函数），就将 <code>当前CPU | hash</code> 写入全局流表 <code>rps_sock_flow_table</code>。<code>get_rps_cpu</code> 中优先查此表，找到后数据包走 IPI 被送往应用的 CPU。</p>
+<p><strong>配置 RFS</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 全局流表大小（必须是 2 的幂）</span></span><br><span class="line"><span class="built_in">echo</span> 32768 &gt; /proc/sys/net/core/rps_sock_flow_entries</span><br><span class="line"><span class="comment"># 每个队列的流表大小</span></span><br><span class="line"><span class="built_in">echo</span> 2048 &gt; /sys/class/net/eth0/queues/rx-0/rps_flow_cnt</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-XPS：发送包引导"><a href="#2-4-XPS：发送包引导" class="headerlink" title="2.4 XPS：发送包引导"></a>2.4 XPS：发送包引导</h3><p><strong>XPS（Transmit Packet Steering）</strong> 是发送方向的对称技术：将 socket 发出的数据包绑定到特定 TX 队列，通常配置为与 socket 所在 CPU 对应的队列，减少跨核竞争 <code>txq-&gt;lock</code>。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 将 TX 队列 0 绑定到 CPU 0</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; /sys/class/net/eth0/queues/tx-0/xps_cpus</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="三、Kernel-Bypass-技术"><a href="#三、Kernel-Bypass-技术" class="headerlink" title="三、Kernel Bypass 技术"></a>三、Kernel Bypass 技术</h2><p>当数据包在内核网络栈中经历的层次（驱动→协议栈→socket→用户态）成为瓶颈时，<strong>内核旁路</strong>技术绕过部分或全部内核路径，追求百万级 PPS 乃至线速转发。</p>
+<h3 id="3-1-DPDK：完全用户态驱动"><a href="#3-1-DPDK：完全用户态驱动" class="headerlink" title="3.1 DPDK：完全用户态驱动"></a>3.1 DPDK：完全用户态驱动</h3><p><strong>DPDK（Data Plane Development Kit）</strong> 通过以下机制绕过内核：</p>
+<ul>
+<li><strong>UIO &#x2F; VFIO</strong>：将网卡的 BAR（Base Address Register，PCIe 配置空间）映射到用户态进程地址空间，用户态代码直接读写网卡寄存器和 DMA 描述符环。</li>
+<li><strong>Poll Mode Driver（PMD）</strong>：用户态轮询（busy-poll）收包，完全绕过中断和内核协议栈。</li>
+<li><strong>Hugepage 内存</strong>：使用 2 MB&#x2F;1 GB 大页减少 TLB miss，DMA 描述符直接指向用户态物理内存。</li>
+</ul>
+<p>DPDK 的收包路径：<strong>网卡 DMA → 用户态内存 → PMD 驱动轮询 → 用户态应用</strong>，全程无系统调用、无内核上下文切换、无 skb 分配开销。代价是独占 CPU 核心（一个核心持续 100% 用于轮询），适合专用转发&#x2F;处理节点。</p>
+<h3 id="3-2-AF-XDP：内核-eBPF-加持的零拷贝接收"><a href="#3-2-AF-XDP：内核-eBPF-加持的零拷贝接收" class="headerlink" title="3.2 AF_XDP：内核 eBPF 加持的零拷贝接收"></a>3.2 AF_XDP：内核 eBPF 加持的零拷贝接收</h3><p><strong>AF_XDP</strong> 是 Linux 4.18 引入的 socket 类型，结合 XDP eBPF 程序，实现在内核 XDP 钩子处将数据包直接映射到用户态内存（UMEM），无需经过完整协议栈。</p>
+<p>核心数据结构定义在 <code>include/net/xdp_sock.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/net/xdp_sock.h，第 45 行 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xdp_sock</span> &#123;</span></span><br><span class="line">    <span class="comment">/* struct sock must be the first member of struct xdp_sock */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sock</span> <span class="title">sk</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xsk_queue</span> *<span class="title">rx</span> ____<span class="title">cacheline_aligned_in_smp</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">net_device</span> *<span class="title">dev</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xdp_umem</span> *<span class="title">umem</span>;</span>         <span class="comment">/* 用户态共享内存区域 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">flush_node</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xsk_buff_pool</span> *<span class="title">pool</span>;</span></span><br><span class="line">    u16 queue_id;</span><br><span class="line">    <span class="type">bool</span> zc;                       <span class="comment">/* zero-copy 标志 */</span></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">        XSK_READY = <span class="number">0</span>,</span><br><span class="line">        XSK_BOUND,</span><br><span class="line">        XSK_UNBOUND,</span><br><span class="line">    &#125; state;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xsk_queue</span> *<span class="title">tx</span> ____<span class="title">cacheline_aligned_in_smp</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">tx_list</span>;</span></span><br><span class="line">    <span class="type">spinlock_t</span> rx_lock;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Statistics */</span></span><br><span class="line">    u64 rx_dropped;</span><br><span class="line">    u64 rx_queue_full;</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>收包路径（<code>net/xdp/xsk.c</code> 第 251 行）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/xdp/xsk.c，第 251 行 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">xsk_rcv</span><span class="params">(<span class="keyword">struct</span> xdp_sock *xs, <span class="keyword">struct</span> xdp_buff *xdp)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> err;</span><br><span class="line">    u32 len;</span><br><span class="line"></span><br><span class="line">    err = xsk_rcv_check(xs, xdp);</span><br><span class="line">    <span class="keyword">if</span> (err)</span><br><span class="line">        <span class="keyword">return</span> err;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 零拷贝路径：xdp_buff 来自 XSK buff pool（用户态 UMEM） */</span></span><br><span class="line">    <span class="keyword">if</span> (xdp-&gt;rxq-&gt;mem.type == MEM_TYPE_XSK_BUFF_POOL) &#123;</span><br><span class="line">        len = xdp-&gt;data_end - xdp-&gt;data;</span><br><span class="line">        <span class="keyword">return</span> __xsk_rcv_zc(xs, xdp, len);   <span class="comment">/* 直接写 RX ring，无内存拷贝 */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 非零拷贝路径：分配一块 UMEM，memcpy 数据 */</span></span><br><span class="line">    err = __xsk_rcv(xs, xdp);</span><br><span class="line">    <span class="keyword">if</span> (!err)</span><br><span class="line">        xdp_return_buff(xdp);</span><br><span class="line">    <span class="keyword">return</span> err;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>零拷贝的关键在 <code>__xsk_rcv_zc</code>（第 138 行）：它将 <code>xdp_buff</code> 的 UMEM 地址（<code>xp_get_handle</code>）直接写入用户态可见的 RX ring 描述符，用户进程通过 <code>poll()</code> 系统调用感知到可读后，直接从 UMEM 读取数据——<strong>全程无数据拷贝</strong>。</p>
+<h3 id="3-3-XDP-vs-DPDK-vs-传统内核网络对比"><a href="#3-3-XDP-vs-DPDK-vs-传统内核网络对比" class="headerlink" title="3.3 XDP vs DPDK vs 传统内核网络对比"></a>3.3 XDP vs DPDK vs 传统内核网络对比</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>传统内核网络</th>
+<th>XDP (AF_XDP)</th>
+<th>DPDK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数据路径</td>
+<td>完整协议栈</td>
+<td>XDP 钩子后直达用户态</td>
+<td>完全用户态</td>
+</tr>
+<tr>
+<td>拷贝次数</td>
+<td>≥1（skb 分配+DMA）</td>
+<td>0（零拷贝模式）</td>
+<td>0</td>
+</tr>
+<tr>
+<td>CPU 开销</td>
+<td>中断+软中断+上下文切换</td>
+<td>软中断+eBPF JIT</td>
+<td>纯轮询，无切换</td>
+</tr>
+<tr>
+<td>内核旁路程度</td>
+<td>无</td>
+<td>部分（协议栈旁路）</td>
+<td>完全</td>
+</tr>
+<tr>
+<td>可维护性</td>
+<td>优秀</td>
+<td>良好（标准 socket API）</td>
+<td>较差（需专用框架）</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>通用</td>
+<td>高性能收包+eBPF 过滤</td>
+<td>专用转发&#x2F;NFV</td>
+</tr>
+<tr>
+<td>PPS 上限（参考）</td>
+<td>~5 Mpps&#x2F;核</td>
+<td>~20 Mpps&#x2F;核</td>
+<td>~40 Mpps&#x2F;核</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="四、发送路径优化"><a href="#四、发送路径优化" class="headerlink" title="四、发送路径优化"></a>四、发送路径优化</h2><h3 id="4-1-dev-queue-xmit-中的-qdisc-bypass"><a href="#4-1-dev-queue-xmit-中的-qdisc-bypass" class="headerlink" title="4.1 __dev_queue_xmit 中的 qdisc bypass"></a>4.1 <code>__dev_queue_xmit</code> 中的 qdisc bypass</h3><p>发送路径的核心函数是 <code>__dev_queue_xmit</code>（<code>net/core/dev.c</code> 第 4150 行）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/core/dev.c，第 4150 行（精简） */</span></span><br><span class="line"><span class="type">int</span> __dev_queue_xmit(<span class="keyword">struct</span> sk_buff *skb, <span class="keyword">struct</span> net_device *sb_dev)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">net_device</span> *<span class="title">dev</span> =</span> skb-&gt;dev;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">netdev_queue</span> *<span class="title">txq</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">Qdisc</span> *<span class="title">q</span>;</span></span><br><span class="line">    <span class="comment">/* ... egress hook（TC、netfilter）处理 ... */</span></span><br><span class="line"></span><br><span class="line">    txq = netdev_core_pick_tx(dev, skb, sb_dev);</span><br><span class="line">    q = rcu_dereference_bh(txq-&gt;qdisc);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (q-&gt;enqueue) &#123;</span><br><span class="line">        <span class="comment">/* 正常路径：入队 qdisc（如 pfifo_fast、fq_codel）*/</span></span><br><span class="line">        rc = __dev_xmit_skb(skb, q, dev, txq);</span><br><span class="line">        <span class="keyword">goto</span> out;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* qdisc bypass：设备无队列（loopback、隧道等） */</span></span><br><span class="line">    <span class="keyword">if</span> (dev-&gt;flags &amp; IFF_UP) &#123;</span><br><span class="line">        <span class="type">int</span> cpu = smp_processor_id();</span><br><span class="line">        <span class="keyword">if</span> (READ_ONCE(txq-&gt;xmit_lock_owner) != cpu) &#123;</span><br><span class="line">            skb = validate_xmit_skb(skb, dev, &amp;again);</span><br><span class="line">            <span class="keyword">if</span> (!skb)</span><br><span class="line">                <span class="keyword">goto</span> out;</span><br><span class="line">            HARD_TX_LOCK(dev, txq, cpu);</span><br><span class="line">            <span class="keyword">if</span> (!netif_xmit_stopped(txq)) &#123;</span><br><span class="line">                skb = dev_hard_start_xmit(skb, dev, txq, &amp;rc);</span><br><span class="line">            &#125;</span><br><span class="line">            HARD_TX_UNLOCK(dev, txq);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>validate_xmit_skb</code>（第 3643 行）在实际发送前完成所有预处理：VLAN 插入、skb 合规性检查、GSO 分段、checksum 补全。若网卡宣告了 TSO&#x2F;checksum offload，这些工作会被跳过，直接透传给硬件。</p>
+<p>对于启用了 <code>noqueue</code> qdisc 或 <code>MQ</code> qdisc 的高性能场景，<code>HARD_TX_LOCK</code> 是 per-queue 锁，不同队列间完全无竞争，实现了真正的多核并行发送。</p>
+<h3 id="4-2-MSG-ZEROCOPY：零拷贝发送"><a href="#4-2-MSG-ZEROCOPY：零拷贝发送" class="headerlink" title="4.2 MSG_ZEROCOPY：零拷贝发送"></a>4.2 MSG_ZEROCOPY：零拷贝发送</h3><p>Linux 4.14 引入 <code>MSG_ZEROCOPY</code> 标志，允许内核在 DMA 完成前将用户态内存页钉住（pin），避免 <code>sendmsg</code> 时的内核空间拷贝。核心分配函数在 <code>net/core/skbuff.c</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/core/skbuff.c，第 1501 行 */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">struct</span> ubuf_info *<span class="title function_">msg_zerocopy_alloc</span><span class="params">(<span class="keyword">struct</span> sock *sk, <span class="type">size_t</span> size)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ubuf_info_msgzc</span> *<span class="title">uarg</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sk_buff</span> *<span class="title">skb</span>;</span></span><br><span class="line"></span><br><span class="line">    skb = sock_omalloc(sk, <span class="number">0</span>, GFP_KERNEL);</span><br><span class="line">    <span class="keyword">if</span> (!skb)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    uarg = (<span class="type">void</span> *)skb-&gt;cb;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 统计 pinned pages，防止 OOM */</span></span><br><span class="line">    <span class="keyword">if</span> (mm_account_pinned_pages(&amp;uarg-&gt;mmp, size)) &#123;</span><br><span class="line">        kfree_skb(skb);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    uarg-&gt;ubuf.callback = msg_zerocopy_callback;</span><br><span class="line">    uarg-&gt;id = ((u32)atomic_inc_return(&amp;sk-&gt;sk_zckey)) - <span class="number">1</span>;</span><br><span class="line">    uarg-&gt;len = <span class="number">1</span>;</span><br><span class="line">    uarg-&gt;bytelen = size;</span><br><span class="line">    uarg-&gt;zerocopy = <span class="number">1</span>;</span><br><span class="line">    uarg-&gt;ubuf.flags = SKBFL_ZEROCOPY_FRAG | SKBFL_DONT_ORPHAN;</span><br><span class="line">    refcount_set(&amp;uarg-&gt;ubuf.refcnt, <span class="number">1</span>);</span><br><span class="line">    sock_hold(sk);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> &amp;uarg-&gt;ubuf;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>用户态需要通过 <code>MSG_ERRQUEUE</code> 接收完成通知（<code>SO_EE_ORIGIN_ZEROCOPY</code>），确认内核已完成 DMA 并释放页面，才能复用该内存。适合大块数据（&gt;1 KB）的持续发送场景，小包反而因通知开销变慢。</p>
+<p>使用示例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> val = <span class="number">1</span>;</span><br><span class="line">setsockopt(fd, SOL_SOCKET, SO_ZEROCOPY, &amp;val, <span class="keyword">sizeof</span>(val));</span><br><span class="line">send(fd, buf, len, MSG_ZEROCOPY);</span><br><span class="line"><span class="comment">/* 轮询 MSG_ERRQUEUE 等待 DMA 完成通知 */</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-sendfile-与-splice：内核内零拷贝"><a href="#4-3-sendfile-与-splice：内核内零拷贝" class="headerlink" title="4.3 sendfile 与 splice：内核内零拷贝"></a>4.3 sendfile 与 splice：内核内零拷贝</h3><p><code>sendfile(2)</code> 通过 <code>tcp_sendpage</code>（<code>net/ipv4/tcp.c</code> 第 1147 行）将文件 page cache 中的 page 直接附加到 skb 的 frag 列表，避免内核→用户→内核的数据往返拷贝。配合 <code>NETIF_F_SG</code>（scatter-gather DMA），网卡可直接从 page cache DMA 读取数据发送。</p>
+<hr>
+<h2 id="五、内存分配优化"><a href="#五、内存分配优化" class="headerlink" title="五、内存分配优化"></a>五、内存分配优化</h2><h3 id="5-1-skb-分配缓存池"><a href="#5-1-skb-分配缓存池" class="headerlink" title="5.1 skb 分配缓存池"></a>5.1 skb 分配缓存池</h3><p><code>sk_buff</code> 是网络栈中分配最频繁的数据结构。内核为其建立了专用 slab 缓存（<code>net/core/skbuff.c</code> 第 4757 行）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/core/skbuff.c，第 4757 行 */</span></span><br><span class="line"><span class="type">void</span> __init <span class="title function_">skb_init</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    skbuff_cache = kmem_cache_create_usercopy(<span class="string">&quot;skbuff_head_cache&quot;</span>,</span><br><span class="line">                          <span class="keyword">sizeof</span>(<span class="keyword">struct</span> sk_buff),</span><br><span class="line">                          <span class="number">0</span>,</span><br><span class="line">                          SLAB_HWCACHE_ALIGN | SLAB_PANIC,</span><br><span class="line">                          offsetof(<span class="keyword">struct</span> sk_buff, cb),</span><br><span class="line">                          sizeof_field(<span class="keyword">struct</span> sk_buff, cb),</span><br><span class="line">                          <span class="literal">NULL</span>);</span><br><span class="line">    skbuff_fclone_cache = kmem_cache_create(<span class="string">&quot;skbuff_fclone_cache&quot;</span>,</span><br><span class="line">                        <span class="keyword">sizeof</span>(<span class="keyword">struct</span> sk_buff_fclones),</span><br><span class="line">                        <span class="number">0</span>,</span><br><span class="line">                        SLAB_HWCACHE_ALIGN | SLAB_PANIC,</span><br><span class="line">                        <span class="literal">NULL</span>);</span><br><span class="line">    <span class="comment">/* skbuff_small_head_cache：小头部专用缓存，减少 kmalloc 碎片 */</span></span><br><span class="line">    skb_small_head_cache = kmem_cache_create_usercopy(<span class="string">&quot;skbuff_small_head&quot;</span>, ...);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>**<code>skbuff_head_cache</code>**：分配 <code>struct sk_buff</code> 本身（控制块），<code>SLAB_HWCACHE_ALIGN</code> 确保 CPU cache line 对齐。</li>
+<li>**<code>skbuff_fclone_cache</code>**：分配 <code>struct sk_buff_fclones</code>，包含原始 skb 和一个 clone，用于需要保留原始 skb 的场景（如 TCP 重传）。</li>
+</ul>
+<p><code>usercopy</code> 指定了允许 copy_to&#x2F;from_user 的字段范围（<code>cb</code> 字段），是 HARDENED_USERCOPY 安全特性的一部分。</p>
+<h3 id="5-2-NUMA-感知的网络内存分配"><a href="#5-2-NUMA-感知的网络内存分配" class="headerlink" title="5.2 NUMA 感知的网络内存分配"></a>5.2 NUMA 感知的网络内存分配</h3><p>在多路（multi-socket）NUMA 服务器上，内存访问延迟与 CPU 所在 NUMA 节点强相关。现代网卡驱动（如 Intel i40e、mlx5）会调用 <code>dev_alloc_pages</code> &#x2F; <code>__alloc_pages_node</code> 在与网卡直连的 NUMA 节点分配 RX ring 内存，避免跨节点 DMA 访问。</p>
+<p>查看网卡所在 NUMA 节点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /sys/class/net/eth0/device/numa_node</span><br></pre></td></tr></table></figure>
+
+<p>将网络处理进程绑定到同一 NUMA 节点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">numactl --cpunodebind=0 --membind=0 ./my_server</span><br></pre></td></tr></table></figure>
+
+<p>IRQ 亲和性绑定（推荐手动，<code>irqbalance</code> 在 NUMA 拓扑复杂时决策不够精准）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看网卡队列对应的 IRQ 编号</span></span><br><span class="line">grep eth0 /proc/interrupts | awk <span class="string">&#x27;&#123;print $1&#125;&#x27;</span> | <span class="built_in">tr</span> -d <span class="string">&#x27;:&#x27;</span></span><br><span class="line"><span class="comment"># 绑定 IRQ 1234 到 CPU 0</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; /proc/irq/1234/smp_affinity</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="六、TCP-性能调优参数"><a href="#六、TCP-性能调优参数" class="headerlink" title="六、TCP 性能调优参数"></a>六、TCP 性能调优参数</h2><h3 id="6-1-连接积压队列"><a href="#6-1-连接积压队列" class="headerlink" title="6.1 连接积压队列"></a>6.1 连接积压队列</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># SYN 半连接队列上限（内核处理 SYN 包后进入 SYN_RECV 状态的连接数）</span></span><br><span class="line">sysctl -w net.ipv4.tcp_max_syn_backlog=65536</span><br><span class="line"></span><br><span class="line"><span class="comment"># accept 全连接队列上限（三次握手完成后等待 accept() 的连接数）</span></span><br><span class="line"><span class="comment"># 同时需在 listen(fd, backlog) 中传入足够大的 backlog 值</span></span><br><span class="line">sysctl -w net.core.somaxconn=65536</span><br></pre></td></tr></table></figure>
+
+<p><code>net.ipv4.tcp_max_syn_backlog</code> 防止 SYN flood 打满半连接队列；<code>somaxconn</code> 限制 accept 队列，两者均需调大以支撑高并发。</p>
+<h3 id="6-2-软中断收包队列"><a href="#6-2-软中断收包队列" class="headerlink" title="6.2 软中断收包队列"></a>6.2 软中断收包队列</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 每个 CPU 的软中断收包队列长度上限（单帧入队失败时丢弃）</span></span><br><span class="line">sysctl -w net.core.netdev_max_backlog=250000</span><br></pre></td></tr></table></figure>
+
+<p>当 NIC 驱动向 <code>input_pkt_queue</code> 入队速率超过软中断消费速率时，超出部分被丢弃并计入 <code>netdev_rx_dropped</code>。</p>
+<h3 id="6-3-TCP-缓冲区"><a href="#6-3-TCP-缓冲区" class="headerlink" title="6.3 TCP 缓冲区"></a>6.3 TCP 缓冲区</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tcp_rmem: min / default / max（单位 bytes）</span></span><br><span class="line">sysctl -w net.ipv4.tcp_rmem=<span class="string">&quot;4096 87380 134217728&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># tcp_wmem: min / default / max</span></span><br><span class="line">sysctl -w net.ipv4.tcp_wmem=<span class="string">&quot;4096 65536 134217728&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># tcp_mem: min / pressure / max（单位 pages）</span></span><br><span class="line">sysctl -w net.ipv4.tcp_mem=<span class="string">&quot;94500000 915000000 927000000&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>tcp_rmem</code> 的 max 值是单个 socket 接收缓冲区的上限；<code>tcp_mem</code> 的 max 值是所有 TCP socket 的内存总量上限（超出则进入内存压力模式，限制新连接）。现代服务器（64 GB 内存）通常将 max 调至 256 MB，配合 <code>net.ipv4.tcp_window_scaling=1</code> 实现高带宽延迟积（BDP）下的满速传输。</p>
+<h3 id="6-4-TCP-Fast-Open"><a href="#6-4-TCP-Fast-Open" class="headerlink" title="6.4 TCP Fast Open"></a>6.4 TCP Fast Open</h3><p><strong>TFO（TCP Fast Open）</strong> 允许在 SYN 包中携带数据，省去一个 RTT：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 0=关闭, 1=客户端, 2=服务端, 3=客户端+服务端</span></span><br><span class="line">sysctl -w net.ipv4.tcp_fastopen=3</span><br></pre></td></tr></table></figure>
+
+<p>TFO 通过一个 Cookie 机制防重放：首次建连时服务端在 SYN-ACK 中下发 Cookie，客户端后续可将 Cookie 附在 SYN+DATA 中，服务端验证通过后立即将数据递交给应用，无需等待 ACK。</p>
+<h3 id="6-5-内核忙轮询"><a href="#6-5-内核忙轮询" class="headerlink" title="6.5 内核忙轮询"></a>6.5 内核忙轮询</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 软中断收包后，保持轮询网卡的时间（微秒）</span></span><br><span class="line"><span class="comment"># 适合延迟敏感场景（如高频交易），代价是 CPU 利用率上升</span></span><br><span class="line">sysctl -w net.core.busy_poll=50</span><br><span class="line">sysctl -w net.core.busy_read=50</span><br></pre></td></tr></table></figure>
+
+<p><code>busy_poll</code> 开启后，<code>poll()</code>&#x2F;<code>select()</code> 系统调用在返回前会先进行内核忙轮询（<code>napi_busy_loop</code>），避免中断延迟，可将 P99 延迟从数十微秒降至个位数微秒。</p>
+<hr>
+<h2 id="七、性能诊断全流程"><a href="#七、性能诊断全流程" class="headerlink" title="七、性能诊断全流程"></a>七、性能诊断全流程</h2><h3 id="7-1-查看与修改卸载特性"><a href="#7-1-查看与修改卸载特性" class="headerlink" title="7.1 查看与修改卸载特性"></a>7.1 查看与修改卸载特性</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前卸载特性状态</span></span><br><span class="line">ethtool -k eth0</span><br><span class="line"></span><br><span class="line"><span class="comment"># 典型输出片段：</span></span><br><span class="line"><span class="comment"># tcp-segmentation-offload: on</span></span><br><span class="line"><span class="comment"># generic-segmentation-offload: on</span></span><br><span class="line"><span class="comment"># generic-receive-offload: on</span></span><br><span class="line"><span class="comment"># large-receive-offload: off [fixed]</span></span><br><span class="line"><span class="comment"># rx-checksumming: on</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 关闭 TSO（调试用，生产环境不建议）</span></span><br><span class="line">ethtool -K eth0 tso off</span><br><span class="line"><span class="comment"># 开启 GRO</span></span><br><span class="line">ethtool -K eth0 gro on</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-调整队列数"><a href="#7-2-调整队列数" class="headerlink" title="7.2 调整队列数"></a>7.2 调整队列数</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前队列配置（combined = RX+TX 共享队列）</span></span><br><span class="line">ethtool -l eth0</span><br><span class="line"><span class="comment"># 输出：</span></span><br><span class="line"><span class="comment"># Pre-set maximums:</span></span><br><span class="line"><span class="comment"># Combined: 64</span></span><br><span class="line"><span class="comment"># Current hardware settings:</span></span><br><span class="line"><span class="comment"># Combined: 4</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 将队列数设置为 8（建议与物理 CPU 核心数对齐）</span></span><br><span class="line">ethtool -L eth0 combined 8</span><br></pre></td></tr></table></figure>
+
+<p>调整后需同步更新 IRQ 亲和性，将每个队列的中断绑定到对应的 CPU 核心。</p>
+<h3 id="7-3-IRQ-亲和性绑定"><a href="#7-3-IRQ-亲和性绑定" class="headerlink" title="7.3 IRQ 亲和性绑定"></a>7.3 IRQ 亲和性绑定</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 方法一：使用 irqbalance（自动，但不够精细）</span></span><br><span class="line">systemctl start irqbalance</span><br><span class="line"></span><br><span class="line"><span class="comment"># 方法二：手动绑定（推荐高性能场景）</span></span><br><span class="line"><span class="comment"># 将 eth0 的 8 个队列 IRQ 依次绑定到 CPU 0-7</span></span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> $(<span class="built_in">seq</span> 0 7); <span class="keyword">do</span></span><br><span class="line">    IRQ=$(grep <span class="string">&quot;eth0-<span class="variable">$i</span>&quot;</span> /proc/interrupts | awk -F: <span class="string">&#x27;&#123;print $1&#125;&#x27;</span> | <span class="built_in">tr</span> -d <span class="string">&#x27; &#x27;</span>)</span><br><span class="line">    <span class="built_in">echo</span> $((<span class="number">1</span> &lt;&lt; i)) &gt; /proc/irq/<span class="variable">$IRQ</span>/smp_affinity</span><br><span class="line"><span class="keyword">done</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-4-实时网络监控"><a href="#7-4-实时网络监控" class="headerlink" title="7.4 实时网络监控"></a>7.4 实时网络监控</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 实时查看各网卡的收发带宽（每秒刷新）</span></span><br><span class="line">sar -n DEV 1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 qdisc 统计，重点关注 dropped 字段</span></span><br><span class="line">tc -s qdisc show dev eth0</span><br><span class="line"><span class="comment"># 输出示例：</span></span><br><span class="line"><span class="comment"># qdisc mq 0: root</span></span><br><span class="line"><span class="comment">#  qdisc fq_codel 0: parent :1 limit 10240p flows 1024 ...</span></span><br><span class="line"><span class="comment">#   Sent 1234567 bytes 8901 pkt (dropped 0, overlimits 0 requeues 3)</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># TCP 全局统计计数器（关注 RetransSegs、TCPLostRetransmit）</span></span><br><span class="line">nstat -az | grep -E <span class="string">&quot;TcpRetrans|TCPLost|TcpDropped|TcpExtTCPOFOQueue&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 协议栈详细计数</span></span><br><span class="line">netstat -s | grep -E <span class="string">&quot;retransmit|failed|reset|overflow&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-5-关键计数器解读"><a href="#7-5-关键计数器解读" class="headerlink" title="7.5 关键计数器解读"></a>7.5 关键计数器解读</h3><table>
+<thead>
+<tr>
+<th>计数器</th>
+<th>含义</th>
+<th>告警阈值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>TcpExtTCPBacklogDrop</code></td>
+<td>accept 队列满导致丢包</td>
+<td>&gt; 0 应扩大 somaxconn</td>
+</tr>
+<tr>
+<td><code>TcpExtTCPReqQFullDrop</code></td>
+<td>SYN 队列满</td>
+<td>&gt; 0 应扩大 tcp_max_syn_backlog</td>
+</tr>
+<tr>
+<td><code>TcpRetransSegs</code></td>
+<td>TCP 重传段数</td>
+<td>持续上升说明网络质量差</td>
+</tr>
+<tr>
+<td><code>TcpExtTCPOFOQueue</code></td>
+<td>乱序队列中的包数</td>
+<td>持续高位说明网络抖动</td>
+</tr>
+<tr>
+<td><code>netdev_rx_dropped</code></td>
+<td>NIC 驱动层丢包</td>
+<td>&gt; 0 应扩大 ring buffer 或队列</td>
+</tr>
+</tbody></table>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看网卡 ring buffer 大小及丢包</span></span><br><span class="line">ethtool -g eth0</span><br><span class="line">ethtool -S eth0 | grep -i drop</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-6-bpftrace-追踪-softirq-处理延迟"><a href="#7-6-bpftrace-追踪-softirq-处理延迟" class="headerlink" title="7.6 bpftrace 追踪 softirq 处理延迟"></a>7.6 bpftrace 追踪 softirq 处理延迟</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪 NET_RX softirq 的处理延迟（单位：纳秒）</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">tracepoint:irq:softirq_entry /args-&gt;vec == 3/ &#123;</span></span><br><span class="line"><span class="string">    @ts[tid] = nsecs;</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">tracepoint:irq:softirq_exit /args-&gt;vec == 3 &amp;&amp; @ts[tid]/ &#123;</span></span><br><span class="line"><span class="string">    @latency_ns = hist(nsecs - @ts[tid]);</span></span><br><span class="line"><span class="string">    delete(@ts[tid]);</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">END &#123;</span></span><br><span class="line"><span class="string">    print(@latency_ns);</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>NET_RX softirq（vec 编号 3，对应 <code>NET_RX_SOFTIRQ</code>）的处理延迟直接影响收包延迟。P99 超过 100 µs 通常意味着 NAPI budget 不够（<code>net.core.netdev_budget</code>）或 GRO 批次过大。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪 tcp_sendmsg 的延迟分布</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:tcp_sendmsg &#123; @start[tid] = nsecs; &#125;</span></span><br><span class="line"><span class="string">kretprobe:tcp_sendmsg /@start[tid]/ &#123;</span></span><br><span class="line"><span class="string">    @us = hist((nsecs - @start[tid]) / 1000);</span></span><br><span class="line"><span class="string">    delete(@start[tid]);</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文系统梳理了 Linux 网络栈的性能优化技术体系：</p>
+<ol>
+<li><strong>硬件卸载</strong>（TSO&#x2F;GSO&#x2F;GRO&#x2F;Checksum Offload）将 CPU 密集型工作下推给网卡或延迟到批量处理，是零成本提升吞吐的首选。</li>
+<li><strong>多队列扩展</strong>（RSS&#x2F;RPS&#x2F;RFS&#x2F;XPS）将网络处理并行化到多个 CPU 核心，消除单核瓶颈，RFS 还利用 CPU 亲和性提升缓存命中率。</li>
+<li><strong>Kernel Bypass</strong>（AF_XDP&#x2F;DPDK）在极限场景下绕过协议栈，以工程复杂度换取数量级的性能提升，AF_XDP 借助 eBPF 提供了更好的灵活性。</li>
+<li><strong>发送路径优化</strong>（qdisc bypass&#x2F;MSG_ZEROCOPY&#x2F;sendfile）减少数据拷贝和锁竞争，降低发送延迟。</li>
+<li><strong>内存分配</strong>（slab 缓存&#x2F;NUMA 亲和）减少分配开销和跨节点访问延迟。</li>
+<li><strong>sysctl 调优</strong>针对具体负载模式调整内核行为，配合完善的<strong>监控诊断</strong>（ethtool&#x2F;bpftrace&#x2F;nstat）形成闭环。</li>
+</ol>
+<p>这些技术并非孤立存在——真实的高性能网络系统往往是硬件卸载 + RSS + GRO + 大缓冲区的组合，辅以 bpftrace 定位热点，逐层剥离瓶颈。</p>
+<hr>
+<p><strong>源码参考位置（Linux 6.4-rc1）：</strong></p>
+<ul>
+<li><code>include/linux/netdev_features.h</code> — 卸载特性标志定义</li>
+<li><code>net/core/gro.c</code> — GRO 实现（<code>napi_gro_receive</code>、<code>dev_gro_receive</code>）</li>
+<li><code>net/core/dev.c</code> — GSO 分段（<code>__skb_gso_segment</code>）、TX 路径（<code>__dev_queue_xmit</code>、<code>validate_xmit_skb</code>）、RPS（<code>get_rps_cpu</code>）、队列管理（<code>netif_set_real_num_rx/tx_queues</code>）</li>
+<li><code>net/core/skbuff.c</code> — skb 缓存池（<code>skb_init</code>）、零拷贝分配（<code>msg_zerocopy_alloc</code>）</li>
+<li><code>include/linux/netdevice.h</code> — RFS 流记录（<code>rps_record_sock_flow</code>）</li>
+<li><code>include/net/xdp_sock.h</code> &#x2F; <code>net/xdp/xsk.c</code> — AF_XDP 结构体与收包路径</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Network-Performance/" rel="tag"># Network Performance</a>
+              <a href="/tags/TSO/" rel="tag"># TSO</a>
+              <a href="/tags/GRO/" rel="tag"># GRO</a>
+              <a href="/tags/RSS/" rel="tag"># RSS</a>
+              <a href="/tags/DPDK/" rel="tag"># DPDK</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-net-stack-part8-virt-networking/" rel="prev" title="Linux 网络内核协议栈深度剖析（八）：网络虚拟化与容器网络实现">
+                  <i class="fa fa-angle-left"></i> Linux 网络内核协议栈深度剖析（八）：网络虚拟化与容器网络实现
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-net-stack-part10-diagnostics/" rel="next" title="Linux 网络内核协议栈深度剖析（十）：网络诊断工具与实战排查">
+                  Linux 网络内核协议栈深度剖析（十）：网络诊断工具与实战排查 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="网络问题是线上故障中最难定位的一类。症状千变万化——P99 延迟突然抖动、某个服务间歇性超时、容器之间偶发丢包——而根因可能藏在协议栈的任何一层：网卡驱动的 ring buffer 溢出、内核 backlog 队列打满、TCP 重传引发的滑动窗口收缩、iptables 规则误命中，乃至 NUMA 拓扑导致的中断不均衡。本文是本系列第十篇，聚焦于工具链与实战：从 ss 的每个输出字段到 bpftra">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 网络内核协议栈深度剖析（十）：网络诊断工具与实战排查">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part10-diagnostics/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="网络问题是线上故障中最难定位的一类。症状千变万化——P99 延迟突然抖动、某个服务间歇性超时、容器之间偶发丢包——而根因可能藏在协议栈的任何一层：网卡驱动的 ring buffer 溢出、内核 backlog 队列打满、TCP 重传引发的滑动窗口收缩、iptables 规则误命中，乃至 NUMA 拓扑导致的中断不均衡。本文是本系列第十篇，聚焦于工具链与实战：从 ss 的每个输出字段到 bpftra">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-14T03:30:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T03:10:57.662Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="tcpdump">
+<meta property="article:tag" content="Network Diagnostics">
+<meta property="article:tag" content="ss">
+<meta property="article:tag" content="bpftrace">
+<meta property="article:tag" content="perf">
+<meta property="article:tag" content="Troubleshooting">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part10-diagnostics/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part10-diagnostics/","path":"2026/04/14/2026-04-14-linux-net-stack-part10-diagnostics/","title":"Linux 网络内核协议栈深度剖析（十）：网络诊断工具与实战排查"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 网络内核协议栈深度剖析（十）：网络诊断工具与实战排查 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E7%BD%91%E7%BB%9C%E9%97%AE%E9%A2%98%E5%88%86%E7%B1%BB%E4%B8%8E%E6%8E%92%E6%9F%A5%E6%A1%86%E6%9E%B6"><span class="nav-number">1.</span> <span class="nav-text">一、网络问题分类与排查框架</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E9%97%AE%E9%A2%98%E4%B8%89%E5%88%86%E7%B1%BB"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 问题三分类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E7%B3%BB%E7%BB%9F%E5%8C%96%E6%8E%92%E6%9F%A5%E6%B5%81%E7%A8%8B"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 系统化排查流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81ss-%E5%91%BD%E4%BB%A4%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90"><span class="nav-number">2.</span> <span class="nav-text">二、ss 命令深度解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-Recv-Q-%E4%B8%8E-Send-Q-%E7%9A%84%E5%8F%8C%E9%87%8D%E8%AF%AD%E4%B9%89"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 Recv-Q 与 Send-Q 的双重语义</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-skmem-%E5%AD%97%E6%AE%B5%E9%80%90%E5%AD%97%E6%AE%B5%E8%A7%A3%E6%9E%90"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 skmem 字段逐字段解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-TCP-%E5%86%85%E9%83%A8%E4%BF%A1%E6%81%AF%E5%AD%97%E6%AE%B5%E8%A7%A3%E6%9E%90"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 TCP 内部信息字段解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-timer-%E5%AD%97%E6%AE%B5"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 timer 字段</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81-proc-net-%E8%99%9A%E6%8B%9F%E6%96%87%E4%BB%B6%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90"><span class="nav-number">3.</span> <span class="nav-text">三、&#x2F;proc&#x2F;net 虚拟文件深度解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-proc-net-tcp-%E5%AD%97%E6%AE%B5%E8%A7%A3%E6%9E%90"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 &#x2F;proc&#x2F;net&#x2F;tcp 字段解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-proc-net-sockstat"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 &#x2F;proc&#x2F;net&#x2F;sockstat</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-nstat-%E5%85%B3%E9%94%AE%E6%8C%87%E6%A0%87%E8%A7%A3%E6%9E%90"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 nstat 关键指标解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-proc-net-snmp-%E5%85%B3%E9%94%AE%E5%AD%97%E6%AE%B5"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 &#x2F;proc&#x2F;net&#x2F;snmp 关键字段</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81tcpdump-%E9%AB%98%E7%BA%A7%E7%94%A8%E6%B3%95"><span class="nav-number">4.</span> <span class="nav-text">四、tcpdump 高级用法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-BPF-%E6%8D%95%E8%8E%B7%E8%BF%87%E6%BB%A4%E5%99%A8%E8%AF%AD%E6%B3%95%E7%B2%BE%E5%8D%8E"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 BPF 捕获过滤器语法精华</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-TCP-%E6%8F%A1%E6%89%8B%E5%BC%82%E5%B8%B8%E5%88%86%E6%9E%90"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 TCP 握手异常分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E9%9B%B6%E7%AA%97%E5%8F%A3%E4%B8%8E%E6%8B%A5%E5%A1%9E%E5%88%86%E6%9E%90"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 零窗口与拥塞分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E5%85%B8%E5%9E%8B%E8%AF%8A%E6%96%AD%E5%91%BD%E4%BB%A4%E9%9B%86"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 典型诊断命令集</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81bpftrace-%E7%BD%91%E7%BB%9C%E8%AF%8A%E6%96%AD%E8%84%9A%E6%9C%AC%E9%9B%86"><span class="nav-number">5.</span> <span class="nav-text">五、bpftrace 网络诊断脚本集</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E4%B8%80%EF%BC%9ATCP-%E9%87%8D%E4%BC%A0%E8%BF%BD%E8%B8%AA%EF%BC%88%E5%90%AB%E6%BA%90%E7%9B%AE%E7%9A%84-IP-Port%EF%BC%89"><span class="nav-number">5.1.</span> <span class="nav-text">脚本一：TCP 重传追踪（含源目的 IP:Port）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E4%BA%8C%EF%BC%9ATCP-%E8%BF%9E%E6%8E%A5%E5%BB%BA%E7%AB%8B%E5%BB%B6%E8%BF%9F%E5%88%86%E5%B8%83"><span class="nav-number">5.2.</span> <span class="nav-text">脚本二：TCP 连接建立延迟分布</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E4%B8%89%EF%BC%9A%E6%8C%89%E8%BF%9B%E7%A8%8B%E7%BB%9F%E8%AE%A1%E5%8F%91%E9%80%81-%E6%8E%A5%E6%94%B6%E5%AD%97%E8%8A%82"><span class="nav-number">5.3.</span> <span class="nav-text">脚本三：按进程统计发送&#x2F;接收字节</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E5%9B%9B%EF%BC%9ASocket-%E6%8E%A5%E6%94%B6%E9%98%9F%E5%88%97%E7%A7%AF%E5%8E%8B%E7%9B%91%E6%8E%A7"><span class="nav-number">5.4.</span> <span class="nav-text">脚本四：Socket 接收队列积压监控</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E4%BA%94%EF%BC%9A%E8%BF%BD%E8%B8%AA-TCP-%E7%8A%B6%E6%80%81%E5%8F%98%E5%8C%96"><span class="nav-number">5.5.</span> <span class="nav-text">脚本五：追踪 TCP 状态变化</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%AE%9E%E6%88%98%E6%A1%88%E4%BE%8B%E4%B8%80%EF%BC%9A%E6%8E%92%E6%9F%A5-P99-%E5%BB%B6%E8%BF%9F%E6%8A%96%E5%8A%A8%EF%BC%88TCP-%E9%87%8D%E4%BC%A0%EF%BC%89"><span class="nav-number">6.</span> <span class="nav-text">六、实战案例一：排查 P99 延迟抖动（TCP 重传）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%B8%80%EF%BC%9A%E6%89%BE%E5%87%BA%E9%87%8D%E4%BC%A0%E5%A4%9A%E7%9A%84%E8%BF%9E%E6%8E%A5"><span class="nav-number">6.1.</span> <span class="nav-text">步骤一：找出重传多的连接</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%BA%8C%EF%BC%9A%E7%A1%AE%E8%AE%A4%E9%87%8D%E4%BC%A0%E8%AE%A1%E6%95%B0%E5%A2%9E%E9%95%BF%E8%B6%8B%E5%8A%BF"><span class="nav-number">6.2.</span> <span class="nav-text">步骤二：确认重传计数增长趋势</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%B8%89%EF%BC%9A%E6%8A%93%E5%8C%85%E7%A1%AE%E8%AE%A4%E4%B8%A2%E5%8C%85%E4%BD%8D%E7%BD%AE"><span class="nav-number">6.3.</span> <span class="nav-text">步骤三：抓包确认丢包位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E5%9B%9B%EF%BC%9Abpftrace-%E7%B2%BE%E7%A1%AE%E8%BF%BD%E8%B8%AA%E9%87%8D%E4%BC%A0%E8%A7%A6%E5%8F%91%E7%82%B9"><span class="nav-number">6.4.</span> <span class="nav-text">步骤四：bpftrace 精确追踪重传触发点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%BA%94%EF%BC%9A%E6%A3%80%E6%9F%A5%E7%BD%91%E5%8D%A1%E9%94%99%E8%AF%AF%E7%BB%9F%E8%AE%A1"><span class="nav-number">6.5.</span> <span class="nav-text">步骤五：检查网卡错误统计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E5%85%AD%EF%BC%9A%E6%A3%80%E6%9F%A5-CPU-%E4%B8%AD%E6%96%AD%E5%88%86%E5%B8%83"><span class="nav-number">6.6.</span> <span class="nav-text">步骤六：检查 CPU 中断分布</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E5%AE%9E%E6%88%98%E6%A1%88%E4%BE%8B%E4%BA%8C%EF%BC%9A%E6%8E%92%E6%9F%A5-SYN-%E4%B8%A2%E5%8C%85%EF%BC%88%E8%BF%9E%E6%8E%A5%E5%BB%BA%E7%AB%8B%E5%A4%B1%E8%B4%A5%EF%BC%89"><span class="nav-number">7.</span> <span class="nav-text">七、实战案例二：排查 SYN 丢包（连接建立失败）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%B8%80%EF%BC%9A%E7%A1%AE%E8%AE%A4%E5%85%A8%E5%B1%80-SYN-%E4%B8%A2%E5%8C%85%E6%83%85%E5%86%B5"><span class="nav-number">7.1.</span> <span class="nav-text">步骤一：确认全局 SYN 丢包情况</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%BA%8C%EF%BC%9A%E6%A3%80%E6%9F%A5%E5%85%A8%E8%BF%9E%E6%8E%A5%E9%98%9F%E5%88%97%E5%8D%A0%E7%94%A8"><span class="nav-number">7.2.</span> <span class="nav-text">步骤二：检查全连接队列占用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%B8%89%EF%BC%9A%E6%9F%A5%E7%9C%8B%E5%BD%93%E5%89%8D-backlog-%E9%85%8D%E7%BD%AE"><span class="nav-number">7.3.</span> <span class="nav-text">步骤三：查看当前 backlog 配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E5%9B%9B%EF%BC%9A%E6%A3%80%E6%9F%A5-SYN-Cookie"><span class="nav-number">7.4.</span> <span class="nav-text">步骤四：检查 SYN Cookie</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%BA%94%EF%BC%9A%E6%8E%92%E6%9F%A5-conntrack-%E8%A1%A8%E6%BB%A1"><span class="nav-number">7.5.</span> <span class="nav-text">步骤五：排查 conntrack 表满</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E5%85%AD%EF%BC%9A%E4%BF%AE%E5%A4%8D%E5%BB%BA%E8%AE%AE%E6%B1%87%E6%80%BB"><span class="nav-number">7.6.</span> <span class="nav-text">步骤六：修复建议汇总</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E5%AE%9E%E6%88%98%E6%A1%88%E4%BE%8B%E4%B8%89%EF%BC%9A%E5%AE%B9%E5%99%A8%E7%BD%91%E7%BB%9C%E4%B8%A2%E5%8C%85%E6%8E%92%E6%9F%A5"><span class="nav-number">8.</span> <span class="nav-text">八、实战案例三：容器网络丢包排查</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#L1-L2%EF%BC%9A%E7%89%A9%E7%90%86%E7%BD%91%E5%8D%A1%E5%B1%82"><span class="nav-number">8.1.</span> <span class="nav-text">L1&#x2F;L2：物理网卡层</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#veth-%E5%AF%B9%E5%B1%82"><span class="nav-number">8.2.</span> <span class="nav-text">veth 对层</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Bridge-OVS-%E5%B1%82"><span class="nav-number">8.3.</span> <span class="nav-text">Bridge &#x2F; OVS 层</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#iptables-nftables-%E5%B1%82"><span class="nav-number">8.4.</span> <span class="nav-text">iptables&#x2F;nftables 层</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%B9%E5%99%A8%E5%86%85%E9%83%A8"><span class="nav-number">8.5.</span> <span class="nav-text">容器内部</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%9D%E3%80%81%E8%AF%8A%E6%96%AD%E5%B7%A5%E5%85%B7%E9%80%9F%E6%9F%A5%E8%A1%A8"><span class="nav-number">9.</span> <span class="nav-text">九、诊断工具速查表</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B0%8F%E7%BB%93"><span class="nav-number">10.</span> <span class="nav-text">小结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">29</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">200</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part10-diagnostics/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 网络内核协议栈深度剖析（十）：网络诊断工具与实战排查 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 网络内核协议栈深度剖析（十）：网络诊断工具与实战排查
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 11:30:00 / Modified: 11:10:57" itemprop="dateCreated datePublished" datetime="2026-04-14T11:30:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Networking/" itemprop="url" rel="index"><span itemprop="name">Networking</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>网络问题是线上故障中最难定位的一类。症状千变万化——P99 延迟突然抖动、某个服务间歇性超时、容器之间偶发丢包——而根因可能藏在协议栈的任何一层：网卡驱动的 ring buffer 溢出、内核 backlog 队列打满、TCP 重传引发的滑动窗口收缩、iptables 规则误命中，乃至 NUMA 拓扑导致的中断不均衡。本文是本系列第十篇，聚焦于工具链与实战：从 <code>ss</code> 的每个输出字段到 bpftrace 脚本，从 <code>/proc/net</code> 的原始数字到三个完整的排查案例，构建一套系统化的网络诊断方法论。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="一、网络问题分类与排查框架"><a href="#一、网络问题分类与排查框架" class="headerlink" title="一、网络问题分类与排查框架"></a>一、网络问题分类与排查框架</h2><h3 id="1-1-问题三分类"><a href="#1-1-问题三分类" class="headerlink" title="1.1 问题三分类"></a>1.1 问题三分类</h3><p>在动手之前，先把问题分类，可以大幅缩小排查范围：</p>
+<p><strong>连通性问题（Connectivity）</strong>：两端完全不通，<code>ping</code> 无回应，TCP 连接无法建立。根因通常在路由、防火墙、ARP&#x2F;ND 解析失败或物理链路故障。</p>
+<p><strong>性能问题（Performance）</strong>：能连通但慢，表现为吞吐低、延迟高或抖动大。根因多在 TCP 拥塞控制参数不当、重传率过高、缓冲区过小或 CPU&#x2F;中断不均衡。</p>
+<p><strong>应用层问题（Application Layer）</strong>：底层网络正常，但应用层报错，如 HTTP 502&#x2F;504、gRPC deadline exceeded。根因往往是 backlog 队列满、TIME_WAIT 端口耗尽、连接池配置不当或 TLS 握手超时。</p>
+<h3 id="1-2-系统化排查流程"><a href="#1-2-系统化排查流程" class="headerlink" title="1.2 系统化排查流程"></a>1.2 系统化排查流程</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line">问题报告</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">┌─────────────────────────────────┐</span><br><span class="line">│ 1. 确认问题范围                  │</span><br><span class="line">│    - 单点 or 全量？              │</span><br><span class="line">│    - 单向 or 双向？              │</span><br><span class="line">│    - 特定时间段？                │</span><br><span class="line">└────────────┬────────────────────┘</span><br><span class="line">             │</span><br><span class="line">             ▼</span><br><span class="line">┌─────────────────────────────────┐</span><br><span class="line">│ 2. 收集宏观指标                  │</span><br><span class="line">│    ss -s / nstat -az            │</span><br><span class="line">│    /proc/net/sockstat           │</span><br><span class="line">│    ethtool -S eth0              │</span><br><span class="line">└────────────┬────────────────────┘</span><br><span class="line">             │</span><br><span class="line">    ┌─────────┴──────────┐</span><br><span class="line">    │                    │</span><br><span class="line">    ▼                    ▼</span><br><span class="line">连通性异常          性能/应用异常</span><br><span class="line">    │                    │</span><br><span class="line">    ▼                    ▼</span><br><span class="line">ping/traceroute    ss -tienpm (socket 详情)</span><br><span class="line">arp -n             nstat (重传/超时计数)</span><br><span class="line">ip route show      tcpdump 抓包分析</span><br><span class="line">iptables -L -v     bpftrace 精确追踪</span><br><span class="line">    │                    │</span><br><span class="line">    └─────────┬──────────┘</span><br><span class="line">             │</span><br><span class="line">             ▼</span><br><span class="line">┌─────────────────────────────────┐</span><br><span class="line">│ 3. 定位协议栈层次                │</span><br><span class="line">│    L1/L2: ethtool, ip link      │</span><br><span class="line">│    L3:    ip route, conntrack   │</span><br><span class="line">│    L4:    ss, tcp 状态机        │</span><br><span class="line">│    App:   strace, lsof          │</span><br><span class="line">└────────────┬────────────────────┘</span><br><span class="line">             │</span><br><span class="line">             ▼</span><br><span class="line">┌─────────────────────────────────┐</span><br><span class="line">│ 4. 根因确认与修复                │</span><br><span class="line">│    - 内核参数调整 (sysctl)       │</span><br><span class="line">│    - 驱动/固件更新               │</span><br><span class="line">│    - 应用配置修改                │</span><br><span class="line">└─────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二、ss-命令深度解析"><a href="#二、ss-命令深度解析" class="headerlink" title="二、ss 命令深度解析"></a>二、ss 命令深度解析</h2><p><code>ss</code> 是 <code>netstat</code> 的现代替代品，直接读取内核的 socket 数据结构，速度更快、信息更丰富。核心命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ss -tienpm</span><br><span class="line"><span class="comment"># -t  只显示 TCP</span></span><br><span class="line"><span class="comment"># -i  显示内部 TCP 信息（拥塞窗口、RTT 等）</span></span><br><span class="line"><span class="comment"># -e  显示扩展信息（uid、inode 等）</span></span><br><span class="line"><span class="comment"># -n  不解析主机名</span></span><br><span class="line"><span class="comment"># -p  显示进程信息</span></span><br><span class="line"><span class="comment"># -m  显示 socket 内存使用（skmem）</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-1-Recv-Q-与-Send-Q-的双重语义"><a href="#2-1-Recv-Q-与-Send-Q-的双重语义" class="headerlink" title="2.1 Recv-Q 与 Send-Q 的双重语义"></a>2.1 Recv-Q 与 Send-Q 的双重语义</h3><p>这两个字段在不同 socket 状态下含义截然不同，是理解内核队列模型的关键：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>Recv-Q 含义</th>
+<th>Send-Q 含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>LISTEN</code></td>
+<td><strong>全连接队列（accept queue）当前长度</strong></td>
+<td><strong>全连接队列最大长度（backlog）</strong></td>
+</tr>
+<tr>
+<td><code>ESTABLISHED</code></td>
+<td>已收到但应用尚未 <code>read()</code> 的字节数</td>
+<td>已发送但尚未被对端 ACK 的字节数</td>
+</tr>
+</tbody></table>
+<p><strong>LISTEN 状态</strong>：当 <code>Recv-Q</code> 接近 <code>Send-Q</code> 时，说明全连接队列即将打满。内核会开始丢弃新完成的三次握手连接，客户端表现为连接超时。此时需要扩大 <code>net.core.somaxconn</code> 并让应用更快地调用 <code>accept()</code>。</p>
+<p><strong>ESTABLISHED 状态</strong>：<code>Recv-Q</code> 非零说明应用读取速度跟不上网络接收速度（读慢写快场景）；<code>Send-Q</code> 持续增大说明对端接收窗口收缩或网络拥塞，数据在发送缓冲区堆积。</p>
+<h3 id="2-2-skmem-字段逐字段解析"><a href="#2-2-skmem-字段逐字段解析" class="headerlink" title="2.2 skmem 字段逐字段解析"></a>2.2 skmem 字段逐字段解析</h3><p><code>skmem</code> 展示 socket 的内存使用全景，格式如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">skmem:(r:0,rb:87380,t:0,tb:16384,f:1024,w:0,o:0,bl:0,d:0)</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>内核变量</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>r:&lt;rcv_alloc&gt;</code></td>
+<td><code>sk-&gt;sk_rmem_alloc</code></td>
+<td>接收队列中已分配的 skb 内存总量（字节），即实际占用的接收缓冲区</td>
+</tr>
+<tr>
+<td><code>rb:&lt;sk_rcvbuf&gt;</code></td>
+<td><code>sk-&gt;sk_rcvbuf</code></td>
+<td>接收缓冲区上限，由 <code>net.ipv4.tcp_rmem[2]</code> 或 <code>SO_RCVBUF</code> 设置</td>
+</tr>
+<tr>
+<td><code>t:&lt;snd_alloc&gt;</code></td>
+<td><code>sk-&gt;sk_wmem_alloc</code></td>
+<td>发送队列中已分配但尚未释放的 skb 内存（含飞行中的数据）</td>
+</tr>
+<tr>
+<td><code>tb:&lt;sk_sndbuf&gt;</code></td>
+<td><code>sk-&gt;sk_sndbuf</code></td>
+<td>发送缓冲区上限，由 <code>net.ipv4.tcp_wmem[2]</code> 或 <code>SO_SNDBUF</code> 设置</td>
+</tr>
+<tr>
+<td><code>f:&lt;fwd_alloc&gt;</code></td>
+<td><code>sk-&gt;sk_forward_alloc</code></td>
+<td>预分配但尚未使用的内存额度，来自 proto 的内存预算机制</td>
+</tr>
+<tr>
+<td><code>w:&lt;wmem_alloc&gt;</code></td>
+<td><code>sk-&gt;sk_wmem_queued</code></td>
+<td>发送队列（未发送 + 已发送未 ACK）中的 skb 总内存</td>
+</tr>
+<tr>
+<td><code>o:&lt;opt_mem&gt;</code></td>
+<td><code>sk-&gt;sk_optmem_alloc</code></td>
+<td>socket 选项（如 IP_OPTIONS、cmsg）消耗的内存</td>
+</tr>
+<tr>
+<td><code>bl:&lt;back_log&gt;</code></td>
+<td><code>sk-&gt;sk_backlog.len</code></td>
+<td>软中断上下文来不及处理、暂存在 backlog 队列中的数据量</td>
+</tr>
+<tr>
+<td><code>d:&lt;drops&gt;</code></td>
+<td><code>sk-&gt;sk_drops</code></td>
+<td>因缓冲区满等原因丢弃的包计数（累计）</td>
+</tr>
+</tbody></table>
+<p><strong>诊断要点</strong>：当 <code>r</code> 接近 <code>rb</code> 时，说明接收缓冲区即将满，下一个数据包将触发 <code>sk_rmem_schedule</code> 失败进而丢包；当 <code>bl</code> 持续非零时，说明内核软中断处理不及时，可检查 <code>/proc/net/softnet_stat</code> 中的 <code>time_squeeze</code> 列。</p>
+<h3 id="2-3-TCP-内部信息字段解析"><a href="#2-3-TCP-内部信息字段解析" class="headerlink" title="2.3 TCP 内部信息字段解析"></a>2.3 TCP 内部信息字段解析</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">cubic wscale:7,7 rto:204 rtt:4.5/0.75 ato:40 mss:1448 pmtu:1500</span><br><span class="line">cwnd:10 ssthresh:7 bytes_sent:12345 bytes_retrans:0 bytes_acked:12345</span><br><span class="line">bytes_received:9876 segs_out:100 segs_in:95 data_segs_out:80</span><br><span class="line">data_segs_in:75 send 257.1Mbps lastsnd:10 lastrcv:20 lastack:15</span><br><span class="line">pacing_rate 514.3Mbps delivery_rate 257.1Mbps delivered:80</span><br><span class="line">app_limited busy:100ms retrans:0/1 dsack_dups:0 reordering:3</span><br><span class="line">rcv_rtt:4.5 rcv_space:14480 rcv_ssthresh:87380 minrtt:3.2</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义与来源</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cubic</code></td>
+<td>当前使用的拥塞控制算法，对应 <code>tp-&gt;icsk_ca_ops-&gt;name</code></td>
+</tr>
+<tr>
+<td><code>wscale:7,7</code></td>
+<td><code>&lt;本端窗口缩放因子&gt;,&lt;对端窗口缩放因子&gt;</code>，来自 <code>tp-&gt;rx_opt.snd_wscale</code> 和 <code>rcv_wscale</code>。实际窗口大小 &#x3D; 报文窗口字段 × 2^wscale</td>
+</tr>
+<tr>
+<td><code>rto:204</code></td>
+<td>当前重传超时值（毫秒），由 RTT 和抖动计算：<code>RTO = SRTT + 4×RTTVAR</code>，下限 200ms</td>
+</tr>
+<tr>
+<td><code>rtt:4.5/0.75</code></td>
+<td><code>&lt;平滑RTT(ms)&gt;/&lt;RTT方差(ms)&gt;</code>，对应内核 <code>tp-&gt;srtt_us&gt;&gt;3</code> 和 <code>tp-&gt;mdev_us&gt;&gt;2</code></td>
+</tr>
+<tr>
+<td><code>ato:40</code></td>
+<td>ACK 延迟超时（ms），TCP 延迟确认定时器，通常 40ms，对应 <code>icsk-&gt;icsk_ack.ato</code></td>
+</tr>
+<tr>
+<td><code>mss:1448</code></td>
+<td>当前有效 MSS（本端发送的最大段大小），受 MTU、PMTU 和对端通告 MSS 共同限制</td>
+</tr>
+<tr>
+<td><code>cwnd:10</code></td>
+<td>拥塞窗口（段数），<code>tp-&gt;snd_cwnd</code>，限制飞行中的数据量为 <code>cwnd × mss</code> 字节</td>
+</tr>
+<tr>
+<td><code>ssthresh:7</code></td>
+<td>慢启动阈值（段数），<code>tp-&gt;snd_ssthresh</code>，超过此值进入拥塞避免阶段</td>
+</tr>
+<tr>
+<td><code>bytes_retrans</code></td>
+<td>累计重传字节数，<code>tp-&gt;bytes_retrans</code></td>
+</tr>
+<tr>
+<td><code>retrans:0/1</code></td>
+<td><code>&lt;当前飞行中的重传段数&gt;/&lt;累计重传段数&gt;</code>，前者非零说明正在重传</td>
+</tr>
+<tr>
+<td><code>pacing_rate</code></td>
+<td>TCP Pacing 发送速率，由 BBR 或 FQ 调度器控制，避免突发</td>
+</tr>
+<tr>
+<td><code>delivery_rate</code></td>
+<td>最新测量到的实际交付速率，用于 BBR 带宽估算</td>
+</tr>
+<tr>
+<td><code>rcv_rtt</code></td>
+<td>接收端测量的 RTT（ms），用于接收缓冲区自动调优</td>
+</tr>
+<tr>
+<td><code>rcv_space</code></td>
+<td>接收端滑动窗口大小，由接收速率动态调整</td>
+</tr>
+</tbody></table>
+<h3 id="2-4-timer-字段"><a href="#2-4-timer-字段" class="headerlink" title="2.4 timer 字段"></a>2.4 timer 字段</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">timer:(on,200ms,0)</span><br></pre></td></tr></table></figure>
+
+<p>格式为 <code>(&lt;timer_type&gt;,&lt;expires&gt;,&lt;retransmits&gt;)</code>：</p>
+<table>
+<thead>
+<tr>
+<th>timer_type</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>on</code></td>
+<td>重传定时器运行中</td>
+</tr>
+<tr>
+<td><code>keepalive</code></td>
+<td>Keepalive 探测定时器</td>
+</tr>
+<tr>
+<td><code>timewait</code></td>
+<td>TIME_WAIT 定时器（2MSL）</td>
+</tr>
+<tr>
+<td><code>persist</code></td>
+<td>零窗口探测定时器</td>
+</tr>
+<tr>
+<td><code>off</code></td>
+<td>无定时器</td>
+</tr>
+</tbody></table>
+<p><code>expires</code> 是定时器剩余时间；<code>retransmits</code> 是已重传次数，达到 <code>tcp_retries2</code>（默认 15）后连接将被强制关闭。</p>
+<hr>
+<h2 id="三、-proc-net-虚拟文件深度解析"><a href="#三、-proc-net-虚拟文件深度解析" class="headerlink" title="三、&#x2F;proc&#x2F;net 虚拟文件深度解析"></a>三、&#x2F;proc&#x2F;net 虚拟文件深度解析</h2><h3 id="3-1-proc-net-tcp-字段解析"><a href="#3-1-proc-net-tcp-字段解析" class="headerlink" title="3.1 &#x2F;proc&#x2F;net&#x2F;tcp 字段解析"></a>3.1 &#x2F;proc&#x2F;net&#x2F;tcp 字段解析</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /proc/net/tcp</span><br><span class="line"><span class="comment"># sl  local_address rem_address   st tx_queue rx_queue tr tm-&gt;when retrnsmt</span></span><br><span class="line"><span class="comment">#  0: 0F02000A:0016 C802000A:C4E8 01 00000000:00000000 00:00000000 00000000</span></span><br></pre></td></tr></table></figure>
+
+<p>各列含义：</p>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>sl</code></td>
+<td>socket 在哈希桶中的槽位编号</td>
+</tr>
+<tr>
+<td><code>local_address</code></td>
+<td>本地 <code>IP:Port</code>，十六进制，<strong>小端序</strong>：<code>0F02000A</code> &#x3D; <code>10.0.2.15</code>，<code>0016</code> &#x3D; <code>22</code></td>
+</tr>
+<tr>
+<td><code>rem_address</code></td>
+<td>远端 <code>IP:Port</code>，同上编码方式</td>
+</tr>
+<tr>
+<td><code>st</code></td>
+<td>TCP 状态，十六进制枚举（见下表）</td>
+</tr>
+<tr>
+<td><code>tx_queue:rx_queue</code></td>
+<td>发送队列字节数:接收队列字节数（十六进制）</td>
+</tr>
+<tr>
+<td><code>tr:tm-&gt;when</code></td>
+<td>重传定时器是否在运行(0&#x2F;1):定时器剩余 jiffies</td>
+</tr>
+<tr>
+<td><code>retrnsmt</code></td>
+<td>已重传次数</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>socket 所属用户 uid</td>
+</tr>
+<tr>
+<td><code>inode</code></td>
+<td>socket 对应的 inode 号，可通过 <code>ls -la /proc/&lt;pid&gt;/fd/</code> 映射到进程</td>
+</tr>
+</tbody></table>
+<p><strong>TCP 状态枚举表</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>十六进制</th>
+<th>状态名</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>01</code></td>
+<td>ESTABLISHED</td>
+</tr>
+<tr>
+<td><code>02</code></td>
+<td>SYN_SENT</td>
+</tr>
+<tr>
+<td><code>03</code></td>
+<td>SYN_RECV</td>
+</tr>
+<tr>
+<td><code>04</code></td>
+<td>FIN_WAIT1</td>
+</tr>
+<tr>
+<td><code>05</code></td>
+<td>FIN_WAIT2</td>
+</tr>
+<tr>
+<td><code>06</code></td>
+<td>TIME_WAIT</td>
+</tr>
+<tr>
+<td><code>07</code></td>
+<td>CLOSE</td>
+</tr>
+<tr>
+<td><code>08</code></td>
+<td>CLOSE_WAIT</td>
+</tr>
+<tr>
+<td><code>09</code></td>
+<td>LAST_ACK</td>
+</tr>
+<tr>
+<td><code>0A</code></td>
+<td>LISTEN</td>
+</tr>
+<tr>
+<td><code>0B</code></td>
+<td>CLOSING</td>
+</tr>
+</tbody></table>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 统计各状态连接数</span></span><br><span class="line">awk <span class="string">&#x27;NR&gt;1 &#123;print $4&#125;&#x27;</span> /proc/net/tcp | <span class="built_in">sort</span> | <span class="built_in">uniq</span> -c | <span class="built_in">sort</span> -rn</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-proc-net-sockstat"><a href="#3-2-proc-net-sockstat" class="headerlink" title="3.2 &#x2F;proc&#x2F;net&#x2F;sockstat"></a>3.2 &#x2F;proc&#x2F;net&#x2F;sockstat</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /proc/net/sockstat</span><br><span class="line"><span class="comment"># sockets: used 1024</span></span><br><span class="line"><span class="comment"># TCP: inuse 512 orphan 3 tw 128 alloc 520 mem 42</span></span><br><span class="line"><span class="comment"># UDP: inuse 16 mem 2</span></span><br><span class="line"><span class="comment"># UDPLITE: inuse 0</span></span><br><span class="line"><span class="comment"># RAW: inuse 0</span></span><br><span class="line"><span class="comment"># FRAG: inuse 0 memory 0</span></span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>TCP: inuse</code></td>
+<td>当前使用中的 TCP socket 数</td>
+</tr>
+<tr>
+<td><code>orphan</code></td>
+<td>孤儿 socket 数：已调用 <code>close()</code> 但尚未完成四次挥手，不属于任何进程。过多会消耗内存，受 <code>net.ipv4.tcp_max_orphans</code> 限制</td>
+</tr>
+<tr>
+<td><code>tw</code></td>
+<td>TIME_WAIT socket 数，过多时检查 <code>tcp_tw_reuse</code> 参数</td>
+</tr>
+<tr>
+<td><code>alloc</code></td>
+<td>已分配（含未绑定）的 TCP socket 总数</td>
+</tr>
+<tr>
+<td><code>mem</code></td>
+<td>TCP socket 占用的内存页数，乘以页大小（通常 4KB）得字节数</td>
+</tr>
+</tbody></table>
+<h3 id="3-3-nstat-关键指标解析"><a href="#3-3-nstat-关键指标解析" class="headerlink" title="3.3 nstat 关键指标解析"></a>3.3 nstat 关键指标解析</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">nstat -az | grep -E <span class="string">&#x27;Retrans|Timeout|OFO|Backlog|Listen|Drop&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>内核来源</th>
+<th>告警意义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>TcpExtTCPFastRetrans</code></td>
+<td>快速重传触发次数（收到 3 个重复 ACK），相对正常</td>
+<td>持续增长说明网络存在随机丢包</td>
+</tr>
+<tr>
+<td><code>TcpExtTCPTimeouts</code></td>
+<td>RTO 超时重传次数</td>
+<td>比 FastRetrans 严重，说明丢包率高或 RTT 剧烈抖动</td>
+</tr>
+<tr>
+<td><code>TcpExtTCPOFOQueue</code></td>
+<td>收到乱序包放入 OFO 队列的次数</td>
+<td>大量乱序可能触发不必要的重传</td>
+</tr>
+<tr>
+<td><code>TcpExtTCPBacklogDrop</code></td>
+<td>socket 的 backlog 队列满而丢弃的包数</td>
+<td>应用处理 socket 太慢，增大 backlog 或优化应用</td>
+</tr>
+<tr>
+<td><code>TcpExtListenDrops</code></td>
+<td>全连接队列满时丢弃 SYN 的次数</td>
+<td>需增大 <code>somaxconn</code> 或加快 <code>accept()</code></td>
+</tr>
+<tr>
+<td><code>TcpExtListenOverflows</code></td>
+<td>全连接队列溢出次数（与 ListenDrops 相似但计数时机不同）</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>TcpExtTCPSACKDiscard</code></td>
+<td>SACK 信息被丢弃（通常因重复或无效）</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>TcpExtTCPAbortOnTimeout</code></td>
+<td>因连接超时（达到最大重试次数）而中止的连接数</td>
+<td>说明有连接长时间无响应</td>
+</tr>
+<tr>
+<td><code>TcpExtTCPSynRetrans</code></td>
+<td>SYN 包重传次数</td>
+<td>持续增长说明服务端 backlog 满或存在 SYN flood</td>
+</tr>
+</tbody></table>
+<h3 id="3-4-proc-net-snmp-关键字段"><a href="#3-4-proc-net-snmp-关键字段" class="headerlink" title="3.4 &#x2F;proc&#x2F;net&#x2F;snmp 关键字段"></a>3.4 &#x2F;proc&#x2F;net&#x2F;snmp 关键字段</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /proc/net/snmp | grep -E <span class="string">&#x27;^Tcp|^Ip|^Udp&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>重要字段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Tcp: ... RetransSegs ... InErrs ... OutRsts ...</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Ip/InDiscards</code></td>
+<td>IP 层因内存不足丢弃的入包数</td>
+</tr>
+<tr>
+<td><code>Ip/OutDiscards</code></td>
+<td>IP 层因无路由或资源不足丢弃的出包数</td>
+</tr>
+<tr>
+<td><code>Tcp/ActiveOpens</code></td>
+<td>主动建立连接次数（客户端发起）</td>
+</tr>
+<tr>
+<td><code>Tcp/PassiveOpens</code></td>
+<td>被动建立连接次数（服务端接受）</td>
+</tr>
+<tr>
+<td><code>Tcp/AttemptFails</code></td>
+<td>连接建立失败次数（SYN_SENT&#x2F;SYN_RECV 中途失败）</td>
+</tr>
+<tr>
+<td><code>Tcp/EstabResets</code></td>
+<td>ESTABLISHED 状态下被 RST 关闭的连接数</td>
+</tr>
+<tr>
+<td><code>Tcp/RetransSegs</code></td>
+<td>重传段总数，除以 <code>OutSegs</code> 得重传率</td>
+</tr>
+<tr>
+<td><code>Tcp/InErrs</code></td>
+<td>收到的错误 TCP 段数（checksum 失败等）</td>
+</tr>
+<tr>
+<td><code>Tcp/OutRsts</code></td>
+<td>发出的 RST 包数，突增说明有异常断连</td>
+</tr>
+<tr>
+<td><code>Udp/RcvbufErrors</code></td>
+<td>UDP 接收缓冲区满丢包数</td>
+</tr>
+<tr>
+<td><code>Udp/SndbufErrors</code></td>
+<td>UDP 发送缓冲区满丢包数</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="四、tcpdump-高级用法"><a href="#四、tcpdump-高级用法" class="headerlink" title="四、tcpdump 高级用法"></a>四、tcpdump 高级用法</h2><h3 id="4-1-BPF-捕获过滤器语法精华"><a href="#4-1-BPF-捕获过滤器语法精华" class="headerlink" title="4.1 BPF 捕获过滤器语法精华"></a>4.1 BPF 捕获过滤器语法精华</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 基础：捕获特定主机和端口</span></span><br><span class="line">tcpdump -i eth0 -nn host 10.0.0.1 and port 8080</span><br><span class="line"></span><br><span class="line"><span class="comment"># 协议过滤</span></span><br><span class="line">tcpdump -i eth0 -nn proto tcp</span><br><span class="line">tcpdump -i eth0 -nn udp and port 53</span><br><span class="line"></span><br><span class="line"><span class="comment"># 仅捕获 TCP 控制包（SYN/FIN/RST），减少抓包量</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;tcp[tcpflags] &amp; (tcp-syn|tcp-fin|tcp-rst) != 0&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 仅捕获 SYN（过滤 SYN-ACK）：bit 1 set, bit 4 not set</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;tcp[tcpflags] == tcp-syn&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 捕获 RST</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;tcp[tcpflags] &amp; tcp-rst != 0&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 捕获 TCP 零窗口（window size = 0）</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;tcp[14:2] == 0&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 捕获小窗口（&lt; 1000 字节，可能即将触发零窗口）</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;tcp[14:2] &lt; 1000 and tcp[14:2] &gt; 0&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 捕获 ICMP 不可达（可以发现 PMTU 问题）</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;icmp[icmptype] == icmp-unreach&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 复合过滤：特定主机的 HTTP 流量或 DNS</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;(host 10.0.0.1 and port 80) or port 53&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 排除 SSH，避免抓包流量干扰自身</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;not port 22&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 按包大小过滤（大包，可能是数据传输）</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;greater 1400&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-TCP-握手异常分析"><a href="#4-2-TCP-握手异常分析" class="headerlink" title="4.2 TCP 握手异常分析"></a>4.2 TCP 握手异常分析</h3><p><strong>SYN 重传</strong>：在抓包中看到同一个 <code>(src_ip, src_port, seq_num)</code> 的 SYN 包出现多次，时间间隔通常是 1s、2s、4s（指数退避）。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 抓 SYN 包，写入文件后用 tshark 分析重传</span></span><br><span class="line">tcpdump -i eth0 -nn -w /tmp/syn.pcap <span class="string">&#x27;tcp[tcpflags] == tcp-syn&#x27;</span> &amp;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 用 tshark 统计 SYN 重传</span></span><br><span class="line">tshark -r /tmp/syn.pcap -q -z io,<span class="built_in">stat</span>,1,<span class="string">&quot;tcp.flags.syn==1 &amp;&amp; tcp.analysis.retransmission&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>RST 原因判断</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 抓 RST 包，同时捕获前后各 5 个包提供上下文</span></span><br><span class="line">tcpdump -i eth0 -nn -A <span class="string">&#x27;tcp[tcpflags] &amp; tcp-rst != 0&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>RST 来源分析：</p>
+<ul>
+<li><strong>服务端主动 RST</strong>：通常因为对端发来的包不符合预期（如连接已关闭但收到数据），或调用了 <code>SO_LINGER</code> 选项</li>
+<li><strong>防火墙&#x2F;中间盒 RST</strong>：RST 包的 TTL 与正常通信包不同，seq number 恰好在窗口边界，可疑</li>
+<li><strong>客户端 RST</strong>：收到 SYN-ACK 但本地没有对应连接（端口复用冲突），<code>OutRsts</code> 增加</li>
+</ul>
+<h3 id="4-3-零窗口与拥塞分析"><a href="#4-3-零窗口与拥塞分析" class="headerlink" title="4.3 零窗口与拥塞分析"></a>4.3 零窗口与拥塞分析</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 捕获完整会话，包含零窗口通告</span></span><br><span class="line">tcpdump -i eth0 -nn -w /tmp/full.pcap host 10.0.0.1 and port 8080</span><br><span class="line"></span><br><span class="line"><span class="comment"># 用 tshark 提取零窗口事件</span></span><br><span class="line">tshark -r /tmp/full.pcap -Y <span class="string">&quot;tcp.window_size == 0&quot;</span> -T fields \</span><br><span class="line">  -e frame.time -e ip.src -e ip.dst -e tcp.srcport -e tcp.dstport</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看窗口大小随时间的变化趋势</span></span><br><span class="line">tshark -r /tmp/full.pcap -T fields \</span><br><span class="line">  -e frame.time_relative -e tcp.window_size -e tcp.analysis.zero_window \</span><br><span class="line">  -Y <span class="string">&quot;ip.src == 10.0.0.1&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-典型诊断命令集"><a href="#4-4-典型诊断命令集" class="headerlink" title="4.4 典型诊断命令集"></a>4.4 典型诊断命令集</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 快速查看流量概况（每秒统计包数和字节数）</span></span><br><span class="line">tcpdump -i eth0 -nn -q 2&gt;&amp;1 | pv -l -i 1 &gt; /dev/null</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 抓取并实时展示 TCP 握手过程（含 SYN/SYN-ACK/ACK）</span></span><br><span class="line">tcpdump -i eth0 -nn -S <span class="string">&#x27;tcp[tcpflags] &amp; (tcp-syn|tcp-ack) != 0 and not port 22&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 排查 DNS 超时（捕获无响应的查询）</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;udp port 53&#x27;</span> -w /tmp/dns.pcap</span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. MTU 探测问题排查（DF 位设置的大包）</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;ip[6:2] &amp; 0x4000 != 0 and greater 1400&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 5. 统计各连接的包数（离线分析）</span></span><br><span class="line">tcpdump -r /tmp/full.pcap -nn -q | awk <span class="string">&#x27;&#123;print $3&#125;&#x27;</span> | <span class="built_in">cut</span> -d. -f1-4 | <span class="built_in">sort</span> | <span class="built_in">uniq</span> -c | <span class="built_in">sort</span> -rn | <span class="built_in">head</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 6. 捕获 TCP Fast Open（TFO）握手</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;tcp[tcpflags] == tcp-syn&#x27;</span> -A | grep -A2 <span class="string">&#x27;Fast Open&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 7. 检测 TCP 时间戳选项是否启用</span></span><br><span class="line">tcpdump -i eth0 -nn <span class="string">&#x27;tcp[tcpflags] == tcp-syn&#x27;</span> -v 2&gt;&amp;1 | grep -i <span class="string">&#x27;timestamp\|nop&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、bpftrace-网络诊断脚本集"><a href="#五、bpftrace-网络诊断脚本集" class="headerlink" title="五、bpftrace 网络诊断脚本集"></a>五、bpftrace 网络诊断脚本集</h2><p>bpftrace 基于 eBPF，可以在不修改内核的情况下动态追踪任意内核函数，开销极低。以下五个脚本覆盖网络诊断最常见场景。</p>
+<h3 id="脚本一：TCP-重传追踪（含源目的-IP-Port）"><a href="#脚本一：TCP-重传追踪（含源目的-IP-Port）" class="headerlink" title="脚本一：TCP 重传追踪（含源目的 IP:Port）"></a>脚本一：TCP 重传追踪（含源目的 IP:Port）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line"><span class="comment">#include &lt;linux/tcp.h&gt;</span></span><br><span class="line"><span class="comment">#include &lt;net/sock.h&gt;</span></span><br><span class="line"></span><br><span class="line">/*</span><br><span class="line"> * 追踪 TCP 重传事件，打印进程、本地端口、远端端口</span><br><span class="line"> * 可用于快速确认哪些连接在重传、重传频率</span><br><span class="line"> */</span><br><span class="line">kprobe:tcp_retransmit_skb &#123;</span><br><span class="line">    <span class="variable">$sk</span> = (struct sock *)arg0;</span><br><span class="line">    <span class="variable">$lport</span> = <span class="variable">$sk</span>-&gt;__sk_common.skc_num;</span><br><span class="line">    <span class="variable">$dport</span> = <span class="variable">$sk</span>-&gt;__sk_common.skc_dport;</span><br><span class="line">    /* dport 在内核中是网络字节序，需要手动转换 */</span><br><span class="line">    <span class="variable">$dport</span> = (<span class="variable">$dport</span> &gt;&gt; 8) | ((<span class="variable">$dport</span> &lt;&lt; <span class="number">8</span>) &amp; <span class="number">0</span>xff00);</span><br><span class="line">    printf(&quot;%-<span class="number">6</span>d %-<span class="number">12</span>s TCP retransmit: lport=%d dport=%d\n&quot;,</span><br><span class="line">        pid, comm, <span class="variable">$lport</span>, <span class="variable">$dport</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>运行：<code>sudo bpftrace retrans.bt</code>，输出示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">12345  nginx        TCP retransmit: lport=80 dport=54321</span><br><span class="line">12345  nginx        TCP retransmit: lport=80 dport=54322</span><br></pre></td></tr></table></figure>
+
+<p>若某个 <code>dport</code> 频繁出现，说明该客户端连接质量差，可结合 <code>ss</code> 查看该连接的 RTT 和重传计数确认。</p>
+<h3 id="脚本二：TCP-连接建立延迟分布"><a href="#脚本二：TCP-连接建立延迟分布" class="headerlink" title="脚本二：TCP 连接建立延迟分布"></a>脚本二：TCP 连接建立延迟分布</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line">/*</span><br><span class="line"> * 测量 tcp_v4_connect() 调用耗时，以直方图展示</span><br><span class="line"> * 用于量化 DNS 解析 + 三次握手的端到端延迟</span><br><span class="line"> */</span><br><span class="line">kprobe:tcp_v4_connect    &#123; @start[tid] = nsecs; &#125;</span><br><span class="line"></span><br><span class="line">kretprobe:tcp_v4_connect /@start[tid]/ &#123;</span><br><span class="line">    @connect_lat_us = hist((nsecs - @start[tid]) / <span class="number">1000</span>);</span><br><span class="line">    delete(@start[tid]);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">END &#123;</span><br><span class="line">    printf(&quot;\nTCP connect latency distribution (us):\n&quot;);</span><br><span class="line">    print(@connect_lat_us);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">@connect_lat_us:</span><br><span class="line">[256, 512)           5 |@@                                  |</span><br><span class="line">[512, 1K)           42 |@@@@@@@@@@@@@@@@@@                  |</span><br><span class="line">[1K, 2K)            89 |@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|</span><br><span class="line">[2K, 4K)            23 |@@@@@@@@@                           |</span><br><span class="line">[4K, 8K)             3 |@                                   |</span><br></pre></td></tr></table></figure>
+
+<p>延迟集中在 1ms-2ms 为正常本地网络；若出现 <code>[100K, 200K)</code> 的长尾，说明存在严重的连接建立延迟，需检查是否有 SYN 丢包导致的 1s 重传。</p>
+<h3 id="脚本三：按进程统计发送-接收字节"><a href="#脚本三：按进程统计发送-接收字节" class="headerlink" title="脚本三：按进程统计发送&#x2F;接收字节"></a>脚本三：按进程统计发送&#x2F;接收字节</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line">/*</span><br><span class="line"> * 每 5 秒打印一次各进程的 TCP 收发字节统计</span><br><span class="line"> * 快速定位带宽消耗大户</span><br><span class="line"> */</span><br><span class="line">kprobe:tcp_sendmsg &#123;</span><br><span class="line">    /* arg2 是 size_t size，即本次发送请求的字节数 */</span><br><span class="line">    @sent_bytes[<span class="built_in">comm</span>, pid] += arg2;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">kprobe:tcp_recvmsg &#123;</span><br><span class="line">    /* arg2 是 size_t size，即本次接收请求的缓冲区大小 */</span><br><span class="line">    @recv_bytes[<span class="built_in">comm</span>, pid] += arg2;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">interval:s:5 &#123;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n=== Top senders (5s) ===\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@sent_bytes);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n=== Top receivers (5s) ===\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@recv_bytes);</span><br><span class="line">    clear(@sent_bytes);</span><br><span class="line">    clear(@recv_bytes);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意：<code>tcp_sendmsg</code> 的 <code>arg2</code> 是应用请求发送的字节数，不等于实际发出的字节数（受发送缓冲区影响），但在排查带宽使用时已足够准确。</p>
+<h3 id="脚本四：Socket-接收队列积压监控"><a href="#脚本四：Socket-接收队列积压监控" class="headerlink" title="脚本四：Socket 接收队列积压监控"></a>脚本四：Socket 接收队列积压监控</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line"><span class="comment">#include &lt;net/sock.h&gt;</span></span><br><span class="line">/*</span><br><span class="line"> * 监控各进程的 socket backlog 积压情况</span><br><span class="line"> * sk_backlog.len 是软中断来不及处理的包的总大小</span><br><span class="line"> * 持续非零说明 CPU 处理 softirq 不及时</span><br><span class="line"> */</span><br><span class="line">kprobe:tcp_add_backlog &#123;</span><br><span class="line">    <span class="variable">$sk</span> = (struct sock *)arg0;</span><br><span class="line">    <span class="variable">$backlog_len</span> = <span class="variable">$sk</span>-&gt;sk_backlog.len;</span><br><span class="line">    <span class="keyword">if</span> (<span class="variable">$backlog_len</span> &gt; 0) &#123;</span><br><span class="line">        @backlog[<span class="built_in">comm</span>] = max(<span class="variable">$backlog_len</span>);</span><br><span class="line">        @backlog_hist = hist(<span class="variable">$backlog_len</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">interval:s:1 &#123;</span><br><span class="line">    <span class="keyword">if</span> (@backlog) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;\n--- Backlog snapshot ---\n&quot;</span>);</span><br><span class="line">        <span class="built_in">print</span>(@backlog);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>若 <code>@backlog_hist</code> 中出现大量高值，需检查：</p>
+<ol>
+<li><code>napi_schedule</code> 是否不均匀（多队列网卡的 RSS 配置）</li>
+<li><code>ksoftirqd</code> CPU 占用率</li>
+<li><code>/proc/net/softnet_stat</code> 中的 <code>time_squeeze</code> 列是否在增长</li>
+</ol>
+<h3 id="脚本五：追踪-TCP-状态变化"><a href="#脚本五：追踪-TCP-状态变化" class="headerlink" title="脚本五：追踪 TCP 状态变化"></a>脚本五：追踪 TCP 状态变化</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line"><span class="comment">#include &lt;net/sock.h&gt;</span></span><br><span class="line">/*</span><br><span class="line"> * 追踪 TCP 状态机转换，打印每次状态变化</span><br><span class="line"> * 对于排查异常断连（直接从 ESTABLISHED 跳到 CLOSE）非常有用</span><br><span class="line"> */</span><br><span class="line">kprobe:tcp_set_state &#123;</span><br><span class="line">    <span class="variable">$sk</span> = (struct sock *)arg0;</span><br><span class="line">    <span class="variable">$newstate</span> = (int32)arg1;</span><br><span class="line">    <span class="variable">$oldstate</span> = (int32)<span class="variable">$sk</span>-&gt;__sk_common.skc_state;</span><br><span class="line"></span><br><span class="line">    <span class="variable">$state_names</span> = (<span class="string">&quot;UNKNOWN&quot;</span>, <span class="string">&quot;ESTABLISHED&quot;</span>, <span class="string">&quot;SYN_SENT&quot;</span>, <span class="string">&quot;SYN_RECV&quot;</span>,</span><br><span class="line">                    <span class="string">&quot;FIN_WAIT1&quot;</span>, <span class="string">&quot;FIN_WAIT2&quot;</span>, <span class="string">&quot;TIME_WAIT&quot;</span>, <span class="string">&quot;CLOSE&quot;</span>,</span><br><span class="line">                    <span class="string">&quot;CLOSE_WAIT&quot;</span>, <span class="string">&quot;LAST_ACK&quot;</span>, <span class="string">&quot;LISTEN&quot;</span>, <span class="string">&quot;CLOSING&quot;</span>,</span><br><span class="line">                    <span class="string">&quot;NEW_SYN_RECV&quot;</span>);</span><br><span class="line"></span><br><span class="line">    /* 只关注从 ESTABLISHED 开始的断连过程 */</span><br><span class="line">    <span class="keyword">if</span> (<span class="variable">$oldstate</span> == 1 || <span class="variable">$newstate</span> == 7 || <span class="variable">$newstate</span> == 8) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;%-12s pid=%-6d  %s -&gt; %s\n&quot;</span>,</span><br><span class="line">            <span class="built_in">comm</span>, pid,</span><br><span class="line">            <span class="variable">$state_names</span>[<span class="variable">$oldstate</span>],</span><br><span class="line">            <span class="variable">$state_names</span>[<span class="variable">$newstate</span>]);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">nginx        pid=12345  ESTABLISHED -&gt; FIN_WAIT1     # 正常主动关闭</span><br><span class="line">nginx        pid=12345  ESTABLISHED -&gt; CLOSE_WAIT    # 对端主动关闭</span><br><span class="line">nginx        pid=12345  ESTABLISHED -&gt; CLOSE         # 异常！RST 导致</span><br></pre></td></tr></table></figure>
+
+<p>第三行的 <code>ESTABLISHED -&gt; CLOSE</code> 跳过了正常的四次挥手，通常由 RST 触发，需结合 tcpdump 进一步定位 RST 原因。</p>
+<hr>
+<h2 id="六、实战案例一：排查-P99-延迟抖动（TCP-重传）"><a href="#六、实战案例一：排查-P99-延迟抖动（TCP-重传）" class="headerlink" title="六、实战案例一：排查 P99 延迟抖动（TCP 重传）"></a>六、实战案例一：排查 P99 延迟抖动（TCP 重传）</h2><p><strong>场景</strong>：监控系统显示某微服务 P99 延迟从 50ms 上升到 800ms，P50 正常，怀疑存在 TCP 重传。</p>
+<h3 id="步骤一：找出重传多的连接"><a href="#步骤一：找出重传多的连接" class="headerlink" title="步骤一：找出重传多的连接"></a>步骤一：找出重传多的连接</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ss -tienp | grep ESTAB | <span class="built_in">sort</span> -k5 -n | <span class="built_in">tail</span> -10</span><br></pre></td></tr></table></figure>
+
+<p>重点看 <code>retrans</code> 和 <code>bytes_retrans</code> 字段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ESTAB  0  0  10.0.0.1:8080  10.0.0.2:54321</span><br><span class="line">       cubic wscale:7,7 rto:412 rtt:105/82.5 ato:40 mss:1448</span><br><span class="line">       cwnd:4 ssthresh:4 bytes_retrans:204800 retrans:2/45</span><br></pre></td></tr></table></figure>
+
+<p>解读：<code>rtt:105/82.5</code> 说明平均 RTT 105ms 且方差极大（正常应为 <code>4.5/0.75</code>），<code>retrans:2/45</code> 说明累计重传 45 次，<code>ssthresh:4</code> 说明拥塞控制已经将阈值压到很低，吞吐受到严重限制。</p>
+<h3 id="步骤二：确认重传计数增长趋势"><a href="#步骤二：确认重传计数增长趋势" class="headerlink" title="步骤二：确认重传计数增长趋势"></a>步骤二：确认重传计数增长趋势</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">watch -d -n 1 <span class="string">&#x27;nstat -az | grep -E &quot;Retrans|Loss|Timeout&quot;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">TcpExtTCPFastRetrans          1234    0.0   # 快速重传，网络有随机丢包</span><br><span class="line">TcpExtTCPTimeouts              87     0.0   # RTO 超时重传，更严重</span><br><span class="line">TcpExtTCPSynRetrans            3      0.0   # SYN 重传，建立连接也慢</span><br><span class="line">TcpExtTCPLostRetransmit        12     0.0   # 重传包本身也丢了</span><br></pre></td></tr></table></figure>
+
+<p><code>TcpExtTCPTimeouts</code> 持续增长是核心告警信号，说明 RTO 触发导致 800ms 的延迟峰值（默认 RTO 下限 200ms，第一次超时等 200ms，若再丢就等 400ms）。</p>
+<h3 id="步骤三：抓包确认丢包位置"><a href="#步骤三：抓包确认丢包位置" class="headerlink" title="步骤三：抓包确认丢包位置"></a>步骤三：抓包确认丢包位置</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 抓取所有控制包和小窗口包</span></span><br><span class="line">tcpdump -i eth0 -nn -w /tmp/retrans.pcap \</span><br><span class="line">  <span class="string">&#x27;tcp[tcpflags] &amp; (tcp-syn|tcp-fin|tcp-rst) != 0 or (tcp[14:2] &lt; 1000)&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 同时抓取目标端口的完整流量（限制大小避免磁盘打满）</span></span><br><span class="line">tcpdump -i eth0 -nn -w /tmp/full.pcap -C 100 -W 5 <span class="string">&#x27;port 8080&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 离线分析：统计重传包数量</span></span><br><span class="line">tshark -r /tmp/full.pcap -q -z io,<span class="built_in">stat</span>,1,<span class="string">&quot;tcp.analysis.retransmission&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="步骤四：bpftrace-精确追踪重传触发点"><a href="#步骤四：bpftrace-精确追踪重传触发点" class="headerlink" title="步骤四：bpftrace 精确追踪重传触发点"></a>步骤四：bpftrace 精确追踪重传触发点</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">sudo bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:tcp_retransmit_skb &#123;</span></span><br><span class="line"><span class="string">    @[comm, pid, kstack] = count();</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">interval:s:10 &#123; print(@); clear(@); &#125;</span></span><br><span class="line"><span class="string">&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>通过内核调用栈可以判断重传是由 RTO 定时器触发（<code>tcp_write_timer_handler</code>）还是由 SACK 驱动的快速重传（<code>tcp_fastretrans_alert</code>）。</p>
+<h3 id="步骤五：检查网卡错误统计"><a href="#步骤五：检查网卡错误统计" class="headerlink" title="步骤五：检查网卡错误统计"></a>步骤五：检查网卡错误统计</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ethtool -S eth0 | grep -iE <span class="string">&#x27;error|drop|miss|fifo&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">rx_dropped: 1523</span><br><span class="line">rx_fifo_errors: 891</span><br><span class="line">tx_errors: 0</span><br></pre></td></tr></table></figure>
+
+<p><code>rx_fifo_errors</code> 说明网卡 ring buffer 已满，包在驱动层被丢弃，不经过协议栈，因此 <code>nstat</code> 里看不到，但 tcpdump 也抓不到。需要增大 ring buffer：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ethtool -G eth0 rx 4096</span><br></pre></td></tr></table></figure>
+
+<h3 id="步骤六：检查-CPU-中断分布"><a href="#步骤六：检查-CPU-中断分布" class="headerlink" title="步骤六：检查 CPU 中断分布"></a>步骤六：检查 CPU 中断分布</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /proc/interrupts | grep eth0</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">45:  28000000         0         0         0   PCI-MSI  eth0-0</span><br><span class="line">46:       500   1200000         0         0   PCI-MSI  eth0-1</span><br><span class="line">47:      1000         0  1800000         0   PCI-MSI  eth0-2</span><br></pre></td></tr></table></figure>
+
+<p>发现 <code>eth0-1</code> 和 <code>eth0-2</code> 的中断都压在 CPU 1 和 CPU 2 上，CPU 0 和 CPU 3 几乎没有。调整 IRQ 亲和性：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">echo</span> <span class="string">&quot;f&quot;</span> &gt; /proc/irq/45/smp_affinity   <span class="comment"># 允许所有 CPU 处理</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;f&quot;</span> &gt; /proc/irq/46/smp_affinity</span><br><span class="line"><span class="comment"># 或使用 irqbalance</span></span><br><span class="line">systemctl restart irqbalance</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="七、实战案例二：排查-SYN-丢包（连接建立失败）"><a href="#七、实战案例二：排查-SYN-丢包（连接建立失败）" class="headerlink" title="七、实战案例二：排查 SYN 丢包（连接建立失败）"></a>七、实战案例二：排查 SYN 丢包（连接建立失败）</h2><p><strong>场景</strong>：新上线的服务在高并发时出现大量连接超时，客户端报 <code>Connection refused</code> 或持续 <code>SYN_SENT</code>。</p>
+<h3 id="步骤一：确认全局-SYN-丢包情况"><a href="#步骤一：确认全局-SYN-丢包情况" class="headerlink" title="步骤一：确认全局 SYN 丢包情况"></a>步骤一：确认全局 SYN 丢包情况</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">netstat -s | grep -iE <span class="string">&#x27;syn|listen|backlog|overflow&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">3456 SYNs to LISTEN sockets dropped</span><br><span class="line">1234 times the listen queue of a socket overflowed</span><br></pre></td></tr></table></figure>
+
+<p>若这两个数字在持续增长（用 <code>watch</code> 监测差值），确认是 backlog 满导致的 SYN 丢包。</p>
+<h3 id="步骤二：检查全连接队列占用"><a href="#步骤二：检查全连接队列占用" class="headerlink" title="步骤二：检查全连接队列占用"></a>步骤二：检查全连接队列占用</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ss -lntp</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">State   Recv-Q  Send-Q  Local Address:Port</span><br><span class="line">LISTEN  512     512     0.0.0.0:8080</span><br></pre></td></tr></table></figure>
+
+<p><code>Recv-Q == Send-Q == 512</code> 说明全连接队列已经打满（<code>Recv-Q</code> &#x3D; 当前队列长度，<code>Send-Q</code> &#x3D; 队列最大值）。当队列满时，新完成三次握手的连接会被直接丢弃，客户端的 SYN 需要等到 RTO 超时（1s）后重传。</p>
+<h3 id="步骤三：查看当前-backlog-配置"><a href="#步骤三：查看当前-backlog-配置" class="headerlink" title="步骤三：查看当前 backlog 配置"></a>步骤三：查看当前 backlog 配置</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sysctl net.ipv4.tcp_max_syn_backlog net.core.somaxconn</span><br><span class="line"><span class="comment"># net.ipv4.tcp_max_syn_backlog = 128    &lt;- 半连接队列（SYN_RECV 状态上限）</span></span><br><span class="line"><span class="comment"># net.core.somaxconn = 128              &lt;- 全连接队列上限</span></span><br></pre></td></tr></table></figure>
+
+<p>两个值都是 128，远不够用。调整：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sysctl -w net.core.somaxconn=65535</span><br><span class="line">sysctl -w net.ipv4.tcp_max_syn_backlog=65535</span><br><span class="line"><span class="comment"># 应用层也需要增大 listen() 的 backlog 参数并重启服务</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>重要</strong>：<code>somaxconn</code> 是系统级上限，但应用调用 <code>listen(fd, backlog)</code> 时传入的值才是实际生效的全连接队列大小（取两者中的较小值）。Nginx 对应配置 <code>listen 8080 backlog=65535</code>，Java 应用需修改 <code>ServerSocket</code> 构造参数。</p>
+<h3 id="步骤四：检查-SYN-Cookie"><a href="#步骤四：检查-SYN-Cookie" class="headerlink" title="步骤四：检查 SYN Cookie"></a>步骤四：检查 SYN Cookie</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sysctl net.ipv4.tcp_syncookies</span><br><span class="line"><span class="comment"># net.ipv4.tcp_syncookies = 1</span></span><br></pre></td></tr></table></figure>
+
+<p>SYN Cookie 是在半连接队列满时的保护机制：服务端不记录 SYN 状态，而是把连接信息编码进 SYN-ACK 的 ISN 中。优点是防 SYN flood，缺点是无法使用 TCP 选项（SACK、窗口缩放等）。若已开启但仍然大量丢包，说明是全连接队列满的问题，SYN Cookie 此时不起作用。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 通过 nstat 确认 SYN Cookie 使用情况</span></span><br><span class="line">nstat -az | grep -i <span class="string">&#x27;cookie&#x27;</span></span><br><span class="line"><span class="comment"># TcpExtSyncookiesSent       1234    # 发出了 SYN cookie</span></span><br><span class="line"><span class="comment"># TcpExtSyncookiesRecv        987    # 收到有效 SYN cookie 响应</span></span><br><span class="line"><span class="comment"># TcpExtSyncookiesFailed       12    # SYN cookie 验证失败（可能是伪造包）</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="步骤五：排查-conntrack-表满"><a href="#步骤五：排查-conntrack-表满" class="headerlink" title="步骤五：排查 conntrack 表满"></a>步骤五：排查 conntrack 表满</h3><p>如果服务器部署了 iptables NAT 或防火墙规则，连接跟踪表（conntrack）满也会导致新连接被丢弃：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sysctl net.netfilter.nf_conntrack_count net.netfilter.nf_conntrack_max</span><br><span class="line"><span class="comment"># net.netfilter.nf_conntrack_count = 131070</span></span><br><span class="line"><span class="comment"># net.netfilter.nf_conntrack_max = 131072   &lt;- 几乎打满！</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 临时扩大 conntrack 表</span></span><br><span class="line">sysctl -w net.netfilter.nf_conntrack_max=524288</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 conntrack 超时配置（TIME_WAIT 连接占用时间）</span></span><br><span class="line">sysctl net.netfilter.nf_conntrack_tcp_timeout_time_wait</span><br><span class="line"><span class="comment"># net.netfilter.nf_conntrack_tcp_timeout_time_wait = 120</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 缩短超时，加快 conntrack 条目回收</span></span><br><span class="line">sysctl -w net.netfilter.nf_conntrack_tcp_timeout_time_wait=30</span><br></pre></td></tr></table></figure>
+
+<h3 id="步骤六：修复建议汇总"><a href="#步骤六：修复建议汇总" class="headerlink" title="步骤六：修复建议汇总"></a>步骤六：修复建议汇总</h3><ol>
+<li>增大 <code>somaxconn</code> 和 <code>tcp_max_syn_backlog</code> 至少到 65535</li>
+<li>更新应用 <code>listen()</code> backlog 参数并重启</li>
+<li>扩大 conntrack 表（如使用了 NAT）</li>
+<li>检查并优化应用的 <code>accept()</code> 速度（避免 accept 线程成为瓶颈）</li>
+<li>开启 <code>tcp_syncookies</code> 作为最后防线</li>
+</ol>
+<hr>
+<h2 id="八、实战案例三：容器网络丢包排查"><a href="#八、实战案例三：容器网络丢包排查" class="headerlink" title="八、实战案例三：容器网络丢包排查"></a>八、实战案例三：容器网络丢包排查</h2><p><strong>场景</strong>：Kubernetes 集群中，Pod A 访问 Pod B 时出现间歇性丢包（ping 丢包率约 0.5%）。</p>
+<h3 id="L1-L2：物理网卡层"><a href="#L1-L2：物理网卡层" class="headerlink" title="L1&#x2F;L2：物理网卡层"></a>L1&#x2F;L2：物理网卡层</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查网卡错误计数</span></span><br><span class="line">ethtool -S eth0 | grep -iE <span class="string">&#x27;error|drop|miss|crc|fifo&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查接口统计（含错误帧）</span></span><br><span class="line">ip -s <span class="built_in">link</span> show eth0</span><br><span class="line"><span class="comment"># RX: bytes  packets  errors  dropped  missed  mcast</span></span><br><span class="line"><span class="comment">#     1.2TB   8000M    0       1523     891     0</span></span><br></pre></td></tr></table></figure>
+
+<p><code>dropped</code> 是驱动层丢包（ring buffer 满），<code>missed</code> 是硬件来不及 DMA 的丢包。两者都需扩大 ring buffer 并检查 CPU 中断亲和性。</p>
+<h3 id="veth-对层"><a href="#veth-对层" class="headerlink" title="veth 对层"></a>veth 对层</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 找到 Pod 对应的 veth 接口名（通过 nsenter 或 crictl）</span></span><br><span class="line">POD_PID=$(crictl inspect &lt;container_id&gt; | jq <span class="string">&#x27;.info.pid&#x27;</span>)</span><br><span class="line">nsenter -t <span class="variable">$POD_PID</span> -n ip <span class="built_in">link</span> show</span><br><span class="line"></span><br><span class="line"><span class="comment"># 在宿主机检查对应 veth 的统计</span></span><br><span class="line">ip -s <span class="built_in">link</span> show veth3a8b2c1d</span><br><span class="line"><span class="comment"># RX: bytes  packets  errors  dropped</span></span><br><span class="line"><span class="comment">#     50GB    200M     0       450        &lt;- dropped 非零！</span></span><br></pre></td></tr></table></figure>
+
+<p>veth 对的 <code>dropped</code> 通常因为：</p>
+<ol>
+<li>容器内的接收缓冲区满（<code>sk_rcvbuf</code> 耗尽）</li>
+<li>iptables 规则丢包（下一步检查）</li>
+<li>qdisc 队列满（检查 <code>tc qdisc show dev veth3a8b2c1d</code>）</li>
+</ol>
+<h3 id="Bridge-OVS-层"><a href="#Bridge-OVS-层" class="headerlink" title="Bridge &#x2F; OVS 层"></a>Bridge &#x2F; OVS 层</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查 Linux bridge 转发统计</span></span><br><span class="line">bridge -s <span class="built_in">link</span></span><br><span class="line">bridge fdb show br0</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查是否有 MAC 地址漂移（导致包发到错误端口）</span></span><br><span class="line">bridge fdb show | grep &lt;pod_mac&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 若使用 OVS</span></span><br><span class="line">ovs-vsctl show</span><br><span class="line">ovs-ofctl dump-flows br0 | grep drop</span><br></pre></td></tr></table></figure>
+
+<h3 id="iptables-nftables-层"><a href="#iptables-nftables-层" class="headerlink" title="iptables&#x2F;nftables 层"></a>iptables&#x2F;nftables 层</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看带计数的 NAT 规则（重点关注 DROP 和计数增长快的规则）</span></span><br><span class="line">iptables -t nat -L -n -v --line-numbers | grep -v <span class="string">&quot;0     0&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 filter 表</span></span><br><span class="line">iptables -t filter -L FORWARD -n -v | grep -v <span class="string">&quot;0     0&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查 KUBE-FORWARD 链（Kubernetes 常见丢包点）</span></span><br><span class="line">iptables -L KUBE-FORWARD -n -v</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用 nftables（如果集群用 nftables）</span></span><br><span class="line">nft list ruleset | grep -A5 <span class="string">&#x27;drop\|reject&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪一个包通过 iptables 的路径</span></span><br><span class="line">iptables -t raw -I PREROUTING -s &lt;src_ip&gt; -j TRACE</span><br><span class="line">iptables -t raw -I OUTPUT -d &lt;dst_ip&gt; -j TRACE</span><br><span class="line">dmesg | grep <span class="string">&#x27;TRACE:&#x27;</span></span><br><span class="line"><span class="comment"># 排查完毕后删除 TRACE 规则！</span></span><br><span class="line">iptables -t raw -D PREROUTING -s &lt;src_ip&gt; -j TRACE</span><br></pre></td></tr></table></figure>
+
+<h3 id="容器内部"><a href="#容器内部" class="headerlink" title="容器内部"></a>容器内部</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 进入容器命名空间</span></span><br><span class="line">nsenter -t <span class="variable">$POD_PID</span> -n bash</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查路由表</span></span><br><span class="line">ip route show</span><br><span class="line"><span class="comment"># default via 169.254.1.1 dev eth0</span></span><br><span class="line"><span class="comment"># 169.254.1.1 dev eth0 scope link</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查 ARP 表</span></span><br><span class="line">arp -n</span><br><span class="line"><span class="comment"># Address     HWtype  HWaddress           Flags</span></span><br><span class="line"><span class="comment"># 169.254.1.1 ether   ee:ee:ee:ee:ee:ee   C     &lt;- 正常</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查 conntrack 在容器命名空间内的状态</span></span><br><span class="line">conntrack -L | <span class="built_in">wc</span> -l</span><br><span class="line">conntrack -S   <span class="comment"># 查看统计，重点看 drop 和 insert_failed</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查容器内的 socket 缓冲区</span></span><br><span class="line">ss -tienm | <span class="built_in">head</span> -20</span><br></pre></td></tr></table></figure>
+
+<p><strong>常见根因</strong>：</p>
+<ul>
+<li>Calico&#x2F;Flannel 的 IPIPtunnel 或 VXLAN 的 MTU 比物理网卡小 50&#x2F;20 字节，导致大包触发 IP 分片或 PMTU 黑洞</li>
+<li>kube-proxy 的 iptables 规则链过长（超过 10000 条），导致规则匹配 CPU 占用高</li>
+<li>conntrack 表在高并发时插入冲突（<code>insert_failed</code> 计数增长），导致包被 DROP</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># MTU 排查</span></span><br><span class="line">ip <span class="built_in">link</span> show | grep mtu</span><br><span class="line"><span class="comment"># 物理网卡 mtu 1500，tunl0 mtu 1480（IPIP 隧道开销 20 字节）</span></span><br><span class="line"><span class="comment"># 容器内 eth0 需要配置 mtu 1480，否则大包无法传输</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="九、诊断工具速查表"><a href="#九、诊断工具速查表" class="headerlink" title="九、诊断工具速查表"></a>九、诊断工具速查表</h2><table>
+<thead>
+<tr>
+<th>工具</th>
+<th>主要用途</th>
+<th>核心命令示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ss</code></td>
+<td>Socket 状态、队列深度、TCP 内部参数</td>
+<td><code>ss -tienpm</code></td>
+</tr>
+<tr>
+<td><code>nstat</code></td>
+<td>内核网络计数器（比 netstat -s 更快）</td>
+<td><code>nstat -az | grep Retrans</code></td>
+</tr>
+<tr>
+<td><code>tcpdump</code></td>
+<td>抓包，支持 BPF 过滤</td>
+<td><code>tcpdump -i eth0 -nn -w file.pcap &#39;port 80&#39;</code></td>
+</tr>
+<tr>
+<td><code>tshark</code></td>
+<td>tcpdump 离线分析，支持协议解析</td>
+<td><code>tshark -r file.pcap -Y &quot;tcp.analysis.retransmission&quot;</code></td>
+</tr>
+<tr>
+<td><code>bpftrace</code></td>
+<td>内核动态追踪，低开销 eBPF 脚本</td>
+<td><code>bpftrace -e &#39;kprobe:tcp_retransmit_skb &#123; printf(&quot;%s\n&quot;, comm); &#125;&#39;</code></td>
+</tr>
+<tr>
+<td><code>perf</code></td>
+<td>CPU 性能分析，支持网络子系统</td>
+<td><code>perf stat -e &#39;net:*&#39; -p &lt;pid&gt;</code></td>
+</tr>
+<tr>
+<td><code>ethtool</code></td>
+<td>网卡配置和统计</td>
+<td><code>ethtool -S eth0 | grep drop</code></td>
+</tr>
+<tr>
+<td><code>ip</code></td>
+<td>网络接口、路由、统计</td>
+<td><code>ip -s link show eth0</code></td>
+</tr>
+<tr>
+<td><code>conntrack</code></td>
+<td>连接跟踪表查询和统计</td>
+<td><code>conntrack -S</code></td>
+</tr>
+<tr>
+<td><code>tc</code></td>
+<td>流量控制，查看 qdisc 丢包</td>
+<td><code>tc -s qdisc show dev eth0</code></td>
+</tr>
+<tr>
+<td><code>netstat</code></td>
+<td>连接状态统计（老工具，可被 ss 替代）</td>
+<td><code>netstat -s | grep -i retrans</code></td>
+</tr>
+<tr>
+<td><code>sar</code></td>
+<td>历史网络统计（sysstat 包）</td>
+<td><code>sar -n DEV 1 10</code></td>
+</tr>
+<tr>
+<td><code>iptraf-ng</code></td>
+<td>实时流量监控，交互式界面</td>
+<td><code>iptraf-ng -i eth0</code></td>
+</tr>
+<tr>
+<td><code>mtr</code></td>
+<td>结合 traceroute 和 ping，持续路径探测</td>
+<td><code>mtr --report --tcp -P 80 10.0.0.1</code></td>
+</tr>
+<tr>
+<td><code>nmap</code></td>
+<td>端口扫描，确认服务监听状态</td>
+<td><code>nmap -sS -p 8080 10.0.0.1</code></td>
+</tr>
+<tr>
+<td><code>strace</code></td>
+<td>追踪进程系统调用，定位 socket API 调用</td>
+<td><code>strace -e trace=network -p &lt;pid&gt;</code></td>
+</tr>
+<tr>
+<td><code>lsof</code></td>
+<td>查看进程打开的 socket</td>
+<td><code>lsof -i :8080 -n -P</code></td>
+</tr>
+<tr>
+<td><code>systemtap</code></td>
+<td>更强大的内核动态追踪（需编译）</td>
+<td><code>stap -e &#39;probe tcp.sendmsg &#123; ... &#125;&#39;</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>本文系统地介绍了 Linux 网络诊断的完整工具链和方法论：</p>
+<ol>
+<li><strong>分类先于动手</strong>：区分连通性、性能和应用层问题，选择正确的工具切入点，避免盲目抓包</li>
+<li><strong>ss 是第一现场</strong>：<code>ss -tienpm</code> 的输出几乎涵盖了 TCP 连接的完整内核状态，能快速定位重传、队列积压、缓冲区不足等问题</li>
+<li><strong>计数器是趋势指标</strong>：<code>nstat</code>、<code>/proc/net/snmp</code> 提供全局视角，通过观察计数器的增长速率判断问题的严重程度和类型</li>
+<li><strong>tcpdump 提供证据</strong>：当计数器告诉你”有问题”，tcpdump 告诉你”具体是什么包出了问题”</li>
+<li><strong>bpftrace 提供根因</strong>：当 tcpdump 看到了现象，bpftrace 深入内核调用栈，精确定位代码路径</li>
+<li><strong>逐层排查容器网络</strong>：从物理网卡到 veth，从 bridge 到 iptables，从宿主机到容器内，每层都有专属工具</li>
+</ol>
+<p>掌握这套工具链，绝大多数线上网络问题都可以在分钟级定位到根因。下一篇将进入网络性能调优的主题，探讨如何通过内核参数和硬件配置最大化网络吞吐。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/tcpdump/" rel="tag"># tcpdump</a>
+              <a href="/tags/Network-Diagnostics/" rel="tag"># Network Diagnostics</a>
+              <a href="/tags/ss/" rel="tag"># ss</a>
+              <a href="/tags/bpftrace/" rel="tag"># bpftrace</a>
+              <a href="/tags/perf/" rel="tag"># perf</a>
+              <a href="/tags/Troubleshooting/" rel="tag"># Troubleshooting</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-net-stack-part9-performance/" rel="prev" title="Linux 网络内核协议栈深度剖析（九）：网络性能优化与高性能技术">
+                  <i class="fa fa-angle-left"></i> Linux 网络内核协议栈深度剖析（九）：网络性能优化与高性能技术
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

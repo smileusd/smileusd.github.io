@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="在前六篇中，我们依次拆解了 sk_buff 生命周期、网卡驱动收发路径、TCP&#x2F;IP 协议栈、路由子系统、套接字层以及 NAPI&#x2F;GRO 机制。本篇聚焦数据包过滤与处理的核心框架：Netfilter hook 体系、nftables 规则执行引擎、conntrack 连接追踪，以及近年来高速演进的 eBPF 网络程序（XDP、tc BPF、Socket Filter）。所有代码">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 网络内核协议栈深度剖析（七）：Netfilter、nftables 与 eBPF 网络程序">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part7-netfilter-ebpf/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="在前六篇中，我们依次拆解了 sk_buff 生命周期、网卡驱动收发路径、TCP&#x2F;IP 协议栈、路由子系统、套接字层以及 NAPI&#x2F;GRO 机制。本篇聚焦数据包过滤与处理的核心框架：Netfilter hook 体系、nftables 规则执行引擎、conntrack 连接追踪，以及近年来高速演进的 eBPF 网络程序（XDP、tc BPF、Socket Filter）。所有代码">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-14T03:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T03:08:58.972Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="eBPF">
+<meta property="article:tag" content="XDP">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Netfilter">
+<meta property="article:tag" content="iptables">
+<meta property="article:tag" content="nftables">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part7-netfilter-ebpf/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part7-netfilter-ebpf/","path":"2026/04/14/2026-04-14-linux-net-stack-part7-netfilter-ebpf/","title":"Linux 网络内核协议栈深度剖析（七）：Netfilter、nftables 与 eBPF 网络程序"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 网络内核协议栈深度剖析（七）：Netfilter、nftables 与 eBPF 网络程序 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81Netfilter-%E6%A1%86%E6%9E%B6%EF%BC%9A%E4%BA%94%E4%B8%AA-Hook-%E7%82%B9%E4%B8%8E-Hook-%E9%93%BE%E9%81%8D%E5%8E%86"><span class="nav-number">1.</span> <span class="nav-text">一、Netfilter 框架：五个 Hook 点与 Hook 链遍历</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 核心数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E4%BA%94%E4%B8%AA-Hook-%E7%82%B9%E5%9C%A8-IP-%E5%B1%82%E7%9A%84%E8%B0%83%E7%94%A8%E4%BD%8D%E7%BD%AE"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 五个 Hook 点在 IP 层的调用位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-Hook-%E6%B3%A8%E5%86%8C%E4%B8%8E%E6%B3%A8%E9%94%80"><span class="nav-number">1.3.</span> <span class="nav-text">1.3 Hook 注册与注销</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-nf-hook-slow%EF%BC%9AHook-%E9%93%BE%E9%81%8D%E5%8E%86"><span class="nav-number">1.4.</span> <span class="nav-text">1.4 nf_hook_slow：Hook 链遍历</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81nf-tables%EF%BC%88nftables%EF%BC%89%E6%A0%B8%E5%BF%83%EF%BC%9A%E5%AD%97%E8%8A%82%E7%A0%81%E6%89%A7%E8%A1%8C%E5%BC%95%E6%93%8E"><span class="nav-number">2.</span> <span class="nav-text">二、nf_tables（nftables）核心：字节码执行引擎</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%B1%82%E6%AC%A1"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 核心数据结构层次</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-nft-do-chain%EF%BC%9A%E8%A7%84%E5%88%99%E6%89%A7%E8%A1%8C%E5%BC%95%E6%93%8E"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 nft_do_chain：规则执行引擎</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E4%B8%8E-iptables-%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 与 iptables 的对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81conntrack%EF%BC%88%E8%BF%9E%E6%8E%A5%E8%BF%BD%E8%B8%AA%EF%BC%89%EF%BC%9A%E7%8A%B6%E6%80%81%E6%9C%BA%E4%B8%8E%E5%93%88%E5%B8%8C%E8%A1%A8"><span class="nav-number">3.</span> <span class="nav-text">三、conntrack（连接追踪）：状态机与哈希表</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-struct-nf-conn"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 struct nf_conn</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E8%BF%9E%E6%8E%A5%E7%8A%B6%E6%80%81%E4%B8%8E-ip-conntrack-info"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 连接状态与 ip_conntrack_info</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-nf-conntrack-in%EF%BC%9A%E8%BF%BD%E8%B8%AA%E5%85%A5%E5%8F%A3"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 nf_conntrack_in：追踪入口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-nf-conntrack-find-get%EF%BC%9A%E5%93%88%E5%B8%8C%E6%9F%A5%E6%89%BE"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 __nf_conntrack_find_get：哈希查找</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E8%B6%85%E6%97%B6%E6%9C%BA%E5%88%B6"><span class="nav-number">3.5.</span> <span class="nav-text">3.5 超时机制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81XDP%EF%BC%88eXpress-Data-Path%EF%BC%89%EF%BC%9A%E5%86%85%E6%A0%B8%E6%9C%80%E5%BF%AB%E6%95%B0%E6%8D%AE%E5%B9%B3%E9%9D%A2"><span class="nav-number">4.</span> <span class="nav-text">四、XDP（eXpress Data Path）：内核最快数据平面</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E4%B8%89%E7%A7%8D%E6%8C%82%E8%BD%BD%E6%A8%A1%E5%BC%8F"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 三种挂载模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-struct-xdp-buff-%E4%B8%8E-struct-xdp-md"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 struct xdp_buff 与 struct xdp_md</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E8%BF%94%E5%9B%9E%E5%80%BC%E8%AF%AD%E4%B9%89"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 返回值语义</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-bpf-redirect-map"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 bpf_redirect_map</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-XDP-%E4%B8%8E-tc-BPF-%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="nav-number">4.5.</span> <span class="nav-text">4.5 XDP 与 tc BPF 的区别</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81tc-BPF%EF%BC%88Traffic-Control-eBPF%EF%BC%89%EF%BC%9A%E6%B5%81%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E7%AD%96%E7%95%A5"><span class="nav-number">5.</span> <span class="nav-text">五、tc BPF（Traffic Control eBPF）：流量分类与策略</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-cls-bpf-classify"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 cls_bpf_classify</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-direct-action-%E6%A8%A1%E5%BC%8F"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 direct-action 模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E7%A1%AC%E4%BB%B6%E5%8D%B8%E8%BD%BD"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 硬件卸载</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E4%B8%8E-iptables-%E7%9A%84%E6%80%A7%E8%83%BD%E5%AF%B9%E6%AF%94"><span class="nav-number">5.4.</span> <span class="nav-text">5.4 与 iptables 的性能对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81Socket-Filter-%E4%B8%8E-sk-msg%EF%BC%9ASocket-%E5%B1%82-BPF"><span class="nav-number">6.</span> <span class="nav-text">六、Socket Filter 与 sk_msg：Socket 层 BPF</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-SO-ATTACH-FILTER-SO-ATTACH-BPF"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 SO_ATTACH_FILTER &#x2F; SO_ATTACH_BPF</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-sk-filter-trim-cap%EF%BC%9ASocket-%E6%94%B6%E5%8C%85%E8%BF%87%E6%BB%A4"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 sk_filter_trim_cap：Socket 收包过滤</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-sockmap-%E4%B8%8E-sk-msg%EF%BC%9A%E9%AB%98%E6%80%A7%E8%83%BD-Socket-%E4%BB%A3%E7%90%86"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 sockmap 与 sk_msg：高性能 Socket 代理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E8%AF%8A%E6%96%AD%E6%96%B9%E6%B3%95"><span class="nav-number">7.</span> <span class="nav-text">七、诊断方法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E8%A7%84%E5%88%99%E9%9B%86%E6%9F%A5%E7%9C%8B"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 规则集查看</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-conntrack-%E8%BF%9E%E6%8E%A5%E8%BF%BD%E8%B8%AA"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 conntrack 连接追踪</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-BPF-%E7%A8%8B%E5%BA%8F%E8%AF%8A%E6%96%AD"><span class="nav-number">7.3.</span> <span class="nav-text">7.3 BPF 程序诊断</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-bpftrace-%E5%8A%A8%E6%80%81%E8%BF%BD%E8%B8%AA"><span class="nav-number">7.4.</span> <span class="nav-text">7.4 bpftrace 动态追踪</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-%E6%80%A7%E8%83%BD%E7%83%AD%E7%82%B9%E5%88%86%E6%9E%90"><span class="nav-number">7.5.</span> <span class="nav-text">7.5 性能热点分析</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">八、整体架构总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">29</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">200</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-net-stack-part7-netfilter-ebpf/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 网络内核协议栈深度剖析（七）：Netfilter、nftables 与 eBPF 网络程序 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 网络内核协议栈深度剖析（七）：Netfilter、nftables 与 eBPF 网络程序
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 11:00:00 / Modified: 11:08:58" itemprop="dateCreated datePublished" datetime="2026-04-14T11:00:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Networking/" itemprop="url" rel="index"><span itemprop="name">Networking</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>在前六篇中，我们依次拆解了 sk_buff 生命周期、网卡驱动收发路径、TCP&#x2F;IP 协议栈、路由子系统、套接字层以及 NAPI&#x2F;GRO 机制。本篇聚焦数据包过滤与处理的核心框架：Netfilter hook 体系、nftables 规则执行引擎、conntrack 连接追踪，以及近年来高速演进的 eBPF 网络程序（XDP、tc BPF、Socket Filter）。所有代码片段均源自 Linux 6.4-rc1。</p>
+<span id="more"></span>
+
+<h2 id="一、Netfilter-框架：五个-Hook-点与-Hook-链遍历"><a href="#一、Netfilter-框架：五个-Hook-点与-Hook-链遍历" class="headerlink" title="一、Netfilter 框架：五个 Hook 点与 Hook 链遍历"></a>一、Netfilter 框架：五个 Hook 点与 Hook 链遍历</h2><h3 id="1-1-核心数据结构"><a href="#1-1-核心数据结构" class="headerlink" title="1.1 核心数据结构"></a>1.1 核心数据结构</h3><p>Netfilter 的基石是 <code>struct nf_hook_ops</code>，定义在 <code>include/linux/netfilter.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/netfilter.h  (Linux 6.4-rc1) */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nf_hook_ops</span> &#123;</span></span><br><span class="line">	<span class="comment">/* User fills in from here down. */</span></span><br><span class="line">	nf_hookfn		*hook;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">net_device</span>	*<span class="title">dev</span>;</span></span><br><span class="line">	<span class="type">void</span>			*priv;</span><br><span class="line">	u8			pf;</span><br><span class="line">	<span class="class"><span class="keyword">enum</span> <span class="title">nf_hook_ops_type</span>	<span class="title">hook_ops_type</span>:</span><span class="number">8</span>;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>		hooknum;</span><br><span class="line">	<span class="comment">/* Hooks are ordered in ascending priority. */</span></span><br><span class="line">	<span class="type">int</span>			priority;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>各字段含义：</p>
+<ul>
+<li><code>hook</code>：实际的回调函数，类型为 <code>unsigned int (*)(void *priv, struct sk_buff *skb, const struct nf_hook_state *state)</code>。</li>
+<li><code>pf</code>：协议族，如 <code>NFPROTO_IPV4</code>、<code>NFPROTO_IPV6</code>。</li>
+<li><code>hooknum</code>：挂载点编号，IPv4&#x2F;IPv6 共享 <code>NF_INET_PRE_ROUTING</code>（0）、<code>NF_INET_LOCAL_IN</code>（1）、<code>NF_INET_FORWARD</code>（2）、<code>NF_INET_LOCAL_OUT</code>（3）、<code>NF_INET_POST_ROUTING</code>（4）五个点。</li>
+<li><code>priority</code>：优先级，数值越小越先执行；conntrack 为 <code>-200</code>，NAT 为 <code>-100</code>，iptables filter 为 <code>0</code>。</li>
+<li><code>hook_ops_type</code>：区分普通 hook 与 nftables hook（<code>NF_HOOK_OP_NF_TABLES</code>）、BPF hook（<code>NF_HOOK_OP_BPF</code>）。BPF hook 要求 priority 唯一，防止两个 BPF 程序以相同优先级并存造成顺序不确定。</li>
+</ul>
+<p><code>struct nf_hook_state</code> 在每次调用 hook 链时由调用方构造并传入：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nf_hook_state</span> &#123;</span></span><br><span class="line">	u8 hook;          <span class="comment">/* hooknum */</span></span><br><span class="line">	u8 pf;            <span class="comment">/* 协议族 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">net_device</span> *<span class="title">in</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">net_device</span> *<span class="title">out</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">sock</span> *<span class="title">sk</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">net</span> *<span class="title">net</span>;</span></span><br><span class="line">	<span class="type">int</span> (*okfn)(<span class="keyword">struct</span> net *, <span class="keyword">struct</span> sock *, <span class="keyword">struct</span> sk_buff *);</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>hook 返回 <code>NF_ACCEPT</code> 后，框架最终会调用 <code>okfn</code> 把包交回内核继续处理。</p>
+<h3 id="1-2-五个-Hook-点在-IP-层的调用位置"><a href="#1-2-五个-Hook-点在-IP-层的调用位置" class="headerlink" title="1.2 五个 Hook 点在 IP 层的调用位置"></a>1.2 五个 Hook 点在 IP 层的调用位置</h3><p>Netfilter 提供的 <code>NF_HOOK()</code> 宏在 IP 收发路径中有以下实际调用点：</p>
+<p><strong>PRE_ROUTING</strong> — 进入 IP 层后、路由查找前（<code>net/ipv4/ip_input.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/ipv4/ip_input.c  ip_rcv() */</span></span><br><span class="line"><span class="keyword">return</span> NF_HOOK(NFPROTO_IPV4, NF_INET_PRE_ROUTING,</span><br><span class="line">               net, <span class="literal">NULL</span>, skb, dev, <span class="literal">NULL</span>,</span><br><span class="line">               ip_rcv_finish);</span><br></pre></td></tr></table></figure>
+
+<p><strong>LOCAL_IN</strong> — 路由判定为本机后（<code>net/ipv4/ip_input.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/ipv4/ip_input.c  ip_local_deliver() */</span></span><br><span class="line"><span class="keyword">return</span> NF_HOOK(NFPROTO_IPV4, NF_INET_LOCAL_IN,</span><br><span class="line">               net, <span class="literal">NULL</span>, skb, skb-&gt;dev, <span class="literal">NULL</span>,</span><br><span class="line">               ip_local_deliver_finish);</span><br></pre></td></tr></table></figure>
+
+<p><strong>FORWARD</strong> — 路由判定为转发后（<code>net/ipv4/ip_forward.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/ipv4/ip_forward.c */</span></span><br><span class="line"><span class="keyword">return</span> NF_HOOK(NFPROTO_IPV4, NF_INET_FORWARD, ...);</span><br></pre></td></tr></table></figure>
+
+<p><strong>LOCAL_OUT</strong> — 本地生成的包刚进入 IP 层时（<code>net/ipv4/ip_output.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/ipv4/ip_output.c  __ip_local_out() */</span></span><br><span class="line"><span class="keyword">return</span> nf_hook(NFPROTO_IPV4, NF_INET_LOCAL_OUT,</span><br><span class="line">               net, sk, skb, <span class="literal">NULL</span>, skb_dst(skb)-&gt;dev,</span><br><span class="line">               dst_output);</span><br></pre></td></tr></table></figure>
+
+<p><strong>POST_ROUTING</strong> — 包即将离开本机时（<code>net/ipv4/ip_output.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/ipv4/ip_output.c  ip_output() */</span></span><br><span class="line"><span class="keyword">return</span> NF_HOOK_COND(NFPROTO_IPV4, NF_INET_POST_ROUTING, ...);</span><br></pre></td></tr></table></figure>
+
+<h3 id="1-3-Hook-注册与注销"><a href="#1-3-Hook-注册与注销" class="headerlink" title="1.3 Hook 注册与注销"></a>1.3 Hook 注册与注销</h3><p><code>nf_register_net_hook</code> &#x2F; <code>nf_unregister_net_hook</code> 是模块注册 hook 的公共 API（声明于 <code>include/linux/netfilter.h</code>）。内部流程是：在 <code>net-&gt;nf.hooks_ipv4[hooknum]</code>（或对应的 IPv6&#x2F;ARP 数组）所指向的 <code>struct nf_hook_entries</code> 中按 priority 插入新条目，通过 RCU 发布新的 entries 指针，并等待读者侧宽限期后释放旧数组。</p>
+<p>最多允许 1024 个 hook（<code>MAX_HOOK_COUNT</code>）。BPF hook 类型额外要求 priority 唯一：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/netfilter/core.c */</span></span><br><span class="line"><span class="keyword">if</span> (reg-&gt;priority == orig_ops[i]-&gt;priority &amp;&amp;</span><br><span class="line">    reg-&gt;hook_ops_type == NF_HOOK_OP_BPF)</span><br><span class="line">    <span class="keyword">return</span> ERR_PTR(-EBUSY);</span><br></pre></td></tr></table></figure>
+
+<h3 id="1-4-nf-hook-slow：Hook-链遍历"><a href="#1-4-nf-hook-slow：Hook-链遍历" class="headerlink" title="1.4 nf_hook_slow：Hook 链遍历"></a>1.4 nf_hook_slow：Hook 链遍历</h3><p><code>nf_hook_slow</code> 是 hook 链遍历的核心（<code>net/netfilter/core.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/netfilter/core.c</span></span><br><span class="line"><span class="comment"> * Returns 1 if okfn() needs to be executed by the caller,</span></span><br><span class="line"><span class="comment"> * -EPERM for NF_DROP, 0 otherwise.  Caller must hold rcu_read_lock. */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">nf_hook_slow</span><span class="params">(<span class="keyword">struct</span> sk_buff *skb, <span class="keyword">struct</span> nf_hook_state *state,</span></span><br><span class="line"><span class="params">		 <span class="type">const</span> <span class="keyword">struct</span> nf_hook_entries *e, <span class="type">unsigned</span> <span class="type">int</span> s)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span> verdict;</span><br><span class="line">	<span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> (; s &lt; e-&gt;num_hook_entries; s++) &#123;</span><br><span class="line">		verdict = nf_hook_entry_hookfn(&amp;e-&gt;hooks[s], skb, state);</span><br><span class="line">		<span class="keyword">switch</span> (verdict &amp; NF_VERDICT_MASK) &#123;</span><br><span class="line">		<span class="keyword">case</span> NF_ACCEPT:</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		<span class="keyword">case</span> NF_DROP:</span><br><span class="line">			kfree_skb_reason(skb, SKB_DROP_REASON_NETFILTER_DROP);</span><br><span class="line">			ret = NF_DROP_GETERR(verdict);</span><br><span class="line">			<span class="keyword">if</span> (ret == <span class="number">0</span>)</span><br><span class="line">				ret = -EPERM;</span><br><span class="line">			<span class="keyword">return</span> ret;</span><br><span class="line">		<span class="keyword">case</span> NF_QUEUE:</span><br><span class="line">			ret = nf_queue(skb, state, s, verdict);</span><br><span class="line">			<span class="keyword">if</span> (ret == <span class="number">1</span>)</span><br><span class="line">				<span class="keyword">continue</span>;</span><br><span class="line">			<span class="keyword">return</span> ret;</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line">			<span class="comment">/* Implicit handling for NF_STOLEN, as well as any other</span></span><br><span class="line"><span class="comment">			 * non conventional verdicts.</span></span><br><span class="line"><span class="comment">			 */</span></span><br><span class="line">			<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>返回值语义：</p>
+<ul>
+<li>返回 <code>1</code>：所有 hook 通过，调用方需执行 <code>okfn</code>。</li>
+<li>返回 <code>0</code>：包被 hook 消耗（<code>NF_STOLEN</code>），调用方不应再碰 skb。</li>
+<li>返回负值（如 <code>-EPERM</code>）：包被 <code>NF_DROP</code>，已释放 skb。</li>
+<li><code>NF_QUEUE</code>：包入用户态队列（NFQUEUE），当前返回 <code>0</code> 或重新入链继续。</li>
+</ul>
+<hr>
+<h2 id="二、nf-tables（nftables）核心：字节码执行引擎"><a href="#二、nf-tables（nftables）核心：字节码执行引擎" class="headerlink" title="二、nf_tables（nftables）核心：字节码执行引擎"></a>二、nf_tables（nftables）核心：字节码执行引擎</h2><p>iptables 时代每条规则都是内核模块注册的 match&#x2F;target 函数调用链，扩展性差且每新增规则都需遍历整个链表。nftables 借鉴 BPF 思路，将规则编译为”字节码”式的表达式序列，在一个统一的执行引擎中运行。</p>
+<h3 id="2-1-核心数据结构层次"><a href="#2-1-核心数据结构层次" class="headerlink" title="2.1 核心数据结构层次"></a>2.1 核心数据结构层次</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">nft_table</span><br><span class="line">  └─ nft_chain（多个）</span><br><span class="line">       └─ nft_rule（多个，存于 blob）</span><br><span class="line">            └─ nft_expr（多个，连续排列）</span><br><span class="line">                 └─ nft_expr_ops（ops-&gt;eval 回调）</span><br></pre></td></tr></table></figure>
+
+<p>**<code>struct nft_table</code>**（<code>include/net/netfilter/nf_tables.h</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nft_table</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">list</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">rhltable</span>			<span class="title">chains_ht</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">chains</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">sets</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">objects</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">flowtables</span>;</span></span><br><span class="line">	u64				hgenerator;</span><br><span class="line">	u64				handle;</span><br><span class="line">	u32				use;</span><br><span class="line">	u16				family:<span class="number">6</span>,</span><br><span class="line">					flags:<span class="number">8</span>,</span><br><span class="line">					genmask:<span class="number">2</span>;</span><br><span class="line">	u32				nlpid;</span><br><span class="line">	<span class="type">char</span>				*name;</span><br><span class="line">	u16				udlen;</span><br><span class="line">	u8				*udata;</span><br><span class="line">	u8				validate_state;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>表（table）代表一个命名空间，如 <code>inet filter</code>、<code>ip nat</code>，包含多条链（chain）。<code>family</code> 对应 <code>NFPROTO_*</code>，<code>genmask</code> 是双缓冲生效位（generation mask），用于原子提交规则变更。</p>
+<p>**<code>struct nft_chain</code>**：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nft_chain</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nft_rule_blob</span>		__<span class="title">rcu</span> *<span class="title">blob_gen_0</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nft_rule_blob</span>		__<span class="title">rcu</span> *<span class="title">blob_gen_1</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">rules</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">list</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">rhlist_head</span>		<span class="title">rhlhead</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nft_table</span>		*<span class="title">table</span>;</span></span><br><span class="line">	u64				handle;</span><br><span class="line">	u32				use;</span><br><span class="line">	u8				flags:<span class="number">5</span>,</span><br><span class="line">					bound:<span class="number">1</span>,</span><br><span class="line">					genmask:<span class="number">2</span>;</span><br><span class="line">	<span class="type">char</span>				*name;</span><br><span class="line">	u16				udlen;</span><br><span class="line">	u8				*udata;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nft_rule_blob</span>		*<span class="title">blob_next</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>blob_gen_0</code> 和 <code>blob_gen_1</code> 是两个交替使用的规则 blob，由 <code>gencursor</code> 决定当前生效哪一个，实现规则集的无锁原子切换。</p>
+<p>**<code>struct nft_rule</code>**：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nft_rule</span> &#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>		<span class="title">list</span>;</span></span><br><span class="line">	u64				handle:<span class="number">42</span>,</span><br><span class="line">					genmask:<span class="number">2</span>,</span><br><span class="line">					dlen:<span class="number">12</span>,</span><br><span class="line">					udata:<span class="number">1</span>;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">char</span>			data[]</span><br><span class="line">		__attribute__((aligned(__alignof__(<span class="keyword">struct</span> nft_expr))));</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>规则本身只是元数据头部，真正的表达式序列内联在 <code>data[]</code> 中，<code>dlen</code> 是 <code>data</code> 的字节长度。</p>
+<p><strong><code>struct nft_expr</code></strong> 与 **<code>struct nft_expr_ops</code>**：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nft_expr</span> &#123;</span></span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">nft_expr_ops</span>	*<span class="title">ops</span>;</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">char</span>			data[]</span><br><span class="line">		__attribute__((aligned(__alignof__(u64))));</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nft_expr_ops</span> &#123;</span></span><br><span class="line">	<span class="type">void</span>	(*eval)(<span class="type">const</span> <span class="keyword">struct</span> nft_expr *expr,</span><br><span class="line">			<span class="keyword">struct</span> nft_regs *regs,</span><br><span class="line">			<span class="type">const</span> <span class="keyword">struct</span> nft_pktinfo *pkt);</span><br><span class="line">	<span class="type">int</span>	(*clone)(<span class="keyword">struct</span> nft_expr *dst, <span class="type">const</span> <span class="keyword">struct</span> nft_expr *src);</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>	size;</span><br><span class="line">	<span class="type">int</span>	(*init)(<span class="type">const</span> <span class="keyword">struct</span> nft_ctx *ctx,</span><br><span class="line">			<span class="type">const</span> <span class="keyword">struct</span> nft_expr *expr,</span><br><span class="line">			<span class="type">const</span> <span class="keyword">struct</span> nlattr * <span class="type">const</span> tb[]);</span><br><span class="line">	<span class="comment">/* ... activate, deactivate, destroy, dump, validate, offload ... */</span></span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">nft_expr_type</span>	*<span class="title">type</span>;</span></span><br><span class="line">	<span class="type">void</span>				*data;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个表达式的私有数据跟在 <code>ops</code> 指针之后（<code>nft_expr_priv(expr)</code> 返回 <code>expr-&gt;data</code>）。表达式通过 <code>ops-&gt;eval</code> 读写 <code>struct nft_regs</code> 寄存器组——这正是”字节码虚拟机”的概念。</p>
+<h3 id="2-2-nft-do-chain：规则执行引擎"><a href="#2-2-nft-do-chain：规则执行引擎" class="headerlink" title="2.2 nft_do_chain：规则执行引擎"></a>2.2 nft_do_chain：规则执行引擎</h3><p><code>nft_do_chain</code> 是整个 nftables 的执行心脏（<code>net/netfilter/nf_tables_core.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">unsigned</span> <span class="type">int</span></span><br><span class="line"><span class="title function_">nft_do_chain</span><span class="params">(<span class="keyword">struct</span> nft_pktinfo *pkt, <span class="type">void</span> *priv)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">nft_chain</span> *<span class="title">chain</span> =</span> priv, *basechain = chain;</span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">net</span> *<span class="title">net</span> =</span> nft_net(pkt);</span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">nft_expr</span> *<span class="title">expr</span>, *<span class="title">last</span>;</span></span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">nft_rule_dp</span> *<span class="title">rule</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nft_regs</span> <span class="title">regs</span> =</span> &#123;&#125;;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span> stackptr = <span class="number">0</span>;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nft_jumpstack</span> <span class="title">jumpstack</span>[<span class="title">NFT_JUMP_STACK_SIZE</span>];</span></span><br><span class="line">	<span class="type">bool</span> genbit = READ_ONCE(net-&gt;nft.gencursor);</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nft_rule_blob</span> *<span class="title">blob</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nft_traceinfo</span> <span class="title">info</span>;</span></span><br><span class="line"></span><br><span class="line">	info.trace = <span class="literal">false</span>;</span><br><span class="line">	<span class="keyword">if</span> (static_branch_unlikely(&amp;nft_trace_enabled))</span><br><span class="line">		nft_trace_init(&amp;info, pkt, basechain);</span><br><span class="line">do_chain:</span><br><span class="line">	<span class="keyword">if</span> (genbit)</span><br><span class="line">		blob = rcu_dereference(chain-&gt;blob_gen_1);</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		blob = rcu_dereference(chain-&gt;blob_gen_0);</span><br><span class="line"></span><br><span class="line">	rule = (<span class="keyword">struct</span> nft_rule_dp *)blob-&gt;data;</span><br><span class="line">next_rule:</span><br><span class="line">	regs.verdict.code = NFT_CONTINUE;</span><br><span class="line">	<span class="keyword">for</span> (; !rule-&gt;is_last ; rule = nft_rule_next(rule)) &#123;</span><br><span class="line">		nft_rule_dp_for_each_expr(expr, last, rule) &#123;</span><br><span class="line">			<span class="keyword">if</span> (expr-&gt;ops == &amp;nft_cmp_fast_ops)</span><br><span class="line">				nft_cmp_fast_eval(expr, &amp;regs);</span><br><span class="line">			<span class="keyword">else</span> <span class="keyword">if</span> (expr-&gt;ops == &amp;nft_cmp16_fast_ops)</span><br><span class="line">				nft_cmp16_fast_eval(expr, &amp;regs);</span><br><span class="line">			<span class="keyword">else</span> <span class="keyword">if</span> (expr-&gt;ops == &amp;nft_bitwise_fast_ops)</span><br><span class="line">				nft_bitwise_fast_eval(expr, &amp;regs);</span><br><span class="line">			<span class="keyword">else</span> <span class="keyword">if</span> (expr-&gt;ops != &amp;nft_payload_fast_ops ||</span><br><span class="line">				 !nft_payload_fast_eval(expr, &amp;regs, pkt))</span><br><span class="line">				expr_call_ops_eval(expr, &amp;regs, pkt);</span><br><span class="line"></span><br><span class="line">			<span class="keyword">if</span> (regs.verdict.code != NFT_CONTINUE)</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">switch</span> (regs.verdict.code) &#123;</span><br><span class="line">		<span class="keyword">case</span> NFT_BREAK:</span><br><span class="line">			regs.verdict.code = NFT_CONTINUE;</span><br><span class="line">			<span class="keyword">continue</span>;</span><br><span class="line">		<span class="keyword">case</span> NFT_CONTINUE:</span><br><span class="line">			<span class="keyword">continue</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">break</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">switch</span> (regs.verdict.code &amp; NF_VERDICT_MASK) &#123;</span><br><span class="line">	<span class="keyword">case</span> NF_ACCEPT:</span><br><span class="line">	<span class="keyword">case</span> NF_DROP:</span><br><span class="line">	<span class="keyword">case</span> NF_QUEUE:</span><br><span class="line">	<span class="keyword">case</span> NF_STOLEN:</span><br><span class="line">		<span class="keyword">return</span> regs.verdict.code;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">switch</span> (regs.verdict.code) &#123;</span><br><span class="line">	<span class="keyword">case</span> NFT_JUMP:</span><br><span class="line">		jumpstack[stackptr++].rule = nft_rule_next(rule);</span><br><span class="line">		fallthrough;</span><br><span class="line">	<span class="keyword">case</span> NFT_GOTO:</span><br><span class="line">		chain = regs.verdict.chain;</span><br><span class="line">		<span class="keyword">goto</span> do_chain;</span><br><span class="line">	<span class="keyword">case</span> NFT_CONTINUE:</span><br><span class="line">	<span class="keyword">case</span> NFT_RETURN:</span><br><span class="line">		<span class="keyword">break</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (stackptr &gt; <span class="number">0</span>) &#123;</span><br><span class="line">		rule = jumpstack[--stackptr].rule;</span><br><span class="line">		<span class="keyword">goto</span> next_rule;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> nft_base_chain(basechain)-&gt;policy;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>关键设计要点：</p>
+<ol>
+<li><p><strong>双缓冲读取</strong>：<code>genbit</code> 从 <code>net-&gt;nft.gencursor</code> 原子读取，决定使用 <code>blob_gen_0</code> 还是 <code>blob_gen_1</code>，配合 RCU 实现规则集热更新。</p>
+</li>
+<li><p><strong>快速路径优化</strong>：<code>nft_cmp_fast_ops</code>、<code>nft_bitwise_fast_ops</code>、<code>nft_payload_fast_ops</code> 等内联快速版本绕过间接调用（Retpoline 背景下间接调用代价高），直接内联执行。</p>
+</li>
+<li><p><strong>JUMP&#x2F;GOTO 语义</strong>：<code>NFT_JUMP</code> 把返回点压栈（类似 iptables 的 <code>--goto</code>&#x2F;<code>-j</code>），<code>NFT_GOTO</code> 不压栈（不会返回）。最大跳转深度为 <code>NFT_JUMP_STACK_SIZE</code>（16）。</p>
+</li>
+<li><p><strong>寄存器结果传递</strong>：每个 expr 通过写 <code>regs.verdict.code</code> 表达继续（<code>NFT_CONTINUE</code>）、中断当前规则（<code>NFT_BREAK</code>）或最终裁决（<code>NF_DROP</code> 等）。</p>
+</li>
+</ol>
+<h3 id="2-3-与-iptables-的对比"><a href="#2-3-与-iptables-的对比" class="headerlink" title="2.3 与 iptables 的对比"></a>2.3 与 iptables 的对比</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>iptables</th>
+<th>nftables</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>规则存储</td>
+<td>内核模块注册的 match&#x2F;target 链表</td>
+<td>线性 blob，内联表达式序列</td>
+</tr>
+<tr>
+<td>执行方式</td>
+<td>函数指针链式调用</td>
+<td>统一执行引擎，寄存器模型</td>
+</tr>
+<tr>
+<td>协议族</td>
+<td>分开（iptables&#x2F;ip6tables&#x2F;arptables）</td>
+<td>统一（<code>inet</code> 族可同时处理 IPv4&#x2F;IPv6）</td>
+</tr>
+<tr>
+<td>原子更新</td>
+<td>替换整个 table（需持锁）</td>
+<td>双缓冲 + RCU，gencursor 原子切换</td>
+</tr>
+<tr>
+<td>集合支持</td>
+<td>ipset（外部模块）</td>
+<td>原生 set，支持区间&#x2F;字典&#x2F;位图</td>
+</tr>
+<tr>
+<td>用户空间工具</td>
+<td>iptables&#x2F;ip6tables&#x2F;…</td>
+<td>nft</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="三、conntrack（连接追踪）：状态机与哈希表"><a href="#三、conntrack（连接追踪）：状态机与哈希表" class="headerlink" title="三、conntrack（连接追踪）：状态机与哈希表"></a>三、conntrack（连接追踪）：状态机与哈希表</h2><h3 id="3-1-struct-nf-conn"><a href="#3-1-struct-nf-conn" class="headerlink" title="3.1 struct nf_conn"></a>3.1 struct nf_conn</h3><p>连接追踪的核心对象是 <code>struct nf_conn</code>（<code>include/net/netfilter/nf_conntrack.h</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nf_conn</span> &#123;</span></span><br><span class="line">	<span class="comment">/* 引用计数：哈希表持有 1，每个 skb 持有 1，master 连接持有 1 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nf_conntrack</span> <span class="title">ct_general</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="type">spinlock_t</span>	lock;</span><br><span class="line">	<span class="comment">/* jiffies32 when this ct is considered dead */</span></span><br><span class="line">	u32 timeout;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_NF_CONNTRACK_ZONES</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nf_conntrack_zone</span> <span class="title">zone</span>;</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">	<span class="comment">/* 原始方向和应答方向的元组哈希 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nf_conntrack_tuple_hash</span> <span class="title">tuplehash</span>[<span class="title">IP_CT_DIR_MAX</span>];</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 连接状态位集合 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> status;</span><br><span class="line"></span><br><span class="line">	<span class="type">possible_net_t</span> ct_net;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">if</span> IS_ENABLED(CONFIG_NF_NAT)</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">hlist_node</span>	<span class="title">nat_bysource</span>;</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> &#123;</span> &#125; __nfct_init_offset;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 若被 expectation 期待创建，则指向 master */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nf_conn</span> *<span class="title">master</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* mark、secmark、扩展（acct、timestamp、labels 等）*/</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nf_ct_ext</span> *<span class="title">ext</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">union</span> <span class="title">nf_conntrack_proto</span> <span class="title">proto</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>tuplehash[IP_CT_DIR_ORIGINAL]</code> 存储首包方向的五元组哈希节点，<code>tuplehash[IP_CT_DIR_REPLY]</code> 存储应答方向。两者都挂在全局 <code>nf_conntrack_hash</code> 哈希表中，这样无论哪个方向的包都能快速查到同一个 <code>nf_conn</code>。</p>
+<p><code>status</code> 是连接状态位，常见位：</p>
+<table>
+<thead>
+<tr>
+<th>位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>IPS_EXPECTED</code></td>
+<td>由 helper 期待创建（如 FTP 数据连接）</td>
+</tr>
+<tr>
+<td><code>IPS_SEEN_REPLY</code></td>
+<td>已见到应答方向的包（对应 ESTABLISHED）</td>
+</tr>
+<tr>
+<td><code>IPS_ASSURED</code></td>
+<td>已确认，不会被 early drop</td>
+</tr>
+<tr>
+<td><code>IPS_CONFIRMED</code></td>
+<td>已加入哈希表</td>
+</tr>
+<tr>
+<td><code>IPS_NAT_MASK</code></td>
+<td>经过 NAT</td>
+</tr>
+</tbody></table>
+<h3 id="3-2-连接状态与-ip-conntrack-info"><a href="#3-2-连接状态与-ip-conntrack-info" class="headerlink" title="3.2 连接状态与 ip_conntrack_info"></a>3.2 连接状态与 <code>ip_conntrack_info</code></h3><p>从 skb 视角看到的连接信息编码在 <code>ctinfo</code>（<code>enum ip_conntrack_info</code>）：</p>
+<ul>
+<li><code>IP_CT_NEW</code>：属于新连接的首包。</li>
+<li><code>IP_CT_ESTABLISHED</code>：属于已建立连接的原始方向包。</li>
+<li><code>IP_CT_ESTABLISHED_REPLY</code>：属于已建立连接的应答方向包（此时 <code>IPS_SEEN_REPLY</code> 位被置位）。</li>
+<li><code>IP_CT_RELATED</code>：相关连接的包（如 ICMP 错误、FTP 数据连接）。</li>
+<li><code>IP_CT_UNTRACKED</code>：被明确标记为不追踪的包（通过 <code>CT --notrack</code> 规则）。</li>
+</ul>
+<h3 id="3-3-nf-conntrack-in：追踪入口"><a href="#3-3-nf-conntrack-in：追踪入口" class="headerlink" title="3.3 nf_conntrack_in：追踪入口"></a>3.3 nf_conntrack_in：追踪入口</h3><p><code>nf_conntrack_in</code> 挂载在 <code>PRE_ROUTING</code> 和 <code>LOCAL_OUT</code> hook 上，是连接追踪的主入口（<code>net/netfilter/nf_conntrack_core.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line">nf_conntrack_in(<span class="keyword">struct</span> sk_buff *skb, <span class="type">const</span> <span class="keyword">struct</span> nf_hook_state *state)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">enum</span> <span class="title">ip_conntrack_info</span> <span class="title">ctinfo</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nf_conn</span> *<span class="title">ct</span>, *<span class="title">tmpl</span>;</span></span><br><span class="line">	<span class="type">u_int8_t</span> protonum;</span><br><span class="line">	<span class="type">int</span> dataoff, ret;</span><br><span class="line"></span><br><span class="line">	tmpl = nf_ct_get(skb, &amp;ctinfo);</span><br><span class="line">	<span class="keyword">if</span> (tmpl || ctinfo == IP_CT_UNTRACKED) &#123;</span><br><span class="line">		<span class="keyword">if</span> ((tmpl &amp;&amp; !nf_ct_is_template(tmpl)) ||</span><br><span class="line">		     ctinfo == IP_CT_UNTRACKED)</span><br><span class="line">			<span class="keyword">return</span> NF_ACCEPT;</span><br><span class="line">		skb-&gt;_nfct = <span class="number">0</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	dataoff = get_l4proto(skb, skb_network_offset(skb), state-&gt;pf, &amp;protonum);</span><br><span class="line">	<span class="keyword">if</span> (dataoff &lt;= <span class="number">0</span>) &#123;</span><br><span class="line">		NF_CT_STAT_INC_ATOMIC(state-&gt;net, invalid);</span><br><span class="line">		ret = NF_ACCEPT;</span><br><span class="line">		<span class="keyword">goto</span> out;</span><br><span class="line">	&#125;</span><br><span class="line">repeat:</span><br><span class="line">	ret = resolve_normal_ct(tmpl, skb, dataoff, protonum, state);</span><br><span class="line">	<span class="keyword">if</span> (ret &lt; <span class="number">0</span>) &#123;</span><br><span class="line">		NF_CT_STAT_INC_ATOMIC(state-&gt;net, drop);</span><br><span class="line">		ret = NF_DROP;</span><br><span class="line">		<span class="keyword">goto</span> out;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	ct = nf_ct_get(skb, &amp;ctinfo);</span><br><span class="line">	<span class="keyword">if</span> (!ct) &#123;</span><br><span class="line">		NF_CT_STAT_INC_ATOMIC(state-&gt;net, invalid);</span><br><span class="line">		ret = NF_ACCEPT;</span><br><span class="line">		<span class="keyword">goto</span> out;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	ret = nf_conntrack_handle_packet(ct, skb, dataoff, ctinfo, state);</span><br><span class="line">	<span class="keyword">if</span> (ret &lt;= <span class="number">0</span>) &#123;</span><br><span class="line">		nf_ct_put(ct);</span><br><span class="line">		skb-&gt;_nfct = <span class="number">0</span>;</span><br><span class="line">		<span class="keyword">if</span> (ret == -NF_REPEAT)</span><br><span class="line">			<span class="keyword">goto</span> repeat;</span><br><span class="line">		ret = -ret;</span><br><span class="line">		<span class="keyword">goto</span> out;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (ctinfo == IP_CT_ESTABLISHED_REPLY &amp;&amp;</span><br><span class="line">	    !test_and_set_bit(IPS_SEEN_REPLY_BIT, &amp;ct-&gt;status))</span><br><span class="line">		nf_conntrack_event_cache(IPCT_REPLY, ct);</span><br><span class="line">out:</span><br><span class="line">	<span class="keyword">if</span> (tmpl)</span><br><span class="line">		nf_ct_put(tmpl);</span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>核心流程：<code>resolve_normal_ct</code> 内部调用 <code>__nf_conntrack_find_get</code> 做哈希查找，若未命中则分配新 <code>nf_conn</code>；<code>nf_conntrack_handle_packet</code> 调用各协议（TCP&#x2F;UDP&#x2F;ICMP）的 <code>packet</code> 回调更新协议状态机和超时。</p>
+<h3 id="3-4-nf-conntrack-find-get：哈希查找"><a href="#3-4-nf-conntrack-find-get：哈希查找" class="headerlink" title="3.4 __nf_conntrack_find_get：哈希查找"></a>3.4 __nf_conntrack_find_get：哈希查找</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">__nf_conntrack_find_get(<span class="keyword">struct</span> net *net, <span class="type">const</span> <span class="keyword">struct</span> nf_conntrack_zone *zone,</span><br><span class="line">			<span class="type">const</span> <span class="keyword">struct</span> nf_conntrack_tuple *tuple, u32 hash)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nf_conntrack_tuple_hash</span> *<span class="title">h</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">nf_conn</span> *<span class="title">ct</span>;</span></span><br><span class="line"></span><br><span class="line">	h = ____nf_conntrack_find(net, zone, tuple, hash);</span><br><span class="line">	<span class="keyword">if</span> (h) &#123;</span><br><span class="line">		ct = nf_ct_tuplehash_to_ctrack(h);</span><br><span class="line">		<span class="keyword">if</span> (likely(refcount_inc_not_zero(&amp;ct-&gt;ct_general.use))) &#123;</span><br><span class="line">			smp_acquire__after_ctrl_dep();</span><br><span class="line">			<span class="keyword">if</span> (likely(nf_ct_key_equal(h, tuple, zone, net)))</span><br><span class="line">				<span class="keyword">return</span> h;</span><br><span class="line">			<span class="comment">/* TYPESAFE_BY_RCU 被回收，重新查找 */</span></span><br><span class="line">			nf_ct_put(ct);</span><br><span class="line">		&#125;</span><br><span class="line">		h = <span class="literal">NULL</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> h;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>哈希表在 RCU 读锁下查找，找到候选后先增引用计数，再二次校验 key（防止 TYPESAFE_BY_RCU 复用场景下的 ABA 问题）。</p>
+<h3 id="3-5-超时机制"><a href="#3-5-超时机制" class="headerlink" title="3.5 超时机制"></a>3.5 超时机制</h3><p><code>nf_conn.timeout</code> 存储到期 jiffies32 值。每个协议对应不同默认超时，例如 TCP ESTABLISHED 为 5 天（<code>nf_ct_tcp_timeout_established</code>），UDP 为 180 秒，UDP 应答后为 180 秒。conntrack GC 工作队列（<code>conntrack_gc_work</code>）周期性扫描哈希桶，清理超时条目。GC 间隔在 1 秒到 60 秒之间动态调整，<code>GC_SCAN_INTERVAL_CLAMP</code>（300 秒）用于钳制 TCP 未应答连接的超时不被过度推迟。</p>
+<hr>
+<h2 id="四、XDP（eXpress-Data-Path）：内核最快数据平面"><a href="#四、XDP（eXpress-Data-Path）：内核最快数据平面" class="headerlink" title="四、XDP（eXpress Data Path）：内核最快数据平面"></a>四、XDP（eXpress Data Path）：内核最快数据平面</h2><h3 id="4-1-三种挂载模式"><a href="#4-1-三种挂载模式" class="headerlink" title="4.1 三种挂载模式"></a>4.1 三种挂载模式</h3><p>XDP 程序挂载点由 <code>enum bpf_xdp_mode</code> 定义（<code>include/linux/netdevice.h</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">bpf_xdp_mode</span> &#123;</span></span><br><span class="line">	XDP_MODE_SKB = <span class="number">0</span>,   <span class="comment">/* GENERIC：软件模拟，在 skb 分配之后运行 */</span></span><br><span class="line">	XDP_MODE_DRV = <span class="number">1</span>,   <span class="comment">/* NATIVE/DRV：驱动原生支持，在 skb 分配之前运行 */</span></span><br><span class="line">	XDP_MODE_HW  = <span class="number">2</span>,   <span class="comment">/* OFFLOAD：卸载到 SmartNIC，完全绕过主机 CPU */</span></span><br><span class="line">	__MAX_XDP_MODE</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>GENERIC（SKB 模式）</strong>：无需驱动支持，XDP 程序运行在 <code>skb</code> 已分配之后，性能提升有限，但兼容所有网卡。通过 <code>ip link set dev eth0 xdp</code> 在不支持 Native 时自动降级。</li>
+<li><strong>NATIVE（DRV 模式）</strong>：驱动在 NAPI poll 中收到 DMA 数据后、构造 <code>skb</code> 之前调用 XDP 程序，节省了 <code>skb</code> 分配和初始化的开销，典型吞吐提升数倍。主流驱动（mlx5、i40e、ixgbe 等）均支持。</li>
+<li><strong>OFFLOAD（HW 模式）</strong>：BPF 字节码被编译下推到 SmartNIC（如 Netronome），完全在网卡硬件上执行，CPU 零参与。</li>
+</ul>
+<h3 id="4-2-struct-xdp-buff-与-struct-xdp-md"><a href="#4-2-struct-xdp-buff-与-struct-xdp-md" class="headerlink" title="4.2 struct xdp_buff 与 struct xdp_md"></a>4.2 struct xdp_buff 与 struct xdp_md</h3><p>驱动侧使用 <code>struct xdp_buff</code>（<code>include/net/xdp.h</code>）描述接收到的帧：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xdp_buff</span> &#123;</span></span><br><span class="line">	<span class="type">void</span> *data;             <span class="comment">/* 指向帧数据起点（L2 头部）*/</span></span><br><span class="line">	<span class="type">void</span> *data_end;         <span class="comment">/* 指向帧数据终点 */</span></span><br><span class="line">	<span class="type">void</span> *data_meta;        <span class="comment">/* 元数据区域（data_meta &lt;= data）*/</span></span><br><span class="line">	<span class="type">void</span> *data_hard_start;  <span class="comment">/* DMA 缓冲区起点，供 bpf_xdp_adjust_head 使用 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">xdp_rxq_info</span> *<span class="title">rxq</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">xdp_txq_info</span> *<span class="title">txq</span>;</span></span><br><span class="line">	u32 frame_sz;</span><br><span class="line">	u32 flags;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>BPF 程序中看到的上下文是 <code>struct xdp_md</code>（UAPI，<code>include/uapi/linux/bpf.h</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xdp_md</span> &#123;</span></span><br><span class="line">	__u32 data;             <span class="comment">/* 等价于 xdp_buff-&gt;data 的偏移 */</span></span><br><span class="line">	__u32 data_end;</span><br><span class="line">	__u32 data_meta;</span><br><span class="line">	__u32 ingress_ifindex;  <span class="comment">/* rxq-&gt;dev-&gt;ifindex */</span></span><br><span class="line">	__u32 rx_queue_index;   <span class="comment">/* rxq-&gt;queue_index  */</span></span><br><span class="line">	__u32 egress_ifindex;   <span class="comment">/* txq-&gt;dev-&gt;ifindex */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>BPF 验证器会把对 <code>xdp_md</code> 字段的访问翻译成对内核 <code>xdp_buff</code> 的实际访问，保证安全边界检查。</p>
+<h3 id="4-3-返回值语义"><a href="#4-3-返回值语义" class="headerlink" title="4.3 返回值语义"></a>4.3 返回值语义</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/uapi/linux/bpf.h */</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">xdp_action</span> &#123;</span></span><br><span class="line">	XDP_ABORTED  = <span class="number">0</span>,  <span class="comment">/* 程序出错，包被丢弃，触发 xdp_exception tracepoint */</span></span><br><span class="line">	XDP_DROP,          <span class="comment">/* 丢弃包，不产生 skb */</span></span><br><span class="line">	XDP_PASS,          <span class="comment">/* 继续送往内核网络栈（构造 skb） */</span></span><br><span class="line">	XDP_TX,            <span class="comment">/* 原路发回（从同一网口发出） */</span></span><br><span class="line">	XDP_REDIRECT,      <span class="comment">/* 转发到另一网口/CPU/socket */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>XDP_DROP 是最高效的丢包方式，在 DMA 层就回收 buffer，不产生任何 <code>skb</code>，适合 DDoS 防护。XDP_REDIRECT 配合 <code>bpf_redirect_map()</code> 实现零拷贝包转发。</p>
+<h3 id="4-4-bpf-redirect-map"><a href="#4-4-bpf-redirect-map" class="headerlink" title="4.4 bpf_redirect_map"></a>4.4 bpf_redirect_map</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">long bpf_redirect_map(struct bpf_map *map, u64 key, u64 flags)</span><br></pre></td></tr></table></figure>
+
+<p>根据 <code>map</code> 类型不同，行为各异：</p>
+<ul>
+<li><strong>DEVMAP</strong>（<code>BPF_MAP_TYPE_DEVMAP</code>）：将包转发到另一个网口（ifindex），实现高性能软件交换。</li>
+<li><strong>CPUMAP</strong>（<code>BPF_MAP_TYPE_CPUMAP</code>）：将包重定向到另一个 CPU 的 XDP 处理队列，实现多核负载均衡。仅 Native XDP 支持。</li>
+<li><strong>XSKMAP</strong>（<code>BPF_MAP_TYPE_XSKMAP</code>）：转发到 AF_XDP socket（零拷贝用户态收包）。</li>
+</ul>
+<p><code>flags</code> 的低两位用作 map 查找失败时的默认返回码（通常为 <code>XDP_DROP</code>）；<code>BPF_F_BROADCAST</code> 可广播给 DEVMAP 中所有接口。</p>
+<h3 id="4-5-XDP-与-tc-BPF-的区别"><a href="#4-5-XDP-与-tc-BPF-的区别" class="headerlink" title="4.5 XDP 与 tc BPF 的区别"></a>4.5 XDP 与 tc BPF 的区别</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>XDP</th>
+<th>tc BPF</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>运行时机</td>
+<td>驱动收包时（skb 分配前，NATIVE 模式）</td>
+<td>流量控制层（skb 已分配）</td>
+</tr>
+<tr>
+<td>上下文</td>
+<td><code>struct xdp_md</code></td>
+<td><code>struct __sk_buff</code></td>
+</tr>
+<tr>
+<td>方向</td>
+<td>仅 ingress（TX 方向有 XDP_TX&#x2F;redirect）</td>
+<td>ingress 和 egress 均支持</td>
+</tr>
+<tr>
+<td>包修改能力</td>
+<td>有限（需 adjust_head&#x2F;tail）</td>
+<td>丰富（可访问 skb 元数据）</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>极高（zero-copy，无 skb 开销）</td>
+<td>高（skb 层，有一定开销）</td>
+</tr>
+<tr>
+<td>典型用途</td>
+<td>DDoS 防护、负载均衡、XSK 收包</td>
+<td>带宽限速、策略路由、服务网格 sidecar</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="五、tc-BPF（Traffic-Control-eBPF）：流量分类与策略"><a href="#五、tc-BPF（Traffic-Control-eBPF）：流量分类与策略" class="headerlink" title="五、tc BPF（Traffic Control eBPF）：流量分类与策略"></a>五、tc BPF（Traffic Control eBPF）：流量分类与策略</h2><p>tc（Traffic Control）子系统历史悠久，eBPF 的引入让它焕发新生。tc BPF 程序挂在 <code>cls_bpf</code> 分类器上，可以做任意包匹配和修改。</p>
+<h3 id="5-1-cls-bpf-classify"><a href="#5-1-cls-bpf-classify" class="headerlink" title="5.1 cls_bpf_classify"></a>5.1 cls_bpf_classify</h3><p><code>cls_bpf_classify</code> 是 tc BPF 分类器的核心（<code>net/sched/cls_bpf.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">TC_INDIRECT_SCOPE <span class="type">int</span> <span class="title function_">cls_bpf_classify</span><span class="params">(<span class="keyword">struct</span> sk_buff *skb,</span></span><br><span class="line"><span class="params">				       <span class="type">const</span> <span class="keyword">struct</span> tcf_proto *tp,</span></span><br><span class="line"><span class="params">				       <span class="keyword">struct</span> tcf_result *res)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">cls_bpf_head</span> *<span class="title">head</span> =</span> rcu_dereference_bh(tp-&gt;root);</span><br><span class="line">	<span class="type">bool</span> at_ingress = skb_at_tc_ingress(skb);</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">cls_bpf_prog</span> *<span class="title">prog</span>;</span></span><br><span class="line">	<span class="type">int</span> ret = <span class="number">-1</span>;</span><br><span class="line"></span><br><span class="line">	list_for_each_entry_rcu(prog, &amp;head-&gt;plist, link) &#123;</span><br><span class="line">		<span class="type">int</span> filter_res;</span><br><span class="line"></span><br><span class="line">		qdisc_skb_cb(skb)-&gt;tc_classid = prog-&gt;res.classid;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (tc_skip_sw(prog-&gt;gen_flags)) &#123;</span><br><span class="line">			filter_res = prog-&gt;exts_integrated ? TC_ACT_UNSPEC : <span class="number">0</span>;</span><br><span class="line">		&#125; <span class="keyword">else</span> <span class="keyword">if</span> (at_ingress) &#123;</span><br><span class="line">			__skb_push(skb, skb-&gt;mac_len);</span><br><span class="line">			bpf_compute_data_pointers(skb);</span><br><span class="line">			filter_res = bpf_prog_run(prog-&gt;filter, skb);</span><br><span class="line">			__skb_pull(skb, skb-&gt;mac_len);</span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">			bpf_compute_data_pointers(skb);</span><br><span class="line">			filter_res = bpf_prog_run(prog-&gt;filter, skb);</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (prog-&gt;exts_integrated) &#123;</span><br><span class="line">			res-&gt;classid = TC_H_MAJ(prog-&gt;res.classid) |</span><br><span class="line">				       qdisc_skb_cb(skb)-&gt;tc_classid;</span><br><span class="line">			ret = cls_bpf_exec_opcode(filter_res);</span><br><span class="line">			<span class="keyword">if</span> (ret == TC_ACT_UNSPEC)</span><br><span class="line">				<span class="keyword">continue</span>;</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">/* ... */</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ingress 方向需先 push MAC 头（<code>__skb_push(skb, skb-&gt;mac_len)</code>）使 <code>data</code> 指针指向二层头部，BPF 程序运行后再 pull 回去。<code>bpf_prog_run</code> 执行 BPF 字节码，返回 <code>TC_ACT_OK</code>（放行）、<code>TC_ACT_SHOT</code>（丢弃）、<code>TC_ACT_REDIRECT</code> 等动作码。</p>
+<h3 id="5-2-direct-action-模式"><a href="#5-2-direct-action-模式" class="headerlink" title="5.2 direct-action 模式"></a>5.2 direct-action 模式</h3><p>当 tc filter 使用 <code>direct-action</code>（da）标志时，BPF 程序的返回值直接作为 tc action 结果，无需再查 action 链表，大幅降低开销。现代 Cilium、Istio ambient 等服务网格均使用该模式。</p>
+<h3 id="5-3-硬件卸载"><a href="#5-3-硬件卸载" class="headerlink" title="5.3 硬件卸载"></a>5.3 硬件卸载</h3><p><code>struct tc_cls_bpf_offload</code> 用于将 tc BPF 程序卸载到支持的 SmartNIC：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/sched/cls_bpf.c */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">tc_cls_bpf_offload</span> <span class="title">cls_bpf</span> =</span> &#123;&#125;;</span><br><span class="line"><span class="comment">/* ... 填充 cls_bpf，通过 tcf_block_offload_cmd 下发给驱动 */</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-4-与-iptables-的性能对比"><a href="#5-4-与-iptables-的性能对比" class="headerlink" title="5.4 与 iptables 的性能对比"></a>5.4 与 iptables 的性能对比</h3><p>在典型的 10GbE 环境下：</p>
+<ul>
+<li><strong>iptables</strong>：规则数量线性增加时，匹配时间 O(n)；100 万条规则时单核处理能力降至数十万 pps 量级。</li>
+<li><strong>nftables</strong>（使用 set）：哈希 set 查找 O(1)，百万 IP 规则下延迟保持稳定。</li>
+<li><strong>XDP（Native）</strong>：单核可达 14Mpps（10G 线速），完全不受规则数量影响（逻辑硬编码在 BPF 程序中）。</li>
+<li><strong>tc BPF</strong>：介于两者之间，单核 2~5Mpps，支持更复杂的上下文操作。</li>
+</ul>
+<hr>
+<h2 id="六、Socket-Filter-与-sk-msg：Socket-层-BPF"><a href="#六、Socket-Filter-与-sk-msg：Socket-层-BPF" class="headerlink" title="六、Socket Filter 与 sk_msg：Socket 层 BPF"></a>六、Socket Filter 与 sk_msg：Socket 层 BPF</h2><h3 id="6-1-SO-ATTACH-FILTER-SO-ATTACH-BPF"><a href="#6-1-SO-ATTACH-FILTER-SO-ATTACH-BPF" class="headerlink" title="6.1 SO_ATTACH_FILTER &#x2F; SO_ATTACH_BPF"></a>6.1 SO_ATTACH_FILTER &#x2F; SO_ATTACH_BPF</h3><p>经典 Socket Filter 通过 <code>setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, &amp;prog, sizeof(prog))</code> 附加，现代 eBPF 程序使用 <code>SO_ATTACH_BPF</code>（传入 BPF fd）。</p>
+<p><code>struct sk_filter</code> 定义于 <code>include/linux/filter.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sk_filter</span> &#123;</span></span><br><span class="line">	<span class="type">refcount_t</span>	refcnt;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">rcu_head</span>	<span class="title">rcu</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">bpf_prog</span>	*<span class="title">prog</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>结构极简：一个引用计数、一个 RCU 头（用于延迟释放）、一个 BPF 程序指针。每个 <code>sock</code> 结构中有 <code>sk-&gt;sk_filter</code> 字段指向该过滤器。</p>
+<h3 id="6-2-sk-filter-trim-cap：Socket-收包过滤"><a href="#6-2-sk-filter-trim-cap：Socket-收包过滤" class="headerlink" title="6.2 sk_filter_trim_cap：Socket 收包过滤"></a>6.2 sk_filter_trim_cap：Socket 收包过滤</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* net/core/filter.c */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">sk_filter_trim_cap</span><span class="params">(<span class="keyword">struct</span> sock *sk, <span class="keyword">struct</span> sk_buff *skb, <span class="type">unsigned</span> <span class="type">int</span> cap)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> err;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">sk_filter</span> *<span class="title">filter</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (skb_pfmemalloc(skb) &amp;&amp; !sock_flag(sk, SOCK_MEMALLOC)) &#123;</span><br><span class="line">		NET_INC_STATS(sock_net(sk), LINUX_MIB_PFMEMALLOCDROP);</span><br><span class="line">		<span class="keyword">return</span> -ENOMEM;</span><br><span class="line">	&#125;</span><br><span class="line">	err = BPF_CGROUP_RUN_PROG_INET_INGRESS(sk, skb);</span><br><span class="line">	<span class="keyword">if</span> (err)</span><br><span class="line">		<span class="keyword">return</span> err;</span><br><span class="line"></span><br><span class="line">	err = security_sock_rcv_skb(sk, skb);</span><br><span class="line">	<span class="keyword">if</span> (err)</span><br><span class="line">		<span class="keyword">return</span> err;</span><br><span class="line"></span><br><span class="line">	rcu_read_lock();</span><br><span class="line">	filter = rcu_dereference(sk-&gt;sk_filter);</span><br><span class="line">	<span class="keyword">if</span> (filter) &#123;</span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">sock</span> *<span class="title">save_sk</span> =</span> skb-&gt;sk;</span><br><span class="line">		<span class="type">unsigned</span> <span class="type">int</span> pkt_len;</span><br><span class="line"></span><br><span class="line">		skb-&gt;sk = sk;</span><br><span class="line">		pkt_len = bpf_prog_run_save_cb(filter-&gt;prog, skb);</span><br><span class="line">		skb-&gt;sk = save_sk;</span><br><span class="line">		err = pkt_len ? pskb_trim(skb, max(cap, pkt_len)) : -EPERM;</span><br><span class="line">	&#125;</span><br><span class="line">	rcu_read_unlock();</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>BPF 程序返回 <code>0</code> 时包被丢弃（返回 <code>-EPERM</code>）；返回非零值为保留的字节数，<code>pskb_trim</code> 按此截断包（tcpdump 抓包时可利用此机制截断到固定长度）。</p>
+<h3 id="6-3-sockmap-与-sk-msg：高性能-Socket-代理"><a href="#6-3-sockmap-与-sk-msg：高性能-Socket-代理" class="headerlink" title="6.3 sockmap 与 sk_msg：高性能 Socket 代理"></a>6.3 sockmap 与 sk_msg：高性能 Socket 代理</h3><p>sockmap（<code>BPF_MAP_TYPE_SOCKMAP</code>&#x2F;<code>BPF_MAP_TYPE_SOCKHASH</code>）允许 BPF 程序在 socket 之间直接转发数据，跳过用户态 proxy 的 <code>read()</code>&#x2F;<code>write()</code> 往返。</p>
+<p>主要程序类型：</p>
+<ul>
+<li><code>BPF_PROG_TYPE_SK_SKB</code>：在 <code>skb</code> 级别拦截 socket 接收路径，可修改包后重定向到另一个 socket（<code>bpf_sk_redirect_map</code>）。</li>
+<li><code>BPF_PROG_TYPE_SK_MSG</code>：在 <code>sendmsg()</code> 路径上拦截，通过 <code>struct sk_msg</code> 操作数据流，适合 L7 代理场景（如 Cilium 的 sockops 加速）。</li>
+</ul>
+<p><code>sk_msg</code> 操作 helper 包括：</p>
+<ul>
+<li><code>bpf_msg_apply_bytes</code>：对后续 N 字节应用当前 verdict。</li>
+<li><code>bpf_msg_cork_bytes</code>：积累 N 字节后再触发 verdict（消息聚合）。</li>
+<li><code>bpf_msg_pull_data</code>：将分散 sg 数据拉入线性区，方便访问。</li>
+<li><code>bpf_msg_push_data</code> &#x2F; <code>bpf_msg_pop_data</code>：在消息中插入或删除数据（协议封装&#x2F;解封）。</li>
+</ul>
+<p>典型用途：Kubernetes 集群内 Pod 间通信，通过 sockmap 完全绕过 iptables&#x2F;conntrack，延迟降低 30%~50%。</p>
+<hr>
+<h2 id="七、诊断方法"><a href="#七、诊断方法" class="headerlink" title="七、诊断方法"></a>七、诊断方法</h2><h3 id="7-1-规则集查看"><a href="#7-1-规则集查看" class="headerlink" title="7.1 规则集查看"></a>7.1 规则集查看</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># nftables：查看完整规则集</span></span><br><span class="line">nft list ruleset</span><br><span class="line"></span><br><span class="line"><span class="comment"># iptables：带包计数器详细输出</span></span><br><span class="line">iptables -L -n -v --line-numbers</span><br><span class="line">ip6tables -L -n -v</span><br><span class="line"></span><br><span class="line"><span class="comment"># 对比差异：iptables 按链遍历，nft 支持按表/链过滤</span></span><br><span class="line">nft list table inet filter</span><br><span class="line">nft list chain inet filter input</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-conntrack-连接追踪"><a href="#7-2-conntrack-连接追踪" class="headerlink" title="7.2 conntrack 连接追踪"></a>7.2 conntrack 连接追踪</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前连接追踪表</span></span><br><span class="line">conntrack -L</span><br><span class="line"></span><br><span class="line"><span class="comment"># 按协议过滤，查看 TCP ESTABLISHED 连接数</span></span><br><span class="line">conntrack -L -p tcp --state ESTABLISHED | <span class="built_in">wc</span> -l</span><br><span class="line"></span><br><span class="line"><span class="comment"># 实时统计</span></span><br><span class="line">conntrack -S</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看当前追踪条目数和最大值</span></span><br><span class="line"><span class="built_in">cat</span> /proc/sys/net/netfilter/nf_conntrack_count</span><br><span class="line"><span class="built_in">cat</span> /proc/sys/net/netfilter/nf_conntrack_max</span><br><span class="line"></span><br><span class="line"><span class="comment"># 快速扩容（临时）</span></span><br><span class="line"><span class="built_in">echo</span> 2000000 &gt; /proc/sys/net/netfilter/nf_conntrack_max</span><br></pre></td></tr></table></figure>
+
+<p><strong>conntrack 表满导致丢包的排查</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查 conntrack 相关计数器</span></span><br><span class="line"><span class="built_in">cat</span> /proc/net/stat/nf_conntrack</span><br><span class="line"></span><br><span class="line"><span class="comment"># 典型症状：drop 列持续增长</span></span><br><span class="line"><span class="comment"># insert_failed: 哈希插入失败（通常是表满或哈希冲突链过长）</span></span><br><span class="line"><span class="comment"># drop: 因无法创建新连接而丢包</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 内核日志中会出现</span></span><br><span class="line">dmesg | grep <span class="string">&quot;nf_conntrack: table full&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 永久调整（/etc/sysctl.conf）</span></span><br><span class="line">net.netfilter.nf_conntrack_max = 2000000</span><br><span class="line">net.netfilter.nf_conntrack_tcp_timeout_established = 300</span><br><span class="line">net.netfilter.nf_conntrack_tcp_timeout_time_wait = 30</span><br></pre></td></tr></table></figure>
+
+<p>哈希表大小由 <code>nf_conntrack_htable_size</code> 控制（默认为内存大小 &#x2F; 16384，最大 65536），大型服务器需显式设置更大的值。</p>
+<h3 id="7-3-BPF-程序诊断"><a href="#7-3-BPF-程序诊断" class="headerlink" title="7.3 BPF 程序诊断"></a>7.3 BPF 程序诊断</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看已加载的 BPF 程序</span></span><br><span class="line">bpftool prog list</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看特定程序的 BPF 字节码/JIT 汇编</span></span><br><span class="line">bpftool prog dump xlated <span class="built_in">id</span> &lt;prog_id&gt;</span><br><span class="line">bpftool prog dump jited  <span class="built_in">id</span> &lt;prog_id&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 加载 XDP 程序（Native 模式）</span></span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> eth0 xdp obj xdp_prog.o sec xdp</span><br><span class="line"></span><br><span class="line"><span class="comment"># 卸载 XDP 程序</span></span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> eth0 xdp off</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看网口 XDP 状态</span></span><br><span class="line">ip <span class="built_in">link</span> show eth0 | grep xdp</span><br><span class="line"></span><br><span class="line"><span class="comment"># tc BPF：添加 ingress clsact</span></span><br><span class="line">tc qdisc add dev eth0 clsact</span><br><span class="line">tc filter add dev eth0 ingress bpf obj tc_prog.o sec classifier direct-action</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 tc filter</span></span><br><span class="line">tc filter show dev eth0 ingress</span><br><span class="line">tc filter show dev eth0 egress</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-4-bpftrace-动态追踪"><a href="#7-4-bpftrace-动态追踪" class="headerlink" title="7.4 bpftrace 动态追踪"></a>7.4 bpftrace 动态追踪</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 统计 nft_do_chain 调用的链名分布</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;kprobe:nft_do_chain &#123; @[str(args-&gt;chain-&gt;name)] = count(); &#125;&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪 nf_hook_slow 调用频率（按 hook 点）</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:nf_hook_slow &#123;</span></span><br><span class="line"><span class="string">    @[args-&gt;state-&gt;hook] = count();</span></span><br><span class="line"><span class="string">&#125;&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 监控 conntrack 表满事件</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;kprobe:nf_ct_alloc_hashtable &#123; @alloc = count(); &#125;</span></span><br><span class="line"><span class="string">             kretprobe:nf_ct_alloc_hashtable / retval == 0 / &#123; @fail = count(); &#125;&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪 XDP 程序返回值分布</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;tracepoint:xdp:xdp_exception &#123; @[args-&gt;act] = count(); &#125;&#x27;</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;tracepoint:xdp:xdp_redirect_err &#123; @err = count(); &#125;&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 统计 conntrack NEW 连接创建速率</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;kprobe:nf_conntrack_in &#123; @[nsecs/1000000000] = count(); &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-5-性能热点分析"><a href="#7-5-性能热点分析" class="headerlink" title="7.5 性能热点分析"></a>7.5 性能热点分析</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># perf 统计 Netfilter 路径开销</span></span><br><span class="line">perf <span class="built_in">stat</span> -e <span class="string">&#x27;net:netif_receive_skb,net:net_dev_xmit&#x27;</span> -a <span class="built_in">sleep</span> 5</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 conntrack 哈希桶使用分布（避免链过长）</span></span><br><span class="line"><span class="built_in">cat</span> /proc/net/stat/nf_conntrack | awk <span class="string">&#x27;&#123;print $1, $2&#125;&#x27;</span> | <span class="built_in">head</span> -20</span><br><span class="line"></span><br><span class="line"><span class="comment"># XDP 统计（需驱动支持）</span></span><br><span class="line">ethtool -S eth0 | grep -i xdp</span><br><span class="line"></span><br><span class="line"><span class="comment"># 观察 BPF JIT 内存</span></span><br><span class="line"><span class="built_in">cat</span> /proc/sys/net/core/bpf_jit_enable</span><br><span class="line"><span class="comment"># 0: 关闭 JIT，1: 开启，2: 开启并输出调试信息</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="八、整体架构总结"><a href="#八、整体架构总结" class="headerlink" title="八、整体架构总结"></a>八、整体架构总结</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">物理网卡（DMA 收包）</span><br><span class="line">       │</span><br><span class="line">       ▼  [XDP_MODE_DRV / NATIVE]</span><br><span class="line">  XDP 程序（BPF）</span><br><span class="line">  XDP_DROP → 丢弃（最快）</span><br><span class="line">  XDP_TX   → 原路发回</span><br><span class="line">  XDP_REDIRECT → CPUMAP/DEVMAP/XSKMAP</span><br><span class="line">  XDP_PASS ↓</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">  构造 sk_buff（NAPI poll）</span><br><span class="line">       │</span><br><span class="line">       ▼  [XDP_MODE_SKB / GENERIC]</span><br><span class="line">  XDP 程序（此时 skb 已存在）</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">  Netfilter NF_INET_PRE_ROUTING（priority 顺序）</span><br><span class="line">  ├─ conntrack (-200)：nf_conntrack_in，分配/查找 nf_conn</span><br><span class="line">  ├─ ipset/nft (-100~0)：nft_do_chain 执行规则</span><br><span class="line">  └─ iptables (0)：ipt_do_table 匹配规则</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">  路由决策（fib_lookup）</span><br><span class="line">  ├─ 本机 → NF_INET_LOCAL_IN → socket 收包</span><br><span class="line">  │         └─ sk_filter_trim_cap（Socket BPF）</span><br><span class="line">  │         └─ sockmap/sk_msg（Socket 代理）</span><br><span class="line">  └─ 转发 → NF_INET_FORWARD → NF_INET_POST_ROUTING → 发包</span><br><span class="line">                                      │</span><br><span class="line">                                      ▼</span><br><span class="line">                               tc qdisc（cls_bpf）</span><br><span class="line">                               └─ BPF 程序（direct-action）</span><br><span class="line">                                      │</span><br><span class="line">                                      ▼</span><br><span class="line">                               网卡驱动发包</span><br></pre></td></tr></table></figure>
+
+<p>Netfilter 提供了灵活但相对重量级的 hook 框架，适合有状态防火墙、NAT 等场景。eBPF 以 XDP 和 tc BPF 的形式提供了更高性能的可编程数据平面，两者并非替代关系，而是在不同层次协同工作——连接追踪、NAT 仍依赖 Netfilter，而高性能转发、DDoS 防护、服务网格加速则更多使用 eBPF。</p>
+<p>理解这一层次结构，是深入优化生产系统网络性能的前提。下一篇将进入网络命名空间（netns）与容器网络（veth、bridge、overlay）的内核实现。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/eBPF/" rel="tag"># eBPF</a>
+              <a href="/tags/XDP/" rel="tag"># XDP</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Netfilter/" rel="tag"># Netfilter</a>
+              <a href="/tags/iptables/" rel="tag"># iptables</a>
+              <a href="/tags/nftables/" rel="tag"># nftables</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-net-stack-part6-socket-syscall/" rel="prev" title="Linux 网络内核协议栈深度剖析（六）：Socket 层与系统调用实现">
+                  <i class="fa fa-angle-left"></i> Linux 网络内核协议栈深度剖析（六）：Socket 层与系统调用实现
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-net-stack-part8-virt-networking/" rel="next" title="Linux 网络内核协议栈深度剖析（八）：网络虚拟化与容器网络实现">
+                  Linux 网络内核协议栈深度剖析（八）：网络虚拟化与容器网络实现 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
