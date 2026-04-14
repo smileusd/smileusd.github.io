@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="基于 Linux 6.4-rc1 源码（commit ac9a78681b92），深入剖析进程创建的内核实现。  进程是操作系统最核心的抽象之一。每次你敲下一条 shell 命令，背后都会发生 fork + exec 这一对经典舞步。然而 “fork 复制父进程、exec 替换镜像” 这句话远未揭示全貌：写时复制如何让 fork 变得极其廉价？clone 与 fork 共享同一条代码路径吗？ex">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 进程管理深度剖析（一）：进程创建 fork&#x2F;exec&#x2F;clone 源码分析">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-linux-proc-part1-fork-exec/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="基于 Linux 6.4-rc1 源码（commit ac9a78681b92），深入剖析进程创建的内核实现。  进程是操作系统最核心的抽象之一。每次你敲下一条 shell 命令，背后都会发生 fork + exec 这一对经典舞步。然而 “fork 复制父进程、exec 替换镜像” 这句话远未揭示全貌：写时复制如何让 fork 变得极其廉价？clone 与 fork 共享同一条代码路径吗？ex">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-14T07:10:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T03:58:24.835Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="fork">
+<meta property="article:tag" content="Process">
+<meta property="article:tag" content="exec">
+<meta property="article:tag" content="clone">
+<meta property="article:tag" content="task_struct">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-proc-part1-fork-exec/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-linux-proc-part1-fork-exec/","path":"2026/04/14/2026-04-14-linux-proc-part1-fork-exec/","title":"Linux 进程管理深度剖析（一）：进程创建 fork/exec/clone 源码分析"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 进程管理深度剖析（一）：进程创建 fork/exec/clone 源码分析 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81task-struct%EF%BC%9A%E8%BF%9B%E7%A8%8B%E7%9A%84%E5%AE%8C%E6%95%B4%E7%94%BB%E5%83%8F"><span class="nav-number">1.</span> <span class="nav-text">一、task_struct：进程的完整画像</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E8%BF%9B%E7%A8%8B%E7%8A%B6%E6%80%81"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 进程状态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E8%B0%83%E5%BA%A6%E7%9B%B8%E5%85%B3%E5%AD%97%E6%AE%B5"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 调度相关字段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E8%BF%9B%E7%A8%8B%E6%A0%87%E8%AF%86%E4%B8%8E%E4%BA%B2%E7%BC%98%E5%85%B3%E7%B3%BB"><span class="nav-number">1.3.</span> <span class="nav-text">1.3 进程标识与亲缘关系</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86"><span class="nav-number">1.4.</span> <span class="nav-text">1.4 内存管理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-5-%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%96%87%E4%BB%B6%E6%8F%8F%E8%BF%B0%E7%AC%A6"><span class="nav-number">1.5.</span> <span class="nav-text">1.5 文件系统与文件描述符</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-6-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86"><span class="nav-number">1.6.</span> <span class="nav-text">1.6 信号处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-7-%E5%87%AD%E8%AF%81%E4%B8%8E%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4"><span class="nav-number">1.7.</span> <span class="nav-text">1.7 凭证与命名空间</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81fork-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%EF%BC%9A%E4%BB%8E%E7%94%A8%E6%88%B7%E6%80%81%E5%88%B0-kernel-clone"><span class="nav-number">2.</span> <span class="nav-text">二、fork() 系统调用：从用户态到 kernel_clone</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E8%B0%83%E7%94%A8%E9%93%BE%E5%85%A8%E6%99%AF"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 调用链全景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-sys-fork-%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 sys_fork 的实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-kernel-clone%EF%BC%9A%E6%B4%BE%E5%8F%91%E4%B8%8E%E6%94%B6%E5%B0%BE"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 kernel_clone：派发与收尾</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-copy-process%EF%BC%9A%E5%AD%90%E8%BF%9B%E7%A8%8B%E7%9A%84%E8%AF%9E%E7%94%9F"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 copy_process：子进程的诞生</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-wake-up-new-task%EF%BC%9A%E5%AD%90%E8%BF%9B%E7%A8%8B%E5%85%A5%E9%98%9F"><span class="nav-number">2.5.</span> <span class="nav-text">2.5 wake_up_new_task：子进程入队</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81clone-%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%88%9B%E5%BB%BA"><span class="nav-number">3.</span> <span class="nav-text">三、clone() 与线程创建</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-clone-flags-%E8%AF%AD%E4%B9%89"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 clone flags 语义</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-pthread-create-%E7%9A%84%E5%86%85%E6%A0%B8%E8%B7%AF%E5%BE%84"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 pthread_create 的内核路径</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-sys-clone-%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 sys_clone 的实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-copy-thread%EF%BC%9Afork-%E8%BF%94%E5%9B%9E-0-%E7%9A%84%E7%A7%98%E5%AF%86"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 copy_thread：fork 返回 0 的秘密</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81exec-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%EF%BC%9A%E5%8F%98%E8%BA%AB%E6%96%B0%E7%A8%8B%E5%BA%8F"><span class="nav-number">4.</span> <span class="nav-text">四、exec() 系统调用：变身新程序</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%B0%83%E7%94%A8%E9%93%BE"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 调用链</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-do-execveat-common%EF%BC%9A%E5%87%86%E5%A4%87-bprm"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 do_execveat_common：准备 bprm</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-bprm-mm-init%EF%BC%9A%E6%8F%90%E5%89%8D%E5%87%86%E5%A4%87%E6%96%B0%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 bprm_mm_init：提前准备新地址空间</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-search-binary-handler%EF%BC%9A%E5%AF%BB%E6%89%BE%E5%8A%A0%E8%BD%BD%E5%99%A8"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 search_binary_handler：寻找加载器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-load-elf-binary%EF%BC%9AELF-%E5%8A%A0%E8%BD%BD%E8%AF%A6%E8%A7%A3"><span class="nav-number">4.5.</span> <span class="nav-text">4.5 load_elf_binary：ELF 加载详解</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-begin-new-exec%EF%BC%9A%E4%B8%8D%E5%8F%AF%E5%9B%9E%E5%A4%B4%E7%82%B9"><span class="nav-number">4.6.</span> <span class="nav-text">4.6 begin_new_exec：不可回头点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E8%BF%9B%E7%A8%8B%E9%80%80%E5%87%BA%EF%BC%9Ado-exit-%E4%B8%8E%E5%83%B5%E5%B0%B8%E8%BF%9B%E7%A8%8B"><span class="nav-number">5.</span> <span class="nav-text">五、进程退出：do_exit 与僵尸进程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-do-exit-%E7%9A%84%E9%80%80%E5%87%BA%E6%B5%81%E7%A8%8B"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 do_exit 的退出流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-exit-mm%EF%BC%9A%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4%E7%9A%84%E9%87%8A%E6%94%BE"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 exit_mm：地址空间的释放</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-exit-notify%EF%BC%9A%E4%BB%8E-RUNNING-%E5%88%B0-ZOMBIE"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 exit_notify：从 RUNNING 到 ZOMBIE</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-wait4-%E4%B8%8E-do-wait%EF%BC%9A%E7%88%B6%E8%BF%9B%E7%A8%8B%E5%9B%9E%E6%94%B6%E5%AD%90%E8%BF%9B%E7%A8%8B"><span class="nav-number">5.4.</span> <span class="nav-text">5.4 wait4 与 do_wait：父进程回收子进程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-%E5%AD%A4%E5%84%BF%E8%BF%9B%E7%A8%8B%EF%BC%9Afind-new-reaper"><span class="nav-number">5.5.</span> <span class="nav-text">5.5 孤儿进程：find_new_reaper</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%86%99%E6%97%B6%E5%A4%8D%E5%88%B6%EF%BC%88COW%EF%BC%89%EF%BC%9Afork-%E5%BB%89%E4%BB%B7%E7%9A%84%E7%A7%98%E5%AF%86"><span class="nav-number">6.</span> <span class="nav-text">六、写时复制（COW）：fork 廉价的秘密</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-COW-%E7%9A%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 COW 的实现原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-fork-exec-%E7%9A%84%E6%9E%81%E8%87%B4%E4%BC%98%E5%8C%96%EF%BC%9Avfork"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 fork + exec 的极致优化：vfork</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E4%B8%BA%E4%BD%95-fork-exec-%E5%87%A0%E4%B9%8E%E4%B8%8D%E5%A4%8D%E5%88%B6%E5%86%85%E5%AD%98"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 为何 fork + exec 几乎不复制内存</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E8%AF%8A%E6%96%AD%E6%96%B9%E6%B3%95"><span class="nav-number">7.</span> <span class="nav-text">七、诊断方法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-proc-PID-status%EF%BC%9A%E8%BF%9B%E7%A8%8B%E7%8A%B6%E6%80%81%E5%85%A8%E8%A7%88"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 &#x2F;proc&#x2F;PID&#x2F;status：进程状态全览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-proc-PID-task-%EF%BC%9A%E6%9F%A5%E7%9C%8B%E6%89%80%E6%9C%89%E7%BA%BF%E7%A8%8B"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 &#x2F;proc&#x2F;PID&#x2F;task&#x2F;：查看所有线程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-pstree-p%EF%BC%9A%E5%8F%AF%E8%A7%86%E5%8C%96%E8%BF%9B%E7%A8%8B%E6%A0%91"><span class="nav-number">7.3.</span> <span class="nav-text">7.3 pstree -p：可视化进程树</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-strace-f%EF%BC%9A%E8%BF%BD%E8%B8%AA%E8%BF%9B%E7%A8%8B%E5%88%9B%E5%BB%BA%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8"><span class="nav-number">7.4.</span> <span class="nav-text">7.4 strace -f：追踪进程创建系统调用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-bpftrace%EF%BC%9A%E5%8A%A8%E6%80%81%E8%BF%BD%E8%B8%AA-copy-process"><span class="nav-number">7.5.</span> <span class="nav-text">7.5 bpftrace：动态追踪 copy_process</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-6-perf-stat%EF%BC%9A%E9%87%8F%E5%8C%96%E8%BF%9B%E7%A8%8B%E5%88%9B%E5%BB%BA%E5%BC%80%E9%94%80"><span class="nav-number">7.6.</span> <span class="nav-text">7.6 perf stat：量化进程创建开销</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-7-proc-PID-maps%EF%BC%9A%E8%A7%82%E5%AF%9F-COW-%E9%A1%B5%E9%9D%A2%E7%8A%B6%E6%80%81"><span class="nav-number">7.7.</span> <span class="nav-text">7.7 &#x2F;proc&#x2F;PID&#x2F;maps：观察 COW 页面状态</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">9.</span> <span class="nav-text">参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">95</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">31</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">240</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-proc-part1-fork-exec/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 进程管理深度剖析（一）：进程创建 fork/exec/clone 源码分析 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 进程管理深度剖析（一）：进程创建 fork/exec/clone 源码分析
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 15:10:00 / Modified: 11:58:24" itemprop="dateCreated datePublished" datetime="2026-04-14T15:10:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Process-Management/" itemprop="url" rel="index"><span itemprop="name">Process Management</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>基于 Linux 6.4-rc1 源码（commit ac9a78681b92），深入剖析进程创建的内核实现。</p>
+</blockquote>
+<p>进程是操作系统最核心的抽象之一。每次你敲下一条 shell 命令，背后都会发生 <code>fork</code> + <code>exec</code> 这一对经典舞步。然而 “fork 复制父进程、exec 替换镜像” 这句话远未揭示全貌：写时复制如何让 fork 变得极其廉价？<code>clone</code> 与 <code>fork</code> 共享同一条代码路径吗？<code>exec</code> 如何安全地销毁旧地址空间并跳进新程序？本文从 <code>struct task_struct</code> 出发，沿着 <code>fork → clone → exec → exit</code> 的脉络，逐函数拆解内核实现。</p>
+<hr>
+<h2 id="一、task-struct：进程的完整画像"><a href="#一、task-struct：进程的完整画像" class="headerlink" title="一、task_struct：进程的完整画像"></a>一、task_struct：进程的完整画像</h2><p>每个进程（或线程）在内核中对应一个 <code>struct task_struct</code>，定义于 <code>include/linux/sched.h</code>。它既是调度的基本单元，也是内核追踪进程一切状态的”档案袋”。以下精选最关键的字段并加以注释。</p>
+<h3 id="1-1-进程状态"><a href="#1-1-进程状态" class="headerlink" title="1.1 进程状态"></a>1.1 进程状态</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/sched.h: 87–107 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> TASK_RUNNING            0x00000000  <span class="comment">/* 正在运行或就绪等待调度 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> TASK_INTERRUPTIBLE      0x00000001  <span class="comment">/* 可中断睡眠，可被信号唤醒 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> TASK_UNINTERRUPTIBLE    0x00000002  <span class="comment">/* 不可中断睡眠（D 状态），等待 I/O */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> __TASK_STOPPED          0x00000004  <span class="comment">/* 被 SIGSTOP/SIGTSTP 暂停 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> __TASK_TRACED           0x00000008  <span class="comment">/* 被 ptrace 追踪 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXIT_DEAD               0x00000010  <span class="comment">/* 正在被回收，即将消失 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXIT_ZOMBIE             0x00000020  <span class="comment">/* 已退出但父进程尚未 wait() */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> TASK_DEAD               0x00000080  <span class="comment">/* 彻底死亡，即将释放 */</span></span></span><br></pre></td></tr></table></figure>
+
+<p><code>task_struct</code> 中保存状态的字段为：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/sched.h: 747 */</span></span><br><span class="line"><span class="type">unsigned</span> <span class="type">int</span> __state;</span><br></pre></td></tr></table></figure>
+
+<p>注意前缀双下划线——内核要求通过 <code>READ_ONCE()</code>&#x2F;<code>WRITE_ONCE()</code> 或专用宏访问它，以防止编译器优化导致的竞态。</p>
+<h3 id="1-2-调度相关字段"><a href="#1-2-调度相关字段" class="headerlink" title="1.2 调度相关字段"></a>1.2 调度相关字段</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/sched.h: 785–793 */</span></span><br><span class="line"><span class="type">int</span>             prio;           <span class="comment">/* 动态优先级（受 nice 和 RT boost 影响） */</span></span><br><span class="line"><span class="type">int</span>             static_prio;    <span class="comment">/* 静态优先级，由 nice 值决定 */</span></span><br><span class="line"><span class="type">int</span>             normal_prio;    <span class="comment">/* 归一化优先级 */</span></span><br><span class="line"><span class="type">unsigned</span> <span class="type">int</span>    rt_priority;    <span class="comment">/* 实时优先级（0 = 非 RT） */</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sched_entity</span>     <span class="title">se</span>;</span>     <span class="comment">/* CFS 调度实体（含 vruntime） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sched_rt_entity</span>  <span class="title">rt</span>;</span>     <span class="comment">/* RT 调度实体 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sched_dl_entity</span>  <span class="title">dl</span>;</span>     <span class="comment">/* Deadline 调度实体 */</span></span><br><span class="line"><span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">sched_class</span> *<span class="title">sched_class</span>;</span> <span class="comment">/* 指向所属调度类（fair/rt/dl/idle） */</span></span><br></pre></td></tr></table></figure>
+
+<p><code>sched_class</code> 是一个虚函数表指针，实现了策略模式：CFS、RT、Deadline 各自实现 <code>enqueue_task</code>、<code>dequeue_task</code>、<code>pick_next_task</code> 等接口，调度器核心代码通过 <code>sched_class</code> 统一调用，无需 if&#x2F;else 判断。</p>
+<h3 id="1-3-进程标识与亲缘关系"><a href="#1-3-进程标识与亲缘关系" class="headerlink" title="1.3 进程标识与亲缘关系"></a>1.3 进程标识与亲缘关系</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/sched.h: 963–987 */</span></span><br><span class="line"><span class="type">pid_t</span>   pid;            <span class="comment">/* 进程 ID（线程唯一） */</span></span><br><span class="line"><span class="type">pid_t</span>   tgid;           <span class="comment">/* 线程组 ID（即主线程 pid，getpid() 返回此值） */</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span> __<span class="title">rcu</span> *<span class="title">real_parent</span>;</span> <span class="comment">/* 真实父进程（被 ptrace 时可能与 parent 不同） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span> __<span class="title">rcu</span> *<span class="title">parent</span>;</span>      <span class="comment">/* 当前父进程（SIGCHLD 的接收者） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>         <span class="title">children</span>;</span>     <span class="comment">/* 子进程链表头 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>         <span class="title">sibling</span>;</span>      <span class="comment">/* 挂入父进程 children 链表的节点 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span>       *<span class="title">group_leader</span>;</span> <span class="comment">/* 线程组 leader（主线程） */</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>pid vs tgid</strong>：POSIX 要求同一进程内所有线程共享 PID，这在内核中通过 <code>tgid</code> 实现。<code>getpid()</code> 返回 <code>tgid</code>，<code>gettid()</code> 返回 <code>pid</code>。<code>group_leader</code> 永远指向主线程。</p>
+<h3 id="1-4-内存管理"><a href="#1-4-内存管理" class="headerlink" title="1.4 内存管理"></a>1.4 内存管理</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/sched.h: 872–873 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> *<span class="title">mm</span>;</span>        <span class="comment">/* 用户态地址空间（内核线程为 NULL） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> *<span class="title">active_mm</span>;</span> <span class="comment">/* 当前使用的 mm（借用上一进程的 mm 做 lazy TLB） */</span></span><br></pre></td></tr></table></figure>
+
+<p>内核线程 <code>mm == NULL</code>，但运行时 CPU 的 TLB 仍需要一个 mm，所以借用上一个用户进程的 <code>active_mm</code>，这就是 lazy TLB 优化的来源。</p>
+<h3 id="1-5-文件系统与文件描述符"><a href="#1-5-文件系统与文件描述符" class="headerlink" title="1.5 文件系统与文件描述符"></a>1.5 文件系统与文件描述符</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/sched.h: 1087–1090 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">fs_struct</span>    *<span class="title">fs</span>;</span>    <span class="comment">/* 当前工作目录、根目录（chdir/chroot 影响此处） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">files_struct</span> *<span class="title">files</span>;</span> <span class="comment">/* 文件描述符表（引用计数共享） */</span></span><br></pre></td></tr></table></figure>
+
+<p><code>fs_struct</code> 和 <code>files_struct</code> 各自有引用计数，<code>clone(CLONE_FS)</code> 或 <code>clone(CLONE_FILES)</code> 时父子进程共享同一个实例而非复制。</p>
+<h3 id="1-6-信号处理"><a href="#1-6-信号处理" class="headerlink" title="1.6 信号处理"></a>1.6 信号处理</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/sched.h: 1100–1106 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">signal_struct</span>    *<span class="title">signal</span>;</span>   <span class="comment">/* 线程组共享的信号信息（pending 队列等） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sighand_struct</span>   *<span class="title">sighand</span>;</span>  <span class="comment">/* 信号处理函数表（可被 CLONE_SIGHAND 共享） */</span></span><br><span class="line"><span class="type">sigset_t</span>                 blocked;  <span class="comment">/* 被屏蔽的信号集合 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sigpending</span>        <span class="title">pending</span>;</span>  <span class="comment">/* 该线程私有的 pending 信号队列 */</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="1-7-凭证与命名空间"><a href="#1-7-凭证与命名空间" class="headerlink" title="1.7 凭证与命名空间"></a>1.7 凭证与命名空间</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/sched.h: 1057–1060 */</span></span><br><span class="line"><span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">cred</span> __<span class="title">rcu</span> *<span class="title">real_cred</span>;</span> <span class="comment">/* 客观凭证（真实 UID/GID，setuid 前的值） */</span></span><br><span class="line"><span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">cred</span> __<span class="title">rcu</span> *<span class="title">cred</span>;</span>      <span class="comment">/* 有效凭证（权限检查使用此值） */</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* include/linux/sched.h: 1097 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">nsproxy</span> *<span class="title">nsproxy</span>;</span>  <span class="comment">/* 指向命名空间集合（PID/Net/UTS/IPC/Mount/Time NS） */</span></span><br></pre></td></tr></table></figure>
+
+<p><code>cred</code> 采用写时复制（COW）：<code>setuid()</code> 会分配新的 <code>cred</code> 对象，而非修改现有的，这使得 RCU 读者可以无锁访问。</p>
+<hr>
+<h2 id="二、fork-系统调用：从用户态到-kernel-clone"><a href="#二、fork-系统调用：从用户态到-kernel-clone" class="headerlink" title="二、fork() 系统调用：从用户态到 kernel_clone"></a>二、fork() 系统调用：从用户态到 kernel_clone</h2><h3 id="2-1-调用链全景"><a href="#2-1-调用链全景" class="headerlink" title="2.1 调用链全景"></a>2.1 调用链全景</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">用户态: fork()</span><br><span class="line">    ↓ glibc syscall wrapper</span><br><span class="line">内核态: sys_fork (SYSCALL_DEFINE0)</span><br><span class="line">    ↓</span><br><span class="line">kernel_clone(args)</span><br><span class="line">    ↓</span><br><span class="line">copy_process(pid, trace, node, args)   ← 核心：创建子进程描述符</span><br><span class="line">    ↓</span><br><span class="line">wake_up_new_task(p)                    ← 将子进程加入运行队列</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-sys-fork-的实现"><a href="#2-2-sys-fork-的实现" class="headerlink" title="2.2 sys_fork 的实现"></a>2.2 sys_fork 的实现</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/fork.c: 3000–3012 */</span></span><br><span class="line">SYSCALL_DEFINE0(fork)</span><br><span class="line">&#123;</span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_MMU</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kernel_clone_args</span> <span class="title">args</span> =</span> &#123;</span><br><span class="line">        .exit_signal = SIGCHLD,</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> kernel_clone(&amp;args);</span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line">    <span class="comment">/* can not support in nommu mode */</span></span><br><span class="line">    <span class="keyword">return</span> -EINVAL;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>fork</code> 不传任何 clone flags，这意味着子进程拥有独立的 mm、文件描述符表、信号处理器、命名空间——一个完整的独立进程。</p>
+<h3 id="2-3-kernel-clone：派发与收尾"><a href="#2-3-kernel-clone：派发与收尾" class="headerlink" title="2.3 kernel_clone：派发与收尾"></a>2.3 kernel_clone：派发与收尾</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/fork.c: 2877–2962（节选） */</span></span><br><span class="line"><span class="type">pid_t</span> <span class="title function_">kernel_clone</span><span class="params">(<span class="keyword">struct</span> kernel_clone_args *args)</span></span><br><span class="line">&#123;</span><br><span class="line">    u64 clone_flags = args-&gt;flags;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">completion</span> <span class="title">vfork</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">pid</span> *<span class="title">pid</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span> *<span class="title">p</span>;</span></span><br><span class="line">    <span class="type">pid_t</span> nr;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 决定向 ptracer 报告哪类事件 */</span></span><br><span class="line">    <span class="keyword">if</span> (!(clone_flags &amp; CLONE_UNTRACED)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (clone_flags &amp; CLONE_VFORK)</span><br><span class="line">            trace = PTRACE_EVENT_VFORK;</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">if</span> (args-&gt;exit_signal != SIGCHLD)</span><br><span class="line">            trace = PTRACE_EVENT_CLONE;</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">            trace = PTRACE_EVENT_FORK;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    p = copy_process(<span class="literal">NULL</span>, trace, NUMA_NO_NODE, args); <span class="comment">/* 创建子进程 */</span></span><br><span class="line">    <span class="keyword">if</span> (IS_ERR(p))</span><br><span class="line">        <span class="keyword">return</span> PTR_ERR(p);</span><br><span class="line"></span><br><span class="line">    pid = get_task_pid(p, PIDTYPE_PID);</span><br><span class="line">    nr = pid_vnr(pid);  <span class="comment">/* 在当前 PID 命名空间中的虚拟 PID */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (clone_flags &amp; CLONE_VFORK) &#123;</span><br><span class="line">        p-&gt;vfork_done = &amp;vfork;</span><br><span class="line">        init_completion(&amp;vfork);</span><br><span class="line">        get_task_struct(p);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    wake_up_new_task(p);  <span class="comment">/* 子进程入队，可以被调度了 */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (clone_flags &amp; CLONE_VFORK) &#123;</span><br><span class="line">        <span class="comment">/* 父进程在此阻塞，等待子进程 exec 或 exit */</span></span><br><span class="line">        <span class="keyword">if</span> (!wait_for_vfork_done(p, &amp;vfork))</span><br><span class="line">            ptrace_event_pid(PTRACE_EVENT_VFORK_DONE, pid);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    put_pid(pid);</span><br><span class="line">    <span class="keyword">return</span> nr;  <span class="comment">/* 父进程返回子进程 PID，子进程返回 0（由 copy_thread 设置） */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-copy-process：子进程的诞生"><a href="#2-4-copy-process：子进程的诞生" class="headerlink" title="2.4 copy_process：子进程的诞生"></a>2.4 copy_process：子进程的诞生</h3><p><code>copy_process</code> 是整个 fork 路径最复杂的函数（约 600 行），它按照严格顺序完成以下工作：</p>
+<p><strong>第一步：合法性检查</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/fork.c: 2263–2302（节选） */</span></span><br><span class="line"><span class="comment">/* CLONE_THREAD 必须同时设置 CLONE_SIGHAND */</span></span><br><span class="line"><span class="keyword">if</span> ((clone_flags &amp; CLONE_THREAD) &amp;&amp; !(clone_flags &amp; CLONE_SIGHAND))</span><br><span class="line">    <span class="keyword">return</span> ERR_PTR(-EINVAL);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* CLONE_SIGHAND 必须同时设置 CLONE_VM */</span></span><br><span class="line"><span class="keyword">if</span> ((clone_flags &amp; CLONE_SIGHAND) &amp;&amp; !(clone_flags &amp; CLONE_VM))</span><br><span class="line">    <span class="keyword">return</span> ERR_PTR(-EINVAL);</span><br></pre></td></tr></table></figure>
+
+<p>这揭示了线程的必要条件：线程 &#x3D; 共享信号处理器 &#x3D; 共享地址空间，三者缺一不可。</p>
+<p><strong>第二步：dup_task_struct——克隆描述符与内核栈</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/fork.c: 2333 */</span></span><br><span class="line">p = dup_task_struct(current, node);</span><br></pre></td></tr></table></figure>
+
+<p><code>dup_task_struct</code> 的实现（kernel&#x2F;fork.c: 1101–1190）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">struct</span> task_struct *<span class="title function_">dup_task_struct</span><span class="params">(<span class="keyword">struct</span> task_struct *orig, <span class="type">int</span> node)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span> *<span class="title">tsk</span>;</span></span><br><span class="line"></span><br><span class="line">    tsk = alloc_task_struct_node(node);   <span class="comment">/* slab 分配 task_struct */</span></span><br><span class="line">    <span class="keyword">if</span> (!tsk) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    err = arch_dup_task_struct(tsk, orig); <span class="comment">/* memcpy task_struct */</span></span><br><span class="line">    <span class="keyword">if</span> (err) <span class="keyword">goto</span> free_tsk;</span><br><span class="line"></span><br><span class="line">    err = alloc_thread_stack_node(tsk, node); <span class="comment">/* 分配独立内核栈（通常 16KB） */</span></span><br><span class="line">    <span class="keyword">if</span> (err) <span class="keyword">goto</span> free_tsk;</span><br><span class="line"></span><br><span class="line">    setup_thread_stack(tsk, orig);        <span class="comment">/* 复制 thread_info，更新 task 指针 */</span></span><br><span class="line">    clear_tsk_need_resched(tsk);</span><br><span class="line">    set_task_stack_end_magic(tsk);        <span class="comment">/* 在栈底写入魔数，用于溢出检测 */</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_STACKPROTECTOR</span></span><br><span class="line">    tsk-&gt;stack_canary = get_random_canary(); <span class="comment">/* 新的栈 canary，防止父子共享 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    refcount_set(&amp;tsk-&gt;usage, <span class="number">1</span>);</span><br><span class="line">    <span class="keyword">return</span> tsk;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>关键点：此时 task_struct 是父进程的完整拷贝，但内核栈是全新分配的——否则父子进程会使用同一个内核栈，调度时会互相破坏。</p>
+<p><strong>第三步：各子系统的选择性复制</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/fork.c: 2492–2518 */</span></span><br><span class="line">retval = copy_files(clone_flags, p, args-&gt;no_files);</span><br><span class="line">retval = copy_fs(clone_flags, p);</span><br><span class="line">retval = copy_sighand(clone_flags, p);</span><br><span class="line">retval = copy_signal(clone_flags, p);</span><br><span class="line">retval = copy_mm(clone_flags, p);        <span class="comment">/* COW 复制地址空间 */</span></span><br><span class="line">retval = copy_namespaces(clone_flags, p);</span><br><span class="line">retval = copy_thread(p, args);           <span class="comment">/* 架构相关：设置返回地址和寄存器 */</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 分配 PID */</span></span><br><span class="line">pid = alloc_pid(p-&gt;nsproxy-&gt;pid_ns_for_children, args-&gt;set_tid, args-&gt;set_tid_size);</span><br></pre></td></tr></table></figure>
+
+<p><code>copy_mm</code>（kernel&#x2F;fork.c: 1714）的逻辑：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">copy_mm</span><span class="params">(<span class="type">unsigned</span> <span class="type">long</span> clone_flags, <span class="keyword">struct</span> task_struct *tsk)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> *<span class="title">mm</span>, *<span class="title">oldmm</span> =</span> current-&gt;mm;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!oldmm) <span class="keyword">return</span> <span class="number">0</span>;  <span class="comment">/* 内核线程无需地址空间 */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (clone_flags &amp; CLONE_VM) &#123;</span><br><span class="line">        mmget(oldmm);      <span class="comment">/* 线程：直接共享父进程 mm，引用计数 +1 */</span></span><br><span class="line">        mm = oldmm;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        mm = dup_mm(tsk, current-&gt;mm);  <span class="comment">/* 进程：COW 复制整个地址空间 */</span></span><br><span class="line">        <span class="keyword">if</span> (!mm) <span class="keyword">return</span> -ENOMEM;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    tsk-&gt;mm = mm;</span><br><span class="line">    tsk-&gt;active_mm = mm;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>copy_files</code>（kernel&#x2F;fork.c: 1772）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">copy_files</span><span class="params">(<span class="type">unsigned</span> <span class="type">long</span> clone_flags, <span class="keyword">struct</span> task_struct *tsk, <span class="type">int</span> no_files)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">files_struct</span> *<span class="title">oldf</span> =</span> current-&gt;files;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (clone_flags &amp; CLONE_FILES) &#123;</span><br><span class="line">        <span class="type">atomic_inc</span>(&amp;oldf-&gt;count);  <span class="comment">/* 线程：共享文件描述符表 */</span></span><br><span class="line">        <span class="keyword">goto</span> out;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    newf = dup_fd(oldf, NR_OPEN_MAX, &amp;error);  <span class="comment">/* 进程：复制 fd 表 */</span></span><br><span class="line">    tsk-&gt;files = newf;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>第四步：设置 pid&#x2F;tgid&#x2F;group_leader</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/fork.c: 2574–2581 */</span></span><br><span class="line">p-&gt;pid = pid_nr(pid);</span><br><span class="line"><span class="keyword">if</span> (clone_flags &amp; CLONE_THREAD) &#123;</span><br><span class="line">    p-&gt;group_leader = current-&gt;group_leader; <span class="comment">/* 新线程的组长 = 父线程的组长 */</span></span><br><span class="line">    p-&gt;tgid = current-&gt;tgid;                 <span class="comment">/* 线程组 ID 不变 */</span></span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    p-&gt;group_leader = p;    <span class="comment">/* 新进程自己是组长 */</span></span><br><span class="line">    p-&gt;tgid = p-&gt;pid;       <span class="comment">/* tgid = 自己的 pid */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>第五步：加入进程树</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/fork.c: 2638–2648 */</span></span><br><span class="line"><span class="keyword">if</span> (clone_flags &amp; (CLONE_PARENT|CLONE_THREAD)) &#123;</span><br><span class="line">    p-&gt;real_parent = current-&gt;real_parent; <span class="comment">/* 与父进程平级 */</span></span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    p-&gt;real_parent = current;              <span class="comment">/* 普通 fork：父进程为当前进程 */</span></span><br><span class="line">    p-&gt;exit_signal = args-&gt;exit_signal;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-5-wake-up-new-task：子进程入队"><a href="#2-5-wake-up-new-task：子进程入队" class="headerlink" title="2.5 wake_up_new_task：子进程入队"></a>2.5 wake_up_new_task：子进程入队</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/sched/core.c: 4809–4848（节选） */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">wake_up_new_task</span><span class="params">(<span class="keyword">struct</span> task_struct *p)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rq_flags</span> <span class="title">rf</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rq</span> *<span class="title">rq</span>;</span></span><br><span class="line"></span><br><span class="line">    raw_spin_lock_irqsave(&amp;p-&gt;pi_lock, rf.flags);</span><br><span class="line">    WRITE_ONCE(p-&gt;__state, TASK_RUNNING);  <span class="comment">/* 设为就绪态 */</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SMP</span></span><br><span class="line">    <span class="comment">/* fork 均衡：选择最优 CPU，避免与父进程竞争同一核 */</span></span><br><span class="line">    __set_task_cpu(p, select_task_rq(p, task_cpu(p), WF_FORK));</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    rq = __task_rq_lock(p, &amp;rf);</span><br><span class="line">    update_rq_clock(rq);</span><br><span class="line">    post_init_entity_util_avg(p);      <span class="comment">/* 初始化 CFS 调度实体的 util_avg */</span></span><br><span class="line"></span><br><span class="line">    activate_task(rq, p, ENQUEUE_NOCLOCK); <span class="comment">/* 将子进程加入运行队列 */</span></span><br><span class="line">    trace_sched_wakeup_new(p);</span><br><span class="line">    check_preempt_curr(rq, p, WF_FORK);   <span class="comment">/* 检查是否需要抢占当前任务 */</span></span><br><span class="line"></span><br><span class="line">    task_rq_unlock(rq, p, &amp;rf);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>至此，子进程已就绪，等待调度器选中它上 CPU 运行。</p>
+<hr>
+<h2 id="三、clone-与线程创建"><a href="#三、clone-与线程创建" class="headerlink" title="三、clone() 与线程创建"></a>三、clone() 与线程创建</h2><h3 id="3-1-clone-flags-语义"><a href="#3-1-clone-flags-语义" class="headerlink" title="3.1 clone flags 语义"></a>3.1 clone flags 语义</h3><p>所有标志定义于 <code>include/uapi/linux/sched.h</code>：</p>
+<table>
+<thead>
+<tr>
+<th>标志</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CLONE_VM</code></td>
+<td>共享地址空间（mm_struct），线程的必要条件</td>
+</tr>
+<tr>
+<td><code>CLONE_FS</code></td>
+<td>共享文件系统信息（cwd、root、umask）</td>
+</tr>
+<tr>
+<td><code>CLONE_FILES</code></td>
+<td>共享文件描述符表</td>
+</tr>
+<tr>
+<td><code>CLONE_SIGHAND</code></td>
+<td>共享信号处理函数表，<code>CLONE_VM</code> 的前提</td>
+</tr>
+<tr>
+<td><code>CLONE_THREAD</code></td>
+<td>加入同一线程组（共享 tgid），<code>CLONE_SIGHAND</code> 的前提</td>
+</tr>
+<tr>
+<td><code>CLONE_NEWNS</code></td>
+<td>新建 Mount 命名空间（容器隔离的基础）</td>
+</tr>
+<tr>
+<td><code>CLONE_NEWPID</code></td>
+<td>新建 PID 命名空间（容器内 PID 从 1 开始）</td>
+</tr>
+<tr>
+<td><code>CLONE_VFORK</code></td>
+<td>父进程挂起，直到子进程 exec 或 exit</td>
+</tr>
+<tr>
+<td><code>CLONE_PIDFD</code></td>
+<td>在父进程返回一个 pidfd（进程文件描述符）</td>
+</tr>
+</tbody></table>
+<h3 id="3-2-pthread-create-的内核路径"><a href="#3-2-pthread-create-的内核路径" class="headerlink" title="3.2 pthread_create 的内核路径"></a>3.2 pthread_create 的内核路径</h3><p><code>glibc</code> 中 <code>pthread_create</code> 最终调用：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">clone(CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND |</span><br><span class="line">      CLONE_THREAD | CLONE_SYSVSEM | CLONE_SETTLS |</span><br><span class="line">      CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID | SIGCHLD,</span><br><span class="line">      child_stack, &amp;parent_tid, tls, &amp;child_tid);</span><br></pre></td></tr></table></figure>
+
+<p>这些 flags 让内核：</p>
+<ul>
+<li>共享地址空间（VM）</li>
+<li>共享文件和信号处理</li>
+<li>加入同一线程组（THREAD）</li>
+<li>设置 TLS 段（SETTLS）</li>
+<li>在子线程退出时通过 <code>CLONE_CHILD_CLEARTID</code> 向 futex 地址写 0，唤醒等待 <code>pthread_join</code> 的线程</li>
+</ul>
+<h3 id="3-3-sys-clone-的实现"><a href="#3-3-sys-clone-的实现" class="headerlink" title="3.3 sys_clone 的实现"></a>3.3 sys_clone 的实现</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/fork.c: 3045–3062 */</span></span><br><span class="line">SYSCALL_DEFINE5(clone, <span class="type">unsigned</span> <span class="type">long</span>, clone_flags, <span class="type">unsigned</span> <span class="type">long</span>, newsp,</span><br><span class="line">                <span class="type">int</span> __user *, parent_tidptr,</span><br><span class="line">                <span class="type">int</span> __user *, child_tidptr,</span><br><span class="line">                <span class="type">unsigned</span> <span class="type">long</span>, tls)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kernel_clone_args</span> <span class="title">args</span> =</span> &#123;</span><br><span class="line">        .flags      = (lower_32_bits(clone_flags) &amp; ~CSIGNAL),</span><br><span class="line">        .pidfd      = parent_tidptr,</span><br><span class="line">        .child_tid  = child_tidptr,</span><br><span class="line">        .parent_tid = parent_tidptr,</span><br><span class="line">        .exit_signal = (lower_32_bits(clone_flags) &amp; CSIGNAL),</span><br><span class="line">        .<span class="built_in">stack</span>      = newsp,</span><br><span class="line">        .tls        = tls,</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> kernel_clone(&amp;args);  <span class="comment">/* 与 fork 共享同一路径 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>fork</code>、<code>vfork</code>、<code>clone</code> 在内核中最终都调用 <code>kernel_clone</code>，差异仅在传入的 <code>kernel_clone_args</code> 结构体。这是 Linux 内核”一个实现，多个接口”的典型范式。</p>
+<h3 id="3-4-copy-thread：fork-返回-0-的秘密"><a href="#3-4-copy-thread：fork-返回-0-的秘密" class="headerlink" title="3.4 copy_thread：fork 返回 0 的秘密"></a>3.4 copy_thread：fork 返回 0 的秘密</h3><p>子进程在 fork 后从 <code>ret_from_fork</code> 开始运行，但为何 <code>fork()</code> 在子进程中返回 0？答案在 x86 的 <code>copy_thread</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* arch/x86/kernel/process.c: 137–202（节选） */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">copy_thread</span><span class="params">(<span class="keyword">struct</span> task_struct *p, <span class="type">const</span> <span class="keyword">struct</span> kernel_clone_args *args)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">pt_regs</span> *<span class="title">childregs</span> =</span> task_pt_regs(p);</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fork_frame</span> *<span class="title">fork_frame</span> =</span> container_of(childregs, <span class="keyword">struct</span> fork_frame, regs);</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inactive_task_frame</span> *<span class="title">frame</span> =</span> &amp;fork_frame-&gt;frame;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 设置子进程从 ret_from_fork 开始执行 */</span></span><br><span class="line">    frame-&gt;ret_addr = (<span class="type">unsigned</span> <span class="type">long</span>) ret_from_fork;</span><br><span class="line">    p-&gt;thread.sp    = (<span class="type">unsigned</span> <span class="type">long</span>) fork_frame;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 复制父进程的完整寄存器状态 */</span></span><br><span class="line">    *childregs = *current_pt_regs();</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 关键：将 eax/rax 设为 0，这就是 fork() 在子进程返回 0 的实现 */</span></span><br><span class="line">    childregs-&gt;ax = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (sp)</span><br><span class="line">        childregs-&gt;sp = sp;  <span class="comment">/* 线程使用新栈 */</span></span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>父进程的 <code>rax</code> 由 <code>kernel_clone</code> 返回子进程 PID，子进程的 <code>rax</code> 被强制置 0。当子进程被调度到 CPU 上，它从 <code>ret_from_fork</code> 恢复执行，<code>iret</code> 时 <code>rax=0</code> 作为系统调用返回值送回用户态——这就是 <code>fork()</code> 在子进程中返回 0 的完整机制。</p>
+<hr>
+<h2 id="四、exec-系统调用：变身新程序"><a href="#四、exec-系统调用：变身新程序" class="headerlink" title="四、exec() 系统调用：变身新程序"></a>四、exec() 系统调用：变身新程序</h2><h3 id="4-1-调用链"><a href="#4-1-调用链" class="headerlink" title="4.1 调用链"></a>4.1 调用链</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">用户态: execve(path, argv, envp)</span><br><span class="line">    ↓</span><br><span class="line">sys_execve (SYSCALL_DEFINE3)</span><br><span class="line">    ↓</span><br><span class="line">do_execve → do_execveat_common</span><br><span class="line">    ↓</span><br><span class="line">alloc_bprm + bprm_mm_init    ← 分配 linux_binprm，创建新 mm</span><br><span class="line">    ↓</span><br><span class="line">bprm_execve</span><br><span class="line">    ↓</span><br><span class="line">exec_binprm → search_binary_handler  ← 遍历 binfmt 链表找加载器</span><br><span class="line">    ↓</span><br><span class="line">load_elf_binary (fs/binfmt_elf.c)    ← ELF 加载器</span><br><span class="line">    ↓</span><br><span class="line">begin_new_exec                        ← 不可回头点：替换旧进程上下文</span><br><span class="line">    ↓</span><br><span class="line">start_thread (arch)                   ← 设置入口地址，跳入新程序</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-do-execveat-common：准备-bprm"><a href="#4-2-do-execveat-common：准备-bprm" class="headerlink" title="4.2 do_execveat_common：准备 bprm"></a>4.2 do_execveat_common：准备 bprm</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* fs/exec.c: 1886–1969（节选） */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">do_execveat_common</span><span class="params">(<span class="type">int</span> fd, <span class="keyword">struct</span> filename *filename,</span></span><br><span class="line"><span class="params">                              <span class="keyword">struct</span> user_arg_ptr argv,</span></span><br><span class="line"><span class="params">                              <span class="keyword">struct</span> user_arg_ptr envp,</span></span><br><span class="line"><span class="params">                              <span class="type">int</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">linux_binprm</span> *<span class="title">bprm</span>;</span></span><br><span class="line"></span><br><span class="line">    bprm = alloc_bprm(fd, filename);  <span class="comment">/* 分配 linux_binprm，内含新 mm */</span></span><br><span class="line"></span><br><span class="line">    bprm-&gt;argc = count(argv, MAX_ARG_STRINGS);</span><br><span class="line">    bprm-&gt;envc = count(envp, MAX_ARG_STRINGS);</span><br><span class="line"></span><br><span class="line">    bprm_stack_limits(bprm);          <span class="comment">/* 检查 ARG_MAX 限制 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 将 filename、envp、argv 依次压入新栈（从高地址向低地址） */</span></span><br><span class="line">    copy_string_kernel(bprm-&gt;filename, bprm);  <span class="comment">/* filename */</span></span><br><span class="line">    copy_strings(bprm-&gt;envc, envp, bprm);      <span class="comment">/* 环境变量 */</span></span><br><span class="line">    copy_strings(bprm-&gt;argc, argv, bprm);      <span class="comment">/* 参数 */</span></span><br><span class="line"></span><br><span class="line">    retval = bprm_execve(bprm, fd, filename, flags);</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-bprm-mm-init：提前准备新地址空间"><a href="#4-3-bprm-mm-init：提前准备新地址空间" class="headerlink" title="4.3 bprm_mm_init：提前准备新地址空间"></a>4.3 bprm_mm_init：提前准备新地址空间</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* fs/exec.c: 364–392 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">bprm_mm_init</span><span class="params">(<span class="keyword">struct</span> linux_binprm *bprm)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> *<span class="title">mm</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    bprm-&gt;mm = mm = mm_alloc();  <span class="comment">/* 分配全新的 mm_struct */</span></span><br><span class="line">    <span class="keyword">if</span> (!mm) <span class="keyword">goto</span> err;</span><br><span class="line"></span><br><span class="line">    task_lock(current-&gt;group_leader);</span><br><span class="line">    bprm-&gt;rlim_stack = current-&gt;signal-&gt;rlim[RLIMIT_STACK]; <span class="comment">/* 记录栈限制 */</span></span><br><span class="line">    task_unlock(current-&gt;group_leader);</span><br><span class="line"></span><br><span class="line">    err = __bprm_mm_init(bprm);  <span class="comment">/* 为新栈 mmap 一页临时映射 */</span></span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意此时旧的 mm 仍然有效——新 mm 在 <code>begin_new_exec</code> 之前不会替换旧的，这样如果 <code>load_elf_binary</code> 失败，进程可以安全回滚。</p>
+<h3 id="4-4-search-binary-handler：寻找加载器"><a href="#4-4-search-binary-handler：寻找加载器" class="headerlink" title="4.4 search_binary_handler：寻找加载器"></a>4.4 search_binary_handler：寻找加载器</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* fs/exec.c: 1715–1759（节选） */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">search_binary_handler</span><span class="params">(<span class="keyword">struct</span> linux_binprm *bprm)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">linux_binfmt</span> *<span class="title">fmt</span>;</span></span><br><span class="line"></span><br><span class="line">    retval = prepare_binprm(bprm);    <span class="comment">/* 读取文件头 128 字节到 bprm-&gt;buf */</span></span><br><span class="line">    retval = security_bprm_check(bprm); <span class="comment">/* LSM 安全检查 */</span></span><br><span class="line"></span><br><span class="line">    read_lock(&amp;binfmt_lock);</span><br><span class="line">    list_for_each_entry(fmt, &amp;formats, lh) &#123;  <span class="comment">/* 遍历已注册的 binfmt */</span></span><br><span class="line">        <span class="keyword">if</span> (!try_module_get(fmt-&gt;module))</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        read_unlock(&amp;binfmt_lock);</span><br><span class="line"></span><br><span class="line">        retval = fmt-&gt;load_binary(bprm);  <span class="comment">/* 调用对应加载器，如 load_elf_binary */</span></span><br><span class="line"></span><br><span class="line">        read_lock(&amp;binfmt_lock);</span><br><span class="line">        put_binfmt(fmt);</span><br><span class="line">        <span class="keyword">if</span> (bprm-&gt;point_of_no_return || retval != -ENOEXEC) &#123;</span><br><span class="line">            read_unlock(&amp;binfmt_lock);</span><br><span class="line">            <span class="keyword">return</span> retval;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>binfmt</code> 链表按注册顺序排列，典型格式有 ELF（<code>binfmt_elf</code>）、脚本（<code>binfmt_script</code>，处理 <code>#!</code>）、misc（<code>binfmt_misc</code>，处理 <code>.jar</code>&#x2F;<code>.py</code> 等）。</p>
+<h3 id="4-5-load-elf-binary：ELF-加载详解"><a href="#4-5-load-elf-binary：ELF-加载详解" class="headerlink" title="4.5 load_elf_binary：ELF 加载详解"></a>4.5 load_elf_binary：ELF 加载详解</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* fs/binfmt_elf.c: 823–（节选） */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">load_elf_binary</span><span class="params">(<span class="keyword">struct</span> linux_binprm *bprm)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">elfhdr</span> *<span class="title">elf_ex</span> =</span> (<span class="keyword">struct</span> elfhdr *)bprm-&gt;buf;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 魔数检查：\x7fELF */</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">memcmp</span>(elf_ex-&gt;e_ident, ELFMAG, SELFMAG) != <span class="number">0</span>) <span class="keyword">goto</span> out;</span><br><span class="line">    <span class="keyword">if</span> (elf_ex-&gt;e_type != ET_EXEC &amp;&amp; elf_ex-&gt;e_type != ET_DYN) <span class="keyword">goto</span> out;</span><br><span class="line"></span><br><span class="line">    elf_phdata = load_elf_phdrs(elf_ex, bprm-&gt;file); <span class="comment">/* 读取程序头表 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 扫描程序头，查找 PT_INTERP（动态链接器路径） */</span></span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; elf_ex-&gt;e_phnum; i++, elf_ppnt++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (elf_ppnt-&gt;p_type != PT_INTERP) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="comment">/* 读取 /lib64/ld-linux-x86-64.so.2 等路径 */</span></span><br><span class="line">        elf_interpreter = kmalloc(elf_ppnt-&gt;p_filesz, GFP_KERNEL);</span><br><span class="line">        elf_read(bprm-&gt;file, elf_interpreter, ...);</span><br><span class="line">        interpreter = open_exec(elf_interpreter); <span class="comment">/* 打开 ld.so */</span></span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* begin_new_exec：不可回头点，替换旧进程上下文 */</span></span><br><span class="line">    retval = begin_new_exec(bprm);</span><br><span class="line">    <span class="comment">/* 从这里开始，旧地址空间已销毁，只有前进没有后退 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 将 PT_LOAD segment 逐一 mmap 进新地址空间 */</span></span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>, elf_ppnt = elf_phdata; i &lt; elf_ex-&gt;e_phnum; i++, elf_ppnt++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (elf_ppnt-&gt;p_type == PT_LOAD) &#123;</span><br><span class="line">            <span class="comment">/* elf_map() 调用 do_mmap() 建立文件映射 */</span></span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 若有动态链接器，同样加载 ld.so 的 PT_LOAD */</span></span><br><span class="line">    <span class="keyword">if</span> (interpreter) &#123;</span><br><span class="line">        elf_entry = load_elf_interp(interp_elf_ex, interpreter, ...);</span><br><span class="line">        <span class="comment">/* 入口地址改为 ld.so 的入口，而非程序自身的 e_entry */</span></span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>ELF 加载后的栈布局</strong>（从高地址到低地址）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">高地址</span><br><span class="line">┌─────────────────────────────────┐</span><br><span class="line">│  NULL（栈结束标记）              │</span><br><span class="line">│  envp 字符串数据                 │</span><br><span class="line">│  argv 字符串数据                 │</span><br><span class="line">│  filename 字符串                 │</span><br><span class="line">│  AT_NULL（auxv 结束）            │</span><br><span class="line">│  辅助向量 auxv（AT_PHDR/AT_ENTRY/│</span><br><span class="line">│           AT_PAGESZ/AT_RANDOM…） │</span><br><span class="line">│  NULL（envp 结束）               │</span><br><span class="line">│  envp[n-1] ... envp[0]          │</span><br><span class="line">│  NULL（argv 结束）               │</span><br><span class="line">│  argv[argc-1] ... argv[0]       │</span><br><span class="line">│  argc                           │ ← rsp 初始指向此处</span><br><span class="line">└─────────────────────────────────┘</span><br><span class="line">低地址</span><br></pre></td></tr></table></figure>
+
+<p><code>auxv</code>（辅助向量）向 ld.so 传递内核信息：<code>AT_PHDR</code> 指向程序头表在内存中的位置，<code>AT_ENTRY</code> 是程序真实入口（ld.so 完成重定位后跳转到此），<code>AT_RANDOM</code> 是 16 字节随机数用于 PIE&#x2F;ASLR 种子。</p>
+<h3 id="4-6-begin-new-exec：不可回头点"><a href="#4-6-begin-new-exec：不可回头点" class="headerlink" title="4.6 begin_new_exec：不可回头点"></a>4.6 begin_new_exec：不可回头点</h3><p><code>begin_new_exec</code>（fs&#x2F;exec.c: 1244）是 exec 过程的分水岭，在此之后：</p>
+<ul>
+<li>调用 <code>exec_mmap(bprm-&gt;mm)</code> 将旧 mm 替换为新 mm，旧地址空间被销毁</li>
+<li>调用 <code>flush_signal_handlers()</code> 将所有非 SIG_IGN 的信号处理器重置为 <code>SIG_DFL</code></li>
+<li>关闭所有标有 <code>O_CLOEXEC</code> 的文件描述符</li>
+<li>更新进程名（<code>comm</code>）为新程序的 basename</li>
+<li>若此时发生错误，进程将以 SIGSEGV 终止（因为旧环境已消失）</li>
+</ul>
+<hr>
+<h2 id="五、进程退出：do-exit-与僵尸进程"><a href="#五、进程退出：do-exit-与僵尸进程" class="headerlink" title="五、进程退出：do_exit 与僵尸进程"></a>五、进程退出：do_exit 与僵尸进程</h2><h3 id="5-1-do-exit-的退出流程"><a href="#5-1-do-exit-的退出流程" class="headerlink" title="5.1 do_exit 的退出流程"></a>5.1 do_exit 的退出流程</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/exit.c: 806–924（节选） */</span></span><br><span class="line"><span class="type">void</span> __noreturn <span class="title function_">do_exit</span><span class="params">(<span class="type">long</span> code)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span> *<span class="title">tsk</span> =</span> current;</span><br><span class="line"></span><br><span class="line">    exit_signals(tsk);          <span class="comment">/* 设置 PF_EXITING 标志，阻止新信号投递 */</span></span><br><span class="line"></span><br><span class="line">    group_dead = atomic_dec_and_test(&amp;tsk-&gt;signal-&gt;live);</span><br><span class="line">    <span class="comment">/* group_dead = true 说明这是线程组的最后一个线程 */</span></span><br><span class="line"></span><br><span class="line">    tsk-&gt;exit_code = code;</span><br><span class="line"></span><br><span class="line">    exit_mm();          <span class="comment">/* 解除地址空间：tsk-&gt;mm = NULL，mmput() 递减引用计数 */</span></span><br><span class="line">    exit_sem(tsk);      <span class="comment">/* 释放 System V 信号量 */</span></span><br><span class="line">    exit_shm(tsk);      <span class="comment">/* 解除共享内存段 */</span></span><br><span class="line">    exit_files(tsk);    <span class="comment">/* 关闭所有文件描述符（files_struct 引用计数 -1） */</span></span><br><span class="line">    exit_fs(tsk);       <span class="comment">/* 释放 fs_struct 引用 */</span></span><br><span class="line">    exit_task_namespaces(tsk); <span class="comment">/* 释放命名空间引用 */</span></span><br><span class="line">    exit_thread(tsk);   <span class="comment">/* 释放架构相关资源（如 FPU 状态） */</span></span><br><span class="line"></span><br><span class="line">    perf_event_exit_task(tsk);</span><br><span class="line">    cgroup_exit(tsk);</span><br><span class="line"></span><br><span class="line">    exit_notify(tsk, group_dead); <span class="comment">/* 通知父进程，进入 ZOMBIE 状态 */</span></span><br><span class="line"></span><br><span class="line">    do_task_dead();     <span class="comment">/* 调用 schedule() 永不返回 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-exit-mm：地址空间的释放"><a href="#5-2-exit-mm：地址空间的释放" class="headerlink" title="5.2 exit_mm：地址空间的释放"></a>5.2 exit_mm：地址空间的释放</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/exit.c: 532–567 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">exit_mm</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> *<span class="title">mm</span> =</span> current-&gt;mm;</span><br><span class="line"></span><br><span class="line">    exit_mm_release(current, mm);  <span class="comment">/* 清理 futex robust list 等 */</span></span><br><span class="line">    <span class="keyword">if</span> (!mm) <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    sync_mm_rss(mm);</span><br><span class="line">    mmap_read_lock(mm);</span><br><span class="line">    mmgrab_lazy_tlb(mm);           <span class="comment">/* 转换为 lazy TLB 进程 */</span></span><br><span class="line"></span><br><span class="line">    task_lock(current);</span><br><span class="line">    current-&gt;mm = <span class="literal">NULL</span>;            <span class="comment">/* 脱离地址空间 */</span></span><br><span class="line">    enter_lazy_tlb(mm, current);   <span class="comment">/* 告知 CPU 使用 lazy TLB 模式 */</span></span><br><span class="line">    task_unlock(current);</span><br><span class="line"></span><br><span class="line">    mmap_read_unlock(mm);</span><br><span class="line">    mm_update_next_owner(mm);      <span class="comment">/* 将 mm-&gt;owner 转移给其他共享线程 */</span></span><br><span class="line">    mmput(mm);                     <span class="comment">/* 引用计数 -1；若为 0 则真正释放页表 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>mmput()</code> 只是递减引用计数。若进程有共享同一 mm 的线程（线程组），mm 不会被立刻释放，直到最后一个线程退出。</p>
+<h3 id="5-3-exit-notify：从-RUNNING-到-ZOMBIE"><a href="#5-3-exit-notify：从-RUNNING-到-ZOMBIE" class="headerlink" title="5.3 exit_notify：从 RUNNING 到 ZOMBIE"></a>5.3 exit_notify：从 RUNNING 到 ZOMBIE</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/exit.c: 730–764（节选） */</span></span><br><span class="line"></span><br><span class="line">write_lock_irq(&amp;tasklist_lock);</span><br><span class="line">forget_original_parent(tsk, &amp;dead); <span class="comment">/* 将子进程过继给 init 或 subreaper */</span></span><br><span class="line"></span><br><span class="line">tsk-&gt;exit_state = EXIT_ZOMBIE;      <span class="comment">/* 进入僵尸态 */</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (thread_group_leader(tsk)) &#123;</span><br><span class="line">    <span class="comment">/* 向父进程发送 SIGCHLD（或 exit_signal 指定的信号） */</span></span><br><span class="line">    autoreap = do_notify_parent(tsk, tsk-&gt;exit_signal);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (autoreap) &#123;</span><br><span class="line">    tsk-&gt;exit_state = EXIT_DEAD;    <span class="comment">/* 父进程忽略 SIGCHLD，直接变 DEAD */</span></span><br><span class="line">&#125;</span><br><span class="line">write_unlock_irq(&amp;tasklist_lock);</span><br></pre></td></tr></table></figure>
+
+<p>进程在 <code>exit_state = EXIT_ZOMBIE</code> 后：task_struct 仍然存在于内存中，保留 PID、退出码等信息，等待父进程调用 <code>wait()</code> 来回收。这就是”僵尸进程”。</p>
+<h3 id="5-4-wait4-与-do-wait：父进程回收子进程"><a href="#5-4-wait4-与-do-wait：父进程回收子进程" class="headerlink" title="5.4 wait4 与 do_wait：父进程回收子进程"></a>5.4 wait4 与 do_wait：父进程回收子进程</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/exit.c: 1801–1812 */</span></span><br><span class="line">SYSCALL_DEFINE4(wait4, <span class="type">pid_t</span>, upid, <span class="type">int</span> __user *, stat_addr,</span><br><span class="line">                <span class="type">int</span>, options, <span class="keyword">struct</span> rusage __user *, ru)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rusage</span> <span class="title">r</span>;</span></span><br><span class="line">    <span class="type">long</span> err = kernel_wait4(upid, stat_addr, options, ru ? &amp;r : <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">if</span> (err &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">if</span> (ru &amp;&amp; copy_to_user(ru, &amp;r, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> rusage)))</span><br><span class="line">            <span class="keyword">return</span> -EFAULT;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> err;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>kernel_wait4 → do_wait → wait_consider_task</code>：扫描子进程列表，找到 <code>EXIT_ZOMBIE</code> 状态的子进程，收集退出码后调用 <code>release_task()</code> 释放 task_struct，PID 归还 pidmap。</p>
+<h3 id="5-5-孤儿进程：find-new-reaper"><a href="#5-5-孤儿进程：find-new-reaper" class="headerlink" title="5.5 孤儿进程：find_new_reaper"></a>5.5 孤儿进程：find_new_reaper</h3><p>当父进程先于子进程退出，子进程成为孤儿：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/exit.c: 618–651 */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">struct</span> task_struct *<span class="title function_">find_new_reaper</span><span class="params">(<span class="keyword">struct</span> task_struct *father,</span></span><br><span class="line"><span class="params">                                           <span class="keyword">struct</span> task_struct *child_reaper)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">/* 优先：父进程线程组内的存活线程 */</span></span><br><span class="line">    thread = find_alive_thread(father);</span><br><span class="line">    <span class="keyword">if</span> (thread) <span class="keyword">return</span> thread;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 其次：祖先中标记了 is_child_subreaper 的进程（如 systemd/docker init） */</span></span><br><span class="line">    <span class="keyword">if</span> (father-&gt;signal-&gt;has_child_subreaper) &#123;</span><br><span class="line">        <span class="keyword">for</span> (reaper = father-&gt;real_parent; ...; reaper = reaper-&gt;real_parent) &#123;</span><br><span class="line">            <span class="keyword">if</span> (reaper-&gt;signal-&gt;is_child_subreaper) &#123;</span><br><span class="line">                thread = find_alive_thread(reaper);</span><br><span class="line">                <span class="keyword">if</span> (thread) <span class="keyword">return</span> thread;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 最终：PID 命名空间的 init 进程（pid=1） */</span></span><br><span class="line">    <span class="keyword">return</span> child_reaper;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这就是为什么容器内 PID 1 必须正确处理 <code>SIGCHLD</code> 并调用 <code>wait()</code>——否则容器内所有孤儿进程都会成为其僵尸子进程，逐渐耗尽内核资源。</p>
+<hr>
+<h2 id="六、写时复制（COW）：fork-廉价的秘密"><a href="#六、写时复制（COW）：fork-廉价的秘密" class="headerlink" title="六、写时复制（COW）：fork 廉价的秘密"></a>六、写时复制（COW）：fork 廉价的秘密</h2><h3 id="6-1-COW-的实现原理"><a href="#6-1-COW-的实现原理" class="headerlink" title="6.1 COW 的实现原理"></a>6.1 COW 的实现原理</h3><p><code>fork</code> 时调用 <code>dup_mm → dup_mmap</code>，后者遍历父进程的所有 VMA（虚拟内存区域），将每个页表项拷贝到子进程，但同时将父子两边的 PTE 都标记为<strong>只读</strong>并清除 dirty bit。</p>
+<p>当任一方尝试写入，CPU 触发缺页异常（Protection Fault），内核的 <code>do_wp_page</code> 函数被调用：</p>
+<ol>
+<li>检查页面的 <code>_mapcount</code>（被多少 PTE 引用）</li>
+<li>若 <code>_mapcount == 1</code>（只有自己引用），直接将 PTE 改回可写（”破坏单映射”）</li>
+<li>若 <code>_mapcount &gt; 1</code>，分配新物理页，拷贝内容，更新 PTE 为新页并设为可写</li>
+</ol>
+<p>这样，只有真正被写入的页面才会发生物理复制，大量只读的代码页、rodata 页永远不会被复制。</p>
+<h3 id="6-2-fork-exec-的极致优化：vfork"><a href="#6-2-fork-exec-的极致优化：vfork" class="headerlink" title="6.2 fork + exec 的极致优化：vfork"></a>6.2 fork + exec 的极致优化：vfork</h3><p>如果紧接着 fork 就要 exec，COW 的页表复制本身也是浪费，<code>vfork</code> 为此而生：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* kernel/fork.c: 3016–3025 */</span></span><br><span class="line">SYSCALL_DEFINE0(vfork)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kernel_clone_args</span> <span class="title">args</span> =</span> &#123;</span><br><span class="line">        .flags      = CLONE_VFORK | CLONE_VM,</span><br><span class="line">        .exit_signal = SIGCHLD,</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="keyword">return</span> kernel_clone(&amp;args);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>CLONE_VM</code>：父子共享同一 mm，不复制页表</li>
+<li><code>CLONE_VFORK</code>：父进程阻塞在 <code>wait_for_vfork_done()</code> 直到子进程调用 <code>exec</code> 或 <code>_exit</code></li>
+</ul>
+<p><code>vfork</code> 的约束极为严格：子进程只能调用 <code>exec</code> 系列或 <code>_exit</code>，不得修改任何全局状态，也不得 <code>return</code> 出创建它的函数——因为父子共享栈和 mm，任何写操作都会污染父进程。</p>
+<h3 id="6-3-为何-fork-exec-几乎不复制内存"><a href="#6-3-为何-fork-exec-几乎不复制内存" class="headerlink" title="6.3 为何 fork + exec 几乎不复制内存"></a>6.3 为何 fork + exec 几乎不复制内存</h3><p>即使不用 vfork，普通 <code>fork</code> 后立即 <code>exec</code>，实际代价也很小：</p>
+<ol>
+<li><code>fork</code> 时仅复制页表结构（4级页表的高层节点），并将所有 PTE 标记为 COW 只读</li>
+<li><code>exec</code> 调用 <code>begin_new_exec → exec_mmap</code>，直接将新 mm 替换旧 mm，<code>mmput(old_mm)</code> 递减引用计数后释放旧页表，所有 COW 只读标记都随之消失</li>
+<li>整个过程：父进程没有任何页面被真正复制，唯一的开销是页表遍历和清理</li>
+</ol>
+<p>这就是为什么 shell 每秒可以创建数千个子进程，而内存用量并不会暴增。</p>
+<hr>
+<h2 id="七、诊断方法"><a href="#七、诊断方法" class="headerlink" title="七、诊断方法"></a>七、诊断方法</h2><h3 id="7-1-proc-PID-status：进程状态全览"><a href="#7-1-proc-PID-status：进程状态全览" class="headerlink" title="7.1 &#x2F;proc&#x2F;PID&#x2F;status：进程状态全览"></a>7.1 &#x2F;proc&#x2F;PID&#x2F;status：进程状态全览</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/1234/status</span><br><span class="line">Name:   nginx</span><br><span class="line">State:  S (sleeping)</span><br><span class="line">Tgid:   1234           <span class="comment"># 线程组 ID = 主线程 PID</span></span><br><span class="line">Pid:    1234           <span class="comment"># 当前线程 PID</span></span><br><span class="line">PPid:   1              <span class="comment"># 父进程 PID</span></span><br><span class="line">Threads: 4             <span class="comment"># 线程数（CLONE_THREAD 创建的）</span></span><br><span class="line">VmRSS:  12488 kB       <span class="comment"># 物理内存使用量（Resident Set Size）</span></span><br><span class="line">VmSize: 458752 kB      <span class="comment"># 虚拟内存总量</span></span><br><span class="line">SigBlk: 0000000000000000  <span class="comment"># 被阻塞的信号集（位图，16进制）</span></span><br><span class="line">SigCgt: 0000000180014a03  <span class="comment"># 有自定义处理器的信号集</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-proc-PID-task-：查看所有线程"><a href="#7-2-proc-PID-task-：查看所有线程" class="headerlink" title="7.2 &#x2F;proc&#x2F;PID&#x2F;task&#x2F;：查看所有线程"></a>7.2 &#x2F;proc&#x2F;PID&#x2F;task&#x2F;：查看所有线程</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">ls</span> /proc/1234/task/</span><br><span class="line">1234  1235  1236  1237   <span class="comment"># 每个子目录对应一个线程（tid）</span></span><br><span class="line"></span><br><span class="line">$ <span class="built_in">cat</span> /proc/1234/task/1235/status | grep -E <span class="string">&quot;^(Pid|Tgid):&quot;</span></span><br><span class="line">Tgid:   1234   <span class="comment"># 所有线程 tgid 相同</span></span><br><span class="line">Pid:    1235   <span class="comment"># 各线程 pid 不同</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-3-pstree-p：可视化进程树"><a href="#7-3-pstree-p：可视化进程树" class="headerlink" title="7.3 pstree -p：可视化进程树"></a>7.3 pstree -p：可视化进程树</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$ pstree -p 1</span><br><span class="line">systemd(1)─┬─sshd(892)───sshd(1041)───bash(1042)───pstree(2300)</span><br><span class="line">           ├─nginx(1234)─┬─nginx(1235)</span><br><span class="line">           │             ├─nginx(1236)</span><br><span class="line">           │             └─nginx(1237)</span><br><span class="line">           └─...</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-4-strace-f：追踪进程创建系统调用"><a href="#7-4-strace-f：追踪进程创建系统调用" class="headerlink" title="7.4 strace -f：追踪进程创建系统调用"></a>7.4 strace -f：追踪进程创建系统调用</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪 fork/clone/execve（-f 跟踪子进程）</span></span><br><span class="line">$ strace -f -e trace=fork,<span class="built_in">clone</span>,clone3,execve <span class="built_in">ls</span> /tmp</span><br><span class="line">execve(<span class="string">&quot;/usr/bin/ls&quot;</span>, [<span class="string">&quot;ls&quot;</span>, <span class="string">&quot;/tmp&quot;</span>], 0x7ffd.../* 40 vars */) = 0</span><br><span class="line"><span class="comment"># 显示实际加载的 ELF 文件和参数</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-5-bpftrace：动态追踪-copy-process"><a href="#7-5-bpftrace：动态追踪-copy-process" class="headerlink" title="7.5 bpftrace：动态追踪 copy_process"></a>7.5 bpftrace：动态追踪 copy_process</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪所有进程创建，打印父子 PID 和进程名</span></span><br><span class="line">$ bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kretprobe:copy_process</span></span><br><span class="line"><span class="string">/retval != 0/ &#123;</span></span><br><span class="line"><span class="string">    printf(&quot;fork: ppid=%d pcomm=%s cpid=%d\n&quot;,</span></span><br><span class="line"><span class="string">           pid, comm, ((struct task_struct *)retval)-&gt;pid);</span></span><br><span class="line"><span class="string">&#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-6-perf-stat：量化进程创建开销"><a href="#7-6-perf-stat：量化进程创建开销" class="headerlink" title="7.6 perf stat：量化进程创建开销"></a>7.6 perf stat：量化进程创建开销</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$ perf <span class="built_in">stat</span> -e task-clock,context-switches,cpu-migrations,page-faults \</span><br><span class="line">    -r 5 bash -c <span class="string">&#x27;for i in $(seq 100); do /bin/true; done&#x27;</span></span><br><span class="line"></span><br><span class="line">Performance counter stats <span class="keyword">for</span> <span class="string">&#x27;bash -c ...&#x27;</span> (5 runs):</span><br><span class="line"></span><br><span class="line">    312.45 msec task-clock         <span class="comment"># CPU 时间</span></span><br><span class="line">        850      context-switches  <span class="comment"># 上下文切换（每次 fork/exec 各一次）</span></span><br><span class="line">          2      cpu-migrations    <span class="comment"># 跨核迁移</span></span><br><span class="line">      14230      page-faults       <span class="comment"># 缺页（含 COW 触发）</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-7-proc-PID-maps：观察-COW-页面状态"><a href="#7-7-proc-PID-maps：观察-COW-页面状态" class="headerlink" title="7.7 &#x2F;proc&#x2F;PID&#x2F;maps：观察 COW 页面状态"></a>7.7 &#x2F;proc&#x2F;PID&#x2F;maps：观察 COW 页面状态</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/1234/maps | <span class="built_in">head</span> -5</span><br><span class="line">55a3c2000000-55a3c2001000 r--p 00000000 fd:01 123456 /usr/bin/nginx</span><br><span class="line">55a3c2001000-55a3c2100000 r-xp 00001000 fd:01 123456 /usr/bin/nginx  <span class="comment"># 代码段只读</span></span><br><span class="line">55a3c2100000-55a3c2120000 r--p 00100000 fd:01 123456 /usr/bin/nginx  <span class="comment"># rodata 只读</span></span><br><span class="line">55a3c2121000-55a3c2122000 rw-p 00120000 fd:01 123456 /usr/bin/nginx  <span class="comment"># data 可写</span></span><br><span class="line">7f8a00000000-7f8a00020000 rw-p 00000000 00:00 0       [heap]</span><br></pre></td></tr></table></figure>
+
+<p><code>r--p</code> 和 <code>r-xp</code> 中的 <code>p</code>（private）表示这是写时复制映射，fork 后父子进程共享这些物理页，直到写入为止。</p>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><table>
+<thead>
+<tr>
+<th>操作</th>
+<th>内核入口</th>
+<th>共享资源</th>
+<th>代价</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>fork()</code></td>
+<td><code>kernel_clone(&#123;.exit_signal=SIGCHLD&#125;)</code></td>
+<td>无（COW 页表）</td>
+<td>页表复制 + 子进程入队</td>
+</tr>
+<tr>
+<td><code>vfork()</code></td>
+<td>&#96;kernel_clone({CLONE_VFORK</td>
+<td>CLONE_VM})&#96;</td>
+<td>mm 完全共享</td>
+</tr>
+<tr>
+<td><code>pthread_create</code></td>
+<td>&#96;clone(CLONE_VM</td>
+<td>CLONE_THREAD</td>
+<td>…)&#96;</td>
+</tr>
+<tr>
+<td><code>execve()</code></td>
+<td><code>do_execveat_common</code></td>
+<td>无（全新 mm）</td>
+<td>ELF 加载 + 页表建立</td>
+</tr>
+</tbody></table>
+<p>从 <code>fork</code> 时 <code>dup_task_struct</code> 的内核栈分配，到 <code>copy_thread</code> 中 <code>childregs-&gt;ax = 0</code> 让子进程”看到” 返回值 0，再到 <code>exec</code> 路径上 <code>begin_new_exec</code> 的不可回头设计，以及 <code>exit_zombie</code> 状态下 task_struct 对父进程的等待——这条完整的进程生命周期展现了 Linux 内核在正确性、性能和可观测性之间精妙的平衡。</p>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><code>include/linux/sched.h</code> — struct task_struct 定义</li>
+<li><code>kernel/fork.c</code> — fork&#x2F;clone&#x2F;vfork 实现</li>
+<li><code>fs/exec.c</code> — execve 实现</li>
+<li><code>fs/binfmt_elf.c</code> — ELF 加载器</li>
+<li><code>kernel/exit.c</code> — 进程退出</li>
+<li><code>kernel/sched/core.c</code> — wake_up_new_task</li>
+<li><code>arch/x86/kernel/process.c</code> — x86 copy_thread</li>
+<li><code>include/uapi/linux/sched.h</code> — CLONE_* 标志定义</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/fork/" rel="tag"># fork</a>
+              <a href="/tags/Process/" rel="tag"># Process</a>
+              <a href="/tags/exec/" rel="tag"># exec</a>
+              <a href="/tags/clone/" rel="tag"># clone</a>
+              <a href="/tags/task-struct/" rel="tag"># task_struct</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-mm-part7-diagnostics/" rel="prev" title="Linux 内存管理深度剖析（七）：内存诊断工具与性能调优实战">
+                  <i class="fa fa-angle-left"></i> Linux 内存管理深度剖析（七）：内存诊断工具与性能调优实战
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-proc-part2-cfs-scheduler/" rel="next" title="Linux 进程管理深度剖析（二）：CFS 完全公平调度器源码分析">
+                  Linux 进程管理深度剖析（二）：CFS 完全公平调度器源码分析 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

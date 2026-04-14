@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="在上一篇文章中，我们梳理了 Linux Buddy 系统如何以页为单位管理物理内存。然而内核中大量数据结构（task_struct、inode、dentry……）都远小于一页（4 KiB），若每次都向 Buddy 系统申请整页，会造成严重的内部碎片。为此 Linux 在 Buddy 之上引入了 Slab 分配器层，专为固定大小的内核对象服务。 本文基于 Linux 6.4-rc1（commit a">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 内存管理深度剖析（二）：Slab&#x2F;Slub 分配器源码解析">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part2-slab-allocator/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="在上一篇文章中，我们梳理了 Linux Buddy 系统如何以页为单位管理物理内存。然而内核中大量数据结构（task_struct、inode、dentry……）都远小于一页（4 KiB），若每次都向 Buddy 系统申请整页，会造成严重的内部碎片。为此 Linux 在 Buddy 之上引入了 Slab 分配器层，专为固定大小的内核对象服务。 本文基于 Linux 6.4-rc1（commit a">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-14T06:10:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T03:56:17.389Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Memory Management">
+<meta property="article:tag" content="SLUB">
+<meta property="article:tag" content="Slab Allocator">
+<meta property="article:tag" content="kmalloc">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part2-slab-allocator/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part2-slab-allocator/","path":"2026/04/14/2026-04-14-linux-mm-part2-slab-allocator/","title":"Linux 内存管理深度剖析（二）：Slab/Slub 分配器源码解析"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 内存管理深度剖析（二）：Slab/Slub 分配器源码解析 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E4%B8%89%E7%A7%8D%E5%88%86%E9%85%8D%E5%99%A8%EF%BC%9Aslab-slub-slob"><span class="nav-number">1.</span> <span class="nav-text">一、三种分配器：slab &#x2F; slub &#x2F; slob</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-SLAB%EF%BC%88%E5%8E%9F%E5%A7%8B%E5%AE%9E%E7%8E%B0%EF%BC%89"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 SLAB（原始实现）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-SLUB%EF%BC%88%E9%BB%98%E8%AE%A4%E9%80%89%E6%8B%A9%EF%BC%89"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 SLUB（默认选择）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-SLOB%EF%BC%88%E5%B5%8C%E5%85%A5%E5%BC%8F%E7%B3%BB%E7%BB%9F%EF%BC%89"><span class="nav-number">1.3.</span> <span class="nav-text">1.3 SLOB（嵌入式系统）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-%E7%BC%96%E8%AF%91%E9%85%8D%E7%BD%AE"><span class="nav-number">1.4.</span> <span class="nav-text">1.4 编译配置</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81SLUB-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">二、SLUB 核心数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-struct-kmem-cache"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 struct kmem_cache</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-struct-kmem-cache-cpu"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 struct kmem_cache_cpu</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-struct-kmem-cache-node"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 struct kmem_cache_node</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-slab-%E5%AF%B9%E8%B1%A1%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 slab 对象内存布局</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81SLUB-%E5%88%86%E9%85%8D%E8%B7%AF%E5%BE%84"><span class="nav-number">3.</span> <span class="nav-text">三、SLUB 分配路径</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E8%B0%83%E7%94%A8%E9%93%BE%E6%80%BB%E8%A7%88"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 调用链总览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-Fast-Path%EF%BC%9A%E6%97%A0%E9%94%81-per-CPU-freelist-%E5%88%86%E9%85%8D"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 Fast Path：无锁 per-CPU freelist 分配</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-Slow-Path%EF%BC%9A-slab-alloc"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 Slow Path：___slab_alloc</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-kmalloc%EF%BC%9A%E9%80%9A%E7%94%A8%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 kmalloc：通用内存分配</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81SLUB-%E9%87%8A%E6%94%BE%E8%B7%AF%E5%BE%84"><span class="nav-number">4.</span> <span class="nav-text">四、SLUB 释放路径</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%B0%83%E7%94%A8%E9%93%BE%E6%80%BB%E8%A7%88"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 调用链总览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-Fast-Path%EF%BC%9A%E5%BD%92%E8%BF%98%E5%88%B0-per-CPU-freelist"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 Fast Path：归还到 per-CPU freelist</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-Slow-Path%EF%BC%9A-slab-free"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 Slow Path：__slab_free</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81vmalloc%EF%BC%9A%E8%99%9A%E6%8B%9F%E8%BF%9E%E7%BB%AD%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D"><span class="nav-number">5.</span> <span class="nav-text">五、vmalloc：虚拟连续内存分配</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-vmalloc-vs-kmalloc"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 vmalloc vs kmalloc</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-struct-vmap-area%EF%BC%9A%E8%99%9A%E6%8B%9F%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4%E7%AE%A1%E7%90%86"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 struct vmap_area：虚拟地址空间管理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-vmalloc-node-%E5%88%86%E9%85%8D%E6%B5%81%E7%A8%8B"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 __vmalloc_node 分配流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81SLUB-%E8%B0%83%E8%AF%95%E7%89%B9%E6%80%A7"><span class="nav-number">6.</span> <span class="nav-text">六、SLUB 调试特性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-CONFIG-SLUB-DEBUG"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 CONFIG_SLUB_DEBUG</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-proc-slabinfo"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 &#x2F;proc&#x2F;slabinfo</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-sys-kernel-slab-%E7%9B%AE%E5%BD%95"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 &#x2F;sys&#x2F;kernel&#x2F;slab&#x2F; 目录</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-kmemleak-%E5%86%85%E5%AD%98%E6%B3%84%E6%BC%8F%E6%A3%80%E6%B5%8B%E5%8E%9F%E7%90%86"><span class="nav-number">6.4.</span> <span class="nav-text">6.4 kmemleak 内存泄漏检测原理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E8%AF%8A%E6%96%AD%E6%96%B9%E6%B3%95"><span class="nav-number">7.</span> <span class="nav-text">七、诊断方法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-slabtop%EF%BC%9A%E5%AE%9E%E6%97%B6%E7%9B%91%E6%8E%A7"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 slabtop：实时监控</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-vmstat-m%EF%BC%9Aslab-%E5%86%85%E5%AD%98%E6%B1%87%E6%80%BB"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 vmstat -m：slab 内存汇总</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-BPFtrace-%E8%BF%BD%E8%B8%AA%E5%88%86%E9%85%8D%E4%BA%8B%E4%BB%B6"><span class="nav-number">7.3.</span> <span class="nav-text">7.3 BPFtrace 追踪分配事件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-perf-stat-%E7%BB%9F%E8%AE%A1-kmalloc-%E9%A2%91%E7%8E%87"><span class="nav-number">7.4.</span> <span class="nav-text">7.4 perf stat 统计 kmalloc 频率</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-kmemleak-%E6%8E%92%E6%9F%A5%E6%B3%84%E6%BC%8F"><span class="nav-number">7.5.</span> <span class="nav-text">7.5 kmemleak 排查泄漏</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-6-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98%E4%B8%8E%E8%B0%83%E4%BC%98%E5%BB%BA%E8%AE%AE"><span class="nav-number">7.6.</span> <span class="nav-text">7.6 常见问题与调优建议</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">八、总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">9.</span> <span class="nav-text">参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">95</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">31</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">240</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part2-slab-allocator/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 内存管理深度剖析（二）：Slab/Slub 分配器源码解析 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 内存管理深度剖析（二）：Slab/Slub 分配器源码解析
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 14:10:00 / Modified: 11:56:17" itemprop="dateCreated datePublished" datetime="2026-04-14T14:10:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Memory-Management/" itemprop="url" rel="index"><span itemprop="name">Memory Management</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>在上一篇文章中，我们梳理了 Linux Buddy 系统如何以页为单位管理物理内存。然而内核中大量数据结构（<code>task_struct</code>、<code>inode</code>、<code>dentry</code>……）都远小于一页（4 KiB），若每次都向 Buddy 系统申请整页，会造成严重的内部碎片。为此 Linux 在 Buddy 之上引入了 <strong>Slab 分配器层</strong>，专为固定大小的内核对象服务。</p>
+<p>本文基于 <strong>Linux 6.4-rc1</strong>（<code>commit ac9a78681b92</code>）源码，深入剖析三种 Slab 实现的设计哲学、SLUB 的核心数据结构与分配&#x2F;释放路径，并延伸到 <code>vmalloc</code> 虚拟连续内存分配。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="一、三种分配器：slab-slub-slob"><a href="#一、三种分配器：slab-slub-slob" class="headerlink" title="一、三种分配器：slab &#x2F; slub &#x2F; slob"></a>一、三种分配器：slab &#x2F; slub &#x2F; slob</h2><p>Linux 内核历史上存在三套互斥的 slab 实现，通过内核 Kconfig 编译选项选择其中之一。</p>
+<h3 id="1-1-SLAB（原始实现）"><a href="#1-1-SLAB（原始实现）" class="headerlink" title="1.1 SLAB（原始实现）"></a>1.1 SLAB（原始实现）</h3><p>SLAB 于 1994 年由 Sun Microsystems 的 Jeff Bonwick 设计，1996 年移植到 Linux。其核心思想是<strong>对象缓存</strong>（object caching）：对象释放后不立即归还给系统，而是保留在 cache 中，下次分配时直接复用，省去构造&#x2F;析构开销。</p>
+<p>SLAB 的主要特征：</p>
+<ul>
+<li>每个 CPU 有独立的 <strong>array_cache</strong>（本地缓存），加速分配</li>
+<li>每个 NUMA 节点有 <strong>shared cache</strong> 和 <strong>alien cache</strong>，跨节点对象可归还本地节点</li>
+<li>支持 <strong>cache coloring</strong>（缓存行着色），减少 L1&#x2F;L2 cache 行冲突</li>
+<li>数据结构极为复杂，<code>struct kmem_cache</code> 在 SLAB 下超过 200 字节</li>
+</ul>
+<p>SLAB 的缺点也同样明显：多层链表（<code>slabs_partial</code> &#x2F; <code>slabs_full</code> &#x2F; <code>slabs_free</code>）维护开销大；SMP 下锁竞争严重；代码可读性差，难以维护。</p>
+<h3 id="1-2-SLUB（默认选择）"><a href="#1-2-SLUB（默认选择）" class="headerlink" title="1.2 SLUB（默认选择）"></a>1.2 SLUB（默认选择）</h3><p>SLUB 由 Christoph Lameter 于 2007 年编写，Linux 2.6.23 起成为默认分配器。其设计哲学是<strong>去掉队列、直接操作 slab</strong>：</p>
+<blockquote>
+<p>“SLUB : A Slab allocator without object queues.” —— <code>mm/slub.c</code> 开头注释</p>
+</blockquote>
+<p>SLUB 的核心优势：</p>
+<ul>
+<li><strong>无全局 full&#x2F;free 链表</strong>：只维护 partial 链表，极大简化了 slab 状态机</li>
+<li><strong>无锁 fast path</strong>：利用 <code>this_cpu_cmpxchg_double</code> 原子操作，分配&#x2F;释放 fast path 完全无锁</li>
+<li><strong>per-CPU partial 链表</strong>：减少 NUMA node 层面的 <code>list_lock</code> 竞争</li>
+<li>内存占用更小，代码更清晰（<code>mm/slub.c</code> 约 6500 行 vs SLAB 约 4500+ 行但逻辑更复杂）</li>
+</ul>
+<h3 id="1-3-SLOB（嵌入式系统）"><a href="#1-3-SLOB（嵌入式系统）" class="headerlink" title="1.3 SLOB（嵌入式系统）"></a>1.3 SLOB（嵌入式系统）</h3><p>SLOB（Simple List Of Blocks）是为内存极端受限的嵌入式系统设计的超简化版本。它将所有空闲内存组织成一个全局的自由块链表，不区分 cache，不区分 CPU，没有任何 per-CPU 结构。</p>
+<p>SLOB 特征：</p>
+<ul>
+<li>代码极短（约 600 行）</li>
+<li>内存效率最高，开销最小</li>
+<li>没有任何并发优化，性能差，不适合 SMP</li>
+<li>从 Linux 6.2 起被标记为 deprecated，预计将来移除</li>
+</ul>
+<h3 id="1-4-编译配置"><a href="#1-4-编译配置" class="headerlink" title="1.4 编译配置"></a>1.4 编译配置</h3><p>三种分配器在 <code>init/Kconfig</code> 中互斥：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">choice</span><br><span class="line">    prompt &quot;Choose SLAB allocator&quot;</span><br><span class="line"></span><br><span class="line">config SLAB</span><br><span class="line">    bool &quot;SLAB&quot;</span><br><span class="line"></span><br><span class="line">config SLUB</span><br><span class="line">    bool &quot;SLUB (Unqueued Allocator)&quot;</span><br><span class="line">    default y</span><br><span class="line"></span><br><span class="line">config SLOB</span><br><span class="line">    depends on EXPERT</span><br><span class="line">    bool &quot;SLOB (Simple Allocator)&quot;</span><br><span class="line">endchoice</span><br></pre></td></tr></table></figure>
+
+<p>此外，SLUB 还有两个重要的子选项：</p>
+<table>
+<thead>
+<tr>
+<th>选项</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CONFIG_SLUB_DEBUG</code></td>
+<td>启用 red zone、poison、对象追踪，用于调试</td>
+</tr>
+<tr>
+<td><code>CONFIG_SLUB_CPU_PARTIAL</code></td>
+<td>启用 per-CPU partial 链表，提升多核性能（默认开启）</td>
+</tr>
+<tr>
+<td><code>CONFIG_SLUB_TINY</code></td>
+<td>超精简 SLUB，去掉 per-CPU 结构，适合 CONFIG_EXPERT 场景</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="二、SLUB-核心数据结构"><a href="#二、SLUB-核心数据结构" class="headerlink" title="二、SLUB 核心数据结构"></a>二、SLUB 核心数据结构</h2><h3 id="2-1-struct-kmem-cache"><a href="#2-1-struct-kmem-cache" class="headerlink" title="2.1 struct kmem_cache"></a>2.1 <code>struct kmem_cache</code></h3><p><code>struct kmem_cache</code> 是 slab cache 的”描述符”，在 <code>include/linux/slub_def.h</code> 中定义：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache</span> &#123;</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifndef</span> CONFIG_SLUB_TINY</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache_cpu</span> __<span class="title">percpu</span> *<span class="title">cpu_slab</span>;</span>  <span class="comment">/* per-CPU 热路径数据 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    <span class="type">slab_flags_t</span> flags;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> min_partial;     <span class="comment">/* node-&gt;partial 最小保留数量 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> size;             <span class="comment">/* 对象大小（含元数据） */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> object_size;      <span class="comment">/* 对象大小（不含元数据） */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">reciprocal_value</span> <span class="title">reciprocal_size</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> offset;           <span class="comment">/* freepointer 在对象内的偏移 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SLUB_CPU_PARTIAL</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> cpu_partial;      <span class="comment">/* per-CPU partial 最大对象数 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> cpu_partial_slabs;<span class="comment">/* per-CPU partial 最大 slab 数 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache_order_objects</span> <span class="title">oo</span>;</span> <span class="comment">/* 首选分配 order 及对象数 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache_order_objects</span> <span class="title">min</span>;</span><span class="comment">/* 退化分配 order 及对象数 */</span></span><br><span class="line">    <span class="type">gfp_t</span> allocflags;</span><br><span class="line">    <span class="type">int</span> refcount;</span><br><span class="line">    <span class="type">void</span> (*ctor)(<span class="type">void</span> *);          <span class="comment">/* 构造函数（可为 NULL） */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> inuse;            <span class="comment">/* 元数据起始偏移 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> align;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> red_left_pad;     <span class="comment">/* 左侧 redzone 填充 */</span></span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *name;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">list</span>;</span>         <span class="comment">/* 全局 slab_caches 链表 */</span></span><br><span class="line">    <span class="comment">/* ... SYSFS、KASAN、NUMA、usercopy 等条件编译字段 ... */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache_node</span> *<span class="title">node</span>[<span class="title">MAX_NUMNODES</span>];</span> <span class="comment">/* NUMA 节点管理 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>关键字段解析：</p>
+<ul>
+<li>**<code>size</code> vs <code>object_size</code>**：<code>object_size</code> 是用户请求大小，<code>size</code> 还包含 freepointer、red zone、padding 等元数据，<code>size</code> 必须对齐到 <code>align</code>。</li>
+<li><strong><code>offset</code><strong>：空闲对象的 next 指针存放在对象内部 <code>offset</code> 字节处（而非独立管理），这是 SLUB “无队列”设计的关键——空闲链表</strong>嵌入在对象本身中</strong>。</li>
+<li>**<code>min_partial</code>**：node 层面 partial 链表的最低水位线。当 partial 数量超过此值且一个 slab 变为全空时，该 slab 直接释放给 buddy，防止 partial 链表无限增长。</li>
+<li>**<code>oo</code>**：<code>kmem_cache_order_objects</code> 将 buddy order（高位）和该 order 下的对象数（低位）打包进一个 <code>unsigned int</code>，查询时用位移即可。</li>
+</ul>
+<h3 id="2-2-struct-kmem-cache-cpu"><a href="#2-2-struct-kmem-cache-cpu" class="headerlink" title="2.2 struct kmem_cache_cpu"></a>2.2 <code>struct kmem_cache_cpu</code></h3><p>每个 CPU 拥有独立的 <code>struct kmem_cache_cpu</code>（<code>include/linux/slub_def.h</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache_cpu</span> &#123;</span></span><br><span class="line">    <span class="type">void</span> **freelist;    <span class="comment">/* 指向下一个可用对象（无锁单链表头） */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> tid;  <span class="comment">/* 全局唯一事务 ID，用于 cmpxchg 检测竞争 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">slab</span> *<span class="title">slab</span>;</span>  <span class="comment">/* 当前活跃 slab（&quot;frozen&quot; 状态） */</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SLUB_CPU_PARTIAL</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">slab</span> *<span class="title">partial</span>;</span> <span class="comment">/* per-CPU partial slab 链表头 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    <span class="type">local_lock_t</span> lock;  <span class="comment">/* 保护上述字段（slow path 使用） */</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SLUB_STATS</span></span><br><span class="line">    <span class="type">unsigned</span> stat[NR_SLUB_STAT_ITEMS];</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>**<code>freelist</code>**：指向当前活跃 slab 的空闲对象链表头，fast path 直接从这里取对象。</li>
+<li>**<code>tid</code>**（transaction ID）：每次分配&#x2F;释放成功后自增。与 <code>freelist</code> 一起参与 <code>this_cpu_cmpxchg_double</code>，保证在无锁操作期间没有被抢占并切换 CPU 或被中断修改。</li>
+<li>**<code>slab</code>**：当前”冻结”（frozen）的活跃 slab。一个 slab 被某 CPU 的 cpu_slab 持有时处于 frozen 状态，脱离 partial&#x2F;full 链表管理。</li>
+</ul>
+<h3 id="2-3-struct-kmem-cache-node"><a href="#2-3-struct-kmem-cache-node" class="headerlink" title="2.3 struct kmem_cache_node"></a>2.3 <code>struct kmem_cache_node</code></h3><p>每个 <code>kmem_cache</code> 在每个 NUMA 节点都有一个 <code>kmem_cache_node</code>，在 <code>mm/slab.h</code> 中定义：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache_node</span> &#123;</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SLUB</span></span><br><span class="line">    <span class="type">spinlock_t</span> list_lock;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> nr_partial;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">partial</span>;</span>      <span class="comment">/* 部分使用的 slab 链表 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SLUB_DEBUG</span></span><br><span class="line">    <span class="type">atomic_long_t</span> nr_slabs;</span><br><span class="line">    <span class="type">atomic_long_t</span> total_objects;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">full</span>;</span>         <span class="comment">/* 调试模式下追踪满 slab */</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>partial</code> 链表通过 <code>slab-&gt;slab_list</code> 字段串联所有”部分使用”的 slab。<code>list_lock</code> 是该链表的保护锁，SLUB 设计的核心目标之一就是尽量减少对此锁的竞争。</p>
+<h3 id="2-4-slab-对象内存布局"><a href="#2-4-slab-对象内存布局" class="headerlink" title="2.4 slab 对象内存布局"></a>2.4 slab 对象内存布局</h3><p>一个 slab 的内存布局（开启 SLUB_DEBUG 时）如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">┌──────────────────────────────────────────────────────────────┐</span><br><span class="line">│  slab page(s) — 从 buddy 分配，阶数 = oo.order               │</span><br><span class="line">├──────────────┬────────────────────────────────┬──────────────┤</span><br><span class="line">│  red_left_pad│     object[0]                  │   object[1]  │</span><br><span class="line">│  (redzone)   ├─────────┬──────────┬───────────┤   ...        │</span><br><span class="line">│              │ payload │ freeptr  │ redzone   │              │</span><br><span class="line">│              │(object_ │(offset   │+ padding  │              │</span><br><span class="line">│              │  size)  │ bytes)   │           │              │</span><br><span class="line">└──────────────┴─────────┴──────────┴───────────┴──────────────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>payload</strong>：用户实际使用的内存（<code>object_size</code> 字节）</li>
+<li><strong>freeptr</strong>：对象空闲时，该位置存储指向下一个空闲对象的指针（位于 <code>offset</code> 处）；对象分配后此位置可被覆盖（除非开启 <code>CONFIG_SLAB_FREELIST_HARDENED</code>）</li>
+<li><strong>redzone</strong>：调试时在对象两侧填充特征字节（<code>0xbb</code>），释放时检测越界写</li>
+<li><strong>padding</strong>：使每个对象对齐到 <code>align</code> 字节边界</li>
+</ul>
+<p>若开启 <code>CONFIG_SLAB_FREELIST_HARDENED</code>，freepointer 在存储时会与 <code>s-&gt;random</code> 进行 XOR 加密，防止指针被恶意篡改。</p>
+<hr>
+<h2 id="三、SLUB-分配路径"><a href="#三、SLUB-分配路径" class="headerlink" title="三、SLUB 分配路径"></a>三、SLUB 分配路径</h2><h3 id="3-1-调用链总览"><a href="#3-1-调用链总览" class="headerlink" title="3.1 调用链总览"></a>3.1 调用链总览</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">kmem_cache_alloc(s, gfpflags)</span><br><span class="line">  └─ __kmem_cache_alloc_lru(s, NULL, gfpflags)</span><br><span class="line">       └─ slab_alloc(s, lru, gfpflags, addr, orig_size)</span><br><span class="line">            └─ slab_alloc_node(s, lru, gfpflags, NUMA_NO_NODE, addr, orig_size)</span><br><span class="line">                 ├─ kfence_alloc()            /* KFENCE 采样路径 */</span><br><span class="line">                 └─ __slab_alloc_node(s, ...)</span><br><span class="line">                      ├─ [fast path] this_cpu_cmpxchg_double</span><br><span class="line">                      └─ [slow path] __slab_alloc → ___slab_alloc</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-Fast-Path：无锁-per-CPU-freelist-分配"><a href="#3-2-Fast-Path：无锁-per-CPU-freelist-分配" class="headerlink" title="3.2 Fast Path：无锁 per-CPU freelist 分配"></a>3.2 Fast Path：无锁 per-CPU freelist 分配</h3><p>fast path 的核心在 <code>__slab_alloc_node</code>（<code>mm/slub.c:3298</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> __always_inline <span class="type">void</span> *__slab_alloc_node(<span class="keyword">struct</span> kmem_cache *s,</span><br><span class="line">        <span class="type">gfp_t</span> gfpflags, <span class="type">int</span> node, <span class="type">unsigned</span> <span class="type">long</span> addr, <span class="type">size_t</span> orig_size)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache_cpu</span> *<span class="title">c</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">slab</span> *<span class="title">slab</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> tid;</span><br><span class="line">    <span class="type">void</span> *object;</span><br><span class="line"></span><br><span class="line">redo:</span><br><span class="line">    c = raw_cpu_ptr(s-&gt;cpu_slab);</span><br><span class="line">    tid = READ_ONCE(c-&gt;tid);</span><br><span class="line"></span><br><span class="line">    barrier();   <span class="comment">/* 保证 tid 先于 freelist/slab 读取 */</span></span><br><span class="line"></span><br><span class="line">    object = c-&gt;freelist;</span><br><span class="line">    slab = c-&gt;slab;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!USE_LOCKLESS_FAST_PATH() ||</span><br><span class="line">        unlikely(!object || !slab || !node_match(slab, node))) &#123;</span><br><span class="line">        object = __slab_alloc(s, gfpflags, node, addr, c, orig_size);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="type">void</span> *next_object = get_freepointer_safe(s, object);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (unlikely(!this_cpu_cmpxchg_double(</span><br><span class="line">                s-&gt;cpu_slab-&gt;freelist, s-&gt;cpu_slab-&gt;tid,</span><br><span class="line">                object, tid,</span><br><span class="line">                next_object, next_tid(tid)))) &#123;</span><br><span class="line">            note_cmpxchg_failure(<span class="string">&quot;slab_alloc&quot;</span>, s, tid);</span><br><span class="line">            <span class="keyword">goto</span> redo;</span><br><span class="line">        &#125;</span><br><span class="line">        prefetch_freepointer(s, next_object);</span><br><span class="line">        stat(s, ALLOC_FASTPATH);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> object;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>分析</strong>：</p>
+<ol>
+<li><code>raw_cpu_ptr</code> 获取当前 CPU 的 <code>kmem_cache_cpu</code>，<strong>不禁用抢占</strong>。</li>
+<li>先读 <code>tid</code>，再读 <code>freelist</code>&#x2F;<code>slab</code>（barrier 防止乱序）。如果在这两步之间发生 CPU 迁移，<code>cmpxchg</code> 会因 tid 不匹配而失败，重试。</li>
+<li><code>this_cpu_cmpxchg_double</code> 原子地验证并替换 <code>(freelist, tid)</code> 二元组：若当前 CPU 上的值仍等于之前读到的 <code>(object, tid)</code>，则将其更新为 <code>(next_object, next_tid(tid))</code>。若被中断&#x2F;抢占修改了，则回到 <code>redo</code>。</li>
+<li>这一机制完全<strong>无锁、无禁用中断</strong>，是 SLUB 高性能的关键所在。</li>
+</ol>
+<h3 id="3-3-Slow-Path：-slab-alloc"><a href="#3-3-Slow-Path：-slab-alloc" class="headerlink" title="3.3 Slow Path：___slab_alloc"></a>3.3 Slow Path：<code>___slab_alloc</code></h3><p>当 fast path 失败（freelist 为空，或 slab 不匹配，或不支持 <code>cmpxchg_double</code>），进入 <code>___slab_alloc</code>（<code>mm/slub.c:3064</code>）。该函数的控制流如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">___slab_alloc</span><br><span class="line">  │</span><br><span class="line">  ├─ c-&gt;slab 存在且 freelist 非空？→ load_freelist（从当前 slab 补充 freelist）</span><br><span class="line">  │</span><br><span class="line">  ├─ slub_percpu_partial(c) 非空？→ 从 per-CPU partial 取一个 slab 激活</span><br><span class="line">  │     slab = c-&gt;slab = slub_percpu_partial(c);</span><br><span class="line">  │     slub_set_percpu_partial(c, slab);   /* 将 partial 链表头前移 */</span><br><span class="line">  │</span><br><span class="line">  ├─ get_partial(s, node, &amp;pc)       → 从 node-&gt;partial 链表取 slab</span><br><span class="line">  │     (持有 node-&gt;list_lock)</span><br><span class="line">  │</span><br><span class="line">  └─ new_slab(s, gfpflags, node)    → 向 buddy 申请新页，构建 slab</span><br><span class="line">        allocate_slab</span><br><span class="line">          └─ alloc_slab_page(gfp, node, oo)  /* __alloc_pages */</span><br><span class="line">             初始化 freelist 链表（for 循环串联所有对象）</span><br><span class="line">             slab-&gt;frozen = 1</span><br></pre></td></tr></table></figure>
+
+<p>关键路径代码（<code>mm/slub.c:3161</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">new_slab:</span><br><span class="line">    <span class="keyword">if</span> (slub_percpu_partial(c)) &#123;</span><br><span class="line">        <span class="comment">/* 优先消费 per-CPU partial，避免访问 node-&gt;list_lock */</span></span><br><span class="line">        slab = c-&gt;slab = slub_percpu_partial(c);</span><br><span class="line">        slub_set_percpu_partial(c, slab);</span><br><span class="line">        stat(s, CPU_PARTIAL_ALLOC);</span><br><span class="line">        <span class="keyword">goto</span> redo;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">new_objects:</span><br><span class="line">    freelist = get_partial(s, node, &amp;pc);  <span class="comment">/* 尝试 node-&gt;partial */</span></span><br><span class="line">    <span class="keyword">if</span> (freelist)</span><br><span class="line">        <span class="keyword">goto</span> check_new_slab;</span><br><span class="line"></span><br><span class="line">    slab = new_slab(s, gfpflags, node);   <span class="comment">/* 向 buddy 申请 */</span></span><br><span class="line">    <span class="keyword">if</span> (unlikely(!slab)) &#123;</span><br><span class="line">        slab_out_of_memory(s, gfpflags, node);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">/* 新 slab 直接设为 frozen，整个 freelist 归当前 CPU */</span></span><br><span class="line">    freelist = slab-&gt;freelist;</span><br><span class="line">    slab-&gt;freelist = <span class="literal">NULL</span>;</span><br><span class="line">    slab-&gt;inuse = slab-&gt;objects;</span><br><span class="line">    slab-&gt;frozen = <span class="number">1</span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>new_slab</code> 内部调用 <code>allocate_slab</code>，后者通过 <code>alloc_slab_page</code> 向 Buddy 系统申请页，然后将所有对象串联成单链表（<code>mm/slub.c:2032</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">slab-&gt;freelist = start;</span><br><span class="line"><span class="keyword">for</span> (idx = <span class="number">0</span>, p = start; idx &lt; slab-&gt;objects - <span class="number">1</span>; idx++) &#123;</span><br><span class="line">    next = p + s-&gt;size;</span><br><span class="line">    next = setup_object(s, next);</span><br><span class="line">    set_freepointer(s, p, next);   <span class="comment">/* 在 p+offset 处写入 next 指针 */</span></span><br><span class="line">    p = next;</span><br><span class="line">&#125;</span><br><span class="line">set_freepointer(s, p, <span class="literal">NULL</span>);  <span class="comment">/* 链表尾 */</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-4-kmalloc：通用内存分配"><a href="#3-4-kmalloc：通用内存分配" class="headerlink" title="3.4 kmalloc：通用内存分配"></a>3.4 <code>kmalloc</code>：通用内存分配</h3><p><code>kmalloc</code> 是内核最常用的内存分配接口，底层使用预创建的 <code>kmalloc_caches</code> 数组：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/slab.h */</span></span><br><span class="line"><span class="keyword">extern</span> <span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache</span> *</span></span><br><span class="line"><span class="class"><span class="title">kmalloc_caches</span>[<span class="title">NR_KMALLOC_TYPES</span>][<span class="title">KMALLOC_SHIFT_HIGH</span> + 1];</span></span><br></pre></td></tr></table></figure>
+
+<p>每种类型（NORMAL、RECLAIM、DMA、CGROUP）都有一套大小分级的 cache，分级逻辑由 <code>__kmalloc_index</code> 确定（<code>include/linux/slab.h:403</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (size &lt;=    <span class="number">8</span>) <span class="keyword">return</span> <span class="number">3</span>;   <span class="comment">/* kmalloc-8    */</span></span><br><span class="line"><span class="keyword">if</span> (size &lt;=   <span class="number">16</span>) <span class="keyword">return</span> <span class="number">4</span>;   <span class="comment">/* kmalloc-16   */</span></span><br><span class="line"><span class="keyword">if</span> (size &lt;=   <span class="number">32</span>) <span class="keyword">return</span> <span class="number">5</span>;   <span class="comment">/* kmalloc-32   */</span></span><br><span class="line"><span class="keyword">if</span> (size &lt;=   <span class="number">64</span>) <span class="keyword">return</span> <span class="number">6</span>;   <span class="comment">/* kmalloc-64   */</span></span><br><span class="line"><span class="keyword">if</span> (size &lt;=  <span class="number">128</span>) <span class="keyword">return</span> <span class="number">7</span>;   <span class="comment">/* kmalloc-128  */</span></span><br><span class="line"><span class="keyword">if</span> (size &lt;=  <span class="number">256</span>) <span class="keyword">return</span> <span class="number">8</span>;   <span class="comment">/* kmalloc-256  */</span></span><br><span class="line"><span class="keyword">if</span> (size &lt;=  <span class="number">512</span>) <span class="keyword">return</span> <span class="number">9</span>;   <span class="comment">/* kmalloc-512  */</span></span><br><span class="line"><span class="keyword">if</span> (size &lt;= <span class="number">1024</span>) <span class="keyword">return</span> <span class="number">10</span>;  <span class="comment">/* kmalloc-1k   */</span></span><br><span class="line"><span class="keyword">if</span> (size &lt;= <span class="number">2048</span>) <span class="keyword">return</span> <span class="number">11</span>;  <span class="comment">/* kmalloc-2k   */</span></span><br><span class="line"><span class="keyword">if</span> (size &lt;= <span class="number">4096</span>) <span class="keyword">return</span> <span class="number">12</span>;  <span class="comment">/* kmalloc-4k   */</span></span><br><span class="line"><span class="comment">/* ... 直到 2MB */</span></span><br></pre></td></tr></table></figure>
+
+<p><code>kmalloc</code> 调用 <code>kmem_cache_alloc(kmalloc_caches[type][index], flags)</code>，其分配路径与普通 slab cache 完全相同。超过 <code>KMALLOC_MAX_CACHE_SIZE</code>（通常为 8KB）的请求直接调用 <code>alloc_pages</code>。</p>
+<hr>
+<h2 id="四、SLUB-释放路径"><a href="#四、SLUB-释放路径" class="headerlink" title="四、SLUB 释放路径"></a>四、SLUB 释放路径</h2><h3 id="4-1-调用链总览"><a href="#4-1-调用链总览" class="headerlink" title="4.1 调用链总览"></a>4.1 调用链总览</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">kmem_cache_free(s, x)</span><br><span class="line">  └─ slab_free(s, virt_to_slab(x), x, NULL, &amp;x, 1, addr)</span><br><span class="line">       └─ do_slab_free(s, slab, head, tail, cnt, addr)</span><br><span class="line">            ├─ [fast path] this_cpu_cmpxchg_double（归还到 per-CPU freelist）</span><br><span class="line">            └─ [slow path] __slab_free</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-Fast-Path：归还到-per-CPU-freelist"><a href="#4-2-Fast-Path：归还到-per-CPU-freelist" class="headerlink" title="4.2 Fast Path：归还到 per-CPU freelist"></a>4.2 Fast Path：归还到 per-CPU freelist</h3><p><code>do_slab_free</code>（<code>mm/slub.c:3707</code>）的快路径：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> __always_inline <span class="type">void</span> <span class="title function_">do_slab_free</span><span class="params">(<span class="keyword">struct</span> kmem_cache *s,</span></span><br><span class="line"><span class="params">        <span class="keyword">struct</span> slab *slab, <span class="type">void</span> *head, <span class="type">void</span> *tail, <span class="type">int</span> cnt,</span></span><br><span class="line"><span class="params">        <span class="type">unsigned</span> <span class="type">long</span> addr)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">void</span> *tail_obj = tail ? : head;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache_cpu</span> *<span class="title">c</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> tid;</span><br><span class="line">    <span class="type">void</span> **freelist;</span><br><span class="line"></span><br><span class="line">redo:</span><br><span class="line">    c = raw_cpu_ptr(s-&gt;cpu_slab);</span><br><span class="line">    tid = READ_ONCE(c-&gt;tid);</span><br><span class="line">    barrier();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (unlikely(slab != c-&gt;slab)) &#123;</span><br><span class="line">        <span class="comment">/* 被释放的对象不属于当前 CPU 的活跃 slab → 走 slow path */</span></span><br><span class="line">        __slab_free(s, slab, head, tail_obj, cnt, addr);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (USE_LOCKLESS_FAST_PATH()) &#123;</span><br><span class="line">        freelist = READ_ONCE(c-&gt;freelist);</span><br><span class="line">        set_freepointer(s, tail_obj, freelist);  <span class="comment">/* tail_obj-&gt;next = freelist */</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (unlikely(!this_cpu_cmpxchg_double(</span><br><span class="line">                s-&gt;cpu_slab-&gt;freelist, s-&gt;cpu_slab-&gt;tid,</span><br><span class="line">                freelist, tid,</span><br><span class="line">                head, next_tid(tid)))) &#123;</span><br><span class="line">            note_cmpxchg_failure(<span class="string">&quot;slab_free&quot;</span>, s, tid);</span><br><span class="line">            <span class="keyword">goto</span> redo;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    stat(s, FREE_FASTPATH);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>fast path 条件：<strong>释放的对象所在 slab 恰好是当前 CPU 的活跃 slab</strong>（<code>slab == c-&gt;slab</code>）。此时直接将对象头插到 freelist，同样用 <code>this_cpu_cmpxchg_double</code> 原子完成，无锁无禁中断。</p>
+<h3 id="4-3-Slow-Path：-slab-free"><a href="#4-3-Slow-Path：-slab-free" class="headerlink" title="4.3 Slow Path：__slab_free"></a>4.3 Slow Path：<code>__slab_free</code></h3><p>当对象不属于当前 CPU 的活跃 slab 时，进入 <code>__slab_free</code>（<code>mm/slub.c:3573</code>），该函数用 <code>cmpxchg_double_slab</code> 原子操作更新 slab 的 <code>(freelist, counters)</code> 二元组，并按照以下逻辑决定 slab 的去向：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line">__slab_free 逻辑（简化）：</span><br><span class="line"></span><br><span class="line">  do &#123;</span><br><span class="line">      prior    = slab-&gt;freelist</span><br><span class="line">      counters = slab-&gt;counters</span><br><span class="line">      set_freepointer(s, tail, prior)   /* 将对象插入 slab 的 freelist */</span><br><span class="line">      new.inuse -= cnt</span><br><span class="line">      was_frozen = new.frozen</span><br><span class="line"></span><br><span class="line">      if ((!new.inuse || !prior) &amp;&amp; !was_frozen) &#123;</span><br><span class="line">          if (cpu_partial 支持 &amp;&amp; !prior) &#123;</span><br><span class="line">              /* slab 从全满变为部分空，尝试冻结并加入 per-CPU partial */</span><br><span class="line">              new.frozen = 1</span><br><span class="line">          &#125; else &#123;</span><br><span class="line">              /* 需要操作 node-&gt;partial，获取 list_lock */</span><br><span class="line">              n = get_node(s, slab_nid(slab))</span><br><span class="line">              spin_lock_irqsave(&amp;n-&gt;list_lock, flags)</span><br><span class="line">          &#125;</span><br><span class="line">      &#125;</span><br><span class="line">  &#125; while (!cmpxchg_double_slab(s, slab, prior, counters,</span><br><span class="line">                                  head, new.counters, &quot;__slab_free&quot;))</span><br><span class="line"></span><br><span class="line">  /* cmpxchg 成功后处理后续 */</span><br><span class="line">  if (!n) &#123;</span><br><span class="line">      if (was_frozen)</span><br><span class="line">          stat(s, FREE_FROZEN)          /* slab 仍被某 CPU 持有，无需操作链表 */</span><br><span class="line">      else if (new.frozen)</span><br><span class="line">          put_cpu_partial(s, slab, 1)   /* 加入 per-CPU partial */</span><br><span class="line">      return</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  /* n != NULL，已持有 list_lock */</span><br><span class="line">  if (!new.inuse &amp;&amp; n-&gt;nr_partial &gt;= s-&gt;min_partial)</span><br><span class="line">      goto slab_empty             /* slab 全空且 partial 充足 → 释放回 buddy */</span><br><span class="line"></span><br><span class="line">  if (!prior)</span><br><span class="line">      add_partial(n, slab, DEACTIVATE_TO_TAIL)  /* 从满变部分空 → 加入 node-&gt;partial */</span><br><span class="line"></span><br><span class="line">slab_empty:</span><br><span class="line">  remove_partial(n, slab)</span><br><span class="line">  spin_unlock_irqrestore(&amp;n-&gt;list_lock, flags)</span><br><span class="line">  discard_slab(s, slab)          /* 归还给 buddy */</span><br></pre></td></tr></table></figure>
+
+<p>三条关键决策：</p>
+<ol>
+<li><strong>slab 仍被某 CPU 持有（frozen）</strong>：只更新 freelist，不动链表，<code>stat(FREE_FROZEN)</code>。</li>
+<li><strong>slab 从全满变为部分空</strong>：若支持 cpu_partial，冻结后加入 <code>per-CPU partial</code>（<code>CPU_PARTIAL_FREE</code>）；否则加入 <code>node-&gt;partial</code>（<code>FREE_ADD_PARTIAL</code>）。</li>
+<li>**slab 全空，且 <code>node-&gt;nr_partial &gt;= min_partial</code>**：slab 多余，直接 <code>discard_slab</code> 返还给 buddy，防止内存长期占用（<code>FREE_SLAB</code>）。</li>
+</ol>
+<hr>
+<h2 id="五、vmalloc：虚拟连续内存分配"><a href="#五、vmalloc：虚拟连续内存分配" class="headerlink" title="五、vmalloc：虚拟连续内存分配"></a>五、vmalloc：虚拟连续内存分配</h2><h3 id="5-1-vmalloc-vs-kmalloc"><a href="#5-1-vmalloc-vs-kmalloc" class="headerlink" title="5.1 vmalloc vs kmalloc"></a>5.1 vmalloc vs kmalloc</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th><code>kmalloc</code></th>
+<th><code>vmalloc</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>物理内存</td>
+<td><strong>连续</strong></td>
+<td>不连续（分散的页帧）</td>
+</tr>
+<tr>
+<td>虚拟地址</td>
+<td>线性映射区（直接映射）</td>
+<td>vmalloc 区域（需建页表）</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>极快（fast path 无锁）</td>
+<td>较慢（需分配页表、TLB flush）</td>
+</tr>
+<tr>
+<td>大小上限</td>
+<td>通常 ≤ 8 KiB（超大走 alloc_pages）</td>
+<td>仅受虚拟地址空间限制</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>小型内核对象、DMA 缓冲区</td>
+<td>内核模块、大块临时缓冲区</td>
+</tr>
+</tbody></table>
+<h3 id="5-2-struct-vmap-area：虚拟地址空间管理"><a href="#5-2-struct-vmap-area：虚拟地址空间管理" class="headerlink" title="5.2 struct vmap_area：虚拟地址空间管理"></a>5.2 <code>struct vmap_area</code>：虚拟地址空间管理</h3><p>vmalloc 区域的每一段虚拟地址范围都由 <code>struct vmap_area</code>（<code>include/linux/vmalloc.h:63</code>）描述：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">vmap_area</span> &#123;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> va_start;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> va_end;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_node</span> <span class="title">rb_node</span>;</span>   <span class="comment">/* 按地址排序的红黑树节点 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">list</span>;</span>    <span class="comment">/* 按地址排序的链表节点 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> subtree_max_size; <span class="comment">/* 在 &quot;free&quot; 树中：子树最大空洞 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">vm_struct</span> *<span class="title">vm</span>;</span>           <span class="comment">/* 在 &quot;busy&quot; 树中：对应的 vm_struct */</span></span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> flags;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>vmalloc 维护两棵红黑树：</p>
+<ul>
+<li>**<code>free_vmap_area_root</code>**：空闲虚拟地址段，使用 subtree_max_size 做增强型红黑树，可 O(log n) 找到足够大的空洞</li>
+<li>**<code>vmap_area_root</code>**：已分配的虚拟地址段，关联到 <code>vm_struct</code></li>
+</ul>
+<h3 id="5-3-vmalloc-node-分配流程"><a href="#5-3-vmalloc-node-分配流程" class="headerlink" title="5.3 __vmalloc_node 分配流程"></a>5.3 <code>__vmalloc_node</code> 分配流程</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* mm/vmalloc.c:3319 */</span></span><br><span class="line"><span class="type">void</span> *__vmalloc_node(<span class="type">unsigned</span> <span class="type">long</span> size, <span class="type">unsigned</span> <span class="type">long</span> align,</span><br><span class="line">            <span class="type">gfp_t</span> gfp_mask, <span class="type">int</span> node, <span class="type">const</span> <span class="type">void</span> *caller)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> __vmalloc_node_range(size, align, VMALLOC_START, VMALLOC_END,</span><br><span class="line">                gfp_mask, PAGE_KERNEL, <span class="number">0</span>, node, caller);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>__vmalloc_node_range</code>（<code>mm/vmalloc.c:3172</code>）的核心步骤：</p>
+<ol>
+<li><strong>分配虚拟地址区间</strong>：调用 <code>__get_vm_area_node</code>，在 <code>free_vmap_area_root</code> 中找到合适的虚拟地址段，创建 <code>vm_struct</code> 和 <code>vmap_area</code>，插入 <code>vmap_area_root</code>。</li>
+<li><strong>分配物理页</strong>：<code>__vmalloc_node_range</code> 内部调用 <code>__vmalloc_area_node</code>，逐页向 buddy 申请物理页（<code>alloc_pages_node</code>）。</li>
+<li><strong>建立页表映射</strong>：<code>vmap_pages_range</code> → <code>vmap_pte_range</code>（<code>mm/vmalloc.c:93</code>）：</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">vmap_pte_range</span><span class="params">(<span class="type">pmd_t</span> *pmd, <span class="type">unsigned</span> <span class="type">long</span> addr, <span class="type">unsigned</span> <span class="type">long</span> end,</span></span><br><span class="line"><span class="params">            <span class="type">phys_addr_t</span> phys_addr, <span class="type">pgprot_t</span> prot,</span></span><br><span class="line"><span class="params">            <span class="type">unsigned</span> <span class="type">int</span> max_page_shift, pgtbl_mod_mask *mask)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">pte_t</span> *pte;</span><br><span class="line">    u64 pfn;</span><br><span class="line"></span><br><span class="line">    pfn = phys_addr &gt;&gt; PAGE_SHIFT;</span><br><span class="line">    pte = pte_alloc_kernel_track(pmd, addr, mask);</span><br><span class="line">    <span class="keyword">if</span> (!pte)</span><br><span class="line">        <span class="keyword">return</span> -ENOMEM;</span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        BUG_ON(!pte_none(*pte));</span><br><span class="line">        set_pte_at(&amp;init_mm, addr, pte, pfn_pte(pfn, prot));</span><br><span class="line">        pfn++;</span><br><span class="line">    &#125; <span class="keyword">while</span> (pte += PFN_DOWN(size), addr += size, addr != end);</span><br><span class="line">    *mask |= PGTBL_PTE_MODIFIED;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>每个物理页分别建立 PTE，使得虚拟地址连续但物理地址可以分散。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* vmalloc 最终对外接口 */</span></span><br><span class="line"><span class="type">void</span> *<span class="title function_">vmalloc</span><span class="params">(<span class="type">unsigned</span> <span class="type">long</span> size)</span>  <span class="comment">/* mm/vmalloc.c:3353 */</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> __vmalloc_node(size, <span class="number">1</span>, GFP_KERNEL, NUMA_NO_NODE,</span><br><span class="line">                __builtin_return_address(<span class="number">0</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="六、SLUB-调试特性"><a href="#六、SLUB-调试特性" class="headerlink" title="六、SLUB 调试特性"></a>六、SLUB 调试特性</h2><h3 id="6-1-CONFIG-SLUB-DEBUG"><a href="#6-1-CONFIG-SLUB-DEBUG" class="headerlink" title="6.1 CONFIG_SLUB_DEBUG"></a>6.1 CONFIG_SLUB_DEBUG</h3><p>开启后，每个 slab 对象会附加以下验证信息（<code>mm/slub.c</code> 中的 <code>setup_slab_debug</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Red Zone</strong></td>
+<td>对象左右两侧填充 <code>0xbb</code>，释放时检查越界写（buffer overrun）</td>
+</tr>
+<tr>
+<td><strong>Poison</strong></td>
+<td>空闲对象填充 <code>0x6b</code>（<code>POISON_FREE</code>），分配后填充 <code>0x5a</code>（<code>POISON_INUSE</code>），检测 use-after-free</td>
+</tr>
+<tr>
+<td><strong>Track</strong></td>
+<td>记录每个对象最后一次分配&#x2F;释放的调用栈（存储在 slab 末尾）</td>
+</tr>
+<tr>
+<td><strong>Consistency Check</strong></td>
+<td>分配&#x2F;释放前后对 red zone 和 poison 值做一致性验证</td>
+</tr>
+</tbody></table>
+<p>调试模式下所有分配都走 slow path（持 <code>list_lock</code>），性能会显著下降，仅用于开发调试。</p>
+<h3 id="6-2-proc-slabinfo"><a href="#6-2-proc-slabinfo" class="headerlink" title="6.2 /proc/slabinfo"></a>6.2 <code>/proc/slabinfo</code></h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/slabinfo</span><br><span class="line">slabinfo - version: 2.1</span><br><span class="line"><span class="comment"># name            &lt;active_objs&gt; &lt;num_objs&gt; &lt;objsize&gt; &lt;objperslab&gt; &lt;pagesperslab&gt;</span></span><br><span class="line"><span class="comment"># : tunables &lt;limit&gt; &lt;batchcount&gt; &lt;sharedfactor&gt;</span></span><br><span class="line"><span class="comment"># : slabdata &lt;active_slabs&gt; &lt;num_slabs&gt; &lt;sharedavail&gt;</span></span><br><span class="line">ext4_inode_cache  12450  12480   1032   31    8</span><br><span class="line">dentry             8256   9360    192   42    2</span><br><span class="line">kmalloc-512        1024   1024    512   32    4</span><br><span class="line">kmalloc-256        2048   2048    256   32    2</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>各列含义：<code>active_objs</code>（正在使用的对象数）、<code>num_objs</code>（总容量）、<code>objsize</code>（对象大小）、<code>objperslab</code>（每个 slab 含对象数）、<code>pagesperslab</code>（每个 slab 占页数）。</p>
+<h3 id="6-3-sys-kernel-slab-目录"><a href="#6-3-sys-kernel-slab-目录" class="headerlink" title="6.3 /sys/kernel/slab/ 目录"></a>6.3 <code>/sys/kernel/slab/</code> 目录</h3><p>每个 cache 在 sysfs 下有独立目录：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">/sys/kernel/slab/</span><br><span class="line">├── kmalloc-256/</span><br><span class="line">│   ├── object_size      # 对象大小</span><br><span class="line">│   ├── objs_per_slab    # 每 slab 对象数</span><br><span class="line">│   ├── order            # buddy order</span><br><span class="line">│   ├── partial          # node-&gt;nr_partial 总数</span><br><span class="line">│   ├── slabs            # 总 slab 数</span><br><span class="line">│   ├── alloc_fastpath   # fast path 分配次数（统计）</span><br><span class="line">│   ├── alloc_slowpath</span><br><span class="line">│   ├── free_fastpath</span><br><span class="line">│   ├── free_slowpath</span><br><span class="line">│   └── ...</span><br></pre></td></tr></table></figure>
+
+<p>通过 <code>cat /sys/kernel/slab/&lt;name&gt;/alloc_fastpath</code> 可实时观察 fast&#x2F;slow path 比例，辅助性能调优。</p>
+<h3 id="6-4-kmemleak-内存泄漏检测原理"><a href="#6-4-kmemleak-内存泄漏检测原理" class="headerlink" title="6.4 kmemleak 内存泄漏检测原理"></a>6.4 kmemleak 内存泄漏检测原理</h3><p>kmemleak（<code>mm/kmemleak.c</code>）在每次 <code>kmalloc</code>&#x2F;<code>kmem_cache_alloc</code>&#x2F;<code>vmalloc</code> 时向自身的红黑树中插入一条记录，记录分配地址和大小。在后台扫描线程中，kmemleak 对所有内存区域做灰色标记扫描（类似 GC 的 mark-and-sweep）：</p>
+<ol>
+<li><strong>标记根集</strong>：内核 <code>.data</code>、<code>.bss</code>、栈、CPU 寄存器等中的指针都是根。</li>
+<li><strong>传播扫描</strong>：从根集出发，凡被某个已知指针指向的分配块，标记为”可达”。</li>
+<li><strong>报告泄漏</strong>：扫描结束后，不可达的分配块视为泄漏，输出到 <code>/sys/kernel/debug/kmemleak</code>。</li>
+</ol>
+<p>使用方式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 开启扫描</span></span><br><span class="line"><span class="built_in">echo</span> scan &gt; /sys/kernel/debug/kmemleak</span><br><span class="line"><span class="comment"># 查看泄漏报告</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/kmemleak</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="七、诊断方法"><a href="#七、诊断方法" class="headerlink" title="七、诊断方法"></a>七、诊断方法</h2><h3 id="7-1-slabtop：实时监控"><a href="#7-1-slabtop：实时监控" class="headerlink" title="7.1 slabtop：实时监控"></a>7.1 <code>slabtop</code>：实时监控</h3><p><code>slabtop</code> 按内存占用排序，实时刷新（类似 <code>top</code>）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ slabtop</span><br><span class="line"> Active / Total Objects (% used)    : 1234567 / 1345678 (91.7%)</span><br><span class="line"> Active / Total Slabs (% used)      : 45678 / 45900 (99.5%)</span><br><span class="line"> Active / Total Caches (% used)     : 85 / 120 (70.8%)</span><br><span class="line"> Active / Total Size (% used)       : 512.34M / 560.12M (91.5%)</span><br><span class="line"></span><br><span class="line">  OBJS ACTIVE  USE OBJ SIZE  SLABS OBJ/SLAB CACHE SIZE NAME</span><br><span class="line">127680 127680 100%    1.03K   4256       30     34048K ext4_inode_cache</span><br><span class="line"> 98304  97820  99%    0.19K   2341       42      9364K dentry</span><br><span class="line"> 65536  64000  97%    0.50K   2048       32     16384K kmalloc-512</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-vmstat-m：slab-内存汇总"><a href="#7-2-vmstat-m：slab-内存汇总" class="headerlink" title="7.2 vmstat -m：slab 内存汇总"></a>7.2 <code>vmstat -m</code>：slab 内存汇总</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">$ vmstat -m</span><br><span class="line">Cache                       Num  Total   Size  Pages</span><br><span class="line">ext4_inode_cache          12450  12480   1032     31</span><br><span class="line">dentry                     8256   9360    192     42</span><br></pre></td></tr></table></figure>
+
+<p><code>vmstat -m</code> 等价于读取 <code>/proc/slabinfo</code>，输出格式更友好。</p>
+<h3 id="7-3-BPFtrace-追踪分配事件"><a href="#7-3-BPFtrace-追踪分配事件" class="headerlink" title="7.3 BPFtrace 追踪分配事件"></a>7.3 BPFtrace 追踪分配事件</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪所有 kmem_cache_alloc，打印 cache 名称和分配大小</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:kmem_cache_alloc &#123;</span></span><br><span class="line"><span class="string">    printf(&quot;comm=%-16s cache=%s size=%d\n&quot;,</span></span><br><span class="line"><span class="string">        comm,</span></span><br><span class="line"><span class="string">        ((struct kmem_cache *)arg0)-&gt;name,</span></span><br><span class="line"><span class="string">        ((struct kmem_cache *)arg0)-&gt;object_size);</span></span><br><span class="line"><span class="string">&#125;&#x27;</span> 2&gt;/dev/null | <span class="built_in">head</span> -20</span><br></pre></td></tr></table></figure>
+
+<p>或者追踪特定 cache 的分配栈：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:kmem_cache_alloc /</span></span><br><span class="line"><span class="string">    ((struct kmem_cache *)arg0)-&gt;name == &quot;dentry&quot;</span></span><br><span class="line"><span class="string">/ &#123;</span></span><br><span class="line"><span class="string">    @[kstack] = count();</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">interval:s:10 &#123; print(@); exit(); &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-4-perf-stat-统计-kmalloc-频率"><a href="#7-4-perf-stat-统计-kmalloc-频率" class="headerlink" title="7.4 perf stat 统计 kmalloc 频率"></a>7.4 <code>perf stat</code> 统计 kmalloc 频率</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 统计 10 秒内 kmalloc 事件次数及分布</span></span><br><span class="line">$ perf <span class="built_in">stat</span> -e kmem:kmalloc,kmem:kmem_cache_alloc -a <span class="built_in">sleep</span> 10</span><br><span class="line"></span><br><span class="line">Performance counter stats <span class="keyword">for</span> <span class="string">&#x27;system wide&#x27;</span>:</span><br><span class="line"></span><br><span class="line">     2,345,678      kmem:kmalloc</span><br><span class="line">       987,654      kmem:kmem_cache_alloc</span><br><span class="line"></span><br><span class="line">      10.001234567 seconds time elapsed</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-5-kmemleak-排查泄漏"><a href="#7-5-kmemleak-排查泄漏" class="headerlink" title="7.5 kmemleak 排查泄漏"></a>7.5 kmemleak 排查泄漏</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 确认内核开启了 CONFIG_DEBUG_KMEMLEAK</span></span><br><span class="line">grep CONFIG_DEBUG_KMEMLEAK /boot/config-$(<span class="built_in">uname</span> -r)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 触发一次完整扫描</span></span><br><span class="line"><span class="built_in">echo</span> scan &gt; /sys/kernel/debug/kmemleak</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 查看疑似泄漏</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/kmemleak</span><br><span class="line"></span><br><span class="line"><span class="comment"># 典型输出：</span></span><br><span class="line"><span class="comment"># unreferenced object 0xffff88801234abcd (size 256):</span></span><br><span class="line"><span class="comment">#   comm &quot;nginx&quot;, pid 1234, jiffies 4294956789</span></span><br><span class="line"><span class="comment">#   hex dump (first 32 bytes): ...</span></span><br><span class="line"><span class="comment">#   backtrace:</span></span><br><span class="line"><span class="comment">#     kmalloc include/linux/slab.h:580</span></span><br><span class="line"><span class="comment">#     some_module_alloc+0x45 [some_module]</span></span><br><span class="line"><span class="comment">#     ...</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 清除已记录的泄漏（重新开始追踪）</span></span><br><span class="line"><span class="built_in">echo</span> clear &gt; /sys/kernel/debug/kmemleak</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-6-常见问题与调优建议"><a href="#7-6-常见问题与调优建议" class="headerlink" title="7.6 常见问题与调优建议"></a>7.6 常见问题与调优建议</h3><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>诊断命令</th>
+<th>可能原因</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>slab 占用持续增长</td>
+<td><code>watch -n1 slabtop</code></td>
+<td>对象泄漏，检查 kmemleak</td>
+</tr>
+<tr>
+<td><code>alloc_slowpath</code> 比例高</td>
+<td><code>/sys/kernel/slab/*/alloc_slowpath</code></td>
+<td>cpu_partial 太小，调整 <code>cpu_partial</code> 参数</td>
+</tr>
+<tr>
+<td>NUMA 节点间 slab 迁移频繁</td>
+<td><code>alloc_node_mismatch</code> 计数</td>
+<td>进程绑核策略不合理，或 NUMA 不均衡</td>
+</tr>
+<tr>
+<td><code>kmalloc-512</code> 使用率低</td>
+<td><code>slabtop</code> 的 USE% 列</td>
+<td>分配大小离散，考虑专用 cache</td>
+</tr>
+<tr>
+<td>order_fallback 频繁</td>
+<td><code>/sys/kernel/slab/*/order_fallback</code></td>
+<td>内存碎片严重，触发 kcompactd</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="八、总结"><a href="#八、总结" class="headerlink" title="八、总结"></a>八、总结</h2><p>SLUB 分配器的设计哲学可以用三个词概括：<strong>简化、无锁、分层</strong>。</p>
+<ul>
+<li><strong>简化</strong>：去掉 per-CPU 队列和全局 full&#x2F;free 链表，只保留 per-CPU slab + partial 链表，状态机更清晰。</li>
+<li><strong>无锁</strong>：fast path 借助 <code>this_cpu_cmpxchg_double</code> 实现无锁分配&#x2F;释放，即便在高频 <code>kmalloc</code>&#x2F;<code>kfree</code> 场景下，锁竞争也极低。</li>
+<li><strong>分层</strong>：<code>cpu_slab（per-CPU，无锁）→ cpu-&gt;partial（per-CPU，本地锁）→ node-&gt;partial（NUMA，spinlock）→ buddy（全局，zone lock）</code>，分层缓存大幅减少向 buddy 申请的频率。</li>
+</ul>
+<p>理解这套机制不仅能帮助内核开发者写出对分配器更友好的代码（例如：优先使用专用 <code>kmem_cache</code> 而非通用 <code>kmalloc</code>，保持对象大小一致），更能在遇到内存问题时快速定位根因。下一篇文章将进入页面回收机制（LRU、kswapd、内存压力通知），探讨内核如何在内存紧张时”腾出”空间。</p>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Linux 6.4-rc1 源码：<code>mm/slub.c</code>、<code>mm/vmalloc.c</code>、<code>include/linux/slub_def.h</code>、<code>mm/slab.h</code></li>
+<li>Christoph Lameter, <em>SLUB: The unqueued slab allocator</em>, Linux Symposium 2007</li>
+<li>Mel Gorman, <em>Understanding the Linux Virtual Memory Manager</em>, 2004</li>
+<li>lwn.net: <a target="_blank" rel="noopener" href="https://lwn.net/Articles/229984/">The SLUB allocator</a></li>
+<li>lwn.net: <a target="_blank" rel="noopener" href="https://lwn.net/Articles/508067/">SLUB performance tweaks</a></li>
+<li>kernel.org: <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/html/latest/vm/slub.html">Documentation&#x2F;vm&#x2F;slub.rst</a></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Memory-Management/" rel="tag"># Memory Management</a>
+              <a href="/tags/SLUB/" rel="tag"># SLUB</a>
+              <a href="/tags/Slab-Allocator/" rel="tag"># Slab Allocator</a>
+              <a href="/tags/kmalloc/" rel="tag"># kmalloc</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-mm-part1-physical-memory/" rel="prev" title="Linux 内存管理深度剖析（一）：物理内存组织与伙伴分配系统">
+                  <i class="fa fa-angle-left"></i> Linux 内存管理深度剖析（一）：物理内存组织与伙伴分配系统
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-mm-part3-virtual-memory/" rel="next" title="Linux 内存管理深度剖析（三）：虚拟内存空间与多级页表">
+                  Linux 内存管理深度剖析（三）：虚拟内存空间与多级页表 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="进程调度是 Linux 内核中最复杂也最关键的子系统之一。在生产环境中，”CPU 使用率 100% 但响应很慢”、”任务唤醒后等了几十毫秒才运行”、”某个进程长期卡在 D 状态”——这些问题的根因往往深藏在调度层。本文是本系列第五篇，聚焦于调度诊断的完整方法论：从 &#x2F;proc 接口读取原始数据，到 perf sched 分析调度延迟，再到 bpftrace 精确追踪内核路径，最后结合四个典型生产案">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 进程管理深度剖析（五）：调度诊断与性能分析实战">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-linux-proc-part5-sched-diagnostics/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="进程调度是 Linux 内核中最复杂也最关键的子系统之一。在生产环境中，”CPU 使用率 100% 但响应很慢”、”任务唤醒后等了几十毫秒才运行”、”某个进程长期卡在 D 状态”——这些问题的根因往往深藏在调度层。本文是本系列第五篇，聚焦于调度诊断的完整方法论：从 &#x2F;proc 接口读取原始数据，到 perf sched 分析调度延迟，再到 bpftrace 精确追踪内核路径，最后结合四个典型生产案">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-14T07:50:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T03:56:04.719Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Scheduler">
+<meta property="article:tag" content="bpftrace">
+<meta property="article:tag" content="perf">
+<meta property="article:tag" content="Context Switch">
+<meta property="article:tag" content="Latency">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-proc-part5-sched-diagnostics/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-linux-proc-part5-sched-diagnostics/","path":"2026/04/14/2026-04-14-linux-proc-part5-sched-diagnostics/","title":"Linux 进程管理深度剖析（五）：调度诊断与性能分析实战"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 进程管理深度剖析（五）：调度诊断与性能分析实战 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E8%BF%9B%E7%A8%8B%E7%8A%B6%E6%80%81%E4%B8%8E-proc-%E6%8E%A5%E5%8F%A3"><span class="nav-number">1.</span> <span class="nav-text">一、进程状态与 &#x2F;proc 接口</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-proc-PID-status-%E5%AE%8C%E6%95%B4%E5%AD%97%E6%AE%B5%E8%A7%A3%E8%AF%BB"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 &#x2F;proc&#x2F;PID&#x2F;status 完整字段解读</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-proc-PID-sched%EF%BC%9ACFS-%E8%B0%83%E5%BA%A6%E7%BB%9F%E8%AE%A1"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 &#x2F;proc&#x2F;PID&#x2F;sched：CFS 调度统计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-proc-PID-schedstat%EF%BC%9A%E8%BF%90%E8%A1%8C%E6%97%B6%E9%97%B4%E4%B8%8E%E7%AD%89%E5%BE%85%E6%97%B6%E9%97%B4"><span class="nav-number">1.3.</span> <span class="nav-text">1.3 &#x2F;proc&#x2F;PID&#x2F;schedstat：运行时间与等待时间</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-proc-schedstat%EF%BC%9A%E5%85%A8%E5%B1%80%E8%B0%83%E5%BA%A6%E7%BB%9F%E8%AE%A1"><span class="nav-number">1.4.</span> <span class="nav-text">1.4 &#x2F;proc&#x2F;schedstat：全局调度统计</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E5%88%86%E6%9E%90"><span class="nav-number">2.</span> <span class="nav-text">二、上下文切换分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%B8%BB%E5%8A%A8%E5%88%87%E6%8D%A2-vs-%E8%A2%AB%E5%8A%A8%E5%88%87%E6%8D%A2%E7%9A%84%E5%86%85%E6%A0%B8%E8%B7%AF%E5%BE%84%E5%B7%AE%E5%BC%82"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 主动切换 vs 被动切换的内核路径差异</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E8%BF%87%E5%A4%9A%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E7%9A%84%E5%B8%B8%E8%A7%81%E5%8E%9F%E5%9B%A0"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 过多上下文切换的常见原因</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E8%AF%8A%E6%96%AD%E5%91%BD%E4%BB%A4"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 诊断命令</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81CPU-%E4%BA%B2%E5%92%8C%E6%80%A7%E4%B8%8E-NUMA-%E8%B0%83%E5%BA%A6"><span class="nav-number">3.</span> <span class="nav-text">三、CPU 亲和性与 NUMA 调度</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-sched-setaffinity-%E5%86%85%E6%A0%B8%E8%B7%AF%E5%BE%84"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 sched_setaffinity 内核路径</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-NUMA-%E6%8B%93%E6%89%91%E6%84%9F%E7%9F%A5%E8%B0%83%E5%BA%A6"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 NUMA 拓扑感知调度</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%AE%9E%E6%97%B6%E8%BF%9B%E7%A8%8B%E4%B8%8E%E4%BC%98%E5%85%88%E7%BA%A7"><span class="nav-number">4.</span> <span class="nav-text">四、实时进程与优先级</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%B0%83%E5%BA%A6%E7%AD%96%E7%95%A5%E5%AF%B9%E6%AF%94"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 调度策略对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-SCHED-DEADLINE%EF%BC%9A%E4%B8%89%E5%8F%82%E6%95%B0-EDF-%E8%B0%83%E5%BA%A6"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 SCHED_DEADLINE：三参数 EDF 调度</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E4%BC%98%E5%85%88%E7%BA%A7%E5%8F%8D%E8%BD%AC%E4%B8%8E-PI-Mutex"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 优先级反转与 PI Mutex</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-IRQ-%E7%BA%BF%E7%A8%8B%E5%8C%96"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 IRQ 线程化</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E5%9B%9B%E5%A4%A7%E5%AE%9E%E6%88%98%E6%A1%88%E4%BE%8B"><span class="nav-number">5.</span> <span class="nav-text">五、四大实战案例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B%E4%B8%80%EF%BC%9ACPU-%E4%BD%BF%E7%94%A8%E7%8E%87-100-%E4%BD%86%E5%93%8D%E5%BA%94%E6%85%A2"><span class="nav-number">5.1.</span> <span class="nav-text">案例一：CPU 使用率 100% 但响应慢</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B%E4%BA%8C%EF%BC%9A%E8%B0%83%E5%BA%A6%E5%BB%B6%E8%BF%9F%E9%AB%98%EF%BC%88%E4%BB%BB%E5%8A%A1%E7%AD%89%E5%BE%85-CPU-%E6%97%B6%E9%97%B4%E9%95%BF%EF%BC%89"><span class="nav-number">5.2.</span> <span class="nav-text">案例二：调度延迟高（任务等待 CPU 时间长）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B%E4%B8%89%EF%BC%9A%E8%BF%9B%E7%A8%8B-D-%E7%8A%B6%E6%80%81%EF%BC%88%E4%B8%8D%E5%8F%AF%E4%B8%AD%E6%96%AD%E7%9D%A1%E7%9C%A0%EF%BC%89"><span class="nav-number">5.3.</span> <span class="nav-text">案例三：进程 D 状态（不可中断睡眠）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B%E5%9B%9B%EF%BC%9Afork-%E7%82%B8%E5%BC%B9-%E8%BF%9B%E7%A8%8B%E6%95%B0%E8%BF%87%E5%A4%9A"><span class="nav-number">5.4.</span> <span class="nav-text">案例四：fork 炸弹 &#x2F; 进程数过多</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81perf-%E5%B7%A5%E5%85%B7%E5%85%A8%E9%9D%A2%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97"><span class="nav-number">6.</span> <span class="nav-text">六、perf 工具全面使用指南</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-perf-stat%EF%BC%9A%E7%A1%AC%E4%BB%B6%E8%AE%A1%E6%95%B0%E5%99%A8%E7%BB%9F%E8%AE%A1"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 perf stat：硬件计数器统计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-perf-top%EF%BC%9A%E5%AE%9E%E6%97%B6%E7%83%AD%E7%82%B9%E5%87%BD%E6%95%B0"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 perf top：实时热点函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-perf-record-perf-report%EF%BC%9A%E7%A6%BB%E7%BA%BF%E7%81%AB%E7%84%B0%E5%9B%BE"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 perf record + perf report：离线火焰图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-perf-sched%EF%BC%9A%E8%B0%83%E5%BA%A6%E5%88%86%E6%9E%90%E5%A5%97%E4%BB%B6"><span class="nav-number">6.4.</span> <span class="nav-text">6.4 perf sched：调度分析套件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-5-perf-lock%EF%BC%9A%E9%94%81%E7%AB%9E%E4%BA%89%E5%88%86%E6%9E%90"><span class="nav-number">6.5.</span> <span class="nav-text">6.5 perf lock：锁竞争分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-6-perf-mem%EF%BC%9A%E5%86%85%E5%AD%98%E8%AE%BF%E9%97%AE%E5%88%86%E6%9E%90"><span class="nav-number">6.6.</span> <span class="nav-text">6.6 perf mem：内存访问分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-7-perf-ftrace%EF%BC%9A%E5%86%85%E6%A0%B8%E5%87%BD%E6%95%B0%E8%BF%BD%E8%B8%AA"><span class="nav-number">6.7.</span> <span class="nav-text">6.7 perf ftrace：内核函数追踪</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E8%BF%9B%E7%A8%8B%E8%AF%8A%E6%96%AD%E5%B7%A5%E5%85%B7%E9%80%9F%E6%9F%A5%E8%A1%A8"><span class="nav-number">7.</span> <span class="nav-text">七、进程诊断工具速查表</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E5%86%85%E6%A0%B8%E8%B0%83%E5%BA%A6%E5%8F%82%E6%95%B0%E8%B0%83%E4%BC%98"><span class="nav-number">8.</span> <span class="nav-text">八、内核调度参数调优</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-CFS-%E6%A0%B8%E5%BF%83%E5%8F%82%E6%95%B0"><span class="nav-number">8.1.</span> <span class="nav-text">8.1 CFS 核心参数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-CONFIG-HZ-%E5%AF%B9%E5%BB%B6%E8%BF%9F%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="nav-number">8.2.</span> <span class="nav-text">8.2 CONFIG_HZ 对延迟的影响</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-%E7%BB%BC%E5%90%88%E8%B0%83%E4%BC%98%E5%BB%BA%E8%AE%AE"><span class="nav-number">8.3.</span> <span class="nav-text">8.3 综合调优建议</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">9.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">95</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">31</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">240</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-proc-part5-sched-diagnostics/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 进程管理深度剖析（五）：调度诊断与性能分析实战 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 进程管理深度剖析（五）：调度诊断与性能分析实战
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 15:50:00 / Modified: 11:56:04" itemprop="dateCreated datePublished" datetime="2026-04-14T15:50:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Process-Management/" itemprop="url" rel="index"><span itemprop="name">Process Management</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>进程调度是 Linux 内核中最复杂也最关键的子系统之一。在生产环境中，”CPU 使用率 100% 但响应很慢”、”任务唤醒后等了几十毫秒才运行”、”某个进程长期卡在 D 状态”——这些问题的根因往往深藏在调度层。本文是本系列第五篇，聚焦于调度诊断的完整方法论：从 <code>/proc</code> 接口读取原始数据，到 <code>perf sched</code> 分析调度延迟，再到 bpftrace 精确追踪内核路径，最后结合四个典型生产案例给出可落地的排查流程与修复建议。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="一、进程状态与-proc-接口"><a href="#一、进程状态与-proc-接口" class="headerlink" title="一、进程状态与 &#x2F;proc 接口"></a>一、进程状态与 &#x2F;proc 接口</h2><h3 id="1-1-proc-PID-status-完整字段解读"><a href="#1-1-proc-PID-status-完整字段解读" class="headerlink" title="1.1 &#x2F;proc&#x2F;PID&#x2F;status 完整字段解读"></a>1.1 &#x2F;proc&#x2F;PID&#x2F;status 完整字段解读</h3><p><code>/proc/PID/status</code> 是进程的”身份证”，包含 40+ 个字段，几乎涵盖进程所有关键属性。以一个 nginx worker 进程为例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/$(pgrep -n nginx)/status</span><br><span class="line">Name:   nginx</span><br><span class="line">Umask:  0022</span><br><span class="line">State:  S (sleeping)</span><br><span class="line">Tgid:   12345</span><br><span class="line">Ngid:   0</span><br><span class="line">Pid:    12345</span><br><span class="line">PPid:   12344</span><br><span class="line">TracerPid:      0</span><br><span class="line">Uid:    33      33      33      33</span><br><span class="line">Gid:    33      33      33      33</span><br><span class="line">FDSize: 256</span><br><span class="line">Groups: 33</span><br><span class="line">NStgid: 12345   1</span><br><span class="line">NSpid:  12345   1</span><br><span class="line">NSpgid: 12344   1</span><br><span class="line">NSsid:  12344   1</span><br><span class="line">Kthread:        0</span><br><span class="line">VmPeak:    65432 kB</span><br><span class="line">VmSize:    63108 kB</span><br><span class="line">VmLck:         0 kB</span><br><span class="line">VmPin:         0 kB</span><br><span class="line">VmHWM:     18256 kB</span><br><span class="line">VmRSS:     16384 kB</span><br><span class="line">RssAnon:    9216 kB</span><br><span class="line">RssFile:    7168 kB</span><br><span class="line">RssShmem:      0 kB</span><br><span class="line">VmData:     8192 kB</span><br><span class="line">VmStk:       132 kB</span><br><span class="line">VmExe:      1024 kB</span><br><span class="line">VmLib:      6144 kB</span><br><span class="line">VmPTE:        72 kB</span><br><span class="line">VmSwap:        0 kB</span><br><span class="line">HugetlbPages:  0 kB</span><br><span class="line">CoreDumping:    0</span><br><span class="line">THP_enabled:    1</span><br><span class="line">Threads:        4</span><br><span class="line">SigQ:   0/63693</span><br><span class="line">SigPnd: 0000000000000000</span><br><span class="line">ShdPnd: 0000000000000000</span><br><span class="line">SigBlk: 0000000000000000</span><br><span class="line">SigIgn: 0000000040001000</span><br><span class="line">SigCgt: 0000000198016eff</span><br><span class="line">CapInh: 0000000000000000</span><br><span class="line">CapPrm: 0000000000000000</span><br><span class="line">CapEff: 0000000000000000</span><br><span class="line">CapBnd: 000001ffffffffff</span><br><span class="line">CapAmb: 0000000000000000</span><br><span class="line">NoNewPrivs:     0</span><br><span class="line">Seccomp:        0</span><br><span class="line">Seccomp_filters:        0</span><br><span class="line">Speculation_Store_Bypass:       thread vulnerable</span><br><span class="line">SpeculationIndirectBranch:      conditional enabled</span><br><span class="line">Cpus_allowed:   ff</span><br><span class="line">Cpus_allowed_list:      0-7</span><br><span class="line">Mems_allowed:   00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003</span><br><span class="line">Mems_allowed_list:      0-1</span><br><span class="line">voluntary_ctxt_switches:        18423</span><br><span class="line">nonvoluntary_ctxt_switches:     342</span><br></pre></td></tr></table></figure>
+
+<p>关键字段含义对照表：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+<th>诊断价值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>State</code></td>
+<td>进程状态（R&#x2F;S&#x2F;D&#x2F;Z&#x2F;T&#x2F;I）</td>
+<td>判断进程是否阻塞</td>
+</tr>
+<tr>
+<td><code>Tgid</code></td>
+<td>线程组 ID（即主线程 PID）</td>
+<td>区分线程和进程</td>
+</tr>
+<tr>
+<td><code>NSpid</code></td>
+<td>命名空间内的 PID 列表</td>
+<td>容器场景下的 PID 映射</td>
+</tr>
+<tr>
+<td><code>Threads</code></td>
+<td>线程数</td>
+<td>多线程程序监控</td>
+</tr>
+<tr>
+<td><code>VmPeak</code></td>
+<td>虚拟内存峰值</td>
+<td>内存泄漏初判</td>
+</tr>
+<tr>
+<td><code>VmRSS</code></td>
+<td>实际物理内存使用量</td>
+<td>内存压力分析</td>
+</tr>
+<tr>
+<td><code>RssAnon</code></td>
+<td>匿名页占用（堆、栈）</td>
+<td>区分文件缓存与堆内存</td>
+</tr>
+<tr>
+<td><code>RssFile</code></td>
+<td>文件映射页占用</td>
+<td>mmap 使用分析</td>
+</tr>
+<tr>
+<td><code>VmSwap</code></td>
+<td>被 swap 出去的内存量</td>
+<td>内存不足告警</td>
+</tr>
+<tr>
+<td><code>SigBlk</code></td>
+<td>被屏蔽的信号掩码（十六进制）</td>
+<td>信号处理问题排查</td>
+</tr>
+<tr>
+<td><code>SigIgn</code></td>
+<td>被忽略的信号掩码</td>
+<td>信号处理问题排查</td>
+</tr>
+<tr>
+<td><code>SigCgt</code></td>
+<td>设置了 handler 的信号掩码</td>
+<td>确认程序注册了哪些信号</td>
+</tr>
+<tr>
+<td><code>CapEff</code></td>
+<td>有效 capability 位掩码</td>
+<td>权限排查，容器安全</td>
+</tr>
+<tr>
+<td><code>CapBnd</code></td>
+<td>capability bounding set</td>
+<td>进程最大权限上限</td>
+</tr>
+<tr>
+<td><code>Cpus_allowed_list</code></td>
+<td>允许运行的 CPU 核心列表</td>
+<td>CPU 亲和性设置确认</td>
+</tr>
+<tr>
+<td><code>Mems_allowed_list</code></td>
+<td>允许访问的 NUMA 节点</td>
+<td>NUMA 内存策略</td>
+</tr>
+<tr>
+<td><code>voluntary_ctxt_switches</code></td>
+<td>主动上下文切换总次数</td>
+<td>切换频率异常诊断</td>
+</tr>
+<tr>
+<td><code>nonvoluntary_ctxt_switches</code></td>
+<td>被动上下文切换总次数</td>
+<td>时间片用尽频率</td>
+</tr>
+</tbody></table>
+<p><strong>状态字段详解</strong>：</p>
+<ul>
+<li><code>R</code>（Running）：正在 CPU 上运行或在运行队列中就绪</li>
+<li><code>S</code>（Sleeping）：可中断睡眠，等待事件（如 IO、信号、锁）</li>
+<li><code>D</code>（Disk Sleep）：不可中断睡眠，通常等待 IO 或内核锁，<strong>无法被信号杀死</strong></li>
+<li><code>Z</code>（Zombie）：已退出但父进程未调用 <code>wait()</code>，占用 PID</li>
+<li><code>T</code>（Stopped）：被 SIGSTOP&#x2F;SIGTSTP 暂停</li>
+<li><code>I</code>（Idle）：内核线程的空闲状态（kernel 4.14+ 引入，区别于 D 状态）</li>
+</ul>
+<h3 id="1-2-proc-PID-sched：CFS-调度统计"><a href="#1-2-proc-PID-sched：CFS-调度统计" class="headerlink" title="1.2 &#x2F;proc&#x2F;PID&#x2F;sched：CFS 调度统计"></a>1.2 &#x2F;proc&#x2F;PID&#x2F;sched：CFS 调度统计</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/$(pgrep -n nginx)/sched</span><br><span class="line">nginx (12345, <span class="comment">#threads: 4)</span></span><br><span class="line">-----------------------------------------------------------</span><br><span class="line">se.exec_start                      :      4823719.123456</span><br><span class="line">se.vruntime                        :       123456.789012</span><br><span class="line">se.sum_exec_runtime                :        45678.901234</span><br><span class="line">se.nr_migrations                   :              1024</span><br><span class="line">nr_switches                        :             19823</span><br><span class="line">nr_voluntary_switches              :             18423</span><br><span class="line">nr_involuntary_switches            :              1400</span><br><span class="line">se.load.weight                     :              1048576</span><br><span class="line">se.avg.load_sum                    :            7654321</span><br><span class="line">se.avg.util_sum                    :            6543210</span><br><span class="line">se.avg.load_avg                    :                256</span><br><span class="line">se.avg.util_avg                    :                198</span><br><span class="line">se.avg.last_update_time            :      4823719.000000</span><br><span class="line">se.avg.util_est                    :                210</span><br><span class="line">policy                             :                  0</span><br><span class="line">prio                               :                120</span><br><span class="line">clock-delta                        :                 35</span><br><span class="line">mm-&gt;numa_scan_seq                  :                 12</span><br><span class="line">numa_pages_migrated                :                128</span><br><span class="line">numa_preferred_nid                 :                  0</span><br><span class="line">total_numa_faults                  :                256</span><br></pre></td></tr></table></figure>
+
+<p>关键字段解读：</p>
+<ul>
+<li>**<code>se.sum_exec_runtime</code>**：该进程的累计 CPU 运行时间（纳秒），单调递增</li>
+<li>**<code>se.vruntime</code>**：CFS 虚拟运行时间，是调度决策的核心依据。vruntime 最小的任务优先被调度</li>
+<li>**<code>nr_voluntary_switches</code>**：主动让出 CPU 的次数。进程调用 <code>sleep()</code>、<code>mutex_lock()</code>、<code>read()</code> 等阻塞时发生，对应内核路径 <code>schedule()</code> → <code>__schedule(SM_NONE)</code> 且 <code>prev_state != 0</code>，switch_count 指向 <code>prev-&gt;nvcsw</code></li>
+<li>**<code>nr_involuntary_switches</code>**：被抢占的次数。时间片用尽或高优先级任务唤醒时发生，对应 <code>__schedule(SM_PREEMPT)</code>，switch_count 指向 <code>prev-&gt;nivcsw</code></li>
+<li>**<code>se.nr_migrations</code>**：任务在 CPU 之间迁移的次数，迁移过多说明负载不均衡或 CPU 亲和性约束太宽松</li>
+<li>**<code>policy</code>**：调度策略（0&#x3D;SCHED_NORMAL, 1&#x3D;SCHED_FIFO, 2&#x3D;SCHED_RR, 6&#x3D;SCHED_DEADLINE）</li>
+<li>**<code>prio</code>**：调度优先级（100-139 对应普通进程，nice -20~19 映射到此范围）</li>
+</ul>
+<p><strong><code>nr_involuntary_switches</code> 偏高的诊断意义</strong>：如果该值持续快速增长（通过两次采样相减），说明进程不断被抢占，可能是时间片太短（<code>sched_min_granularity_ns</code> 过小）或同 CPU 上存在更高优先级的竞争者。</p>
+<h3 id="1-3-proc-PID-schedstat：运行时间与等待时间"><a href="#1-3-proc-PID-schedstat：运行时间与等待时间" class="headerlink" title="1.3 &#x2F;proc&#x2F;PID&#x2F;schedstat：运行时间与等待时间"></a>1.3 &#x2F;proc&#x2F;PID&#x2F;schedstat：运行时间与等待时间</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/$(pgrep -n nginx)/schedstat</span><br><span class="line">45678901234 12345678901 19823</span><br></pre></td></tr></table></figure>
+
+<p>三个数字含义：</p>
+<ol>
+<li><strong>运行时间</strong>（nanoseconds）：进程实际在 CPU 上执行的累计时间，对应 <code>se.sum_exec_runtime</code></li>
+<li><strong>等待时间</strong>（nanoseconds）：进程在运行队列中就绪但等待 CPU 的累计时间（即调度延迟之和）</li>
+<li><strong>切换次数</strong>：总上下文切换次数</li>
+</ol>
+<p><strong>等待时间与运行时间的比值</strong>是调度延迟的重要指标。如果等待时间远大于运行时间，说明系统 CPU 资源争用严重，进程长期”就绪但得不到 CPU”。</p>
+<h3 id="1-4-proc-schedstat：全局调度统计"><a href="#1-4-proc-schedstat：全局调度统计" class="headerlink" title="1.4 &#x2F;proc&#x2F;schedstat：全局调度统计"></a>1.4 &#x2F;proc&#x2F;schedstat：全局调度统计</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/schedstat</span><br><span class="line">version 15</span><br><span class="line">timestamp 4823751234</span><br><span class="line">cpu0 0 0 0 0 0 0 45678901 23456789 18234</span><br><span class="line">cpu1 0 0 0 0 0 0 43215678 21987654 17456</span><br><span class="line">cpu2 0 0 0 0 0 0 41234567 19876543 16789</span><br><span class="line">cpu3 0 0 0 0 0 0 44321098 22345678 17923</span><br><span class="line">domain0 cpu0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</span><br></pre></td></tr></table></figure>
+
+<p>每行 <code>cpuN</code> 后面的字段（version 15 格式）：</p>
+<ul>
+<li>字段 7：运行队列总运行时间（ns）</li>
+<li>字段 8：运行队列总等待时间（ns）</li>
+<li>字段 9：该 CPU 的总上下文切换次数</li>
+</ul>
+<p>通过对比各 CPU 的切换次数，可以快速发现负载不均衡的情况。</p>
+<hr>
+<h2 id="二、上下文切换分析"><a href="#二、上下文切换分析" class="headerlink" title="二、上下文切换分析"></a>二、上下文切换分析</h2><h3 id="2-1-主动切换-vs-被动切换的内核路径差异"><a href="#2-1-主动切换-vs-被动切换的内核路径差异" class="headerlink" title="2.1 主动切换 vs 被动切换的内核路径差异"></a>2.1 主动切换 vs 被动切换的内核路径差异</h3><p>理解两种切换的本质区别，是诊断调度问题的基础。</p>
+<p><strong>主动切换（Voluntary Context Switch）</strong>的内核路径：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">进程调用阻塞操作</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">mutex_lock() / wait_event() / read() 等</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">set_current_state(TASK_INTERRUPTIBLE) 或 TASK_UNINTERRUPTIBLE</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">schedule()</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">__schedule(SM_NONE)      ← sched_mode = 0，不是抢占</span><br><span class="line">    │</span><br><span class="line">    ├── prev_state = READ_ONCE(prev-&gt;__state)  // 非 0，进程确实要睡眠</span><br><span class="line">    ├── switch_count = &amp;prev-&gt;nvcsw            // 指向主动切换计数器</span><br><span class="line">    ├── deactivate_task(rq, prev, DEQUEUE_SLEEP)</span><br><span class="line">    └── pick_next_task() → context_switch()</span><br></pre></td></tr></table></figure>
+
+<p><strong>被动切换（Involuntary Context Switch）</strong>的内核路径：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">定时器中断触发</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">scheduler_tick()              ← 每 HZ 次/秒调用</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">curr-&gt;sched_class-&gt;task_tick()   ← CFS: task_tick_fair()</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">entity_tick() → check_preempt_tick()</span><br><span class="line">    │</span><br><span class="line">    ▼ 时间片用尽</span><br><span class="line">resched_curr(rq)              ← 设置 TIF_NEED_RESCHED 标志</span><br><span class="line">    │</span><br><span class="line">    ▼ 中断返回时检测</span><br><span class="line">preempt_schedule_irq()        ← 从 IRQ 上下文返回时触发</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">__schedule(SM_PREEMPT)        ← sched_mode = SM_PREEMPT</span><br><span class="line">    │</span><br><span class="line">    ├── prev_state = ... (不关心，因为是抢占)</span><br><span class="line">    ├── switch_count = &amp;prev-&gt;nivcsw   // 指向被动切换计数器</span><br><span class="line">    └── pick_next_task() → context_switch()</span><br></pre></td></tr></table></figure>
+
+<p>核心代码（<code>kernel/sched/core.c:6593</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">switch_count = &amp;prev-&gt;nivcsw;    <span class="comment">// 默认：被动切换</span></span><br><span class="line"></span><br><span class="line">prev_state = READ_ONCE(prev-&gt;__state);</span><br><span class="line"><span class="keyword">if</span> (!(sched_mode &amp; SM_MASK_PREEMPT) &amp;&amp; prev_state) &#123;</span><br><span class="line">    <span class="comment">// 进程主动睡眠（非抢占路径且 state != RUNNING）</span></span><br><span class="line">    ...</span><br><span class="line">    switch_count = &amp;prev-&gt;nvcsw;  <span class="comment">// 改为：主动切换</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-过多上下文切换的常见原因"><a href="#2-2-过多上下文切换的常见原因" class="headerlink" title="2.2 过多上下文切换的常见原因"></a>2.2 过多上下文切换的常见原因</h3><table>
+<thead>
+<tr>
+<th>原因</th>
+<th>表现</th>
+<th>主要类型</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>互斥锁竞争激烈</td>
+<td><code>nvcsw</code> 快速增长</td>
+<td>主动切换</td>
+</tr>
+<tr>
+<td>大量 IO 操作（磁盘&#x2F;网络）</td>
+<td><code>nvcsw</code> 快速增长</td>
+<td>主动切换</td>
+</tr>
+<tr>
+<td>时间片过短</td>
+<td><code>nivcsw</code> 快速增长</td>
+<td>被动切换</td>
+</tr>
+<tr>
+<td>高优先级任务频繁唤醒</td>
+<td><code>nivcsw</code> 快速增长</td>
+<td>被动切换</td>
+</tr>
+<tr>
+<td>线程池线程数过多</td>
+<td>两者都增长</td>
+<td>混合</td>
+</tr>
+<tr>
+<td>cgroup CPU 配额被限流</td>
+<td><code>nivcsw</code> 增长 + 被动切换</td>
+<td>被动切换</td>
+</tr>
+</tbody></table>
+<h3 id="2-3-诊断命令"><a href="#2-3-诊断命令" class="headerlink" title="2.3 诊断命令"></a>2.3 诊断命令</h3><p>**<code>vmstat 1</code>**：查看系统级切换速率</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">$ vmstat 1 5</span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 2  0      0 3421568  98304 2048000    0    0     0    32  412  856  8  3 89  0  0</span><br><span class="line"> 3  0      0 3419200  98304 2048128    0    0     0     0  523 1823 18  7 75  0  0</span><br><span class="line"> 4  0      0 3416832  98304 2048256    0    0     0     0  618 3421 24  9 67  0  0</span><br><span class="line"> 3  0      0 3418496  98304 2048128    0    0     0     0  589 2987 21  8 71  0  0</span><br><span class="line"> 2  0      0 3420160  98304 2048000    0    0     0     0  445 1234 15  5 80  0  0</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>r</code>：运行队列长度，持续 &gt; CPU 核数说明 CPU 饱和</li>
+<li><code>cs</code>：每秒上下文切换次数。正常 Web 服务器通常在 1000-5000&#x2F;s，若超过 50000&#x2F;s 需关注</li>
+<li><code>in</code>：每秒中断次数</li>
+</ul>
+<p>**<code>pidstat -w 1</code>**：按进程查看切换速率</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ pidstat -w -p 12345 1 5</span><br><span class="line">Linux 6.4.0 (prod-host)     04/14/2026     _x86_64_    (8 CPU)</span><br><span class="line"></span><br><span class="line">15:52:01      UID       PID   cswch/s nvcswch/s  Command</span><br><span class="line">15:52:02       33     12345    423.00      8.00  nginx</span><br><span class="line">15:52:03       33     12345    456.00     12.00  nginx</span><br><span class="line">15:52:04       33     12345    389.00      6.00  nginx</span><br><span class="line">15:52:05       33     12345    412.00      9.00  nginx</span><br><span class="line">15:52:06       33     12345    401.00      7.00  nginx</span><br><span class="line">Average:       33     12345    416.20      8.40  nginx</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>cswch/s</code>：每秒主动切换次数（对应 <code>nvcsw</code>）</li>
+<li><code>nvcswch/s</code>：每秒被动切换次数（对应 <code>nivcsw</code>）</li>
+</ul>
+<p>nginx 的 <code>cswch/s</code> 约 400&#x2F;s 属于正常范围（每次 epoll 等待唤醒都是一次主动切换）。若 <code>nvcswch/s</code> 突然上升，说明时间片频繁用尽。</p>
+<p>**<code>perf stat</code>**：精确统计硬件事件</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">$ perf <span class="built_in">stat</span> -e context-switches,cpu-migrations,instructions,cycles \</span><br><span class="line">    -p 12345 -- <span class="built_in">sleep</span> 10</span><br><span class="line"></span><br><span class="line"> Performance counter stats <span class="keyword">for</span> process <span class="built_in">id</span> <span class="string">&#x27;12345&#x27;</span>:</span><br><span class="line"></span><br><span class="line">         4,156      context-switches          <span class="comment">#    415.6 /sec</span></span><br><span class="line">            38      cpu-migrations            <span class="comment">#      3.8 /sec</span></span><br><span class="line"> 8,234,567,890      instructions              <span class="comment">#      2.45  insn per cycle</span></span><br><span class="line"> 3,361,456,123      cycles                    <span class="comment">#  336.1 MHz</span></span><br><span class="line"></span><br><span class="line">      10.001234567 seconds time elapsed</span><br></pre></td></tr></table></figure>
+
+<p><code>cpu-migrations</code> 过高（正常应极低）说明进程在 CPU 间频繁迁移，可能导致 cache miss 增加。</p>
+<hr>
+<h2 id="三、CPU-亲和性与-NUMA-调度"><a href="#三、CPU-亲和性与-NUMA-调度" class="headerlink" title="三、CPU 亲和性与 NUMA 调度"></a>三、CPU 亲和性与 NUMA 调度</h2><h3 id="3-1-sched-setaffinity-内核路径"><a href="#3-1-sched-setaffinity-内核路径" class="headerlink" title="3.1 sched_setaffinity 内核路径"></a>3.1 sched_setaffinity 内核路径</h3><p><code>taskset</code> 命令通过 <code>sched_setaffinity(2)</code> 系统调用设置进程的 CPU 亲和性掩码，内核路径如下（<code>kernel/sched/core.c:8318</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">long</span> <span class="title function_">sched_setaffinity</span><span class="params">(<span class="type">pid_t</span> pid, <span class="type">const</span> <span class="keyword">struct</span> cpumask *in_mask)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">affinity_context</span> <span class="title">ac</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span> *<span class="title">p</span>;</span></span><br><span class="line">    <span class="type">int</span> retval;</span><br><span class="line"></span><br><span class="line">    p = find_process_by_pid(pid);</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">// 权限检查：需要 CAP_SYS_NICE 或同 owner</span></span><br><span class="line">    <span class="keyword">if</span> (!check_same_owner(p)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!ns_capable(__task_cred(p)-&gt;user_ns, CAP_SYS_NICE))</span><br><span class="line">            <span class="keyword">return</span> -EPERM;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    ac = (<span class="keyword">struct</span> affinity_context)&#123;</span><br><span class="line">        .new_mask  = cpus_allowed,</span><br><span class="line">        .flags     = SCA_USER,</span><br><span class="line">    &#125;;</span><br><span class="line">    retval = __sched_setaffinity(p, &amp;ac);</span><br><span class="line">    <span class="comment">// 内部调用 __set_cpus_allowed_ptr() 更新 p-&gt;cpus_mask</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>taskset 命令实战</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看进程当前亲和性</span></span><br><span class="line">$ taskset -<span class="built_in">cp</span> 12345</span><br><span class="line">pid 12345<span class="string">&#x27;s current affinity list: 0-7</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 将进程绑定到 CPU 0,1</span></span><br><span class="line"><span class="string">$ taskset -cp 0,1 12345</span></span><br><span class="line"><span class="string">pid 12345&#x27;</span>s current affinity list: 0-7</span><br><span class="line">pid 12345<span class="string">&#x27;s new affinity list: 0,1</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 启动时绑定</span></span><br><span class="line"><span class="string">$ taskset -c 2,3 nginx -g &quot;daemon off;&quot;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 使用掩码格式（十六进制位图）</span></span><br><span class="line"><span class="string">$ taskset 0x0f nginx   # 绑定到 CPU 0-3（低4位）</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>何时需要 CPU 亲和性</strong>：</p>
+<ul>
+<li>实时任务隔离：将 RT 任务绑定到独立 CPU，避免被普通任务干扰</li>
+<li>L3 Cache 局部性：将相互通信频繁的线程绑定到同一物理核（SMT 兄弟核）</li>
+<li>中断隔离：将 <code>irqbalance</code> 禁用，手动将网卡中断和应用线程绑定到同侧 NUMA 节点</li>
+</ul>
+<h3 id="3-2-NUMA-拓扑感知调度"><a href="#3-2-NUMA-拓扑感知调度" class="headerlink" title="3.2 NUMA 拓扑感知调度"></a>3.2 NUMA 拓扑感知调度</h3><p>在多路服务器上，NUMA 架构对性能影响巨大。跨 NUMA 节点的内存访问延迟是本地访问的 1.5-3 倍。</p>
+<p><strong>查看 NUMA 拓扑</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ numactl --hardware</span><br><span class="line">available: 2 nodes (0-1)</span><br><span class="line">node 0 cpus: 0 1 2 3 4 5 6 7 16 17 18 19 20 21 22 23</span><br><span class="line">node 0 size: 64350 MB</span><br><span class="line">node 0 free: 31204 MB</span><br><span class="line">node 1 cpus: 8 9 10 11 12 13 14 15 24 25 26 27 28 29 30 31</span><br><span class="line">node 1 size: 64503 MB</span><br><span class="line">node 1 free: 29876 MB</span><br><span class="line">node distances:</span><br><span class="line">node   0   1</span><br><span class="line">  0:  10  21</span><br><span class="line">  1:  21  10</span><br></pre></td></tr></table></figure>
+
+<p><strong>内核 NUMA 调度</strong>：<code>task_numa_placement()</code> 周期性分析任务的内存访问模式，将任务迁移到内存所在的 NUMA 节点。可通过 <code>/proc/PID/sched</code> 中的 <code>numa_preferred_nid</code> 查看内核为任务选择的首选节点。</p>
+<p><strong>numactl 实战</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 将进程绑定到 NUMA 节点 0 的 CPU 和内存</span></span><br><span class="line">$ numactl --cpunodebind=0 --membind=0 ./myapp</span><br><span class="line"></span><br><span class="line"><span class="comment"># 内存交错分配（适合多线程均匀访问）</span></span><br><span class="line">$ numactl --interleave=all ./myapp</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看进程的 NUMA 内存分布</span></span><br><span class="line">$ numastat -p 12345</span><br><span class="line">Per-node process memory usage (<span class="keyword">in</span> MBs) <span class="keyword">for</span> PID 12345 (nginx)</span><br><span class="line">                           Node 0          Node 1           Total</span><br><span class="line">                  --------------- --------------- ---------------</span><br><span class="line">Huge                         0.00            0.00            0.00</span><br><span class="line">Heap                        12.34            0.45           12.79</span><br><span class="line">Stack                        0.06            0.00            0.06</span><br><span class="line">Private                     34.56            1.23           35.79</span><br><span class="line">----------------  --------------- --------------- ---------------</span><br><span class="line">Total                        46.96            1.68           48.64</span><br></pre></td></tr></table></figure>
+
+<p>如果 Node 1 的内存占用异常高而进程运行在 Node 0 的 CPU 上，这是 NUMA 不均衡的典型症状，需要重新绑定或启用 <code>numa_balancing</code>。</p>
+<hr>
+<h2 id="四、实时进程与优先级"><a href="#四、实时进程与优先级" class="headerlink" title="四、实时进程与优先级"></a>四、实时进程与优先级</h2><h3 id="4-1-调度策略对比"><a href="#4-1-调度策略对比" class="headerlink" title="4.1 调度策略对比"></a>4.1 调度策略对比</h3><table>
+<thead>
+<tr>
+<th>策略</th>
+<th>值</th>
+<th>特点</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SCHED_OTHER</code>（<code>SCHED_NORMAL</code>）</td>
+<td>0</td>
+<td>CFS 公平调度，nice -20~19</td>
+<td>普通进程</td>
+</tr>
+<tr>
+<td><code>SCHED_FIFO</code></td>
+<td>1</td>
+<td>实时，先进先出，无时间片</td>
+<td>实时控制、音频</td>
+</tr>
+<tr>
+<td><code>SCHED_RR</code></td>
+<td>2</td>
+<td>实时，轮转，有时间片</td>
+<td>实时且需公平</td>
+</tr>
+<tr>
+<td><code>SCHED_BATCH</code></td>
+<td>3</td>
+<td>批处理，降低调度频率</td>
+<td>后台计算任务</td>
+</tr>
+<tr>
+<td><code>SCHED_IDLE</code></td>
+<td>5</td>
+<td>极低优先级</td>
+<td>后台维护任务</td>
+</tr>
+<tr>
+<td><code>SCHED_DEADLINE</code></td>
+<td>6</td>
+<td>EDF 最早截止优先</td>
+<td>硬实时任务</td>
+</tr>
+</tbody></table>
+<p><strong>chrt 命令设置实时优先级</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看进程调度策略</span></span><br><span class="line">$ chrt -p 12345</span><br><span class="line">pid 12345<span class="string">&#x27;s current scheduling policy: SCHED_OTHER</span></span><br><span class="line"><span class="string">pid 12345&#x27;</span>s current scheduling priority: 0</span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置为 SCHED_FIFO，优先级 50（1-99）</span></span><br><span class="line">$ chrt -f -p 50 12345</span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置为 SCHED_RR</span></span><br><span class="line">$ chrt -r -p 30 12345</span><br><span class="line"></span><br><span class="line"><span class="comment"># 以 SCHED_FIFO 启动新进程</span></span><br><span class="line">$ chrt -f 50 ./realtime_app</span><br><span class="line"></span><br><span class="line"><span class="comment"># 恢复为普通调度</span></span><br><span class="line">$ chrt -o -p 0 12345</span><br></pre></td></tr></table></figure>
+
+<p><strong>优先级数值说明</strong>：实时优先级 1-99（越高越优先）映射到内核内部优先级 99-1（RT 进程占用 0-99，普通进程占用 100-139）。SCHED_FIFO 优先级 99 的进程可以完全饿死所有普通进程。</p>
+<h3 id="4-2-SCHED-DEADLINE：三参数-EDF-调度"><a href="#4-2-SCHED-DEADLINE：三参数-EDF-调度" class="headerlink" title="4.2 SCHED_DEADLINE：三参数 EDF 调度"></a>4.2 SCHED_DEADLINE：三参数 EDF 调度</h3><p>SCHED_DEADLINE 实现了 EDF（Earliest Deadline First）算法，是目前 Linux 中最严格的实时保证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 设置 SCHED_DEADLINE：runtime=5ms，deadline=10ms，period=10ms</span></span><br><span class="line"><span class="comment"># 含义：每 10ms 周期内，最多运行 5ms，必须在 10ms 内完成</span></span><br><span class="line">$ chrt --deadline \</span><br><span class="line">    --sched-runtime  5000000 \</span><br><span class="line">    --sched-deadline 10000000 \</span><br><span class="line">    --sched-period   10000000 \</span><br><span class="line">    0 ./deadline_app</span><br></pre></td></tr></table></figure>
+
+<p>三个参数含义：</p>
+<ul>
+<li><strong>runtime</strong>：每个周期内允许使用的 CPU 时间（纳秒），类似 CPU 配额</li>
+<li><strong>deadline</strong>：任务必须完成的时间点（相对于激活时刻），不得超出 period</li>
+<li><strong>period</strong>：任务的激活周期</li>
+</ul>
+<p>内核通过 CBS（Constant Bandwidth Server）算法保证每个 DEADLINE 任务不超过其 runtime&#x2F;period 的带宽比率。</p>
+<h3 id="4-3-优先级反转与-PI-Mutex"><a href="#4-3-优先级反转与-PI-Mutex" class="headerlink" title="4.3 优先级反转与 PI Mutex"></a>4.3 优先级反转与 PI Mutex</h3><p><strong>优先级反转场景</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">高优先级任务 H（FIFO-80）  ────────等待锁──────────────────────────运行</span><br><span class="line">中优先级任务 M（FIFO-50）  ────────────占用 CPU（抢占了 L）─────────</span><br><span class="line">低优先级任务 L（FIFO-10）  ──持有锁────被 M 抢占──────────────释放锁</span><br></pre></td></tr></table></figure>
+
+<p>H 等待 L 持有的锁，但 L 被中优先级的 M 抢占，导致 H 实际上被 M 阻塞——这违反了优先级调度的语义。</p>
+<p><strong>PI Mutex 解决方案</strong>：使用 <code>pthread_mutexattr_setprotocol(PTHREAD_PRIO_INHERIT)</code> 或内核的 <code>rt_mutex</code>，当高优先级任务等待锁时，临时将锁持有者的优先级提升至等待者级别：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">pthread_mutexattr_t</span> attr;</span><br><span class="line">pthread_mutexattr_init(&amp;attr);</span><br><span class="line">pthread_mutexattr_setprotocol(&amp;attr, PTHREAD_PRIO_INHERIT);</span><br><span class="line">pthread_mutex_init(&amp;mutex, &amp;attr);</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-IRQ-线程化"><a href="#4-4-IRQ-线程化" class="headerlink" title="4.4 IRQ 线程化"></a>4.4 IRQ 线程化</h3><p>将中断处理程序线程化可以让 RT 进程控制中断处理的优先级：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看线程化 IRQ 线程</span></span><br><span class="line">$ ps -eLo pid,tid,cls,rtprio,<span class="built_in">comm</span> | grep irq</span><br><span class="line">  123   123  FF      50 irq/24-eth0</span><br><span class="line">  124   124  FF      50 irq/25-nvme0</span><br><span class="line">  125   125  FF      49 irq/26-xhci_hcd</span><br><span class="line"></span><br><span class="line"><span class="comment"># 调整 IRQ 线程优先级</span></span><br><span class="line">$ chrt -f -p 70 $(pgrep <span class="string">&quot;irq/24-eth0&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、四大实战案例"><a href="#五、四大实战案例" class="headerlink" title="五、四大实战案例"></a>五、四大实战案例</h2><h3 id="案例一：CPU-使用率-100-但响应慢"><a href="#案例一：CPU-使用率-100-但响应慢" class="headerlink" title="案例一：CPU 使用率 100% 但响应慢"></a>案例一：CPU 使用率 100% 但响应慢</h3><p><strong>症状</strong>：<code>top</code> 显示某进程 CPU 100%，但 API 响应时间 P99 从 50ms 涨到 500ms。</p>
+<p><strong>第一步：用 top&#x2F;htop 定位高 CPU 进程</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">$ top -b -n 1 -o %CPU | <span class="built_in">head</span> -20</span><br><span class="line">  PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND</span><br><span class="line">23456 app       20   0 4096m   512m    32m R 99.8   0.8   45:23.12 myapp</span><br><span class="line">12345 nginx     20   0   65m    16m     8m S  2.3   0.0    1:02.34 nginx</span><br></pre></td></tr></table></figure>
+
+<p><strong>第二步：用 perf top 找热点函数</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">$ perf top -p 23456 --call-graph dwarf</span><br><span class="line">Samples: 45K of event <span class="string">&#x27;cycles&#x27;</span>, 4000 Hz, Event count (approx.): 12345678901</span><br><span class="line">Overhead  Shared Obj       Symbol</span><br><span class="line">  34.12%  myapp            [.] process_request</span><br><span class="line">  18.56%  myapp            [.] json_parse</span><br><span class="line">  12.34%  libc-2.35.so     [.] malloc</span><br><span class="line">   8.91%  myapp            [.] hash_lookup</span><br><span class="line">   6.23%  [kernel]         [k] copy_user_enhanced_fast_string</span><br></pre></td></tr></table></figure>
+
+<p>热点集中在 <code>process_request</code> 和 <code>json_parse</code>，且 <code>malloc</code> 占比异常高（12%），初步怀疑内存分配频繁。</p>
+<p><strong>第三步：perf record 采集火焰图数据</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">$ perf record -F 999 -g --call-graph dwarf -p 23456 -- <span class="built_in">sleep</span> 30</span><br><span class="line">[ perf record: Woken up 45 <span class="built_in">times</span> to write data ]</span><br><span class="line">[ perf record: Captured and wrote 234.567 MB perf.data (123456 samples) ]</span><br><span class="line"></span><br><span class="line">$ perf report --stdio --no-children | <span class="built_in">head</span> -40</span><br><span class="line"><span class="comment"># To display the perf.data header info, please use --header/--header-only options.</span></span><br><span class="line"><span class="comment"># Samples: 123K of event &#x27;cycles:ppp&#x27;</span></span><br><span class="line"><span class="comment"># Event count (approx.): 45678901234</span></span><br><span class="line"><span class="comment">#</span></span><br><span class="line"><span class="comment"># Overhead  Command  Shared Object      Symbol</span></span><br><span class="line">  34.12%    myapp    myapp              [.] process_request</span><br><span class="line">          |</span><br><span class="line">          |--89.23%-- main</span><br><span class="line">          |          event_loop</span><br><span class="line">          |          handle_connection</span><br><span class="line">          |          process_request</span><br><span class="line">          |          |</span><br><span class="line">          |          |--67.12%-- json_parse</span><br><span class="line">          |          |           parse_string</span><br><span class="line">          |          |           malloc         ← 在 json_parse 内部大量分配</span><br><span class="line">          |          |</span><br><span class="line">          |          |--32.88%-- hash_lookup</span><br></pre></td></tr></table></figure>
+
+<p><strong>第四步：bpftrace 用户态 CPU 采样</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">$ bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">profile:hz:99</span></span><br><span class="line"><span class="string">/pid == 23456/</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    @[ustack(perf)] = count();</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">interval:s:30 &#123; exit(); &#125;&#x27;</span> 2&gt;/dev/null | <span class="built_in">head</span> -40</span><br><span class="line"></span><br><span class="line">@[</span><br><span class="line">    process_request+0x234</span><br><span class="line">    json_parse+0x89</span><br><span class="line">    parse_string+0x45</span><br><span class="line">    malloc+0x12</span><br><span class="line">]: 4523</span><br><span class="line"></span><br><span class="line">@[</span><br><span class="line">    process_request+0x312</span><br><span class="line">    hash_lookup+0x67</span><br><span class="line">    strcmp+0x8</span><br><span class="line">]: 1234</span><br></pre></td></tr></table></figure>
+
+<p><strong>第五步：区分 user 态 vs sys 态 CPU</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">$ pidstat -u -d -p 23456 1 5</span><br><span class="line">15:52:01   UID    PID    %usr %system  %guest   %<span class="built_in">wait</span>    %CPU   CPU  Command</span><br><span class="line">15:52:02  1000  23456   95.00    4.00    0.00    0.00   99.00     2  myapp</span><br><span class="line">15:52:03  1000  23456   96.00    3.00    0.00    0.00   99.00     2  myapp</span><br></pre></td></tr></table></figure>
+
+<p><code>%usr</code> 高达 95%，<code>%system</code> 仅 4%，确认是用户态计算密集。</p>
+<p><strong>根因分析</strong>：<code>json_parse</code> 每次请求都用 <code>malloc</code>&#x2F;<code>free</code> 分配小块内存，触发频繁的内存分配器竞争（<code>ptmalloc</code> 的 arena 锁）。</p>
+<p><strong>修复建议</strong>：</p>
+<ol>
+<li>引入对象池或内存竞技场（arena allocator），复用 JSON 解析缓冲区</li>
+<li>使用 <code>jemalloc</code> 或 <code>tcmalloc</code> 替换 glibc malloc，减少线程间锁竞争</li>
+<li>考虑 SIMD 加速的 JSON 解析器（如 <code>simdjson</code>）</li>
+</ol>
+<hr>
+<h3 id="案例二：调度延迟高（任务等待-CPU-时间长）"><a href="#案例二：调度延迟高（任务等待-CPU-时间长）" class="headerlink" title="案例二：调度延迟高（任务等待 CPU 时间长）"></a>案例二：调度延迟高（任务等待 CPU 时间长）</h3><p><strong>症状</strong>：服务 P99 延迟高，但 CPU 使用率只有 40%，理论上 CPU 资源充足。</p>
+<p><strong>第一步：perf sched 采集调度事件</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ perf <span class="built_in">sched</span> record -a -- <span class="built_in">sleep</span> 10</span><br><span class="line">[ perf record: Woken up 234 <span class="built_in">times</span> to write data ]</span><br><span class="line">[ perf record: Captured and wrote 1234.567 MB perf.data ]</span><br></pre></td></tr></table></figure>
+
+<p><strong>第二步：perf sched latency 查看延迟分布</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ perf <span class="built_in">sched</span> latency --<span class="built_in">sort</span> max</span><br><span class="line"></span><br><span class="line"> -----------------------------------------------------------------------------------------------------------------</span><br><span class="line">  Task                  |   Runtime ms  | Switches | Average delay ms | Maximum delay ms | Maximum delay at       |</span><br><span class="line"> -----------------------------------------------------------------------------------------------------------------</span><br><span class="line">  myapp:23456           |    4523.456   |    12345 |          0.234   |         45.678   | 15:52:03.456789012     |</span><br><span class="line">  nginx:12345           |    1234.567   |     8901 |          0.089   |          8.901   | 15:52:05.123456789     |</span><br><span class="line">  kworker/2:1:456       |     123.456   |     2345 |          0.012   |          1.234   | 15:52:07.234567890     |</span><br><span class="line"> -----------------------------------------------------------------------------------------------------------------</span><br><span class="line">  TOTAL:                |    6123.456   |    23456 |</span><br></pre></td></tr></table></figure>
+
+<p><code>myapp</code> 的最大调度延迟达到 <strong>45.678ms</strong>，而平均延迟只有 0.234ms，说明是偶发性的长尾延迟。</p>
+<p><strong>第三步：perf sched timehist 详细时间线</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$ perf <span class="built_in">sched</span> timehist -p 23456 | <span class="built_in">head</span> -30</span><br><span class="line">           time    cpu  task name              <span class="built_in">wait</span> time  sch delay   run time</span><br><span class="line">              [tid/pid]                           (msec)     (msec)     (msec)</span><br><span class="line">------------ ------  ------------       --------- --------- ---------</span><br><span class="line">15:52:03.400234567 [002]  myapp[23456]           0.012      0.089      2.345</span><br><span class="line">15:52:03.403234567 [002]  myapp[23456]           0.023      0.123      3.456</span><br><span class="line">15:52:03.456123456 [002]  myapp[23456]           0.456     45.234      2.123</span><br><span class="line">                                                            ^^^^^^^</span><br><span class="line">                                                    这次等了 45ms 才得到 CPU</span><br></pre></td></tr></table></figure>
+
+<p><strong>第四步：bpftrace 追踪高延迟唤醒</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">$ bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">tracepoint:sched:sched_wakeup</span></span><br><span class="line"><span class="string">/args-&gt;pid == 23456/</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    @wakeup_ts[args-&gt;pid] = nsecs;</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">tracepoint:sched:sched_switch</span></span><br><span class="line"><span class="string">/args-&gt;next_pid == 23456/</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    $ts = @wakeup_ts[args-&gt;next_pid];</span></span><br><span class="line"><span class="string">    if ($ts &gt; 0) &#123;</span></span><br><span class="line"><span class="string">        $delta = nsecs - $ts;</span></span><br><span class="line"><span class="string">        if ($delta &gt; 5000000) &#123;</span></span><br><span class="line"><span class="string">            printf(&quot;HIGH SCHED LATENCY: pid=%d comm=%s delay=%dms at %lld\n&quot;,</span></span><br><span class="line"><span class="string">                   args-&gt;next_pid, args-&gt;next_comm,</span></span><br><span class="line"><span class="string">                   $delta / 1000000, nsecs);</span></span><br><span class="line"><span class="string">        &#125;</span></span><br><span class="line"><span class="string">        delete(@wakeup_ts[args-&gt;next_pid]);</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">&#125;&#x27;</span></span><br><span class="line"></span><br><span class="line">HIGH SCHED LATENCY: pid=23456 <span class="built_in">comm</span>=myapp delay=45ms at 4823756123456789</span><br><span class="line">HIGH SCHED LATENCY: pid=23456 <span class="built_in">comm</span>=myapp delay=23ms at 4823761234567890</span><br></pre></td></tr></table></figure>
+
+<p><strong>第五步：检查 cgroup CPU throttling</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /sys/fs/cgroup/cpu/myapp/cpu.stat</span><br><span class="line">nr_periods          12345</span><br><span class="line">nr_throttled         2345</span><br><span class="line">throttled_time   45678901234   ← 被限流的总时间(ns): 约 45.7 秒</span><br><span class="line">throttled_usec   45678901      ← 等效微秒</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 CPU 配额设置</span></span><br><span class="line">$ <span class="built_in">cat</span> /sys/fs/cgroup/cpu/myapp/cpu.cfs_quota_us</span><br><span class="line">200000   ← 每 period 200ms</span><br><span class="line">$ <span class="built_in">cat</span> /sys/fs/cgroup/cpu/myapp/cpu.cfs_period_us</span><br><span class="line">100000   ← period 100ms</span><br><span class="line"><span class="comment"># 意味着最多使用 2 个 CPU，但机器有 8 核</span></span><br></pre></td></tr></table></figure>
+
+<p><code>nr_throttled / nr_periods ≈ 19%</code> 的限流率——接近 20% 的周期被限流，与偶发性长尾延迟完全吻合。</p>
+<p><strong>第六步：检查 CPU 频率状态</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ cpupower frequency-info -c 2</span><br><span class="line">analyzing CPU 2:</span><br><span class="line">  driver: intel_pstate</span><br><span class="line">  CPUs <span class="built_in">which</span> run at the same hardware frequency: 2</span><br><span class="line">  CPUs <span class="built_in">which</span> need to have their frequency coordinated by software: 2</span><br><span class="line">  maximum transition latency:  Cannot determine or is not supported.</span><br><span class="line">  hardware limits: 1000 MHz - 3800 MHz</span><br><span class="line">  available cpufreq governors: performance powersave</span><br><span class="line">  current policy: frequency should be within 1000 MHz and 3800 MHz.</span><br><span class="line">                  The governor <span class="string">&quot;powersave&quot;</span> may decide <span class="built_in">which</span> speed to use</span><br><span class="line">  current CPU frequency: 1400 MHz (asserted by call to hardware)</span><br><span class="line">  boost state support: supported - currently enabled</span><br></pre></td></tr></table></figure>
+
+<p><strong>CPU 频率只有 1.4GHz</strong>（最高 3.8GHz），<code>powersave</code> 调速器在低负载时降频，导致偶发任务获得 CPU 后实际执行速度很慢。</p>
+<p><strong>根因分析</strong>：双重问题：(1) cgroup CPU quota 设置偏紧，19% 的周期被限流；(2) CPU 调速器为 <code>powersave</code>，频率未及时提升。</p>
+<p><strong>修复建议</strong>：</p>
+<ol>
+<li>调高 cgroup <code>cpu.cfs_quota_us</code>，或改用 <code>cpu.weight</code> 的相对权重调度</li>
+<li>将调速器改为 <code>performance</code> 或 <code>schedutil</code>：<code>cpupower frequency-set -g schedutil</code></li>
+<li>开启 CPU boost：<code>echo 1 &gt; /sys/devices/system/cpu/cpufreq/boost</code></li>
+</ol>
+<hr>
+<h3 id="案例三：进程-D-状态（不可中断睡眠）"><a href="#案例三：进程-D-状态（不可中断睡眠）" class="headerlink" title="案例三：进程 D 状态（不可中断睡眠）"></a>案例三：进程 D 状态（不可中断睡眠）</h3><p><strong>症状</strong>：<code>ps</code> 显示某进程长期处于 D 状态，无法被 kill，系统 load average 居高不下。</p>
+<p><strong>第一步：找 D 状态进程</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$ ps aux | awk <span class="string">&#x27;$8 == &quot;D&quot; &#123;print&#125;&#x27;</span></span><br><span class="line">USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND</span><br><span class="line">root      5678  0.0  0.0      0     0 ?        D    10:23   0:05 [kworker/2:1]</span><br><span class="line">app      34567  0.5  0.2 256000 32000 ?        D    10:45   0:12 myapp</span><br><span class="line"></span><br><span class="line"><span class="comment"># 用 ps 的状态过滤（更可靠）</span></span><br><span class="line">$ ps -eo pid,<span class="built_in">stat</span>,wchan,<span class="built_in">comm</span> | grep <span class="string">&quot;^[0-9]* D&quot;</span></span><br><span class="line">34567 D    nfs_wait_on_req myapp</span><br><span class="line"> 5678 D    blk_mq_get_tag  kworker/2:1</span><br></pre></td></tr></table></figure>
+
+<p><strong>第二步：查看等待的内核函数</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/34567/wchan</span><br><span class="line">nfs_wait_on_request</span><br><span class="line"></span><br><span class="line"><span class="comment"># 或用更详细的格式</span></span><br><span class="line">$ <span class="built_in">cat</span> /proc/34567/status | grep State</span><br><span class="line">State:  D (disk <span class="built_in">sleep</span>)</span><br></pre></td></tr></table></figure>
+
+<p><code>wchan</code> 显示 <code>nfs_wait_on_request</code>，说明进程在等待 NFS 服务器响应。</p>
+<p><strong>第三步：查看完整内核调用栈</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/34567/stack</span><br><span class="line">[&lt;0&gt;] nfs_wait_on_request+0x2e/0x40 [nfs]</span><br><span class="line">[&lt;0&gt;] nfs_updatepage+0x1e6/0x2a0 [nfs]</span><br><span class="line">[&lt;0&gt;] nfs_write_begin+0x1a4/0x1f0 [nfs]</span><br><span class="line">[&lt;0&gt;] generic_perform_write+0x12a/0x1e0</span><br><span class="line">[&lt;0&gt;] nfs_file_write+0x113/0x1d0 [nfs]</span><br><span class="line">[&lt;0&gt;] vfs_write+0xcb/0x200</span><br><span class="line">[&lt;0&gt;] ksys_write+0x5f/0xe0</span><br><span class="line">[&lt;0&gt;] do_syscall_64+0x3d/0x80</span><br><span class="line">[&lt;0&gt;] entry_SYSCALL_64_after_hwframe+0x46/0xb0</span><br></pre></td></tr></table></figure>
+
+<p>完整调用栈确认：<code>write()</code> 系统调用 → NFS 文件写入 → 等待 NFS 服务器确认。</p>
+<p><strong>第四步：bpftrace 统计 D 状态热点</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">$ bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:schedule</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    $task = (struct task_struct *)curtask;</span></span><br><span class="line"><span class="string">    if ($task-&gt;__state == 2) &#123;</span></span><br><span class="line"><span class="string">        @d_state_stacks[kstack(10)] = count();</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">interval:s:10 &#123; print(@d_state_stacks); exit(); &#125;&#x27;</span></span><br><span class="line"></span><br><span class="line">@d_state_stacks[</span><br><span class="line">    schedule+0x1</span><br><span class="line">    nfs_wait_on_request+0x2e</span><br><span class="line">    nfs_updatepage+0x1e6</span><br><span class="line">    nfs_write_begin+0x1a4</span><br><span class="line">    generic_perform_write+0x12a</span><br><span class="line">]: 4523</span><br><span class="line"></span><br><span class="line">@d_state_stacks[</span><br><span class="line">    schedule+0x1</span><br><span class="line">    blk_mq_get_tag+0x89</span><br><span class="line">    blk_mq_submit_bio+0x234</span><br><span class="line">    __submit_bio+0x67</span><br><span class="line">]: 1234</span><br></pre></td></tr></table></figure>
+
+<p><strong>第五步：验证 NFS 服务器状态</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看 NFS 挂载点</span></span><br><span class="line">$ mount | grep nfs</span><br><span class="line">nfs-server:/data on /mnt/nfs <span class="built_in">type</span> nfs4 (rw,relatime,...)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查 NFS 统计</span></span><br><span class="line">$ nfsstat -c</span><br><span class="line">Client rpc stats:</span><br><span class="line">calls      retrans    authrefrsh</span><br><span class="line">1234567    45678      12345      ← retrans 高说明网络不稳定</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查 NFS 服务器响应时间</span></span><br><span class="line">$ nfsiostat 1</span><br><span class="line">              op/s    rpc bklog    kB/s    kB/op    retrans    avg RTT (ms)    avg exe (ms)</span><br><span class="line"><span class="built_in">read</span>:         123.4       0      987.6      8.0       0        2.3            2.5</span><br><span class="line">write:         89.1       0      712.3      8.0      23      345.6          346.8</span><br><span class="line">                                                     ^^      ^^^^^</span><br><span class="line">                                              重传23次，平均响应346ms（正常应&lt;10ms）</span><br></pre></td></tr></table></figure>
+
+<p><strong>根因分析</strong>：NFS 服务器响应超时（346ms 远超正常），write 操作触发大量重传，导致进程长期卡在 <code>nfs_wait_on_request</code> 的 D 状态。</p>
+<p><strong>修复建议</strong>：</p>
+<ol>
+<li>检查 NFS 服务器负载和网络链路质量（<code>ping</code>、<code>traceroute</code>）</li>
+<li>挂载时加 <code>softerr</code> 或 <code>soft,timeo=30</code> 选项，让 NFS 请求超时后返回错误而非无限等待</li>
+<li>考虑迁移到本地存储或更可靠的分布式存储（如 Ceph、GlusterFS）</li>
+<li>短期应急：<code>umount -f -l /mnt/nfs</code>（强制懒卸载）可以解除 D 状态进程的阻塞</li>
+</ol>
+<hr>
+<h3 id="案例四：fork-炸弹-进程数过多"><a href="#案例四：fork-炸弹-进程数过多" class="headerlink" title="案例四：fork 炸弹 &#x2F; 进程数过多"></a>案例四：fork 炸弹 &#x2F; 进程数过多</h3><p><strong>症状</strong>：系统响应极慢，<code>ps aux</code> 命令本身就需要几秒才能返回，内存占用异常。</p>
+<p><strong>第一步：确认进程数情况</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ ps aux | <span class="built_in">wc</span> -l</span><br><span class="line">32769</span><br><span class="line"></span><br><span class="line">$ <span class="built_in">cat</span> /proc/sys/kernel/pid_max</span><br><span class="line">32768</span><br><span class="line"></span><br><span class="line">$ <span class="built_in">cat</span> /proc/sys/kernel/threads-max</span><br><span class="line">63693</span><br><span class="line"></span><br><span class="line"><span class="comment"># 已用 PID 数</span></span><br><span class="line">$ <span class="built_in">ls</span> /proc | grep <span class="string">&#x27;^[0-9]&#x27;</span> | <span class="built_in">wc</span> -l</span><br><span class="line">32234</span><br></pre></td></tr></table></figure>
+
+<p>进程数已经逼近 <code>pid_max</code> 上限（32768），新进程无法 fork。</p>
+<p><strong>第二步：pstree 找进程树根</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">$ pstree -a -p | grep -A 5 <span class="string">&quot;bash&quot;</span></span><br><span class="line">bash(1234)</span><br><span class="line">  └─python(2345)</span><br><span class="line">      ├─python(3456)</span><br><span class="line">      │   ├─python(4567)</span><br><span class="line">      │   │   └─python(5678)</span><br><span class="line">      │   ...（递归 fork）</span><br></pre></td></tr></table></figure>
+
+<p><strong>第三步：找 fork 最多的父进程</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 按 PPID 统计子进程数</span></span><br><span class="line">$ ps -eo ppid | <span class="built_in">sort</span> | <span class="built_in">uniq</span> -c | <span class="built_in">sort</span> -rn | <span class="built_in">head</span> -10</span><br><span class="line">  28000  2345   ← PID 2345 有 28000 个子进程！</span><br><span class="line">    123  1234</span><br><span class="line">     45     1</span><br><span class="line"></span><br><span class="line">$ ps -p 2345 -o pid,ppid,cmd</span><br><span class="line">  PID  PPID CMD</span><br><span class="line"> 2345  1234 python /app/worker.py</span><br></pre></td></tr></table></figure>
+
+<p><strong>第四步：用 bpftrace 实时追踪 fork</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">$ bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">tracepoint:sched:sched_process_fork</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    @forks[comm] = count();</span></span><br><span class="line"><span class="string">    printf(&quot;fork: parent=%s(%d) -&gt; child(%d)\n&quot;,</span></span><br><span class="line"><span class="string">           comm, args-&gt;parent_pid, args-&gt;child_pid);</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">interval:s:1 &#123;</span></span><br><span class="line"><span class="string">    print(@forks);</span></span><br><span class="line"><span class="string">    clear(@forks);</span></span><br><span class="line"><span class="string">&#125;&#x27;</span></span><br><span class="line"></span><br><span class="line">fork: parent=python(2345) -&gt; child(32456)</span><br><span class="line">fork: parent=python(2345) -&gt; child(32457)</span><br><span class="line">fork: parent=python(2345) -&gt; child(32458)</span><br><span class="line">...</span><br><span class="line"></span><br><span class="line">@forks[python]: 1234    ← 每秒 fork 1234 次！</span><br></pre></td></tr></table></figure>
+
+<p><strong>第五步：cgroup pids.max 限制</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前 cgroup 的进程数限制</span></span><br><span class="line">$ <span class="built_in">cat</span> /sys/fs/cgroup/pids/myapp/pids.max</span><br><span class="line">max   ← 无限制！</span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置限制为 1000 个进程</span></span><br><span class="line">$ <span class="built_in">echo</span> 1000 &gt; /sys/fs/cgroup/pids/myapp/pids.max</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看当前用量</span></span><br><span class="line">$ <span class="built_in">cat</span> /sys/fs/cgroup/pids/myapp/pids.current</span><br><span class="line">987</span><br></pre></td></tr></table></figure>
+
+<p><strong>第六步：用户级进程数限制</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前用户限制</span></span><br><span class="line">$ <span class="built_in">ulimit</span> -u</span><br><span class="line">63693</span><br><span class="line"></span><br><span class="line"><span class="comment"># 为特定用户设置限制（/etc/security/limits.conf）</span></span><br><span class="line">$ <span class="built_in">cat</span> /etc/security/limits.conf</span><br><span class="line">app   hard  <span class="built_in">nproc</span>  2048</span><br><span class="line">app   soft  <span class="built_in">nproc</span>  1024</span><br><span class="line"></span><br><span class="line"><span class="comment"># 验证生效</span></span><br><span class="line">$ su - app -c <span class="string">&quot;ulimit -u&quot;</span></span><br><span class="line">1024</span><br></pre></td></tr></table></figure>
+
+<p><strong>根因分析</strong>：<code>python worker.py</code> 中存在递归 fork 炸弹 bug（未限制子进程数量），每次任务处理都 fork 新进程而不是复用进程池，导致进程数指数级增长。</p>
+<p><strong>修复建议</strong>：</p>
+<ol>
+<li>立即处置：<code>kill -STOP 2345</code>（暂停父进程）然后 <code>kill -9 -2345</code>（杀死整个进程组）</li>
+<li>设置 cgroup <code>pids.max</code> 作为安全阀（推荐在容器&#x2F;Pod 中默认配置）</li>
+<li>代码层面：使用进程池（<code>multiprocessing.Pool</code>）而非无限制 fork</li>
+<li>设置系统级 <code>pid_max</code> 适当降低，防止单个用户耗尽所有 PID</li>
+</ol>
+<hr>
+<h2 id="六、perf-工具全面使用指南"><a href="#六、perf-工具全面使用指南" class="headerlink" title="六、perf 工具全面使用指南"></a>六、perf 工具全面使用指南</h2><h3 id="6-1-perf-stat：硬件计数器统计"><a href="#6-1-perf-stat：硬件计数器统计" class="headerlink" title="6.1 perf stat：硬件计数器统计"></a>6.1 perf stat：硬件计数器统计</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">$ perf <span class="built_in">stat</span> -e \</span><br><span class="line">    instructions,cycles,\</span><br><span class="line">    cache-references,cache-misses,\</span><br><span class="line">    branch-instructions,branch-misses,\</span><br><span class="line">    context-switches,cpu-migrations,\</span><br><span class="line">    page-faults \</span><br><span class="line">    -p 23456 -- <span class="built_in">sleep</span> 10</span><br><span class="line"></span><br><span class="line"> Performance counter stats <span class="keyword">for</span> process <span class="built_in">id</span> <span class="string">&#x27;23456&#x27;</span>:</span><br><span class="line"></span><br><span class="line"> 23,456,789,012      instructions              <span class="comment">#    2.45  insn per cycle</span></span><br><span class="line">  9,573,363,474      cycles                    <span class="comment">#    957.3 MHz</span></span><br><span class="line">    456,789,012      cache-references          <span class="comment">#   45.7 M/sec</span></span><br><span class="line">     45,678,901      cache-misses              <span class="comment">#   10.00% of all cache refs</span></span><br><span class="line">  5,678,901,234      branch-instructions       <span class="comment">#  567.9 M/sec</span></span><br><span class="line">     56,789,012      branch-misses             <span class="comment">#    1.00% of all branches</span></span><br><span class="line">          4,156      context-switches          <span class="comment">#    415.6 /sec</span></span><br><span class="line">             38      cpu-migrations            <span class="comment">#      3.8 /sec</span></span><br><span class="line">          1,234      page-faults               <span class="comment">#    123.4 /sec</span></span><br><span class="line"></span><br><span class="line">     10.001234567 seconds time elapsed</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键指标解读</strong>：</p>
+<ul>
+<li><code>insn per cycle (IPC)</code>：2.45 是好的指标（现代 CPU 理论值 3-4），若低于 1 说明大量内存等待</li>
+<li><code>cache-misses %</code>：10% 偏高（正常应 &lt; 1%），说明数据访问模式不友好</li>
+<li><code>branch-misses %</code>：1% 正常</li>
+<li><code>page-faults</code>：异常高说明内存不足或 mmap 访问新页面频繁</li>
+</ul>
+<h3 id="6-2-perf-top：实时热点函数"><a href="#6-2-perf-top：实时热点函数" class="headerlink" title="6.2 perf top：实时热点函数"></a>6.2 perf top：实时热点函数</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 显示所有进程的热点，带调用图</span></span><br><span class="line">$ perf top -g --call-graph dwarf</span><br><span class="line"></span><br><span class="line"><span class="comment"># 只看特定进程</span></span><br><span class="line">$ perf top -p 23456 --call-graph lbr</span><br><span class="line"></span><br><span class="line"><span class="comment"># 显示内核符号（需要 kernel debuginfo）</span></span><br><span class="line">$ perf top -K</span><br><span class="line"></span><br><span class="line"><span class="comment"># 按事件类型（如 cache miss）采样</span></span><br><span class="line">$ perf top -e cache-misses -p 23456</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-perf-record-perf-report：离线火焰图"><a href="#6-3-perf-record-perf-report：离线火焰图" class="headerlink" title="6.3 perf record + perf report：离线火焰图"></a>6.3 perf record + perf report：离线火焰图</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 采集带调用栈的 CPU 性能数据（30秒，999Hz）</span></span><br><span class="line">$ perf record -F 999 -g --call-graph dwarf \</span><br><span class="line">    -p 23456 -- <span class="built_in">sleep</span> 30</span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成文本报告</span></span><br><span class="line">$ perf report --stdio --no-children --percent-limit 1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成火焰图（需要 FlameGraph 工具）</span></span><br><span class="line">$ perf script | stackcollapse-perf.pl | flamegraph.pl &gt; flame.svg</span><br><span class="line"></span><br><span class="line"><span class="comment"># 包含内核态调用栈</span></span><br><span class="line">$ perf record -F 999 -g -a --call-graph dwarf -- <span class="built_in">sleep</span> 30</span><br><span class="line">$ perf report --<span class="built_in">sort</span> <span class="built_in">comm</span>,dso,symbol</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-4-perf-sched：调度分析套件"><a href="#6-4-perf-sched：调度分析套件" class="headerlink" title="6.4 perf sched：调度分析套件"></a>6.4 perf sched：调度分析套件</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 采集调度事件（需要 root）</span></span><br><span class="line">$ perf <span class="built_in">sched</span> record -a -- <span class="built_in">sleep</span> 10</span><br><span class="line"></span><br><span class="line"><span class="comment"># 延迟分布（按最大延迟排序）</span></span><br><span class="line">$ perf <span class="built_in">sched</span> latency --<span class="built_in">sort</span> max</span><br><span class="line"></span><br><span class="line"><span class="comment"># 详细调度时间线（过滤特定进程）</span></span><br><span class="line">$ perf <span class="built_in">sched</span> timehist -p 23456</span><br><span class="line"></span><br><span class="line"><span class="comment"># 调度地图（可视化各 CPU 的任务分布）</span></span><br><span class="line">$ perf <span class="built_in">sched</span> map</span><br><span class="line"></span><br><span class="line"><span class="comment"># 统计调度摘要</span></span><br><span class="line">$ perf <span class="built_in">sched</span> summary</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-5-perf-lock：锁竞争分析"><a href="#6-5-perf-lock：锁竞争分析" class="headerlink" title="6.5 perf lock：锁竞争分析"></a>6.5 perf lock：锁竞争分析</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 采集锁竞争事件</span></span><br><span class="line">$ perf lock record -p 23456 -- <span class="built_in">sleep</span> 10</span><br><span class="line"></span><br><span class="line"><span class="comment"># 报告锁竞争热点</span></span><br><span class="line">$ perf lock report</span><br><span class="line">Name                    acquired    contended  total <span class="built_in">wait</span> (ms)  avg <span class="built_in">wait</span> (ms)  max <span class="built_in">wait</span> (ms)</span><br><span class="line">pthread_mutex_lock         89234        12345          456.789          0.037          12.345</span><br><span class="line">futex_wait_queue            4567          789           89.012          0.113           5.678</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-6-perf-mem：内存访问分析"><a href="#6-6-perf-mem：内存访问分析" class="headerlink" title="6.6 perf mem：内存访问分析"></a>6.6 perf mem：内存访问分析</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 采集内存访问延迟（需要硬件支持 PEBS/LBR）</span></span><br><span class="line">$ perf mem record -p 23456 -- <span class="built_in">sleep</span> 10</span><br><span class="line">$ perf mem report</span><br><span class="line"><span class="comment"># 显示 NUMA 本地/远程访问分布，L1/L2/L3/DRAM 命中率</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-7-perf-ftrace：内核函数追踪"><a href="#6-7-perf-ftrace：内核函数追踪" class="headerlink" title="6.7 perf ftrace：内核函数追踪"></a>6.7 perf ftrace：内核函数追踪</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪特定内核函数（类似 ftrace，但集成在 perf 中）</span></span><br><span class="line">$ perf ftrace -G sched_setaffinity -p 23456</span><br><span class="line"></span><br><span class="line"><span class="comment"># 函数调用延迟分析</span></span><br><span class="line">$ perf ftrace latency -T do_sys_open -- <span class="built_in">ls</span> /proc</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="七、进程诊断工具速查表"><a href="#七、进程诊断工具速查表" class="headerlink" title="七、进程诊断工具速查表"></a>七、进程诊断工具速查表</h2><table>
+<thead>
+<tr>
+<th>工具</th>
+<th>用途</th>
+<th>核心命令示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>top</code> &#x2F; <code>htop</code></td>
+<td>实时进程资源使用</td>
+<td><code>top -b -n 1 -o %CPU</code></td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td>进程快照与状态过滤</td>
+<td><code>ps -eo pid,stat,wchan,comm,pcpu --sort=-pcpu</code></td>
+</tr>
+<tr>
+<td><code>pidstat</code></td>
+<td>进程级 CPU&#x2F;IO&#x2F;内存统计（历史）</td>
+<td><code>pidstat -u -d -w -p PID 1 10</code></td>
+</tr>
+<tr>
+<td><code>vmstat</code></td>
+<td>系统级 CPU&#x2F;内存&#x2F;IO&#x2F;切换统计</td>
+<td><code>vmstat 1 60</code></td>
+</tr>
+<tr>
+<td><code>perf stat</code></td>
+<td>硬件性能计数器采样</td>
+<td><code>perf stat -e cycles,instructions -p PID sleep 10</code></td>
+</tr>
+<tr>
+<td><code>perf top</code></td>
+<td>实时热点函数</td>
+<td><code>perf top -p PID --call-graph dwarf</code></td>
+</tr>
+<tr>
+<td><code>perf record/report</code></td>
+<td>离线 CPU 性能分析 + 火焰图</td>
+<td><code>perf record -F 999 -g -p PID sleep 30</code></td>
+</tr>
+<tr>
+<td><code>perf sched</code></td>
+<td>调度延迟与时间线分析</td>
+<td><code>perf sched record -a -- sleep 10 &amp;&amp; perf sched latency</code></td>
+</tr>
+<tr>
+<td><code>perf lock</code></td>
+<td>内核&#x2F;用户态锁竞争分析</td>
+<td><code>perf lock record -p PID sleep 10</code></td>
+</tr>
+<tr>
+<td><code>bpftrace</code></td>
+<td>动态内核追踪，自定义脚本</td>
+<td><code>bpftrace -e &#39;profile:hz:99 /pid==X/ &#123; @[ustack]=count(); &#125;&#39;</code></td>
+</tr>
+<tr>
+<td><code>strace</code></td>
+<td>系统调用追踪（有性能开销）</td>
+<td><code>strace -T -tt -e trace=sched_yield,futex -p PID</code></td>
+</tr>
+<tr>
+<td><code>taskset</code></td>
+<td>CPU 亲和性查看与设置</td>
+<td><code>taskset -cp PID</code> &#x2F; <code>taskset -c 0,1 ./app</code></td>
+</tr>
+<tr>
+<td><code>chrt</code></td>
+<td>调度策略与实时优先级设置</td>
+<td><code>chrt -p PID</code> &#x2F; <code>chrt -f -p 50 PID</code></td>
+</tr>
+<tr>
+<td><code>numactl</code></td>
+<td>NUMA 绑定与内存策略</td>
+<td><code>numactl --cpunodebind=0 --membind=0 ./app</code></td>
+</tr>
+<tr>
+<td><code>numastat</code></td>
+<td>NUMA 内存使用统计</td>
+<td><code>numastat -p PID</code></td>
+</tr>
+<tr>
+<td><code>cpupower</code></td>
+<td>CPU 频率与调速器管理</td>
+<td><code>cpupower frequency-info</code> &#x2F; <code>cpupower frequency-set -g performance</code></td>
+</tr>
+<tr>
+<td><code>tuna</code></td>
+<td>综合线程&#x2F;IRQ 调优工具</td>
+<td><code>tuna --show_threads</code> &#x2F; <code>tuna -t myapp -p FIFO:50</code></td>
+</tr>
+<tr>
+<td><code>lscpu</code></td>
+<td>CPU 拓扑（核数&#x2F;NUMA&#x2F;缓存）</td>
+<td><code>lscpu --extended</code></td>
+</tr>
+<tr>
+<td><code>stress-ng</code></td>
+<td>调度压力测试</td>
+<td><code>stress-ng --cpu 4 --sched fifo --sched-prio 50 -t 60</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="八、内核调度参数调优"><a href="#八、内核调度参数调优" class="headerlink" title="八、内核调度参数调优"></a>八、内核调度参数调优</h2><h3 id="8-1-CFS-核心参数"><a href="#8-1-CFS-核心参数" class="headerlink" title="8.1 CFS 核心参数"></a>8.1 CFS 核心参数</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前值</span></span><br><span class="line">$ sysctl -a | grep sched_</span><br><span class="line">kernel.sched_latency_ns = 24000000</span><br><span class="line">kernel.sched_min_granularity_ns = 3000000</span><br><span class="line">kernel.sched_migration_cost_ns = 500000</span><br><span class="line">kernel.sched_nr_migrate = 32</span><br><span class="line">kernel.sched_wakeup_granularity_ns = 4000000</span><br><span class="line">kernel.sched_child_runs_first = 0</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>sched_latency_ns</code>（调度延迟周期，默认 24ms）</strong></p>
+<p>CFS 保证在这个时间窗口内，每个可运行进程都能得到至少一次运行机会。窗口内的 CPU 时间按进程权重比例分配。</p>
+<ul>
+<li>降低此值：减少调度延迟，提升交互响应性，但增加上下文切换频率</li>
+<li>提升此值：适合批处理场景，减少切换开销</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 交互式场景（如桌面）</span></span><br><span class="line">$ sysctl -w kernel.sched_latency_ns=6000000    <span class="comment"># 6ms</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 批处理/HPC 场景</span></span><br><span class="line">$ sysctl -w kernel.sched_latency_ns=48000000   <span class="comment"># 48ms</span></span><br></pre></td></tr></table></figure>
+
+<p><strong><code>sched_min_granularity_ns</code>（最小运行时间粒度，默认 3ms）</strong></p>
+<p>单个进程一次调度后，至少运行这么长时间才可被抢占。防止进程刚被调度就立刻被抢走。</p>
+<ul>
+<li>当进程数 N 超过 <code>sched_latency_ns / sched_min_granularity_ns</code> 时，实际调度周期延长为 <code>N * sched_min_granularity_ns</code></li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 高并发（数百线程）服务，避免切换风暴</span></span><br><span class="line">$ sysctl -w kernel.sched_min_granularity_ns=10000000   <span class="comment"># 10ms</span></span><br></pre></td></tr></table></figure>
+
+<p><strong><code>sched_migration_cost_ns</code>（任务迁移代价阈值，默认 500μs）</strong></p>
+<p>当某 CPU 上的进程最近执行时间 &lt; 此值时，调度器认为它的 Cache 还”热”，避免迁移到其他 CPU。</p>
+<ul>
+<li>增大此值：减少任务迁移（减少 Cache 污染），适合 Cache 敏感的延迟任务</li>
+<li>减小此值：允许更积极的负载均衡，适合吞吐优先场景</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ sysctl -w kernel.sched_migration_cost_ns=5000000    <span class="comment"># 5ms，减少迁移</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="8-2-CONFIG-HZ-对延迟的影响"><a href="#8-2-CONFIG-HZ-对延迟的影响" class="headerlink" title="8.2 CONFIG_HZ 对延迟的影响"></a>8.2 CONFIG_HZ 对延迟的影响</h3><p><code>CONFIG_HZ</code> 决定内核时钟中断频率，直接影响调度粒度：</p>
+<table>
+<thead>
+<tr>
+<th>CONFIG_HZ</th>
+<th>时钟间隔</th>
+<th>适用场景</th>
+<th>调度延迟下限</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>100 Hz</td>
+<td>10ms</td>
+<td>服务器，低中断开销</td>
+<td>~10ms</td>
+</tr>
+<tr>
+<td>250 Hz</td>
+<td>4ms</td>
+<td>通用桌面&#x2F;服务器（默认）</td>
+<td>~4ms</td>
+</tr>
+<tr>
+<td>1000 Hz</td>
+<td>1ms</td>
+<td>低延迟桌面，实时应用</td>
+<td>~1ms</td>
+</tr>
+<tr>
+<td>无滴答（<code>NO_HZ_FULL</code>）</td>
+<td>动态</td>
+<td>HPC，消除抖动</td>
+<td>无定时中断</td>
+</tr>
+</tbody></table>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前内核的 HZ 配置</span></span><br><span class="line">$ grep <span class="string">&quot;^CONFIG_HZ=&quot;</span> /boot/config-$(<span class="built_in">uname</span> -r)</span><br><span class="line">CONFIG_HZ=250</span><br><span class="line"></span><br><span class="line"><span class="comment"># 运行时查看实际 HZ</span></span><br><span class="line">$ getconf CLK_TCK</span><br><span class="line">250</span><br></pre></td></tr></table></figure>
+
+<p><strong>无滴答内核（tickless &#x2F; NO_HZ_FULL）</strong>：对于需要极低延迟抖动的 HPC 或实时场景，可以隔离 CPU 核心并关闭定时中断：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 内核启动参数：隔离 CPU 2,3 并开启无滴答</span></span><br><span class="line">GRUB_CMDLINE_LINUX=<span class="string">&quot;isolcpus=2,3 nohz_full=2,3 rcu_nocbs=2,3&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 验证</span></span><br><span class="line">$ <span class="built_in">cat</span> /sys/devices/system/cpu/nohz_full</span><br><span class="line">2,3</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-3-综合调优建议"><a href="#8-3-综合调优建议" class="headerlink" title="8.3 综合调优建议"></a>8.3 综合调优建议</h3><p><strong>延迟敏感型服务（如交易系统、游戏服务器）</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 调度参数</span></span><br><span class="line">sysctl -w kernel.sched_latency_ns=4000000</span><br><span class="line">sysctl -w kernel.sched_min_granularity_ns=500000</span><br><span class="line">sysctl -w kernel.sched_migration_cost_ns=5000000</span><br><span class="line">sysctl -w kernel.sched_wakeup_granularity_ns=1000000</span><br><span class="line"></span><br><span class="line"><span class="comment"># CPU 频率</span></span><br><span class="line">cpupower frequency-set -g performance</span><br><span class="line"><span class="built_in">echo</span> 0 &gt; /sys/devices/system/cpu/cpufreq/boost   <span class="comment"># 或开启 boost</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 实时优先级（服务进程）</span></span><br><span class="line">chrt -f -p 50 $(pgrep myapp)</span><br><span class="line"></span><br><span class="line"><span class="comment"># NUMA 绑定</span></span><br><span class="line">numactl --cpunodebind=0 --membind=0 ./myapp</span><br></pre></td></tr></table></figure>
+
+<p><strong>高吞吐批处理服务（如 MapReduce、编译集群）</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 更大的调度粒度，减少切换开销</span></span><br><span class="line">sysctl -w kernel.sched_latency_ns=48000000</span><br><span class="line">sysctl -w kernel.sched_min_granularity_ns=6000000</span><br><span class="line">sysctl -w kernel.sched_migration_cost_ns=500000    <span class="comment"># 允许积极迁移</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 调速器用 schedutil（根据实际负载动态调频）</span></span><br><span class="line">cpupower frequency-set -g schedutil</span><br><span class="line"></span><br><span class="line"><span class="comment"># NUMA 内存交错（均匀分布）</span></span><br><span class="line">numactl --interleave=all ./batch_job</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Linux 进程调度诊断是一个从宏观到微观逐步下钻的过程。本文建立的排查框架如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">观察症状</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">宏观指标收集</span><br><span class="line">vmstat cs列 / top CPU / load average</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">进程级定位</span><br><span class="line">pidstat -w (切换率) / ps stat (D状态) / perf stat</span><br><span class="line">    │</span><br><span class="line">    ├──── CPU 热点 ──→ perf top / perf record + 火焰图 / bpftrace profile</span><br><span class="line">    │</span><br><span class="line">    ├──── 调度延迟 ──→ perf sched latency/timehist / bpftrace sched_wakeup</span><br><span class="line">    │</span><br><span class="line">    ├──── D 状态 ────→ /proc/PID/wchan + stack / bpftrace kprobe:schedule</span><br><span class="line">    │</span><br><span class="line">    └──── 进程过多 ──→ pstree / bpftrace sched_process_fork / cgroup pids</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">参数调优 + 代码修复</span><br><span class="line">sched_latency_ns / cgroup quota / 亲和性 / 调速器</span><br></pre></td></tr></table></figure>
+
+<p>核心原则：<strong>先测量，后调优</strong>。用 <code>perf</code> 和 <code>bpftrace</code> 拿到数据，确认根因，再有针对性地修改调度参数或应用代码——盲目调参往往适得其反。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Scheduler/" rel="tag"># Scheduler</a>
+              <a href="/tags/bpftrace/" rel="tag"># bpftrace</a>
+              <a href="/tags/perf/" rel="tag"># perf</a>
+              <a href="/tags/Context-Switch/" rel="tag"># Context Switch</a>
+              <a href="/tags/Latency/" rel="tag"># Latency</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-proc-part4-cgroup/" rel="prev" title="Linux 进程管理深度剖析（四）：cgroup v2 资源控制内核实现">
+                  <i class="fa fa-angle-left"></i> Linux 进程管理深度剖析（四）：cgroup v2 资源控制内核实现
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

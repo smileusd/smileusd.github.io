@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="内存问题是生产系统中最难排查的故障类型之一。症状可能表现为 OOM 崩溃、响应延迟飙升、Swap 风暴，也可能是长达数天才显现的缓慢内存泄漏。本文从内核数据结构出发，系统讲解 &#x2F;proc&#x2F;meminfo、&#x2F;proc&#x2F;vmstat 的每个字段含义，结合五大实战案例与 bpftrace 诊断脚本，构建一套完整的内存诊断与调优方法论。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 内存管理深度剖析（七）：内存诊断工具与性能调优实战">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part7-diagnostics/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="内存问题是生产系统中最难排查的故障类型之一。症状可能表现为 OOM 崩溃、响应延迟飙升、Swap 风暴，也可能是长达数天才显现的缓慢内存泄漏。本文从内核数据结构出发，系统讲解 &#x2F;proc&#x2F;meminfo、&#x2F;proc&#x2F;vmstat 的每个字段含义，结合五大实战案例与 bpftrace 诊断脚本，构建一套完整的内存诊断与调优方法论。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-14T07:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T03:58:50.428Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="bpftrace">
+<meta property="article:tag" content="Memory Diagnostics">
+<meta property="article:tag" content="Performance Tuning">
+<meta property="article:tag" content="OOM">
+<meta property="article:tag" content="Memory Leak">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part7-diagnostics/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part7-diagnostics/","path":"2026/04/14/2026-04-14-linux-mm-part7-diagnostics/","title":"Linux 内存管理深度剖析（七）：内存诊断工具与性能调优实战"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 内存管理深度剖析（七）：内存诊断工具与性能调优实战 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81-proc-meminfo-%E5%AE%8C%E6%95%B4%E8%A7%A3%E6%9E%90"><span class="nav-number">1.</span> <span class="nav-text">一、&#x2F;proc&#x2F;meminfo 完整解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E5%9F%BA%E7%A1%80%E5%8F%AF%E7%94%A8%E5%86%85%E5%AD%98%E4%B8%89%E5%85%83%E7%BB%84"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 基础可用内存三元组</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-Buffers%E3%80%81Cached-%E4%B8%8E-SwapCached"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 Buffers、Cached 与 SwapCached</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-LRU-%E5%9B%9B%E8%B1%A1%E9%99%90%EF%BC%9AActive-Inactive-%C3%97-Anon-File"><span class="nav-number">1.3.</span> <span class="nav-text">1.3 LRU 四象限：Active&#x2F;Inactive × Anon&#x2F;File</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-%E5%9B%9E%E5%86%99%E7%8A%B6%E6%80%81%E5%AD%97%E6%AE%B5"><span class="nav-number">1.4.</span> <span class="nav-text">1.4 回写状态字段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-5-%E5%8C%BF%E5%90%8D%E9%A1%B5%E4%B8%8E%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98"><span class="nav-number">1.5.</span> <span class="nav-text">1.5 匿名页与共享内存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-6-Slab-%E5%88%86%E9%85%8D%E5%99%A8%E7%BB%9F%E8%AE%A1"><span class="nav-number">1.6.</span> <span class="nav-text">1.6 Slab 分配器统计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-7-%E9%A1%B5%E8%A1%A8%E4%B8%8E%E5%86%85%E6%A0%B8%E8%99%9A%E6%8B%9F%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4"><span class="nav-number">1.7.</span> <span class="nav-text">1.7 页表与内核虚拟地址空间</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-8-%E5%A4%A7%E9%A1%B5%EF%BC%88HugePages%EF%BC%89%E7%BB%9F%E8%AE%A1"><span class="nav-number">1.8.</span> <span class="nav-text">1.8 大页（HugePages）统计</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81-proc-vmstat-%E5%85%B3%E9%94%AE%E6%8C%87%E6%A0%87%E8%A7%A3%E8%AF%BB"><span class="nav-number">2.</span> <span class="nav-text">二、&#x2F;proc&#x2F;vmstat 关键指标解读</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E9%A1%B5%E9%9D%A2%E5%9B%9E%E6%94%B6%E8%AE%A1%E6%95%B0%E5%99%A8"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 页面回收计数器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Swap-I-O-%E8%AE%A1%E6%95%B0%E5%99%A8"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 Swap I&#x2F;O 计数器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%86%85%E5%AD%98%E5%8E%8B%E7%BC%A9%E8%AE%A1%E6%95%B0%E5%99%A8"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 内存压缩计数器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E9%80%8F%E6%98%8E%E5%A4%A7%E9%A1%B5%EF%BC%88THP%EF%BC%89%E8%AE%A1%E6%95%B0%E5%99%A8"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 透明大页（THP）计数器</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E4%BA%94%E5%A4%A7%E5%AE%9E%E6%88%98%E6%A1%88%E4%BE%8B"><span class="nav-number">3.</span> <span class="nav-text">三、五大实战案例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B%E4%B8%80%EF%BC%9A%E5%86%85%E5%AD%98%E6%B3%84%E6%BC%8F%E6%8E%92%E6%9F%A5"><span class="nav-number">3.1.</span> <span class="nav-text">案例一：内存泄漏排查</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B%E4%BA%8C%EF%BC%9AOOM-%E4%BA%8B%E4%BB%B6%E5%88%86%E6%9E%90"><span class="nav-number">3.2.</span> <span class="nav-text">案例二：OOM 事件分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B%E4%B8%89%EF%BC%9A%E9%AB%98%E5%86%85%E5%AD%98%E5%8E%8B%E5%8A%9B-Swap-%E9%A3%8E%E6%9A%B4"><span class="nav-number">3.3.</span> <span class="nav-text">案例三：高内存压力 &#x2F; Swap 风暴</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B%E5%9B%9B%EF%BC%9A%E5%86%85%E5%AD%98%E7%A2%8E%E7%89%87%E5%8C%96"><span class="nav-number">3.4.</span> <span class="nav-text">案例四：内存碎片化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B%E4%BA%94%EF%BC%9A%E5%AE%B9%E5%99%A8%E5%86%85%E5%AD%98%E9%9A%94%E7%A6%BB%E9%97%AE%E9%A2%98"><span class="nav-number">3.5.</span> <span class="nav-text">案例五：容器内存隔离问题</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81bpftrace-%E5%86%85%E5%AD%98%E8%AF%8A%E6%96%AD%E8%84%9A%E6%9C%AC%E9%9B%86"><span class="nav-number">4.</span> <span class="nav-text">四、bpftrace 内存诊断脚本集</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E4%B8%80%EF%BC%9A%E8%BF%BD%E8%B8%AA%E5%A4%A7%E5%9D%97%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%EF%BC%88-1MB%EF%BC%89"><span class="nav-number">4.1.</span> <span class="nav-text">脚本一：追踪大块内存分配（&gt; 1MB）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E4%BA%8C%EF%BC%9Akmalloc-%E5%88%86%E9%85%8D%E7%83%AD%E7%82%B9%EF%BC%88%E6%8C%89%E8%B0%83%E7%94%A8%E6%A0%88%E8%81%9A%E5%90%88%EF%BC%89"><span class="nav-number">4.2.</span> <span class="nav-text">脚本二：kmalloc 分配热点（按调用栈聚合）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E4%B8%89%EF%BC%9A%E7%BC%BA%E9%A1%B5%E5%BC%82%E5%B8%B8%E6%9D%A5%E6%BA%90%E5%88%86%E6%9E%90"><span class="nav-number">4.3.</span> <span class="nav-text">脚本三：缺页异常来源分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E5%9B%9B%EF%BC%9Ammap-%E8%B0%83%E7%94%A8%E8%BF%BD%E8%B8%AA%E4%B8%8E%E5%86%85%E5%AD%98%E6%98%A0%E5%B0%84%E5%88%86%E6%9E%90"><span class="nav-number">4.4.</span> <span class="nav-text">脚本四：mmap 调用追踪与内存映射分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%9A%E6%9C%AC%E4%BA%94%EF%BC%9AOOM-Kill-%E5%89%8D%E8%BF%9B%E7%A8%8B%E5%86%85%E5%AD%98%E5%BF%AB%E7%85%A7"><span class="nav-number">4.5.</span> <span class="nav-text">脚本五：OOM Kill 前进程内存快照</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81vm-sysctl-%E5%8F%82%E6%95%B0%E9%80%9F%E6%9F%A5%E8%A1%A8"><span class="nav-number">5.</span> <span class="nav-text">五、vm.* sysctl 参数速查表</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%86%85%E5%AD%98%E7%9B%91%E6%8E%A7%E5%91%8A%E8%AD%A6%E6%8C%87%E6%A0%87"><span class="nav-number">6.</span> <span class="nav-text">六、内存监控告警指标</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E6%A0%B8%E5%BF%83%E5%91%8A%E8%AD%A6%E6%8C%87%E6%A0%87%E4%B8%8E%E9%98%88%E5%80%BC"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 核心告警指标与阈值</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E6%97%A5%E5%B8%B8%E5%B7%A1%E6%A3%80%E8%84%9A%E6%9C%AC"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 日常巡检脚本</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E5%86%85%E5%AD%98%E5%8E%8B%E5%8A%9B%E7%AD%89%E7%BA%A7%E8%AF%84%E4%BC%B0%E7%9F%A9%E9%98%B5"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 内存压力等级评估矩阵</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">7.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">95</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">31</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">240</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part7-diagnostics/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 内存管理深度剖析（七）：内存诊断工具与性能调优实战 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 内存管理深度剖析（七）：内存诊断工具与性能调优实战
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 15:00:00 / Modified: 11:58:50" itemprop="dateCreated datePublished" datetime="2026-04-14T15:00:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Memory-Management/" itemprop="url" rel="index"><span itemprop="name">Memory Management</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>内存问题是生产系统中最难排查的故障类型之一。症状可能表现为 OOM 崩溃、响应延迟飙升、Swap 风暴，也可能是长达数天才显现的缓慢内存泄漏。本文从内核数据结构出发，系统讲解 <code>/proc/meminfo</code>、<code>/proc/vmstat</code> 的每个字段含义，结合五大实战案例与 bpftrace 诊断脚本，构建一套完整的内存诊断与调优方法论。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="一、-proc-meminfo-完整解析"><a href="#一、-proc-meminfo-完整解析" class="headerlink" title="一、&#x2F;proc&#x2F;meminfo 完整解析"></a>一、&#x2F;proc&#x2F;meminfo 完整解析</h2><p><code>/proc/meminfo</code> 是内存诊断的第一入口，由内核函数 <code>meminfo_proc_show()</code>（<code>fs/proc/meminfo.c</code>）填充，数据来源于全局变量 <code>totalram_pages</code>、<code>zone-&gt;vm_stat[]</code> 以及各 per-CPU 计数器的聚合值。</p>
+<h3 id="1-1-基础可用内存三元组"><a href="#1-1-基础可用内存三元组" class="headerlink" title="1.1 基础可用内存三元组"></a>1.1 基础可用内存三元组</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/meminfo</span><br><span class="line">MemTotal:       32768000 kB   <span class="comment"># 系统可用物理内存总量</span></span><br><span class="line">MemFree:         1024000 kB   <span class="comment"># 完全空闲（未被使用）的内存</span></span><br><span class="line">MemAvailable:   12288000 kB   <span class="comment"># 实际可用于启动新应用的内存估算值</span></span><br></pre></td></tr></table></figure>
+
+<p>三者的本质区别：</p>
+<ul>
+<li><strong>MemTotal</strong>：内核启动时从 BIOS&#x2F;UEFI 的 e820 内存映射中获取的可用 RAM 总量，减去内核自身代码、保留区域后的值，对应 <code>totalram_pages &lt;&lt; PAGE_SHIFT</code>。</li>
+<li><strong>MemFree</strong>：<code>NR_FREE_PAGES</code> 计数器的值，表示 Buddy System 中完全空闲的页面。该值低并不代表系统内存紧张，因为大量内存被用作文件缓存（可随时回收）。</li>
+<li><strong>MemAvailable</strong>：内核 3.14 引入（commit <code>34e431b0ae398</code>），综合评估当前可回收的 page cache、部分 slab，以及当前 free 内存，减去不可驱逐的内存下限后得出的估算值。<strong>生产监控应以此字段为准</strong>，而非 MemFree。</li>
+</ul>
+<h3 id="1-2-Buffers、Cached-与-SwapCached"><a href="#1-2-Buffers、Cached-与-SwapCached" class="headerlink" title="1.2 Buffers、Cached 与 SwapCached"></a>1.2 Buffers、Cached 与 SwapCached</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Buffers:          102400 kB   # 块设备原始 I/O 缓冲（裸块设备读写）</span><br><span class="line">Cached:          8192000 kB   # 文件系统 page cache（含 tmpfs）</span><br><span class="line">SwapCached:        20480 kB   # 已从 swap 换回但 swap 槽尚未释放的页面</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>Buffers</strong>：对应 <code>NR_BUFFERS</code> 计数器，主要用于文件系统元数据（superblock、inode、目录项）的裸块设备 I&#x2F;O。现代系统中该值通常较小。</li>
+<li><strong>Cached</strong>：<code>NR_FILE_PAGES - SwapCached - Buffers</code> 的近似值，是文件映射 page cache 的总量。这部分内存在内存压力下可被 kswapd 回收。</li>
+<li><strong>SwapCached</strong>：页面被 swap out 后又 swap in 时，其 swap 槽位暂时保留，以便在再次被驱逐时可直接写回同一槽位（跳过分配新槽位的开销）。这部分内存在 <code>vm_stat</code> 中对应 <code>NR_SWAPCACHE</code>。</li>
+</ul>
+<h3 id="1-3-LRU-四象限：Active-Inactive-×-Anon-File"><a href="#1-3-LRU-四象限：Active-Inactive-×-Anon-File" class="headerlink" title="1.3 LRU 四象限：Active&#x2F;Inactive × Anon&#x2F;File"></a>1.3 LRU 四象限：Active&#x2F;Inactive × Anon&#x2F;File</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Active(anon):    2048000 kB   # 匿名页（堆/栈）活跃 LRU</span><br><span class="line">Inactive(anon):   512000 kB   # 匿名页非活跃 LRU（swap 候选）</span><br><span class="line">Active(file):    4096000 kB   # 文件映射页活跃 LRU</span><br><span class="line">Inactive(file):  3072000 kB   # 文件映射页非活跃 LRU（回收候选）</span><br><span class="line">Unevictable:       65536 kB   # 被 mlock 锁定，不可驱逐</span><br><span class="line">Mlocked:           65536 kB   # mlock/mlockall 锁定的页面子集</span><br></pre></td></tr></table></figure>
+
+<p>内核使用两个 LRU 链表（<code>LRU_ACTIVE_ANON</code>、<code>LRU_INACTIVE_ANON</code>、<code>LRU_ACTIVE_FILE</code>、<code>LRU_INACTIVE_FILE</code>）管理这四类页面，数据来源于 <code>zone-&gt;vm_stat[NR_LRU_BASE + lru]</code>。</p>
+<p>kswapd 的回收策略：优先回收 <code>Inactive(file)</code>（成本最低，只需丢弃缓存），其次 <code>Inactive(anon)</code>（需要 swap out），<code>Active</code> 链表中的页面被访问时 <code>PTE_AF</code> 位会被置位，下次 shrink_active_list 扫描时若 AF 位已清则降级到 Inactive。</p>
+<h3 id="1-4-回写状态字段"><a href="#1-4-回写状态字段" class="headerlink" title="1.4 回写状态字段"></a>1.4 回写状态字段</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Dirty:            204800 kB   # 已修改但尚未写回磁盘的脏页</span><br><span class="line">Writeback:         10240 kB   # 正在写回磁盘的页面</span><br><span class="line">WritebackTmp:       1024 kB   # FUSE 文件系统临时写回缓冲</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>Dirty</strong>：超过 <code>vm.dirty_ratio</code>（默认 20% MemTotal）时，写入进程本身会被迫同步刷盘（throttle）；超过 <code>vm.dirty_background_ratio</code>（默认 10%）时触发 pdflush&#x2F;writeback 线程后台刷盘。</li>
+<li><strong>Writeback</strong>：对应 <code>NR_WRITEBACK</code>，值持续偏高说明存在 I&#x2F;O 瓶颈（磁盘带宽饱和）。</li>
+</ul>
+<h3 id="1-5-匿名页与共享内存"><a href="#1-5-匿名页与共享内存" class="headerlink" title="1.5 匿名页与共享内存"></a>1.5 匿名页与共享内存</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">AnonPages:       3584000 kB   # 用户态匿名映射（malloc、栈、mmap MAP_ANONYMOUS）</span><br><span class="line">Mapped:          1024000 kB   # 已被进程 mmap 映射的文件页（subset of Cached）</span><br><span class="line">Shmem:            512000 kB   # tmpfs / POSIX 共享内存 / SysV shm</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>AnonPages</strong>：对应 <code>NR_ANON_MAPPED</code>，与 <code>Mapped</code> 相互独立。MAP_ANONYMOUS|MAP_SHARED 的页面计入 Shmem 而非 AnonPages。</li>
+<li><strong>Shmem</strong>：包含所有 tmpfs 页面（含 <code>/dev/shm</code>、容器 overlay 等）以及 <code>shmget</code> 创建的 SysV 共享内存。容器环境中该值偏高时需关注 tmpfs 使用情况。</li>
+</ul>
+<h3 id="1-6-Slab-分配器统计"><a href="#1-6-Slab-分配器统计" class="headerlink" title="1.6 Slab 分配器统计"></a>1.6 Slab 分配器统计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">KReclaimable:     819200 kB   # 可回收内核内存（含 SReclaimable）</span><br><span class="line">Slab:            1048576 kB   # slab/slub 分配器总使用量</span><br><span class="line">SReclaimable:     819200 kB   # 可回收 slab（dentry cache、inode cache）</span><br><span class="line">SUnreclaim:       229376 kB   # 不可回收 slab（内核对象生命周期绑定）</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>SReclaimable</strong>：dcache（dentry）和 icache（inode）是最大的可回收 slab 消费者，在文件密集型工作负载（大量小文件遍历）下可能膨胀到数 GB。通过 <code>echo 2 &gt; /proc/sys/vm/drop_caches</code> 可强制回收（生产慎用）。</li>
+<li><strong>SUnreclaim</strong>：包含 <code>kmalloc</code> 创建的长生命周期对象。该值持续增长是内核内存泄漏的信号。</li>
+</ul>
+<h3 id="1-7-页表与内核虚拟地址空间"><a href="#1-7-页表与内核虚拟地址空间" class="headerlink" title="1.7 页表与内核虚拟地址空间"></a>1.7 页表与内核虚拟地址空间</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">PageTables:        81920 kB   # 进程页表本身占用的物理内存</span><br><span class="line">SecPageTables:      4096 kB   # 安全相关页表（如 AMD SEV）</span><br><span class="line">NFS_Unstable:          0 kB   # 已发往 NFS 但尚未提交的数据（旧版，现恒为 0）</span><br><span class="line">Bounce:                0 kB   # DMA bounce buffer（32 位 DMA 设备）</span><br><span class="line">VmallocTotal:  34359738367 kB # vmalloc 地址空间总量（64 位系统几乎无限）</span><br><span class="line">VmallocUsed:      204800 kB   # 实际消耗的 vmalloc 空间</span><br><span class="line">VmallocChunk:          0 kB   # 最大连续 vmalloc 空闲块（5.x 内核已废弃）</span><br></pre></td></tr></table></figure>
+
+<p>PageTables 在进程数量多、内存映射复杂（如 JVM、大型 Redis 实例）时可能显著增大，每个进程最低消耗 4KB（一个 PGD 页）。</p>
+<h3 id="1-8-大页（HugePages）统计"><a href="#1-8-大页（HugePages）统计" class="headerlink" title="1.8 大页（HugePages）统计"></a>1.8 大页（HugePages）统计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">HugePages_Total:     512   # 预分配的 2MB 静态大页总数</span><br><span class="line">HugePages_Free:      128   # 空闲静态大页</span><br><span class="line">HugePages_Rsvd:       64   # 已预留（承诺分配但未实际使用）</span><br><span class="line">HugePages_Surp:        0   # 超出 nr_hugepages 的临时大页（来自 nr_overcommit）</span><br><span class="line">Hugepagesize:       2048 kB</span><br><span class="line">AnonHugePages:    524288 kB # THP（Transparent HugePages）匿名大页</span><br><span class="line">ShmemHugePages:        0 kB # tmpfs/shmem 使用的 THP</span><br><span class="line">FileHugePages:         0 kB # 文件映射使用的 THP</span><br></pre></td></tr></table></figure>
+
+<p><code>AnonHugePages</code> 与 <code>HugePages_Total</code> 的区别：前者是 THP（内核自动管理的 2MB 匿名透明大页），后者是通过 <code>hugetlbfs</code> 或 <code>mmap(MAP_HUGETLB)</code> 使用的静态大页。两者均能减少 TLB miss，但静态大页预留后即使不使用也无法被其他进程占用。</p>
+<hr>
+<h2 id="二、-proc-vmstat-关键指标解读"><a href="#二、-proc-vmstat-关键指标解读" class="headerlink" title="二、&#x2F;proc&#x2F;vmstat 关键指标解读"></a>二、&#x2F;proc&#x2F;vmstat 关键指标解读</h2><p><code>/proc/vmstat</code> 包含数百个计数器，均为自系统启动以来的累计值（通过 <code>/proc/vmstat</code> 可读差值，<code>vmstat</code> 工具每行输出即为时间窗口内的差值）。</p>
+<h3 id="2-1-页面回收计数器"><a href="#2-1-页面回收计数器" class="headerlink" title="2.1 页面回收计数器"></a>2.1 页面回收计数器</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/vmstat | grep -E <span class="string">&#x27;pgsteal|pgscan|pgmaj&#x27;</span></span><br><span class="line">pgsteal_kswapd           12845678    <span class="comment"># kswapd 回收的文件页数</span></span><br><span class="line">pgsteal_direct            234567     <span class="comment"># 直接回收（进程上下文）文件页数</span></span><br><span class="line">pgscan_kswapd            15234567    <span class="comment"># kswapd 扫描的页面总数</span></span><br><span class="line">pgscan_direct             289034     <span class="comment"># 直接回收扫描的页面总数</span></span><br><span class="line">pgmajfault                45678      <span class="comment"># 主缺页（需要从磁盘读取）</span></span><br><span class="line">pgfault                  987654321   <span class="comment"># 次缺页（含 CoW、匿名页分配等）</span></span><br></pre></td></tr></table></figure>
+
+<p>关键比率：</p>
+<ul>
+<li><strong>pgsteal &#x2F; pgscan</strong>：回收效率，正常应 &gt; 0.9。若比值持续偏低（&lt; 0.5），说明大量页面被扫描但无法回收（被进程持续访问），内存压力极大。</li>
+<li><strong>pgmajfault</strong>：Major fault 需要磁盘 I&#x2F;O，每次代价约为 10ms 级别。速率 &gt; 1000&#x2F;s 通常意味着严重的 swap thrashing 或文件缓存抖动。</li>
+</ul>
+<h3 id="2-2-Swap-I-O-计数器"><a href="#2-2-Swap-I-O-计数器" class="headerlink" title="2.2 Swap I&#x2F;O 计数器"></a>2.2 Swap I&#x2F;O 计数器</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">pswpin             12345   # swap in 的页面数（磁盘 -&gt; 内存）</span><br><span class="line">pswpout            56789   # swap out 的页面数（内存 -&gt; 磁盘）</span><br><span class="line">pgpgin            234567   # 从块设备读入的页面（含 swap in）</span><br><span class="line">pgpgout           345678   # 写出到块设备的页面（含 swap out）</span><br></pre></td></tr></table></figure>
+
+<p><code>pswpout</code> 速率持续 &gt; 0 是内存压力的直接证据。区分 <code>pgpgout</code>（含文件回写）和 <code>pswpout</code>（纯 swap）很重要——前者是正常的文件系统写操作。</p>
+<h3 id="2-3-内存压缩计数器"><a href="#2-3-内存压缩计数器" class="headerlink" title="2.3 内存压缩计数器"></a>2.3 内存压缩计数器</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">compact_migrate_scanned    234567   # 压缩扫描的可迁移页面数</span><br><span class="line">compact_free_scanned      345678    # 压缩扫描的空闲页面数</span><br><span class="line">compact_isolated           12345    # 成功隔离待迁移的页面数</span><br><span class="line">compact_stall               1234    # 因碎片化导致进程被迫等待压缩的次数</span><br><span class="line">compact_fail                 567    # 压缩失败次数</span><br><span class="line">compact_success              678    # 压缩成功次数</span><br></pre></td></tr></table></figure>
+
+<p><code>compact_stall</code> 增长说明系统频繁出现大阶内存分配失败，影响实时性。可通过 <code>vm.compaction_proactiveness</code> 调整主动压缩力度。</p>
+<h3 id="2-4-透明大页（THP）计数器"><a href="#2-4-透明大页（THP）计数器" class="headerlink" title="2.4 透明大页（THP）计数器"></a>2.4 透明大页（THP）计数器</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">thp_fault_alloc           234567   # 缺页时成功分配 THP 的次数</span><br><span class="line">thp_fault_fallback          5678   # 缺页时 THP 分配失败，回退到 4KB 页</span><br><span class="line">thp_collapse_alloc          1234   # khugepaged 成功合并为 THP 的次数</span><br><span class="line">thp_split_page               456   # THP 被拆分为普通页的次数（CoW、迁移等）</span><br><span class="line">thp_zero_page_alloc            12  # 零页 THP 分配次数</span><br></pre></td></tr></table></figure>
+
+<p><code>thp_fault_fallback</code> 高说明系统碎片化严重，THP 无法分配连续 2MB 物理内存，需关注 <code>compact_*</code> 相关指标。</p>
+<hr>
+<h2 id="三、五大实战案例"><a href="#三、五大实战案例" class="headerlink" title="三、五大实战案例"></a>三、五大实战案例</h2><h3 id="案例一：内存泄漏排查"><a href="#案例一：内存泄漏排查" class="headerlink" title="案例一：内存泄漏排查"></a>案例一：内存泄漏排查</h3><p><strong>场景</strong>：监控告警 MemAvailable 持续下降，系统运行 3 天后内存耗尽。</p>
+<p><strong>Step 1：确认内存持续增长</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">$ free -h</span><br><span class="line">              total        used        free      shared  buff/cache   available</span><br><span class="line">Mem:            31G         28G        512M        1.2G        2.5G        1.8G</span><br><span class="line">Swap:            8G        5.2G        2.8G</span><br><span class="line"></span><br><span class="line"><span class="comment"># 每隔 5 秒观察趋势</span></span><br><span class="line">$ watch -n 5 <span class="string">&#x27;free -h&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>used</code> 在 <code>buff/cache</code> 稳定的情况下持续增长，排除缓存膨胀，指向进程内存泄漏。</p>
+<p><strong>Step 2：定位可疑进程</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$ ps aux --<span class="built_in">sort</span>=-%mem | <span class="built_in">head</span> -10</span><br><span class="line">USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND</span><br><span class="line">www       1234  2.1 15.3 8421504 5021MB ?      Sl   Apr10 245:12 /opt/app/server</span><br><span class="line">root       567  0.1  3.2 2048000 1042MB ?      Ss   Apr10  12:34 /usr/bin/kubelet</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>字段说明：<code>VSZ</code>（虚拟地址空间大小）和 <code>RSS</code>（常驻内存大小，即实际占用物理内存）。关注 RSS 持续增大的进程。</p>
+<p><strong>Step 3：查看进程详细内存状态</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/1234/status | grep -E <span class="string">&#x27;Vm|Threads&#x27;</span></span><br><span class="line">VmPeak:   8421504 kB   <span class="comment"># 历史最高虚拟内存</span></span><br><span class="line">VmSize:   8421504 kB   <span class="comment"># 当前虚拟内存</span></span><br><span class="line">VmLck:          0 kB   <span class="comment"># mlock 锁定内存</span></span><br><span class="line">VmPin:          0 kB   <span class="comment"># 不可迁移的 pinned 内存</span></span><br><span class="line">VmHWM:    5021952 kB   <span class="comment"># 历史最高 RSS（High Water Mark）</span></span><br><span class="line">VmRSS:    5021952 kB   <span class="comment"># 当前 RSS（物理内存占用）</span></span><br><span class="line">VmAnon:   4987904 kB   <span class="comment"># 匿名映射（堆/栈）</span></span><br><span class="line">VmFile:     34048 kB   <span class="comment"># 文件映射</span></span><br><span class="line">VmExe:      12288 kB   <span class="comment"># 代码段</span></span><br><span class="line">VmLib:      98304 kB   <span class="comment"># 动态库</span></span><br><span class="line">VmPTE:      12288 kB   <span class="comment"># 页表大小</span></span><br><span class="line">VmSwap:    204800 kB   <span class="comment"># 已换出到 swap 的大小</span></span><br></pre></td></tr></table></figure>
+
+<p><code>VmRSS</code> 等于 <code>VmHWM</code> 说明内存从未被回收，泄漏可能性大。</p>
+<p><strong>Step 4：分析内存构成</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/1234/smaps_rollup</span><br><span class="line">55a3b2000000-7ffe9a4ce000 ---p 00000000 00:00 0</span><br><span class="line">Size:            8421504 kB</span><br><span class="line">KernelPageSize:       4 kB</span><br><span class="line">MMUPageSize:          4 kB</span><br><span class="line">Rss:             5021952 kB</span><br><span class="line">Pss:             4998144 kB   <span class="comment"># 按共享比例分摊的 RSS</span></span><br><span class="line">Pss_Dirty:       4850688 kB</span><br><span class="line">Shared_Clean:       8192 kB</span><br><span class="line">Shared_Dirty:          0 kB</span><br><span class="line">Private_Clean:     26880 kB</span><br><span class="line">Private_Dirty:   4986880 kB   <span class="comment"># 私有脏页——堆分配后写入的数据，无法释放</span></span><br><span class="line">Anonymous:       4987904 kB   <span class="comment"># 高匿名内存 = 堆泄漏</span></span><br><span class="line">LazyFree:              0 kB</span><br><span class="line">AnonHugePages:   2097152 kB</span><br><span class="line">Swap:             204800 kB</span><br><span class="line">SwapPss:          204800 kB</span><br></pre></td></tr></table></figure>
+
+<p><code>Private_Dirty</code> 接近 <code>Anonymous</code> 说明大量匿名内存被分配且无法共享，是堆泄漏的典型特征。</p>
+<p><strong>Step 5：bpftrace 追踪内核 kmem_cache 分配</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪 kmem_cache_alloc，按 cache 名称统计分配次数</span></span><br><span class="line">$ bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:kmem_cache_alloc &#123;</span></span><br><span class="line"><span class="string">    @alloc[((struct kmem_cache *)arg0)-&gt;name] = count();</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">interval:s:10 &#123;</span></span><br><span class="line"><span class="string">    print(@alloc);</span></span><br><span class="line"><span class="string">    clear(@alloc);</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">&#x27;</span></span><br><span class="line"><span class="comment"># 输出示例：</span></span><br><span class="line">@alloc[dentry]: 45678</span><br><span class="line">@alloc[inode_cache]: 12345</span><br><span class="line">@alloc[sock_inode_cache]: 8901</span><br><span class="line">@alloc[TCP]: 234</span><br></pre></td></tr></table></figure>
+
+<p>若某个 cache 名称计数持续单调增长，且没有对应的 <code>kmem_cache_free</code> 平衡，则为内核泄漏点。</p>
+<p><strong>Step 6：用户态泄漏——Valgrind 和 AddressSanitizer</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Valgrind（适用于测试环境，有显著性能开销）</span></span><br><span class="line">$ valgrind --leak-check=full --show-leak-kinds=all \</span><br><span class="line">           --track-origins=<span class="built_in">yes</span> --log-file=valgrind.log \</span><br><span class="line">           /opt/app/server --config /etc/app/config.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># 输出示例：</span></span><br><span class="line">==1234== 5,021,952 bytes <span class="keyword">in</span> 2,048 blocks are definitely lost <span class="keyword">in</span> loss record 1 of 3</span><br><span class="line">==1234==    at 0x4C2FB0F: malloc (<span class="keyword">in</span> /usr/lib/valgrind/vgpreload_memcheck.so)</span><br><span class="line">==1234==    at 0x10A234B: create_session (session.c:127)</span><br><span class="line">==1234==    at 0x10A1892: handle_request (handler.c:89)</span><br><span class="line"></span><br><span class="line"><span class="comment"># ASAN（编译时插桩，性能开销约 2x，适合 CI/预发布环境）</span></span><br><span class="line">$ ASAN_OPTIONS=detect_leaks=1:log_path=/tmp/asan.log \</span><br><span class="line">  ./server --config /etc/app/config.yaml</span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 7：kmemleak 内核泄漏检测</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 确认内核编译时启用了 CONFIG_DEBUG_KMEMLEAK</span></span><br><span class="line">$ zcat /proc/config.gz | grep KMEMLEAK</span><br><span class="line">CONFIG_DEBUG_KMEMLEAK=y</span><br><span class="line"></span><br><span class="line"><span class="comment"># 触发扫描</span></span><br><span class="line">$ <span class="built_in">echo</span> scan &gt; /sys/kernel/debug/kmemleak</span><br><span class="line"></span><br><span class="line"><span class="comment"># 等待扫描完成后查看结果（通常需要几十秒）</span></span><br><span class="line">$ <span class="built_in">cat</span> /sys/kernel/debug/kmemleak</span><br><span class="line">unreferenced object 0xffff88810a234560 (size 4096):</span><br><span class="line">  <span class="built_in">comm</span> <span class="string">&quot;kworker/0:1&quot;</span>, pid 1234, jiffies 4295867295</span><br><span class="line">  hex dump (first 32 bytes):</span><br><span class="line">    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</span><br><span class="line">  backtrace:</span><br><span class="line">    [&lt;0000000012345678&gt;] kmalloc include/linux/slab.h:552</span><br><span class="line">    [&lt;00000000abcdef01&gt;] nf_ct_ext_add+0x3c/0x90</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="案例二：OOM-事件分析"><a href="#案例二：OOM-事件分析" class="headerlink" title="案例二：OOM 事件分析"></a>案例二：OOM 事件分析</h3><p><strong>场景</strong>：系统日志出现进程被杀，业务中断。</p>
+<p><strong>Step 1：解读 OOM Kill 日志</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">$ dmesg | grep -A 30 <span class="string">&quot;Out of memory&quot;</span></span><br><span class="line">[1234567.890123] Out of memory: Kill process 5678 (java) score 892 or sacrifice child</span><br><span class="line">[1234567.890456] Killed process 5678 (java) total-vm:16777216kB, anon-rss:14680064kB, file-rss:204800kB, shmem-rss:0kB</span><br><span class="line">[1234567.890789] oom_reaper: reaped process 5678 (java), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB</span><br><span class="line"></span><br><span class="line"><span class="comment"># OOM Killer 触发时的内存状态快照：</span></span><br><span class="line">[1234567.891001] Mem-Info:</span><br><span class="line">[1234567.891002] active_anon:3670016 inactive_anon:131072 isolated_anon:0</span><br><span class="line">[1234567.891003]  active_file:512 inactive_file:1024 isolated_file:0</span><br><span class="line">[1234567.891004]  unevictable:65536 dirty:0 writeback:0</span><br><span class="line">[1234567.891005]  slab_reclaimable:204800 slab_unreclaimable:229376</span><br><span class="line">[1234567.891006]  mapped:2048 shmem:16384 pagetables:20480 bounce:0</span><br><span class="line">[1234567.891007]  free:5120 free_pcp:256 free_cma:0</span><br></pre></td></tr></table></figure>
+
+<p>字段解读：</p>
+<ul>
+<li><code>score 892</code>：OOM 评分，越高越先被杀。评分基于进程 RSS 与内存总量的比例，加上 <code>oom_score_adj</code> 修正值。</li>
+<li><code>total-vm:16777216kB</code>：进程虚拟地址空间大小（不代表实际占用）。</li>
+<li><code>anon-rss</code>：实际占用的匿名物理内存（这才是 OOM Killer 关注的值）。</li>
+<li><code>free:5120</code>：触发 OOM 时仍有 5120 个 4KB 空闲页（20MB），但可能全是 order-0 的碎片，无法满足更大阶的分配请求。</li>
+</ul>
+<p><strong>Step 2：查看和调整 OOM 评分</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前评分</span></span><br><span class="line">$ <span class="built_in">cat</span> /proc/5678/oom_score</span><br><span class="line">892</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看调整值（-1000 到 1000）</span></span><br><span class="line">$ <span class="built_in">cat</span> /proc/5678/oom_score_adj</span><br><span class="line">0</span><br><span class="line"></span><br><span class="line"><span class="comment"># 保护关键进程（将其 OOM 评分调低）</span></span><br><span class="line">$ <span class="built_in">echo</span> -500 &gt; /proc/$(pgrep -f <span class="string">&quot;critical-service&quot;</span>)/oom_score_adj</span><br><span class="line"></span><br><span class="line"><span class="comment"># 或通过 systemd 配置（推荐，重启后持久化）</span></span><br><span class="line"><span class="comment"># /etc/systemd/system/critical.service</span></span><br><span class="line">[Service]</span><br><span class="line">OOMScoreAdjust=-500</span><br><span class="line"></span><br><span class="line"><span class="comment"># 标记为绝对不杀（-1000 仅对 root 有效）</span></span><br><span class="line">$ <span class="built_in">echo</span> -1000 &gt; /proc/1/oom_score_adj   <span class="comment"># init 进程永远不被杀</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 3：cgroup 内存限制防止 OOM 蔓延</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># cgroup v1：限制 Java 进程堆内存</span></span><br><span class="line">$ <span class="built_in">mkdir</span> -p /sys/fs/cgroup/memory/java-app</span><br><span class="line">$ <span class="built_in">echo</span> 8G &gt; /sys/fs/cgroup/memory/java-app/memory.limit_in_bytes</span><br><span class="line">$ <span class="built_in">echo</span> 10G &gt; /sys/fs/cgroup/memory/java-app/memory.memsw.limit_in_bytes  <span class="comment"># 含 swap</span></span><br><span class="line">$ <span class="built_in">echo</span> 5678 &gt; /sys/fs/cgroup/memory/java-app/tasks</span><br><span class="line"></span><br><span class="line"><span class="comment"># cgroup v2（推荐）</span></span><br><span class="line">$ <span class="built_in">echo</span> <span class="string">&quot;8589934592&quot;</span> &gt; /sys/fs/cgroup/java-app/memory.max</span><br><span class="line">$ <span class="built_in">echo</span> <span class="string">&quot;7516192768&quot;</span> &gt; /sys/fs/cgroup/java-app/memory.high  <span class="comment"># 软限制，触发回收</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 4：overcommit 策略调优</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前策略</span></span><br><span class="line">$ sysctl vm.overcommit_memory vm.overcommit_ratio</span><br><span class="line">vm.overcommit_memory = 0    <span class="comment"># 0=启发式(默认), 1=总是允许, 2=精确限制</span></span><br><span class="line">vm.overcommit_ratio = 50    <span class="comment"># 当 overcommit_memory=2 时，物理内存的可承诺比例</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 策略说明：</span></span><br><span class="line"><span class="comment"># 0（默认）：内核评估申请是否合理，拒绝明显过度的 malloc</span></span><br><span class="line"><span class="comment"># 1：永远返回成功（适合内存计算密集型，如某些科学计算场景）</span></span><br><span class="line"><span class="comment"># 2：CommitLimit = (RAM * overcommit_ratio/100) + Swap</span></span><br><span class="line"><span class="comment">#    超出 CommitLimit 的 mmap/malloc 会直接失败（ENOMEM）</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 CommitLimit 和 Committed_AS</span></span><br><span class="line">$ grep -E <span class="string">&#x27;CommitLimit|Committed_AS&#x27;</span> /proc/meminfo</span><br><span class="line">CommitLimit:    20971520 kB   <span class="comment"># 允许承诺的最大内存</span></span><br><span class="line">Committed_AS:   18874368 kB   <span class="comment"># 当前已承诺的内存（所有 mmap 的虚拟内存之和）</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="案例三：高内存压力-Swap-风暴"><a href="#案例三：高内存压力-Swap-风暴" class="headerlink" title="案例三：高内存压力 &#x2F; Swap 风暴"></a>案例三：高内存压力 &#x2F; Swap 风暴</h3><p><strong>场景</strong>：系统响应延迟从 5ms 飙升至 500ms，CPU idle 正常，磁盘 I&#x2F;O wait 高。</p>
+<p><strong>Step 1：vmstat 观察 swap 活动</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$ vmstat 1 10</span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 2  4 5242880 524288  10240 819200  450  380  5890   420 1234 4567  8  5 42 45  0</span><br><span class="line"> 3  5 5345280 409600  10240 786432  512  467  6234   512 1456 5012  9  6 38 47  0</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>si</code>（swap in）和 <code>so</code>（swap out）同时 &gt; 0：<strong>Swap 风暴</strong>，内存严重不足，系统在换入换出间来回折腾。</li>
+<li><code>wa</code>（I&#x2F;O wait）高：印证 swap I&#x2F;O 消耗了大量 CPU 等待时间。</li>
+</ul>
+<p><strong>Step 2：sar 分析页面回收行为</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$ sar -B 1 10</span><br><span class="line">Linux 6.4.0 (hostname)    04/14/2026    _x86_64_    (16 CPU)</span><br><span class="line"></span><br><span class="line">15:00:01  pgpgin/s pgpgout/s   fault/s  majflt/s  pgfree/s pgscank/s pgsteal/s   %vmeff</span><br><span class="line">15:00:02   5890.0    420.0   98765.0    450.0  34567.0  23456.0  20123.0     85.8</span><br><span class="line">15:00:03   6234.0    512.0  102345.0    512.0  38901.0  28901.0  23456.0     81.1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>pgscank/s</code>：kswapd 每秒扫描页面数。</li>
+<li><code>pgsteal/s</code>：每秒成功回收页面数。</li>
+<li><code>%vmeff = pgsteal/pgscank * 100</code>：回收效率，低于 70% 说明回收困难。</li>
+<li><code>majflt/s</code>：每秒主缺页次数，直接反映 swap thrashing 程度。</li>
+</ul>
+<p><strong>Step 3：调整 vm.swappiness</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前值（内核 6.1+ 支持 0-200，之前版本 0-100）</span></span><br><span class="line">$ sysctl vm.swappiness</span><br><span class="line">vm.swappiness = 60   <span class="comment"># 默认值</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 含义：控制 anon 页与 file 页的回收倾向比例</span></span><br><span class="line"><span class="comment"># 0：尽可能避免 swap，优先回收 file cache</span></span><br><span class="line"><span class="comment"># 60（默认）：anon 和 file 相对平衡</span></span><br><span class="line"><span class="comment"># 100：同等对待 anon 和 file</span></span><br><span class="line"><span class="comment"># 200（内核 5.8+）：积极使用 zswap，大幅减少实际磁盘 swap</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 数据库/低延迟服务推荐设置（避免 swap 换出导致延迟抖动）</span></span><br><span class="line">$ sysctl -w vm.swappiness=10</span><br><span class="line"></span><br><span class="line"><span class="comment"># 持久化</span></span><br><span class="line">$ <span class="built_in">echo</span> <span class="string">&quot;vm.swappiness = 10&quot;</span> &gt;&gt; /etc/sysctl.d/99-memory.conf</span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 4：vm.vfs_cache_pressure 调优</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ sysctl vm.vfs_cache_pressure</span><br><span class="line">vm.vfs_cache_pressure = 100  <span class="comment"># 默认值</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 含义：slab 缓存（dentry/inode）相对于匿名内存的回收力度</span></span><br><span class="line"><span class="comment"># &lt; 100：倾向于保留 dcache/icache（适合文件访问密集型工作负载）</span></span><br><span class="line"><span class="comment"># = 100：公平回收</span></span><br><span class="line"><span class="comment"># &gt; 100：更激进地回收 slab（适合内存压力大但 slab 膨胀的场景）</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 若 SReclaimable 占 MemTotal 的 20% 以上，可适当提高</span></span><br><span class="line">$ sysctl -w vm.vfs_cache_pressure=150</span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 5：启用 zswap 压缩 swap 页</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查 zswap 支持</span></span><br><span class="line">$ zcat /proc/config.gz | grep ZSWAP</span><br><span class="line">CONFIG_ZSWAP=y</span><br><span class="line">CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4=y</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用 zswap（内核 6.x 默认可能已启用）</span></span><br><span class="line">$ <span class="built_in">echo</span> 1 &gt; /sys/module/zswap/parameters/enabled</span><br><span class="line">$ <span class="built_in">echo</span> lz4 &gt; /sys/module/zswap/parameters/compressor       <span class="comment"># LZ4 压缩（速度优先）</span></span><br><span class="line">$ <span class="built_in">echo</span> zsmalloc &gt; /sys/module/zswap/parameters/zpool       <span class="comment"># 内存池类型</span></span><br><span class="line">$ <span class="built_in">echo</span> 20 &gt; /sys/module/zswap/parameters/max_pool_percent  <span class="comment"># 最大使用 20% 物理内存</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 验证 zswap 状态</span></span><br><span class="line">$ <span class="built_in">cat</span> /sys/kernel/debug/zswap/pool_pages</span><br><span class="line">123456     <span class="comment"># 已压缩存储的页面数</span></span><br><span class="line"></span><br><span class="line">$ <span class="built_in">cat</span> /sys/kernel/debug/zswap/written_back_pages</span><br><span class="line">1234       <span class="comment"># 压缩后仍溢出写到磁盘的页面数（应保持低值）</span></span><br></pre></td></tr></table></figure>
+
+<p>zswap 的本质是在内存中维护一个压缩缓存层，将即将被换出的页面先压缩存储（典型压缩比 2:1 到 4:1），大幅减少磁盘 swap I&#x2F;O。</p>
+<hr>
+<h3 id="案例四：内存碎片化"><a href="#案例四：内存碎片化" class="headerlink" title="案例四：内存碎片化"></a>案例四：内存碎片化</h3><p><strong>场景</strong>：系统运行数周后，分配大页（THP、DMA 缓冲区）失败，日志出现 <code>alloc_pages failed order:9</code> 类错误。</p>
+<p><strong>Step 1：观察 Buddy System 状态</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/buddyinfo</span><br><span class="line">Node 0, zone      DMA      1      0      0      0      0      0      0      0      1      1      3</span><br><span class="line">Node 0, zone    DMA32   2345   1234    567    234    123     56     23     12      5      2      1</span><br><span class="line">Node 0, zone   Normal  98765  45678  23456   8901   3456   1234    456    123     23      5      0</span><br></pre></td></tr></table></figure>
+
+<p>每列代表对应 order（0-10）的空闲块数量。<code>order:10</code> 对应 4MB 连续物理内存块（<code>4KB * 2^10</code>）。</p>
+<p>上面的 <code>Normal</code> zone 中 order:10 为 0，说明没有 4MB 连续内存可用，高阶分配（THP、大 DMA 缓冲）将失败。</p>
+<p><strong>Step 2：pagetypeinfo 分析碎片分布</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/pagetypeinfo</span><br><span class="line">Page block order: 9</span><br><span class="line">Pages per block:  512</span><br><span class="line"></span><br><span class="line">Free pages count per migrate <span class="built_in">type</span> at order       0      1      2      3      4      5      6      7      8      9     10</span><br><span class="line">Node    0, zone      DMA, <span class="built_in">type</span>    Unmovable      1      0      0      1      1      0      1      0      1      1      3</span><br><span class="line">Node    0, zone      DMA, <span class="built_in">type</span>      Movable      0      0      0      0      0      0      0      0      0      0      0</span><br><span class="line">Node    0, zone   Normal, <span class="built_in">type</span>    Unmovable  12345   5678   2345    890    345    123     45     12      4      1      0</span><br><span class="line">Node    0, zone   Normal, <span class="built_in">type</span>      Movable  86420  40000  21111   8011   3111   1111    411    111     19      4      0</span><br><span class="line">Node    0, zone   Normal, <span class="built_in">type</span>  Reclaimable   3456   1234    567    234     78     23      7      2      1      0      0</span><br></pre></td></tr></table></figure>
+
+<p><code>Unmovable</code> 类型页面（内核分配的不可迁移页）分散在高地址会严重阻碍内存压缩。<code>Movable</code> 类型（用户态匿名页）可以通过迁移来整理。</p>
+<p><strong>Step 3：手动触发内存压缩</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 触发全局内存压缩（将 Movable 页面迁移，整理出连续空闲内存）</span></span><br><span class="line">$ <span class="built_in">echo</span> 1 &gt; /proc/sys/vm/compact_memory</span><br><span class="line"></span><br><span class="line"><span class="comment"># 观察压缩进度</span></span><br><span class="line">$ watch -n 1 <span class="string">&#x27;cat /proc/vmstat | grep compact&#x27;</span></span><br><span class="line">compact_migrate_scanned    234567</span><br><span class="line">compact_free_scanned       345678</span><br><span class="line">compact_success              1234  <span class="comment"># 成功次数持续增加</span></span><br><span class="line">compact_fail                  56</span><br><span class="line"></span><br><span class="line"><span class="comment"># 压缩后再次验证</span></span><br><span class="line">$ <span class="built_in">cat</span> /proc/buddyinfo</span><br><span class="line">Node 0, zone   Normal  45678  23456  12345   5678   2345    890    234     56     12      4      2</span><br><span class="line"><span class="comment"># order:10 从 0 变为 2，压缩有效</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 4：extfrag_threshold 调整</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 外碎片阈值：当碎片化指数超过此值时，kswapd 触发压缩</span></span><br><span class="line">$ sysctl vm.extfrag_threshold</span><br><span class="line">vm.extfrag_threshold = 500   <span class="comment"># 默认值（0-1000）</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 降低阈值让内核更积极地压缩（减少大阶分配失败）</span></span><br><span class="line">$ sysctl -w vm.extfrag_threshold = 200</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看当前各 zone 的碎片化指数（需要 CONFIG_COMPACTION）</span></span><br><span class="line">$ <span class="built_in">cat</span> /sys/kernel/debug/extfrag/extfrag_index</span><br><span class="line">Node 0, zone      DMA extfrag_index: 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000</span><br><span class="line">Node 0, zone   Normal extfrag_index: 0.000 0.001 0.012 0.045 0.156 0.378 0.589 0.734 0.891 0.956 0.998</span><br></pre></td></tr></table></figure>
+
+<p><code>extfrag_index</code> 接近 1.0 表示该 order 的分配失败主要由碎片化引起（而非内存总量不足），压缩是有效手段。接近 0 则表示是内存总量不足，压缩无济于事。</p>
+<p><strong>Step 5：Slab 碎片分析</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">$ vmstat -m | <span class="built_in">sort</span> -k3 -rn | <span class="built_in">head</span> -15</span><br><span class="line">Cache                       Num  Total   Size  Pages</span><br><span class="line">dentry                   456789 456789    192     21</span><br><span class="line">inode_cache               12345  12345    616     13</span><br><span class="line">proc_inode_cache           5678   5678    680     11</span><br><span class="line">filp                      23456  23456    256     16</span><br><span class="line">vm_area_struct            34567  34567    208     19</span><br><span class="line">sock_inode_cache            890    890    1088      7</span><br><span class="line"></span><br><span class="line"><span class="comment"># 详细查看特定 cache 的 slab 统计</span></span><br><span class="line">$ <span class="built_in">cat</span> /proc/slabinfo | awk <span class="string">&#x27;NR&lt;=2 || $1==&quot;dentry&quot;&#x27;</span></span><br><span class="line"><span class="comment"># name            &lt;active_objs&gt; &lt;num_objs&gt; &lt;objsize&gt; &lt;objperslab&gt; &lt;pagesperslab&gt;</span></span><br><span class="line">dentry              456789  456789    192   21    1</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="案例五：容器内存隔离问题"><a href="#案例五：容器内存隔离问题" class="headerlink" title="案例五：容器内存隔离问题"></a>案例五：容器内存隔离问题</h3><p><strong>场景</strong>：Kubernetes Pod 内存使用量与宿主机 <code>/proc/meminfo</code> 统计不一致，容器 OOM Kill 后宿主机显示内存充足。</p>
+<p><strong>Step 1：cgroup v2 内存控制器配置</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 确认 cgroup v2 已挂载</span></span><br><span class="line">$ mount | grep cgroup2</span><br><span class="line">cgroup2 on /sys/fs/cgroup <span class="built_in">type</span> cgroup2 (rw,nosuid,nodev,noexec,relatime)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 Pod 对应的 cgroup 路径（以 Kubernetes 为例）</span></span><br><span class="line">$ CGPATH=<span class="string">&quot;/sys/fs/cgroup/kubepods/burstable/pod&lt;uid&gt;/&lt;container-id&gt;&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置内存限制</span></span><br><span class="line">$ <span class="built_in">echo</span> <span class="string">&quot;2147483648&quot;</span> &gt; <span class="variable">$CGPATH</span>/memory.max    <span class="comment"># 硬限制 2GB（OOM Kill）</span></span><br><span class="line">$ <span class="built_in">echo</span> <span class="string">&quot;1932735283&quot;</span> &gt; <span class="variable">$CGPATH</span>/memory.high   <span class="comment"># 软限制 1.8GB（触发回收，不 Kill）</span></span><br><span class="line">$ <span class="built_in">echo</span> <span class="string">&quot;104857600&quot;</span>  &gt; <span class="variable">$CGPATH</span>/memory.swap.max  <span class="comment"># swap 限制 100MB</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 2：memory.stat 字段解读</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /sys/fs/cgroup/kubepods/burstable/pod&lt;uid&gt;/&lt;cid&gt;/memory.stat</span><br><span class="line">anon 1073741824         <span class="comment"># 匿名内存（堆/栈）</span></span><br><span class="line">file 536870912          <span class="comment"># 文件缓存（page cache）</span></span><br><span class="line">kernel 67108864         <span class="comment"># 内核代码路径使用的内存（如 socket buffer）</span></span><br><span class="line">kernel_stack 8388608    <span class="comment"># 内核栈</span></span><br><span class="line">pagetables 4194304      <span class="comment"># 进程页表</span></span><br><span class="line">percpu 1048576          <span class="comment"># per-CPU 数据结构</span></span><br><span class="line">sock 16777216           <span class="comment"># socket 发送/接收缓冲区</span></span><br><span class="line">shmem 0                 <span class="comment"># 共享内存/tmpfs</span></span><br><span class="line">file_mapped 134217728   <span class="comment"># 已映射的文件页</span></span><br><span class="line">file_dirty 2097152      <span class="comment"># 脏页</span></span><br><span class="line">file_writeback 0        <span class="comment"># 正在写回的页面</span></span><br><span class="line">anon_thp 268435456      <span class="comment"># THP 匿名大页</span></span><br><span class="line">inactive_anon 536870912</span><br><span class="line">active_anon 536870912</span><br><span class="line">inactive_file 268435456</span><br><span class="line">active_file 268435456</span><br><span class="line">unevictable 0</span><br><span class="line">pgfault 9876543</span><br><span class="line">pgmajfault 1234         <span class="comment"># 容器内的 major fault 次数</span></span><br><span class="line">workingset_refault_anon 234</span><br><span class="line">workingset_refault_file 12345</span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 3：memory.high vs memory.max 的区别</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">memory.high（软限制）：</span><br><span class="line">  - 超过时内核立即对该 cgroup 施加 reclaim 压力</span><br><span class="line">  - 进程不会被 Kill，但会出现短暂内存分配延迟</span><br><span class="line">  - 适合设置为目标内存的 90%，提前触发回收</span><br><span class="line">  - 对应内核中的 memory_high_work 机制</span><br><span class="line"></span><br><span class="line">memory.max（硬限制）：</span><br><span class="line">  - 超过时触发 OOM Killer，Kill cgroup 内评分最高的进程</span><br><span class="line">  - 触发后在 memory.events 中记录 oom 和 oom_kill 计数</span><br><span class="line">  - 对应 Kubernetes 中的 resources.limits.memory</span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 4：容器 OOM 排查</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 实时监控容器 OOM 事件</span></span><br><span class="line">$ <span class="built_in">cat</span> /sys/fs/cgroup/kubepods/burstable/pod&lt;uid&gt;/&lt;cid&gt;/memory.events</span><br><span class="line">low 0             <span class="comment"># 内存低于 memory.low 的次数（通常不配置）</span></span><br><span class="line">high 1234         <span class="comment"># 超过 memory.high 并触发回收的次数</span></span><br><span class="line">max 89            <span class="comment"># 达到 memory.max 触发 OOM 的次数</span></span><br><span class="line">oom 5             <span class="comment"># OOM Kill 发生次数</span></span><br><span class="line">oom_kill 3        <span class="comment"># 实际被 Kill 的进程数</span></span><br><span class="line">oom_group_kill 0  <span class="comment"># 整个 cgroup 组被 Kill 的次数</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 结合 dmesg 排查具体被 Kill 的进程</span></span><br><span class="line">$ dmesg | grep -A 5 <span class="string">&quot;oom-kill&quot;</span></span><br><span class="line">[987654.321] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=...,</span><br><span class="line">             mems_allowed=0,oom_memcg=/kubepods/burstable/pod.../...,</span><br><span class="line">             task_memcg=/kubepods/burstable/pod.../...,</span><br><span class="line">             task=java,pid=23456,uid=1000</span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 5：容器统计与宿主机 &#x2F;proc&#x2F;meminfo 的关系</strong></p>
+<p>关键认知：容器看到的 <code>/proc/meminfo</code> 在没有 <code>pid namespace</code> 隔离 proc 的情况下，<strong>显示的是宿主机的内存信息</strong>，而非容器自身的内存限制。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在容器内查看（看到的是宿主机总内存）</span></span><br><span class="line">$ <span class="built_in">cat</span> /proc/meminfo | grep MemTotal</span><br><span class="line">MemTotal:       32768000 kB   <span class="comment"># 宿主机 32GB！</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 正确获取容器内存限制（cgroup v2）</span></span><br><span class="line">$ <span class="built_in">cat</span> /sys/fs/cgroup/memory.max</span><br><span class="line">2147483648    <span class="comment"># 容器实际限制 2GB</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 在应用层（如 JVM）应使用 cgroup 感知的内存计算</span></span><br><span class="line"><span class="comment"># JVM 8u191+ 支持：-XX:+UseContainerSupport（默认启用）</span></span><br><span class="line"><span class="comment"># 可用内存 = min(memory.max, 宿主机物理内存)</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="四、bpftrace-内存诊断脚本集"><a href="#四、bpftrace-内存诊断脚本集" class="headerlink" title="四、bpftrace 内存诊断脚本集"></a>四、bpftrace 内存诊断脚本集</h2><h3 id="脚本一：追踪大块内存分配（-1MB）"><a href="#脚本一：追踪大块内存分配（-1MB）" class="headerlink" title="脚本一：追踪大块内存分配（&gt; 1MB）"></a>脚本一：追踪大块内存分配（&gt; 1MB）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line"><span class="comment"># 文件：trace_large_alloc.bt</span></span><br><span class="line"><span class="comment"># 用途：追踪 order &gt;= 8（1MB）的大页面分配，定位大内存分配来源</span></span><br><span class="line"></span><br><span class="line">kprobe:__alloc_pages &#123;</span><br><span class="line">    <span class="variable">$order</span> = arg1;</span><br><span class="line">    <span class="keyword">if</span> (<span class="variable">$order</span> &gt;= 8) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;%-16s PID:%-6d order:%-3d size:%-8dKB stack:\n&quot;</span>,</span><br><span class="line">            <span class="built_in">comm</span>, pid, <span class="variable">$order</span>, (4 &lt;&lt; <span class="variable">$order</span>));</span><br><span class="line">        <span class="built_in">print</span>(kstack(5));   <span class="comment"># 打印内核调用栈（最多 5 层）</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用方法：sudo bpftrace trace_large_alloc.bt</span></span><br><span class="line"><span class="comment"># 输出示例：</span></span><br><span class="line"><span class="comment"># nginx            PID:12345  order:8   size:1024    KB stack:</span></span><br><span class="line"><span class="comment">#     __alloc_pages+0x0</span></span><br><span class="line"><span class="comment">#     alloc_pages_vma+0x9e</span></span><br><span class="line"><span class="comment">#     do_huge_pmd_anonymous_page+0x105</span></span><br><span class="line"><span class="comment">#     __handle_mm_fault+0xb1c</span></span><br><span class="line"><span class="comment">#     handle_mm_fault+0x11c</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="脚本二：kmalloc-分配热点（按调用栈聚合）"><a href="#脚本二：kmalloc-分配热点（按调用栈聚合）" class="headerlink" title="脚本二：kmalloc 分配热点（按调用栈聚合）"></a>脚本二：kmalloc 分配热点（按调用栈聚合）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line"><span class="comment"># 文件：kmalloc_hotspot.bt</span></span><br><span class="line"><span class="comment"># 用途：统计内核 kmalloc 分配的大小分布，定位内核内存分配热点</span></span><br><span class="line"></span><br><span class="line">kprobe:__kmalloc &#123;</span><br><span class="line">    @alloc_size[ustack] = hist(arg0);</span><br><span class="line">    @total_by_comm[<span class="built_in">comm</span>] += arg0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">kretprobe:__kmalloc &#123;</span><br><span class="line">    <span class="keyword">if</span> (retval == 0) &#123;</span><br><span class="line">        @alloc_fail[<span class="built_in">comm</span>] = count();   <span class="comment"># 统计分配失败次数</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">interval:s:10 &#123;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n=== kmalloc size distribution by call stack ===\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@alloc_size);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n=== total kmalloc bytes by process ===\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@total_by_comm);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n=== allocation failures ===\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@alloc_fail);</span><br><span class="line">    <span class="built_in">exit</span>();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 输出示例（@alloc_size 中的直方图）：</span></span><br><span class="line"><span class="comment"># [16, 32)               1234 |@@@@@@@@@@@@@@@@@@@@@@@@@@|</span></span><br><span class="line"><span class="comment"># [32, 64)               5678 |@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|</span></span><br><span class="line"><span class="comment"># [64, 128)              2345 |@@@@@@@@@@@@@@@@@@@@@@@|</span></span><br><span class="line"><span class="comment"># [1K, 2K)               234  |@@|</span></span><br><span class="line"><span class="comment"># [1M, 2M)                 3  |</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="脚本三：缺页异常来源分析"><a href="#脚本三：缺页异常来源分析" class="headerlink" title="脚本三：缺页异常来源分析"></a>脚本三：缺页异常来源分析</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line"><span class="comment"># 文件：page_fault_analysis.bt</span></span><br><span class="line"><span class="comment"># 用途：分析缺页异常的来源进程和类型，区分 minor/major/swap fault</span></span><br><span class="line"></span><br><span class="line">kprobe:handle_mm_fault &#123;</span><br><span class="line">    @fault_comm[<span class="built_in">comm</span>] = count();</span><br><span class="line">    @fault_pid[pid, <span class="built_in">comm</span>] = count();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">kprobe:do_swap_page &#123;</span><br><span class="line">    @swap_faults[<span class="built_in">comm</span>] = count();     <span class="comment"># swap in 触发的缺页</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">kprobe:do_anonymous_page &#123;</span><br><span class="line">    @anon_faults[<span class="built_in">comm</span>] = count();     <span class="comment"># 匿名页首次访问（堆扩张）</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">kprobe:filemap_fault &#123;</span><br><span class="line">    @file_faults[<span class="built_in">comm</span>] = count();     <span class="comment"># 文件映射缺页（page cache miss）</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">interval:s:5 &#123;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n===== Page Fault Analysis (5s window) =====\n&quot;</span>);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;--- Total faults by process ---\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@fault_comm);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;--- Swap-in faults (major) ---\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@swap_faults);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;--- Anonymous page faults ---\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@anon_faults);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;--- File mapping faults ---\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@file_faults);</span><br><span class="line">    clear(@fault_comm); clear(@swap_faults);</span><br><span class="line">    clear(@anon_faults); clear(@file_faults);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 持续运行直到 Ctrl+C</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="脚本四：mmap-调用追踪与内存映射分析"><a href="#脚本四：mmap-调用追踪与内存映射分析" class="headerlink" title="脚本四：mmap 调用追踪与内存映射分析"></a>脚本四：mmap 调用追踪与内存映射分析</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line"><span class="comment"># 文件：mmap_trace.bt</span></span><br><span class="line"><span class="comment"># 用途：追踪进程 mmap 调用，统计各进程映射的内存总量</span></span><br><span class="line"></span><br><span class="line">tracepoint:syscalls:sys_enter_mmap &#123;</span><br><span class="line">    <span class="variable">$flags</span> = args-&gt;flags;</span><br><span class="line">    <span class="variable">$prot</span>  = args-&gt;prot;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;%-16s PID:%-6d len:%-12d prot:0x%02x flags:0x%04x fd:%d\n&quot;</span>,</span><br><span class="line">        <span class="built_in">comm</span>, pid, args-&gt;len, <span class="variable">$prot</span>, <span class="variable">$flags</span>, args-&gt;fd);</span><br><span class="line"></span><br><span class="line">    @mmap_size[<span class="built_in">comm</span>] += args-&gt;len;</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 分类统计</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="variable">$flags</span> &amp; 0x20) &#123;   <span class="comment"># MAP_ANONYMOUS</span></span><br><span class="line">        @anon_mmap[<span class="built_in">comm</span>] += args-&gt;len;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        @file_mmap[<span class="built_in">comm</span>] += args-&gt;len;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (<span class="variable">$flags</span> &amp; 0x10) &#123;   <span class="comment"># MAP_FIXED</span></span><br><span class="line">        @fixed_mmap[<span class="built_in">comm</span>] = count();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">tracepoint:syscalls:sys_exit_mmap &#123;</span><br><span class="line">    <span class="keyword">if</span> (args-&gt;ret == (uint64)-1) &#123;</span><br><span class="line">        @mmap_fail[<span class="built_in">comm</span>] = count();    <span class="comment"># ENOMEM 或其他错误</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">interval:s:30 &#123;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n=== mmap summary (30s) ===\n&quot;</span>);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Total mmap bytes:\n&quot;</span>); <span class="built_in">print</span>(@mmap_size);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Anonymous mmap:\n&quot;</span>);   <span class="built_in">print</span>(@anon_mmap);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;File-backed mmap:\n&quot;</span>); <span class="built_in">print</span>(@file_mmap);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;MAP_FIXED calls:\n&quot;</span>);  <span class="built_in">print</span>(@fixed_mmap);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Failed mmaps:\n&quot;</span>);     <span class="built_in">print</span>(@mmap_fail);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="脚本五：OOM-Kill-前进程内存快照"><a href="#脚本五：OOM-Kill-前进程内存快照" class="headerlink" title="脚本五：OOM Kill 前进程内存快照"></a>脚本五：OOM Kill 前进程内存快照</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line"><span class="comment"># 文件：oom_snapshot.bt</span></span><br><span class="line"><span class="comment"># 用途：在 OOM Kill 发生时打印各进程的内存使用排名，辅助事后分析</span></span><br><span class="line"></span><br><span class="line">// 持续追踪各进程的页面分配情况</span><br><span class="line">kprobe:__alloc_pages_slowpath &#123;</span><br><span class="line">    // slowpath 被触发说明内存压力较大</span><br><span class="line">    @process_rss[<span class="built_in">comm</span>, pid] += 1;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">// 追踪进程 RSS 增长（通过 rss_stat tracepoint）</span><br><span class="line">tracepoint:kmem:rss_stat &#123;</span><br><span class="line">    <span class="keyword">if</span> (args-&gt;member == 0) &#123;   // MM_ANONPAGES</span><br><span class="line">        @anon_pages[<span class="built_in">comm</span>, pid] = args-&gt;size;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">// OOM Kill 即将发生时触发</span><br><span class="line">kprobe:oom_kill_process &#123;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n========================================\n&quot;</span>);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;!!! OOM Kill Triggered !!!\n&quot;</span>);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Victim: %s (pid=%d)\n&quot;</span>, <span class="built_in">comm</span>, pid);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Timestamp: %llu ns\n&quot;</span>, nsecs);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n--- Top processes by alloc_pages_slowpath hits ---\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@process_rss);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n--- Anonymous pages by process ---\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@anon_pages);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;========================================\n&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">// 每 60 秒清理一次历史数据，避免数据堆积</span><br><span class="line">interval:s:60 &#123;</span><br><span class="line">    clear(@process_rss);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用方法：sudo bpftrace oom_snapshot.bt &gt; /var/log/oom_trace.log 2&gt;&amp;1 &amp;</span></span><br><span class="line"><span class="comment"># 后台运行，OOM 发生时自动记录快照</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、vm-sysctl-参数速查表"><a href="#五、vm-sysctl-参数速查表" class="headerlink" title="五、vm.* sysctl 参数速查表"></a>五、vm.* sysctl 参数速查表</h2><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>推荐值（通用服务器）</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>vm.swappiness</code></td>
+<td>60</td>
+<td>10~20（低延迟）&#x2F; 80（内存密集）</td>
+<td>控制 anon 页 swap 出的倾向性；0 不完全禁用 swap</td>
+</tr>
+<tr>
+<td><code>vm.dirty_ratio</code></td>
+<td>20</td>
+<td>10~15</td>
+<td>脏页占总内存比例上限，超过时写入进程被 throttle</td>
+</tr>
+<tr>
+<td><code>vm.dirty_background_ratio</code></td>
+<td>10</td>
+<td>5</td>
+<td>后台刷盘触发阈值，建议设为 dirty_ratio 的一半</td>
+</tr>
+<tr>
+<td><code>vm.dirty_expire_centisecs</code></td>
+<td>3000</td>
+<td>1500~3000</td>
+<td>脏页超过此时间（单位 10ms）必须写回</td>
+</tr>
+<tr>
+<td><code>vm.dirty_writeback_centisecs</code></td>
+<td>500</td>
+<td>500</td>
+<td>writeback 线程唤醒间隔（单位 10ms）</td>
+</tr>
+<tr>
+<td><code>vm.vfs_cache_pressure</code></td>
+<td>100</td>
+<td>50~80（文件密集型）&#x2F; 150（内存压力大）</td>
+<td>slab 缓存回收压力；&lt; 100 保留更多 dcache&#x2F;icache</td>
+</tr>
+<tr>
+<td><code>vm.overcommit_memory</code></td>
+<td>0</td>
+<td>0 或 2（严格场景）</td>
+<td>内存超分配策略：0&#x3D;启发式，1&#x3D;总允许，2&#x3D;精确限制</td>
+</tr>
+<tr>
+<td><code>vm.overcommit_ratio</code></td>
+<td>50</td>
+<td>80~90</td>
+<td>overcommit_memory&#x3D;2 时的物理内存允诺比例（百分比）</td>
+</tr>
+<tr>
+<td><code>vm.min_free_kbytes</code></td>
+<td>（自动计算）</td>
+<td>MemTotal * 0.5% ~ 1%</td>
+<td>保留给内核紧急分配的最低空闲内存；过低导致 OOM，过高浪费</td>
+</tr>
+<tr>
+<td><code>vm.watermark_scale_factor</code></td>
+<td>10</td>
+<td>125~200（NUMA 系统）</td>
+<td>kswapd 触发阈值的缩放因子，提高值使 kswapd 更早介入</td>
+</tr>
+<tr>
+<td><code>vm.watermark_boost_factor</code></td>
+<td>15000</td>
+<td>15000</td>
+<td>碎片化时临时提高水位线的倍数（基于 min_free_kbytes）</td>
+</tr>
+<tr>
+<td><code>vm.zone_reclaim_mode</code></td>
+<td>0</td>
+<td>0（UMA）&#x2F; 1（NUMA 严格本地回收）</td>
+<td>NUMA 内存回收策略；1 在 NUMA 节点本地优先回收</td>
+</tr>
+<tr>
+<td><code>vm.numa_balancing</code></td>
+<td>1</td>
+<td>1</td>
+<td>NUMA 自动内存迁移到最近 CPU 节点</td>
+</tr>
+<tr>
+<td><code>vm.compaction_proactiveness</code></td>
+<td>20</td>
+<td>0（低延迟）&#x2F; 20~40（THP 需求高）</td>
+<td>主动内存压缩的积极程度（0 禁用，100 最积极）</td>
+</tr>
+<tr>
+<td><code>vm.extfrag_threshold</code></td>
+<td>500</td>
+<td>200~300</td>
+<td>外碎片化指数阈值，超过时触发压缩（0-1000）</td>
+</tr>
+<tr>
+<td><code>vm.page-cluster</code></td>
+<td>3</td>
+<td>0（SSD）&#x2F; 3（HDD）</td>
+<td>swap in 时一次读取的页面数（2^n），SSD 无需预读</td>
+</tr>
+<tr>
+<td><code>vm.stat_interval</code></td>
+<td>1</td>
+<td>1</td>
+<td>vm_stat 更新间隔（秒），降低可减少 NUMA 抖动</td>
+</tr>
+<tr>
+<td><code>vm.laptop_mode</code></td>
+<td>0</td>
+<td>0（服务器）&#x2F; 5（笔记本）</td>
+<td>笔记本模式：延迟回写以节省磁盘转速</td>
+</tr>
+<tr>
+<td><code>vm.drop_caches</code></td>
+<td>（write-only）</td>
+<td>谨慎使用</td>
+<td>1&#x3D;page cache，2&#x3D;slab，3&#x3D;两者；生产环境慎用</td>
+</tr>
+<tr>
+<td><code>vm.oom_kill_allocating_task</code></td>
+<td>0</td>
+<td>0</td>
+<td>1&#x3D;优先杀触发 OOM 的进程；0&#x3D;按评分选择受害者</td>
+</tr>
+<tr>
+<td><code>vm.panic_on_oom</code></td>
+<td>0</td>
+<td>0</td>
+<td>1&#x3D;OOM 时触发内核 panic（配合 kdump 使用）</td>
+</tr>
+<tr>
+<td><code>vm.oom_dump_tasks</code></td>
+<td>1</td>
+<td>1</td>
+<td>OOM 时在 dmesg 中打印所有进程内存信息</td>
+</tr>
+<tr>
+<td><code>vm.mmap_min_addr</code></td>
+<td>65536</td>
+<td>65536</td>
+<td>禁止 mmap 到低于此地址（防止空指针解引用利用）</td>
+</tr>
+<tr>
+<td><code>vm.max_map_count</code></td>
+<td>65530</td>
+<td>262144~1048576（Java&#x2F;Elasticsearch）</td>
+<td>进程最大 VMA 数量，Java 应用通常需要调大</td>
+</tr>
+<tr>
+<td><code>vm.percpu_pagelist_high_fraction</code></td>
+<td>0</td>
+<td>8~16（NUMA 系统）</td>
+<td>per-CPU page list 高水位，减少跨节点分配</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="六、内存监控告警指标"><a href="#六、内存监控告警指标" class="headerlink" title="六、内存监控告警指标"></a>六、内存监控告警指标</h2><h3 id="6-1-核心告警指标与阈值"><a href="#6-1-核心告警指标与阈值" class="headerlink" title="6.1 核心告警指标与阈值"></a>6.1 核心告警指标与阈值</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Prometheus alerting rules 示例</span></span><br><span class="line"><span class="attr">groups:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">linux_memory_alerts</span></span><br><span class="line">    <span class="attr">rules:</span></span><br><span class="line"></span><br><span class="line">      <span class="comment"># 可用内存低于 10%</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">MemoryAvailableLow</span></span><br><span class="line">        <span class="attr">expr:</span> <span class="string">|</span></span><br><span class="line"><span class="string">          node_memory_MemAvailable_bytes /</span></span><br><span class="line"><span class="string">          node_memory_MemTotal_bytes &lt; 0.10</span></span><br><span class="line"><span class="string"></span>        <span class="attr">for:</span> <span class="string">5m</span></span><br><span class="line">        <span class="attr">labels:</span></span><br><span class="line">          <span class="attr">severity:</span> <span class="string">warning</span></span><br><span class="line">        <span class="attr">annotations:</span></span><br><span class="line">          <span class="attr">summary:</span> <span class="string">&quot;可用内存低于 10%（当前: <span class="template-variable">&#123;&#123; $value | humanizePercentage &#125;&#125;</span>）&quot;</span></span><br><span class="line"></span><br><span class="line">      <span class="comment"># 可用内存低于 5%（紧急）</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">MemoryAvailableCritical</span></span><br><span class="line">        <span class="attr">expr:</span> <span class="string">|</span></span><br><span class="line"><span class="string">          node_memory_MemAvailable_bytes /</span></span><br><span class="line"><span class="string">          node_memory_MemTotal_bytes &lt; 0.05</span></span><br><span class="line"><span class="string"></span>        <span class="attr">for:</span> <span class="string">2m</span></span><br><span class="line">        <span class="attr">labels:</span></span><br><span class="line">          <span class="attr">severity:</span> <span class="string">critical</span></span><br><span class="line">        <span class="attr">annotations:</span></span><br><span class="line">          <span class="attr">summary:</span> <span class="string">&quot;可用内存严重不足（当前: <span class="template-variable">&#123;&#123; $value | humanizePercentage &#125;&#125;</span>）&quot;</span></span><br><span class="line"></span><br><span class="line">      <span class="comment"># Swap 使用率超过 20%</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">SwapUsageHigh</span></span><br><span class="line">        <span class="attr">expr:</span> <span class="string">|</span></span><br><span class="line"><span class="string">          (node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes) /</span></span><br><span class="line"><span class="string">          node_memory_SwapTotal_bytes &gt; 0.20</span></span><br><span class="line"><span class="string"></span>        <span class="attr">for:</span> <span class="string">10m</span></span><br><span class="line">        <span class="attr">labels:</span></span><br><span class="line">          <span class="attr">severity:</span> <span class="string">warning</span></span><br><span class="line">        <span class="attr">annotations:</span></span><br><span class="line">          <span class="attr">summary:</span> <span class="string">&quot;Swap 使用率超过 20%，存在内存压力&quot;</span></span><br><span class="line"></span><br><span class="line">      <span class="comment"># Major page fault 速率过高（滑动窗口）</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">MajorPageFaultHigh</span></span><br><span class="line">        <span class="attr">expr:</span> <span class="string">|</span></span><br><span class="line"><span class="string">          rate(node_vmstat_pgmajfault[5m]) &gt; 100</span></span><br><span class="line"><span class="string"></span>        <span class="attr">for:</span> <span class="string">5m</span></span><br><span class="line">        <span class="attr">labels:</span></span><br><span class="line">          <span class="attr">severity:</span> <span class="string">warning</span></span><br><span class="line">        <span class="attr">annotations:</span></span><br><span class="line">          <span class="attr">summary:</span> <span class="string">&quot;Major page fault 速率 <span class="template-variable">&#123;&#123; $value | humanize &#125;&#125;</span>/s，可能存在 swap thrashing&quot;</span></span><br><span class="line"></span><br><span class="line">      <span class="comment"># OOM Kill 发生</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">OOMKillDetected</span></span><br><span class="line">        <span class="attr">expr:</span> <span class="string">|</span></span><br><span class="line"><span class="string">          increase(node_vmstat_oom_kill[5m]) &gt; 0</span></span><br><span class="line"><span class="string"></span>        <span class="attr">labels:</span></span><br><span class="line">          <span class="attr">severity:</span> <span class="string">critical</span></span><br><span class="line">        <span class="attr">annotations:</span></span><br><span class="line">          <span class="attr">summary:</span> <span class="string">&quot;检测到 OOM Kill 事件，过去 5 分钟发生 <span class="template-variable">&#123;&#123; $value &#125;&#125;</span> 次&quot;</span></span><br><span class="line"></span><br><span class="line">      <span class="comment"># Slab 内存占比过高（超过物理内存的 20%）</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">SlabMemoryHigh</span></span><br><span class="line">        <span class="attr">expr:</span> <span class="string">|</span></span><br><span class="line"><span class="string">          node_memory_Slab_bytes /</span></span><br><span class="line"><span class="string">          node_memory_MemTotal_bytes &gt; 0.20</span></span><br><span class="line"><span class="string"></span>        <span class="attr">for:</span> <span class="string">15m</span></span><br><span class="line">        <span class="attr">labels:</span></span><br><span class="line">          <span class="attr">severity:</span> <span class="string">warning</span></span><br><span class="line">        <span class="attr">annotations:</span></span><br><span class="line">          <span class="attr">summary:</span> <span class="string">&quot;Slab 内存占比 <span class="template-variable">&#123;&#123; $value | humanizePercentage &#125;&#125;</span>，可能存在 dcache/icache 膨胀&quot;</span></span><br><span class="line"></span><br><span class="line">      <span class="comment"># kswapd 回收效率低</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">KswapdEfficiencyLow</span></span><br><span class="line">        <span class="attr">expr:</span> <span class="string">|</span></span><br><span class="line"><span class="string">          rate(node_vmstat_pgsteal_kswapd[5m]) /</span></span><br><span class="line"><span class="string">          (rate(node_vmstat_pgscan_kswapd[5m]) + 1) &lt; 0.5</span></span><br><span class="line"><span class="string"></span>        <span class="attr">for:</span> <span class="string">10m</span></span><br><span class="line">        <span class="attr">labels:</span></span><br><span class="line">          <span class="attr">severity:</span> <span class="string">warning</span></span><br><span class="line">        <span class="attr">annotations:</span></span><br><span class="line">          <span class="attr">summary:</span> <span class="string">&quot;kswapd 回收效率低于 50%，内存压力严重&quot;</span></span><br><span class="line"></span><br><span class="line">      <span class="comment"># 大页分配失败（THP fallback 率过高）</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">THPFallbackHigh</span></span><br><span class="line">        <span class="attr">expr:</span> <span class="string">|</span></span><br><span class="line"><span class="string">          rate(node_vmstat_thp_fault_fallback[5m]) /</span></span><br><span class="line"><span class="string">          (rate(node_vmstat_thp_fault_alloc[5m]) + 1) &gt; 0.30</span></span><br><span class="line"><span class="string"></span>        <span class="attr">for:</span> <span class="string">10m</span></span><br><span class="line">        <span class="attr">labels:</span></span><br><span class="line">          <span class="attr">severity:</span> <span class="string">warning</span></span><br><span class="line">        <span class="attr">annotations:</span></span><br><span class="line">          <span class="attr">summary:</span> <span class="string">&quot;THP 分配失败率 <span class="template-variable">&#123;&#123; $value | humanizePercentage &#125;&#125;</span>，内存碎片化严重&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-日常巡检脚本"><a href="#6-2-日常巡检脚本" class="headerlink" title="6.2 日常巡检脚本"></a>6.2 日常巡检脚本</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># 文件：/usr/local/bin/memory_health_check.sh</span></span><br><span class="line"><span class="comment"># 用途：每日内存健康检查，输出关键指标摘要</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;===============================&quot;</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot; Linux Memory Health Check&quot;</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot; <span class="subst">$(date &#x27;+%Y-%m-%d %H:%M:%S&#x27;)</span>&quot;</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;===============================&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 基础内存统计</span></span><br><span class="line"><span class="built_in">echo</span> -e <span class="string">&quot;\n[1] Memory Overview&quot;</span></span><br><span class="line">free -h</span><br><span class="line"></span><br><span class="line"><span class="comment"># MemAvailable 百分比</span></span><br><span class="line">MEMTOTAL=$(awk <span class="string">&#x27;/MemTotal/ &#123;print $2&#125;&#x27;</span> /proc/meminfo)</span><br><span class="line">MEMAVAIL=$(awk <span class="string">&#x27;/MemAvailable/ &#123;print $2&#125;&#x27;</span> /proc/meminfo)</span><br><span class="line">AVAIL_PCT=$((MEMAVAIL * <span class="number">100</span> / MEMTOTAL))</span><br><span class="line"><span class="built_in">echo</span> -e <span class="string">&quot;\nMemAvailable: <span class="variable">$&#123;AVAIL_PCT&#125;</span>% (<span class="variable">$&#123;MEMAVAIL&#125;</span> kB / <span class="variable">$&#123;MEMTOTAL&#125;</span> kB)&quot;</span></span><br><span class="line">[ <span class="variable">$AVAIL_PCT</span> -lt 10 ] &amp;&amp; <span class="built_in">echo</span> <span class="string">&quot;  [WARNING] Available memory &lt; 10%!&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Swap 使用率</span></span><br><span class="line">SWAPTOTAL=$(awk <span class="string">&#x27;/SwapTotal/ &#123;print $2&#125;&#x27;</span> /proc/meminfo)</span><br><span class="line">SWAPFREE=$(awk <span class="string">&#x27;/SwapFree/ &#123;print $2&#125;&#x27;</span> /proc/meminfo)</span><br><span class="line"><span class="keyword">if</span> [ <span class="variable">$SWAPTOTAL</span> -gt 0 ]; <span class="keyword">then</span></span><br><span class="line">    SWAPUSED=$((SWAPTOTAL - SWAPFREE))</span><br><span class="line">    SWAP_PCT=$((SWAPUSED * <span class="number">100</span> / SWAPTOTAL))</span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;Swap usage: <span class="variable">$&#123;SWAP_PCT&#125;</span>% (<span class="variable">$&#123;SWAPUSED&#125;</span> kB used)&quot;</span></span><br><span class="line">    [ <span class="variable">$SWAP_PCT</span> -gt 20 ] &amp;&amp; <span class="built_in">echo</span> <span class="string">&quot;  [WARNING] Swap usage &gt; 20%!&quot;</span></span><br><span class="line"><span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Slab 占比</span></span><br><span class="line">SLAB=$(awk <span class="string">&#x27;/^Slab:/ &#123;print $2&#125;&#x27;</span> /proc/meminfo)</span><br><span class="line">SLAB_PCT=$((SLAB * <span class="number">100</span> / MEMTOTAL))</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;Slab: <span class="variable">$&#123;SLAB_PCT&#125;</span>% (<span class="variable">$&#123;SLAB&#125;</span> kB)&quot;</span></span><br><span class="line">[ <span class="variable">$SLAB_PCT</span> -gt 20 ] &amp;&amp; <span class="built_in">echo</span> <span class="string">&quot;  [WARNING] Slab &gt; 20% of total memory!&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># pgmajfault 速率（采样 10 秒）</span></span><br><span class="line"><span class="built_in">echo</span> -e <span class="string">&quot;\n[2] Page Fault Rate (10s sample)&quot;</span></span><br><span class="line">MAJFAULT1=$(awk <span class="string">&#x27;/pgmajfault/ &#123;print $2&#125;&#x27;</span> /proc/vmstat)</span><br><span class="line"><span class="built_in">sleep</span> 10</span><br><span class="line">MAJFAULT2=$(awk <span class="string">&#x27;/pgmajfault/ &#123;print $2&#125;&#x27;</span> /proc/vmstat)</span><br><span class="line">MAJFAULT_RATE=$(( (MAJFAULT2 - MAJFAULT1) / <span class="number">10</span> ))</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;Major page faults: <span class="variable">$&#123;MAJFAULT_RATE&#125;</span>/s&quot;</span></span><br><span class="line">[ <span class="variable">$MAJFAULT_RATE</span> -gt 100 ] &amp;&amp; <span class="built_in">echo</span> <span class="string">&quot;  [WARNING] High major fault rate!&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 内存碎片状态</span></span><br><span class="line"><span class="built_in">echo</span> -e <span class="string">&quot;\n[3] Memory Fragmentation (order &gt;= 6, blocks &gt; 0)&quot;</span></span><br><span class="line">awk <span class="string">&#x27;</span></span><br><span class="line"><span class="string">/^Node/ &#123;</span></span><br><span class="line"><span class="string">    split($0, a, &quot;:&quot;); zone=$0;</span></span><br><span class="line"><span class="string">    counts=a[2];</span></span><br><span class="line"><span class="string">    split(counts, c, &quot; &quot;);</span></span><br><span class="line"><span class="string">    # 检查 order 6-10</span></span><br><span class="line"><span class="string">    high=0;</span></span><br><span class="line"><span class="string">    for (i=7; i&lt;=11; i++) if (c[i]+0 &gt; 0) high=1;</span></span><br><span class="line"><span class="string">    if (!high) print &quot;  [WARNING] &quot; zone &quot; - no high-order free pages!&quot;;</span></span><br><span class="line"><span class="string">&#125;&#x27;</span> /proc/buddyinfo</span><br><span class="line"></span><br><span class="line"><span class="comment"># 最近 OOM 事件</span></span><br><span class="line"><span class="built_in">echo</span> -e <span class="string">&quot;\n[4] Recent OOM Events&quot;</span></span><br><span class="line">dmesg --time-format=reltime | grep -E <span class="string">&quot;Out of memory|oom-kill&quot;</span> | <span class="built_in">tail</span> -5</span><br><span class="line"><span class="keyword">if</span> dmesg | grep -q <span class="string">&quot;Out of memory&quot;</span>; <span class="keyword">then</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;  [CRITICAL] OOM events found in dmesg!&quot;</span></span><br><span class="line"><span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Top 5 内存消耗进程</span></span><br><span class="line"><span class="built_in">echo</span> -e <span class="string">&quot;\n[5] Top 5 Memory Consumers (by RSS)&quot;</span></span><br><span class="line">ps aux --<span class="built_in">sort</span>=-%mem | awk <span class="string">&#x27;NR&lt;=6 &#123;printf &quot;  %-20s %s MB\n&quot;, $11, $6/1024&#125;&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">echo</span> -e <span class="string">&quot;\n===============================&quot;</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot; Check Complete&quot;</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;===============================&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-内存压力等级评估矩阵"><a href="#6-3-内存压力等级评估矩阵" class="headerlink" title="6.3 内存压力等级评估矩阵"></a>6.3 内存压力等级评估矩阵</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>正常</th>
+<th>警告</th>
+<th>紧急</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>MemAvailable &#x2F; MemTotal</td>
+<td>&gt; 20%</td>
+<td>10%~20%</td>
+<td>&lt; 10%</td>
+</tr>
+<tr>
+<td>Swap 使用率</td>
+<td>&lt; 10%</td>
+<td>10%~30%</td>
+<td>&gt; 30% 或持续增长</td>
+</tr>
+<tr>
+<td>pgmajfault 速率</td>
+<td>&lt; 10&#x2F;s</td>
+<td>10~100&#x2F;s</td>
+<td>&gt; 100&#x2F;s</td>
+</tr>
+<tr>
+<td>kswapd CPU 占用</td>
+<td>&lt; 1%</td>
+<td>1%~5%</td>
+<td>&gt; 5%</td>
+</tr>
+<tr>
+<td>compact_stall 增量</td>
+<td>0</td>
+<td>偶发</td>
+<td>持续增长</td>
+</tr>
+<tr>
+<td>OOM Kill 次数</td>
+<td>0</td>
+<td>任何一次</td>
+<td>反复发生</td>
+</tr>
+<tr>
+<td>Slab &#x2F; MemTotal</td>
+<td>&lt; 10%</td>
+<td>10%~20%</td>
+<td>&gt; 20%</td>
+</tr>
+<tr>
+<td>Dirty &#x2F; MemTotal</td>
+<td>&lt; 5%</td>
+<td>5%~15%</td>
+<td>&gt; 15%（I&#x2F;O 阻塞风险）</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>内存诊断的核心方法论可以归纳为”三步定位法”：</p>
+<ol>
+<li><strong>全局视图</strong>：从 <code>free -h</code>、<code>/proc/meminfo</code>、<code>vmstat 1</code> 入手，判断是内存不足、泄漏还是碎片化。</li>
+<li><strong>计数器驱动</strong>：通过 <code>/proc/vmstat</code> 的 <code>pgmajfault</code>、<code>pswpout</code>、<code>compact_stall</code> 等速率指标，确定内存压力的类型和严重程度。</li>
+<li><strong>精确定位</strong>：使用 <code>smaps_rollup</code>、bpftrace 脚本、kmemleak 等工具，将问题聚焦到具体进程、内核子系统或调用路径。</li>
+</ol>
+<p>在参数调优上，没有万能配方——<code>vm.swappiness=10</code> 对数据库是合理的，对内存密集型批处理任务可能反而有害。理解每个参数背后的内核机制，结合具体工作负载的 <code>vmstat</code> 和 <code>sar</code> 数据，才能做出正确决策。</p>
+<p>本系列的下一篇将深入探讨 NUMA 架构下的内存管理优化，以及 <code>numactl</code>、<code>mbind</code> 等工具在多 CPU 服务器上的实践应用。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/bpftrace/" rel="tag"># bpftrace</a>
+              <a href="/tags/Memory-Diagnostics/" rel="tag"># Memory Diagnostics</a>
+              <a href="/tags/Performance-Tuning/" rel="tag"># Performance Tuning</a>
+              <a href="/tags/OOM/" rel="tag"># OOM</a>
+              <a href="/tags/Memory-Leak/" rel="tag"># Memory Leak</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-mm-part6-mmap-cow/" rel="prev" title="Linux 内存管理深度剖析（六）：mmap 文件映射、共享内存与写时复制">
+                  <i class="fa fa-angle-left"></i> Linux 内存管理深度剖析（六）：mmap 文件映射、共享内存与写时复制
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-proc-part1-fork-exec/" rel="next" title="Linux 进程管理深度剖析（一）：进程创建 fork/exec/clone 源码分析">
+                  Linux 进程管理深度剖析（一）：进程创建 fork/exec/clone 源码分析 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

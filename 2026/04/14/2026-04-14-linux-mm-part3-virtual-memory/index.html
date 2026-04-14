@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="本文基于 Linux 6.4-rc1 源码（commit ac9a78681b92），系统梳理进程虚拟地址空间的数据结构、多级页表的实现细节、mmap 系统调用的完整路径，以及缺页异常的处理流程。所有代码片段均来自真实内核源文件。  一、进程虚拟地址空间布局1.1 struct mm_struct：进程的内存管理核心每个进程拥有独立的虚拟地址空间，其元数据由 struct mm_struct 描">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 内存管理深度剖析（三）：虚拟内存空间与多级页表">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part3-virtual-memory/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="本文基于 Linux 6.4-rc1 源码（commit ac9a78681b92），系统梳理进程虚拟地址空间的数据结构、多级页表的实现细节、mmap 系统调用的完整路径，以及缺页异常的处理流程。所有代码片段均来自真实内核源文件。  一、进程虚拟地址空间布局1.1 struct mm_struct：进程的内存管理核心每个进程拥有独立的虚拟地址空间，其元数据由 struct mm_struct 描">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-14T06:20:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T03:55:24.202Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Virtual Memory">
+<meta property="article:tag" content="Page Table">
+<meta property="article:tag" content="VMA">
+<meta property="article:tag" content="mmap">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part3-virtual-memory/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part3-virtual-memory/","path":"2026/04/14/2026-04-14-linux-mm-part3-virtual-memory/","title":"Linux 内存管理深度剖析（三）：虚拟内存空间与多级页表"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 内存管理深度剖析（三）：虚拟内存空间与多级页表 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E8%BF%9B%E7%A8%8B%E8%99%9A%E6%8B%9F%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4%E5%B8%83%E5%B1%80"><span class="nav-number">1.</span> <span class="nav-text">一、进程虚拟地址空间布局</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-struct-mm-struct%EF%BC%9A%E8%BF%9B%E7%A8%8B%E7%9A%84%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E6%A0%B8%E5%BF%83"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 struct mm_struct：进程的内存管理核心</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E5%85%B8%E5%9E%8B-64-%E4%BD%8D%E8%BF%9B%E7%A8%8B%E8%99%9A%E6%8B%9F%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 典型 64 位进程虚拟地址空间</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81VMA%EF%BC%9A%E8%99%9A%E6%8B%9F%E5%86%85%E5%AD%98%E5%8C%BA%E5%9F%9F"><span class="nav-number">2.</span> <span class="nav-text">二、VMA：虚拟内存区域</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-struct-vm-area-struct"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 struct vm_area_struct</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-struct-vm-operations-struct"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 struct vm_operations_struct</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-VMA-%E6%9F%A5%E6%89%BE%EF%BC%9Afind-vma"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 VMA 查找：find_vma</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81mmap-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%E8%B7%AF%E5%BE%84"><span class="nav-number">3.</span> <span class="nav-text">三、mmap 系统调用路径</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E8%B0%83%E7%94%A8%E9%93%BE%E6%80%BB%E8%A7%88"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 调用链总览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-ksys-mmap-pgoff%EF%BC%9A%E6%96%87%E4%BB%B6%E6%8F%8F%E8%BF%B0%E7%AC%A6%E8%A7%A3%E6%9E%90"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 ksys_mmap_pgoff：文件描述符解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-do-mmap%EF%BC%9A%E6%9D%83%E9%99%90%E6%A3%80%E6%9F%A5%E4%B8%8E%E6%A0%87%E5%BF%97%E8%AE%A1%E7%AE%97"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 do_mmap：权限检查与标志计算</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-mmap-region%EF%BC%9A%E5%88%9B%E5%BB%BA-VMA"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 mmap_region：创建 VMA</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%A4%9A%E7%BA%A7%E9%A1%B5%E8%A1%A8%E7%BB%93%E6%9E%84"><span class="nav-number">4.</span> <span class="nav-text">四、多级页表结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-x86-64-%E4%BA%94%E7%BA%A7%E9%A1%B5%E8%A1%A8%E5%B1%82%E7%BA%A7"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 x86-64 五级页表层级</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E9%A1%B5%E8%A1%A8%E9%A1%B9%E4%BD%8D%E5%9F%9F"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 页表项位域</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E9%A1%B5%E8%A1%A8%E9%81%8D%E5%8E%86%E5%AE%8F"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 页表遍历宏</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E7%BC%BA%E9%A1%B5%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86"><span class="nav-number">5.</span> <span class="nav-text">五、缺页异常处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%85%A5%E5%8F%A3%EF%BC%9Aexc-page-fault"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 入口：exc_page_fault</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-handle-mm-fault%EF%BC%9A%E5%88%86%E9%85%8D%E9%A1%B5%E8%A1%A8"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 __handle_mm_fault：分配页表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-handle-pte-fault%EF%BC%9A%E5%88%86%E5%8F%91%E5%85%B7%E4%BD%93%E7%BC%BA%E9%A1%B5%E7%B1%BB%E5%9E%8B"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 handle_pte_fault：分发具体缺页类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E5%8C%BF%E5%90%8D%E7%BC%BA%E9%A1%B5%EF%BC%9Ado-anonymous-page"><span class="nav-number">5.4.</span> <span class="nav-text">5.4 匿名缺页：do_anonymous_page</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-%E6%96%87%E4%BB%B6%E7%BC%BA%E9%A1%B5%EF%BC%9A-do-fault"><span class="nav-number">5.5.</span> <span class="nav-text">5.5 文件缺页：__do_fault</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-6-%E5%86%99%E6%97%B6%E5%A4%8D%E5%88%B6%EF%BC%9Ado-wp-page"><span class="nav-number">5.6.</span> <span class="nav-text">5.6 写时复制：do_wp_page</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81TLB-%E7%AE%A1%E7%90%86"><span class="nav-number">6.</span> <span class="nav-text">六、TLB 管理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-TLB-%E7%9A%84%E4%BD%9C%E7%94%A8"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 TLB 的作用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-TLB-%E5%88%B7%E6%96%B0%E6%8E%A5%E5%8F%A3"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 TLB 刷新接口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-PCID-%E4%BC%98%E5%8C%96"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 PCID 优化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E9%80%8F%E6%98%8E%E5%A4%A7%E9%A1%B5%EF%BC%88THP%EF%BC%89"><span class="nav-number">6.4.</span> <span class="nav-text">6.4 透明大页（THP）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E8%AF%8A%E6%96%AD%E6%96%B9%E6%B3%95"><span class="nav-number">7.</span> <span class="nav-text">七、诊断方法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-proc-PID-maps"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 &#x2F;proc&#x2F;PID&#x2F;maps</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-proc-PID-smaps"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 &#x2F;proc&#x2F;PID&#x2F;smaps</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-proc-PID-pagemap"><span class="nav-number">7.3.</span> <span class="nav-text">7.3 &#x2F;proc&#x2F;PID&#x2F;pagemap</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-proc-PID-status-%E5%86%85%E5%AD%98%E5%AD%97%E6%AE%B5"><span class="nav-number">7.4.</span> <span class="nav-text">7.4 &#x2F;proc&#x2F;PID&#x2F;status 内存字段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-pmap-x"><span class="nav-number">7.5.</span> <span class="nav-text">7.5 pmap -x</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-6-bpftrace-%E8%BF%BD%E8%B8%AA%E7%BC%BA%E9%A1%B5"><span class="nav-number">7.6.</span> <span class="nav-text">7.6 bpftrace 追踪缺页</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-7-perf-%E7%BB%9F%E8%AE%A1%E7%BC%BA%E9%A1%B5%E9%A2%91%E7%8E%87"><span class="nav-number">7.7.</span> <span class="nav-text">7.7 perf 统计缺页频率</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB%E8%B7%AF%E7%BA%BF"><span class="nav-number">8.</span> <span class="nav-text">八、源码阅读路线</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">9.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">95</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">31</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">240</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-mm-part3-virtual-memory/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 内存管理深度剖析（三）：虚拟内存空间与多级页表 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 内存管理深度剖析（三）：虚拟内存空间与多级页表
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 14:20:00 / Modified: 11:55:24" itemprop="dateCreated datePublished" datetime="2026-04-14T14:20:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Memory-Management/" itemprop="url" rel="index"><span itemprop="name">Memory Management</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文基于 Linux 6.4-rc1 源码（commit ac9a78681b92），系统梳理进程虚拟地址空间的数据结构、多级页表的实现细节、mmap 系统调用的完整路径，以及缺页异常的处理流程。所有代码片段均来自真实内核源文件。</p>
+</blockquote>
+<h2 id="一、进程虚拟地址空间布局"><a href="#一、进程虚拟地址空间布局" class="headerlink" title="一、进程虚拟地址空间布局"></a>一、进程虚拟地址空间布局</h2><h3 id="1-1-struct-mm-struct：进程的内存管理核心"><a href="#1-1-struct-mm-struct：进程的内存管理核心" class="headerlink" title="1.1 struct mm_struct：进程的内存管理核心"></a>1.1 struct mm_struct：进程的内存管理核心</h3><p>每个进程拥有独立的虚拟地址空间，其元数据由 <code>struct mm_struct</code> 描述，定义在 <code>include/linux/mm_types.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/linux/mm_types.h</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">maple_tree</span> <span class="title">mm_mt</span>;</span>       <span class="comment">/* VMA 的 Maple Tree 索引 */</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> mmap_base;       <span class="comment">/* mmap 区域的基地址 */</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> mmap_legacy_base;<span class="comment">/* 自底向上分配时的 mmap 基地址 */</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> task_size;       <span class="comment">/* 用户态地址空间上限 */</span></span><br><span class="line">        <span class="type">pgd_t</span> *pgd;                    <span class="comment">/* 页全局目录（顶级页表）指针 */</span></span><br><span class="line"></span><br><span class="line">        <span class="type">atomic_t</span> mm_users;             <span class="comment">/* 使用该 mm 的用户数 */</span></span><br><span class="line">        <span class="type">atomic_t</span> mm_count;             <span class="comment">/* mm_struct 引用计数 */</span></span><br><span class="line"></span><br><span class="line">        <span class="type">int</span> map_count;                 <span class="comment">/* VMA 数量 */</span></span><br><span class="line">        <span class="type">spinlock_t</span> page_table_lock;    <span class="comment">/* 保护页表及部分计数器 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">rw_semaphore</span> <span class="title">mmap_lock</span>;</span> <span class="comment">/* 保护 VMA 链表/树的读写锁 */</span></span><br><span class="line"></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> start_code, end_code;   <span class="comment">/* 代码段范围 */</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> start_data, end_data;   <span class="comment">/* 初始化数据段范围 */</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> start_brk, brk;         <span class="comment">/* 堆的起始地址和当前顶端 */</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> start_stack;            <span class="comment">/* 栈的起始地址 */</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> arg_start, arg_end;     <span class="comment">/* 命令行参数范围 */</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> env_start, env_end;     <span class="comment">/* 环境变量范围 */</span></span><br><span class="line">    &#125; __randomize_layout;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> cpu_bitmap[];</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>值得注意的是，Linux 6.1 起用 <strong>Maple Tree</strong>（<code>mm_mt</code>）取代了旧的红黑树 + 链表双结构来管理 VMA，查找性能从 O(log n) 提升，同时减少了锁竞争。<code>mmap_lock</code> 是一把读写信号量，读路径（<code>find_vma</code> 等查询）持读锁，写路径（新建&#x2F;删除 VMA）持写锁。</p>
+<h3 id="1-2-典型-64-位进程虚拟地址空间"><a href="#1-2-典型-64-位进程虚拟地址空间" class="headerlink" title="1.2 典型 64 位进程虚拟地址空间"></a>1.2 典型 64 位进程虚拟地址空间</h3><p>在 x86-64 四级页表模式下（LA48），用户态地址空间为 0 ～ 0x0000_7fff_ffff_ffff（128 TB），布局如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">高地址</span><br><span class="line">┌─────────────────────────────┐ 0xFFFF_FFFF_FFFF_FFFF</span><br><span class="line">│         内核空间              │  （用户态不可访问）</span><br><span class="line">├─────────────────────────────┤ 0xFFFF_8000_0000_0000</span><br><span class="line">│         (非规范地址空洞)        │</span><br><span class="line">├─────────────────────────────┤ 0x0000_7FFF_FFFF_FFFF</span><br><span class="line">│    栈 (向下增长)               │ ← start_stack</span><br><span class="line">│         ...                  │</span><br><span class="line">├─────────────────────────────┤</span><br><span class="line">│    mmap / 动态库映射区          │ ← mmap_base</span><br><span class="line">│         ...                  │</span><br><span class="line">├─────────────────────────────┤</span><br><span class="line">│    堆 (向上增长)               │ start_brk → brk</span><br><span class="line">├─────────────────────────────┤</span><br><span class="line">│    BSS 段 (.bss)              │</span><br><span class="line">│    数据段 (.data)              │ start_data ～ end_data</span><br><span class="line">├─────────────────────────────┤</span><br><span class="line">│    代码段 (.text)              │ start_code ～ end_code</span><br><span class="line">└─────────────────────────────┘ 0x0000_0000_0040_0000（通常）</span><br><span class="line">低地址</span><br></pre></td></tr></table></figure>
+
+<p>五级页表（LA57）将用户态空间扩展至 128 PB，通过 <code>CONFIG_X86_5LEVEL</code> 开启，运行时由 <code>pgtable_l5_enabled()</code> 检测 CPU 的 LA57 特性位决定是否激活。</p>
+<hr>
+<h2 id="二、VMA：虚拟内存区域"><a href="#二、VMA：虚拟内存区域" class="headerlink" title="二、VMA：虚拟内存区域"></a>二、VMA：虚拟内存区域</h2><h3 id="2-1-struct-vm-area-struct"><a href="#2-1-struct-vm-area-struct" class="headerlink" title="2.1 struct vm_area_struct"></a>2.1 struct vm_area_struct</h3><p>VMA 是虚拟地址空间的最小管理单元，每段具有相同属性（权限、映射文件）的连续地址区间对应一个 <code>struct vm_area_struct</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/linux/mm_types.h</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">vm_area_struct</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">            <span class="type">unsigned</span> <span class="type">long</span> vm_start;  <span class="comment">/* VMA 起始地址（包含） */</span></span><br><span class="line">            <span class="type">unsigned</span> <span class="type">long</span> vm_end;    <span class="comment">/* VMA 结束地址（不包含） */</span></span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> *<span class="title">vm_mm</span>;</span>         <span class="comment">/* 所属进程的 mm_struct */</span></span><br><span class="line">    <span class="type">pgprot_t</span> vm_page_prot;           <span class="comment">/* 页保护属性（由 vm_flags 派生） */</span></span><br><span class="line">    <span class="type">const</span> <span class="type">vm_flags_t</span> vm_flags;       <span class="comment">/* 访问权限与行为标志 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 文件映射 interval tree 节点 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">rb_node</span> <span class="title">rb</span>;</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> rb_subtree_last;</span><br><span class="line">    &#125; shared;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">anon_vma_chain</span>;</span> <span class="comment">/* RMAP 匿名映射链 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">anon_vma</span> *<span class="title">anon_vma</span>;</span>       <span class="comment">/* 匿名映射反向映射锚点 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">vm_operations_struct</span> *<span class="title">vm_ops</span>;</span>  <span class="comment">/* 操作函数表 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> vm_pgoff;          <span class="comment">/* 在文件中的页偏移量 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">vm_file</span>;</span>            <span class="comment">/* 映射的文件（匿名映射为 NULL） */</span></span><br><span class="line">    <span class="type">void</span> *vm_private_data;           <span class="comment">/* 驱动私有数据 */</span></span><br><span class="line">&#125; __randomize_layout;</span><br></pre></td></tr></table></figure>
+
+<p><strong>vm_flags 常用标志</strong>（定义在 <code>include/linux/mm.h</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> VM_READ     0x00000001   <span class="comment">/* 可读 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> VM_WRITE    0x00000002   <span class="comment">/* 可写 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> VM_EXEC     0x00000004   <span class="comment">/* 可执行 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> VM_SHARED   0x00000008   <span class="comment">/* 共享映射 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> VM_MAYREAD  0x00000010   <span class="comment">/* 允许设置 VM_READ */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> VM_MAYWRITE 0x00000020   <span class="comment">/* 允许设置 VM_WRITE */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> VM_MAYEXEC  0x00000040   <span class="comment">/* 允许设置 VM_EXEC */</span></span></span><br></pre></td></tr></table></figure>
+
+<p><code>VM_SHARED</code> 与 <code>VM_WRITE</code> 的组合决定了写时复制（COW）行为：<code>MAP_PRIVATE | PROT_WRITE</code> 的 VMA 不含 <code>VM_SHARED</code>，写入时会触发 COW；<code>MAP_SHARED | PROT_WRITE</code> 含 <code>VM_SHARED</code>，写入直接反映到文件。</p>
+<h3 id="2-2-struct-vm-operations-struct"><a href="#2-2-struct-vm-operations-struct" class="headerlink" title="2.2 struct vm_operations_struct"></a>2.2 struct vm_operations_struct</h3><p>每类映射都通过 <code>vm_ops</code> 提供钩子，定义在 <code>include/linux/mm.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">vm_operations_struct</span> &#123;</span></span><br><span class="line">    <span class="type">void</span> (*open)(<span class="keyword">struct</span> vm_area_struct *area);   <span class="comment">/* VMA 被复制（fork）时调用 */</span></span><br><span class="line">    <span class="type">void</span> (*close)(<span class="keyword">struct</span> vm_area_struct *area);  <span class="comment">/* VMA 被销毁时调用 */</span></span><br><span class="line">    <span class="type">int</span>  (*may_split)(<span class="keyword">struct</span> vm_area_struct *area, <span class="type">unsigned</span> <span class="type">long</span> addr);</span><br><span class="line">    <span class="type">int</span>  (*mremap)(<span class="keyword">struct</span> vm_area_struct *area);</span><br><span class="line">    <span class="type">int</span>  (*mprotect)(<span class="keyword">struct</span> vm_area_struct *vma, <span class="type">unsigned</span> <span class="type">long</span> start,</span><br><span class="line">                     <span class="type">unsigned</span> <span class="type">long</span> end, <span class="type">unsigned</span> <span class="type">long</span> newflags);</span><br><span class="line">    <span class="type">vm_fault_t</span> (*fault)(<span class="keyword">struct</span> vm_fault *vmf);             <span class="comment">/* 缺页时读入数据 */</span></span><br><span class="line">    <span class="type">vm_fault_t</span> (*huge_fault)(<span class="keyword">struct</span> vm_fault *vmf,</span><br><span class="line">                             <span class="keyword">enum</span> page_entry_size pe_size);</span><br><span class="line">    <span class="type">vm_fault_t</span> (*map_pages)(<span class="keyword">struct</span> vm_fault *vmf,</span><br><span class="line">                            <span class="type">pgoff_t</span> start_pgoff, <span class="type">pgoff_t</span> end_pgoff); <span class="comment">/* 预读多页 */</span></span><br><span class="line">    <span class="type">vm_fault_t</span> (*page_mkwrite)(<span class="keyword">struct</span> vm_fault *vmf);      <span class="comment">/* 只读页变为可写前调用 */</span></span><br><span class="line">    <span class="type">vm_fault_t</span> (*pfn_mkwrite)(<span class="keyword">struct</span> vm_fault *vmf);</span><br><span class="line">    <span class="type">int</span> (*access)(<span class="keyword">struct</span> vm_area_struct *vma, <span class="type">unsigned</span> <span class="type">long</span> addr,</span><br><span class="line">                  <span class="type">void</span> *buf, <span class="type">int</span> len, <span class="type">int</span> write);</span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *(*name)(<span class="keyword">struct</span> vm_area_struct *vma);       <span class="comment">/* /proc/maps 中的名称 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>例如，ext4 文件映射使用 <code>ext4_file_vm_ops</code>，其 <code>fault</code> 钩子会调用 <code>filemap_fault()</code> 从页缓存读取数据；<code>/dev/zero</code> 使用 <code>zero_vm_ops</code>，其 <code>fault</code> 直接返回零页。</p>
+<h3 id="2-3-VMA-查找：find-vma"><a href="#2-3-VMA-查找：find-vma" class="headerlink" title="2.3 VMA 查找：find_vma"></a>2.3 VMA 查找：find_vma</h3><p>在 Linux 6.1 之后，<code>find_vma</code> 基于 Maple Tree 实现，源码在 <code>mm/mmap.c</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/mmap.c  line 1858</span></span><br><span class="line"><span class="keyword">struct</span> vm_area_struct *<span class="title function_">find_vma</span><span class="params">(<span class="keyword">struct</span> mm_struct *mm, <span class="type">unsigned</span> <span class="type">long</span> addr)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> index = addr;</span><br><span class="line"></span><br><span class="line">    mmap_assert_locked(mm);</span><br><span class="line">    <span class="keyword">return</span> mt_find(&amp;mm-&gt;mm_mt, &amp;index, ULONG_MAX);</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(find_vma);</span><br></pre></td></tr></table></figure>
+
+<p><code>mt_find</code> 在 Maple Tree 中找到第一个满足 <code>key &gt;= addr</code> 的区间节点。若返回的 VMA 满足 <code>vma-&gt;vm_start &lt;= addr &lt; vma-&gt;vm_end</code>，说明 addr 落在该 VMA 内；若 <code>addr &lt; vma-&gt;vm_start</code>，则 addr 在一个”空洞”里，返回的是下一个 VMA。调用方在缺页异常处理中需要额外验证前者条件。</p>
+<hr>
+<h2 id="三、mmap-系统调用路径"><a href="#三、mmap-系统调用路径" class="headerlink" title="三、mmap 系统调用路径"></a>三、mmap 系统调用路径</h2><h3 id="3-1-调用链总览"><a href="#3-1-调用链总览" class="headerlink" title="3.1 调用链总览"></a>3.1 调用链总览</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">用户态 mmap(2)</span><br><span class="line">    → sys_mmap_pgoff / SYSCALL_DEFINE6(mmap_pgoff)</span><br><span class="line">        → ksys_mmap_pgoff()          [mm/mmap.c]</span><br><span class="line">            → vm_mmap_pgoff()</span><br><span class="line">                → do_mmap()          [mm/mmap.c]</span><br><span class="line">                    → mmap_region()  [mm/mmap.c]</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-ksys-mmap-pgoff：文件描述符解析"><a href="#3-2-ksys-mmap-pgoff：文件描述符解析" class="headerlink" title="3.2 ksys_mmap_pgoff：文件描述符解析"></a>3.2 ksys_mmap_pgoff：文件描述符解析</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/mmap.c  line 1402</span></span><br><span class="line"><span class="type">unsigned</span> <span class="type">long</span> <span class="title function_">ksys_mmap_pgoff</span><span class="params">(<span class="type">unsigned</span> <span class="type">long</span> addr, <span class="type">unsigned</span> <span class="type">long</span> len,</span></span><br><span class="line"><span class="params">                              <span class="type">unsigned</span> <span class="type">long</span> prot, <span class="type">unsigned</span> <span class="type">long</span> flags,</span></span><br><span class="line"><span class="params">                              <span class="type">unsigned</span> <span class="type">long</span> fd, <span class="type">unsigned</span> <span class="type">long</span> pgoff)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">file</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> retval;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!(flags &amp; MAP_ANONYMOUS)) &#123;</span><br><span class="line">        audit_mmap_fd(fd, flags);</span><br><span class="line">        file = fget(fd);           <span class="comment">/* 从 fd 获取 struct file */</span></span><br><span class="line">        <span class="keyword">if</span> (!file)</span><br><span class="line">            <span class="keyword">return</span> -EBADF;</span><br><span class="line">        <span class="keyword">if</span> (is_file_hugepages(file)) &#123;</span><br><span class="line">            len = ALIGN(len, huge_page_size(hstate_file(file)));</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (unlikely(flags &amp; MAP_HUGETLB)) &#123;</span><br><span class="line">            retval = -EINVAL;</span><br><span class="line">            <span class="keyword">goto</span> out_fput;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (flags &amp; MAP_HUGETLB) &#123;</span><br><span class="line">        <span class="comment">/* 匿名大页：通过 hugetlbfs 创建内存文件 */</span></span><br><span class="line">        ...</span><br><span class="line">    &#125;</span><br><span class="line">    retval = vm_mmap_pgoff(file, addr, len, prot, flags, pgoff);</span><br><span class="line">out_fput:</span><br><span class="line">    <span class="keyword">if</span> (file)</span><br><span class="line">        fput(file);</span><br><span class="line">    <span class="keyword">return</span> retval;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>匿名映射（<code>MAP_ANONYMOUS</code>）时 <code>file</code> 为 NULL，<code>pgoff</code> 对私有匿名映射被设置为 <code>addr &gt;&gt; PAGE_SHIFT</code>（在 <code>do_mmap</code> 中），用于 anon_vma 的索引。</p>
+<h3 id="3-3-do-mmap：权限检查与标志计算"><a href="#3-3-do-mmap：权限检查与标志计算" class="headerlink" title="3.3 do_mmap：权限检查与标志计算"></a>3.3 do_mmap：权限检查与标志计算</h3><p><code>do_mmap</code>（<code>mm/mmap.c</code> line 1222）是核心逻辑层，负责：</p>
+<ol>
+<li>调用 <code>get_unmapped_area()</code> 找到合适的地址区间（ASLR 随机化在此发生）；</li>
+<li>通过 <code>calc_vm_prot_bits</code> &#x2F; <code>calc_vm_flag_bits</code> 将 POSIX <code>PROT_*</code> 和 <code>MAP_*</code> 转换为内核 <code>VM_*</code> 标志；</li>
+<li>对文件映射验证文件模式（<code>FMODE_READ</code> &#x2F; <code>FMODE_WRITE</code>）；</li>
+<li><code>MAP_SHARED</code> 文件映射：添加 <code>VM_SHARED | VM_MAYSHARE</code>；<code>MAP_PRIVATE</code> 文件映射：不添加 <code>VM_SHARED</code>，写入时触发 COW；</li>
+<li>最终调用 <code>mmap_region()</code>。</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/mmap.c  line 1289（关键片段）</span></span><br><span class="line">vm_flags = calc_vm_prot_bits(prot, pkey) | calc_vm_flag_bits(flags) |</span><br><span class="line">           mm-&gt;def_flags | VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC;</span><br><span class="line">...</span><br><span class="line"><span class="comment">/* 文件映射：MAP_SHARED */</span></span><br><span class="line"><span class="keyword">case</span> MAP_SHARED:</span><br><span class="line">    vm_flags |= VM_SHARED | VM_MAYSHARE;</span><br><span class="line">    <span class="keyword">if</span> (!(file-&gt;f_mode &amp; FMODE_WRITE))</span><br><span class="line">        vm_flags &amp;= ~(VM_MAYWRITE | VM_SHARED);</span><br><span class="line">    fallthrough;</span><br><span class="line"><span class="comment">/* 文件映射：MAP_PRIVATE */</span></span><br><span class="line"><span class="keyword">case</span> MAP_PRIVATE:</span><br><span class="line">    <span class="keyword">if</span> (!(file-&gt;f_mode &amp; FMODE_READ))</span><br><span class="line">        <span class="keyword">return</span> -EACCES;</span><br><span class="line">    <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-4-mmap-region：创建-VMA"><a href="#3-4-mmap-region：创建-VMA" class="headerlink" title="3.4 mmap_region：创建 VMA"></a>3.4 mmap_region：创建 VMA</h3><p><code>mmap_region</code>（<code>mm/mmap.c</code> line 2547）是真正分配 VMA 的函数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/mmap.c  line 2547（核心流程）</span></span><br><span class="line"><span class="type">unsigned</span> <span class="type">long</span> <span class="title function_">mmap_region</span><span class="params">(<span class="keyword">struct</span> file *file, <span class="type">unsigned</span> <span class="type">long</span> addr,</span></span><br><span class="line"><span class="params">        <span class="type">unsigned</span> <span class="type">long</span> len, <span class="type">vm_flags_t</span> vm_flags, <span class="type">unsigned</span> <span class="type">long</span> pgoff,</span></span><br><span class="line"><span class="params">        <span class="keyword">struct</span> list_head *uf)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> *<span class="title">mm</span> =</span> current-&gt;mm;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">vm_area_struct</span> *<span class="title">vma</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">/* 尝试合并相邻 VMA（减少碎片） */</span></span><br><span class="line">    <span class="keyword">if</span> (vma &amp;&amp; !vma_expand(&amp;vmi, vma, merge_start, merge_end, vm_pgoff, next)) &#123;</span><br><span class="line">        khugepaged_enter_vma(vma, vm_flags);</span><br><span class="line">        <span class="keyword">goto</span> expanded;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">cannot_expand:</span><br><span class="line">    <span class="comment">/* 分配新 VMA */</span></span><br><span class="line">    vma = vm_area_alloc(mm);</span><br><span class="line">    vma-&gt;vm_start = addr;</span><br><span class="line">    vma-&gt;vm_end   = end;</span><br><span class="line">    vm_flags_init(vma, vm_flags);</span><br><span class="line">    vma-&gt;vm_page_prot = vm_get_page_prot(vm_flags);</span><br><span class="line">    vma-&gt;vm_pgoff = pgoff;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (file) &#123;</span><br><span class="line">        <span class="comment">/* 文件映射：调用 file-&gt;f_op-&gt;mmap() 设置 vm_ops */</span></span><br><span class="line">        vma-&gt;vm_file = get_file(file);</span><br><span class="line">        error = call_mmap(file, vma);   <span class="comment">/* file-&gt;f_op-&gt;mmap(file, vma) */</span></span><br><span class="line">        ...</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (vm_flags &amp; VM_SHARED) &#123;</span><br><span class="line">        <span class="comment">/* 匿名共享映射：通过 shmem_zero_setup 创建 tmpfs 文件 */</span></span><br><span class="line">        error = shmem_zero_setup(vma);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">/* 匿名私有映射：vma_set_anonymous 将 vm_ops 设为 NULL */</span></span><br><span class="line">        vma_set_anonymous(vma);</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>MAP_PRIVATE vs MAP_SHARED 的本质区别</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>MAP_PRIVATE</th>
+<th>MAP_SHARED</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>vm_flags</td>
+<td>无 VM_SHARED</td>
+<td>含 VM_SHARED</td>
+</tr>
+<tr>
+<td>写时行为</td>
+<td>COW：产生进程私有副本</td>
+<td>直接修改底层页，其他进程可见</td>
+</tr>
+<tr>
+<td>文件刷盘</td>
+<td>修改不回写文件</td>
+<td>修改最终通过 writeback 回写</td>
+</tr>
+<tr>
+<td>匿名映射</td>
+<td>vm_ops &#x3D; NULL</td>
+<td>通过 shmem 实现共享</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="四、多级页表结构"><a href="#四、多级页表结构" class="headerlink" title="四、多级页表结构"></a>四、多级页表结构</h2><h3 id="4-1-x86-64-五级页表层级"><a href="#4-1-x86-64-五级页表层级" class="headerlink" title="4.1 x86-64 五级页表层级"></a>4.1 x86-64 五级页表层级</h3><p>x86-64 采用分级页表将 57 位（五级）或 48 位（四级）虚拟地址翻译为物理地址。各级索引位划分如下（五级，<code>arch/x86/include/asm/pgtable_64_types.h</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">虚拟地址 [56:0]（57 位）：</span><br><span class="line">  bits[56:48] → PGD 索引（9 bit，512 项）</span><br><span class="line">  bits[47:39] → P4D 索引（9 bit，512 项）</span><br><span class="line">  bits[38:30] → PUD 索引（9 bit，512 项）  PUD_SHIFT = 30</span><br><span class="line">  bits[29:21] → PMD 索引（9 bit，512 项）  PMD_SHIFT = 21</span><br><span class="line">  bits[20:12] → PTE 索引（9 bit，512 项）</span><br><span class="line">  bits[11:0]  → 页内偏移（12 bit，4 KB）</span><br></pre></td></tr></table></figure>
+
+<p>对应的类型定义（<code>arch/x86/include/asm/pgtable_64_types.h</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="type">unsigned</span> <span class="type">long</span>  <span class="type">pteval_t</span>;</span><br><span class="line"><span class="keyword">typedef</span> <span class="type">unsigned</span> <span class="type">long</span>  <span class="type">pmdval_t</span>;</span><br><span class="line"><span class="keyword">typedef</span> <span class="type">unsigned</span> <span class="type">long</span>  <span class="type">pudval_t</span>;</span><br><span class="line"><span class="keyword">typedef</span> <span class="type">unsigned</span> <span class="type">long</span>  <span class="type">p4dval_t</span>;</span><br><span class="line"><span class="keyword">typedef</span> <span class="type">unsigned</span> <span class="type">long</span>  <span class="type">pgdval_t</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="type">pteval_t</span> pte; &#125; <span class="type">pte_t</span>;</span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="type">pmdval_t</span> pmd; &#125; <span class="type">pmd_t</span>;</span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="type">pudval_t</span> pud; &#125; <span class="type">pud_t</span>;</span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="type">p4dval_t</span> p4d; &#125; <span class="type">p4d_t</span>;</span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="type">pgdval_t</span> pgd; &#125; <span class="type">pgd_t</span>;   <span class="comment">/* 定义在 pgtable_types.h */</span></span><br></pre></td></tr></table></figure>
+
+<p>使用强类型结构体而非裸 <code>unsigned long</code>，可以让编译器在混用不同层级页表项时产生类型错误，是内核防御性编程的典型实践。</p>
+<h3 id="4-2-页表项位域"><a href="#4-2-页表项位域" class="headerlink" title="4.2 页表项位域"></a>4.2 页表项位域</h3><p>x86-64 每个页表项（PTE）为 64 位，关键位定义在 <code>arch/x86/include/asm/pgtable_types.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_PRESENT   0   <span class="comment">/* P：页存在 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_RW        1   <span class="comment">/* R/W：可写 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_USER      2   <span class="comment">/* U/S：用户态可访问 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_PWT       3   <span class="comment">/* PWT：页写直通 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_PCD       4   <span class="comment">/* PCD：禁用页缓存 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_ACCESSED  5   <span class="comment">/* A：已访问（CPU 置位） */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_DIRTY     6   <span class="comment">/* D：已写脏（CPU 置位） */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_PSE       7   <span class="comment">/* PS：大页（PMD=2MB / PUD=1GB） */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_GLOBAL    8   <span class="comment">/* G：全局页（TLB 切换不刷新） */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_BIT_NX        63  <span class="comment">/* NX/XD：不可执行（需 EFER.NXE=1） */</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_PRESENT  (_AT(pteval_t, 1) &lt;&lt; _PAGE_BIT_PRESENT)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_RW       (_AT(pteval_t, 1) &lt;&lt; _PAGE_BIT_RW)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_USER     (_AT(pteval_t, 1) &lt;&lt; _PAGE_BIT_USER)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_ACCESSED (_AT(pteval_t, 1) &lt;&lt; _PAGE_BIT_ACCESSED)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_DIRTY    (_AT(pteval_t, 1) &lt;&lt; _PAGE_BIT_DIRTY)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_PSE      (_AT(pteval_t, 1) &lt;&lt; _PAGE_BIT_PSE)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _PAGE_NX       (_AT(pteval_t, 1) &lt;&lt; _PAGE_BIT_NX)</span></span><br></pre></td></tr></table></figure>
+
+<p>典型用户页保护配置（<code>arch/x86/include/asm/pgtable_types.h</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 可读不可写不可执行的用户共享页 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PAGE_SHARED       __pg(__PP|__RW|_USR|___A|__NX|0|0|0)</span></span><br><span class="line"><span class="comment">/* 只读可执行的代码页 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PAGE_READONLY_EXEC __pg(__PP|0|_USR|___A|0|0|0|0)</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-页表遍历宏"><a href="#4-3-页表遍历宏" class="headerlink" title="4.3 页表遍历宏"></a>4.3 页表遍历宏</h3><p><code>include/linux/pgtable.h</code> 提供了标准的多级页表遍历接口：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 从 mm-&gt;pgd 获取 PGD 项 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> pgd_offset(mm, address)   pgd_offset_pgd((mm)-&gt;pgd, (address))</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 依次向下索引各级 */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">pmd_t</span> *<span class="title function_">pmd_offset</span><span class="params">(<span class="type">pud_t</span> *pud, <span class="type">unsigned</span> <span class="type">long</span> address)</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> pud_pgtable(*pud) + pmd_index(address);</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">pud_t</span> *<span class="title function_">pud_offset</span><span class="params">(<span class="type">p4d_t</span> *p4d, <span class="type">unsigned</span> <span class="type">long</span> address)</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> p4d_pgtable(*p4d) + pud_index(address);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 非高端内存场景下 pte_offset_map 等价于 pte_offset_kernel */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> pte_offset_map(dir, address)  pte_offset_kernel((dir), (address))</span></span><br></pre></td></tr></table></figure>
+
+<p>一次完整的地址翻译调用链（见 <code>include/linux/pgtable.h</code> line 153）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">pmd_t</span> *<span class="title function_">pmd_off</span><span class="params">(<span class="keyword">struct</span> mm_struct *mm, <span class="type">unsigned</span> <span class="type">long</span> va)</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> pmd_offset(</span><br><span class="line">               pud_offset(</span><br><span class="line">                   p4d_offset(</span><br><span class="line">                       pgd_offset(mm, va), va),</span><br><span class="line">                   va),</span><br><span class="line">               va);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、缺页异常处理"><a href="#五、缺页异常处理" class="headerlink" title="五、缺页异常处理"></a>五、缺页异常处理</h2><h3 id="5-1-入口：exc-page-fault"><a href="#5-1-入口：exc-page-fault" class="headerlink" title="5.1 入口：exc_page_fault"></a>5.1 入口：exc_page_fault</h3><p>CPU 触发 #PF 异常后，进入 IDT 注册的处理函数（<code>arch/x86/mm/fault.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// arch/x86/mm/fault.c  line 1546</span></span><br><span class="line">DEFINE_IDTENTRY_RAW_ERRORCODE(exc_page_fault)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> address = read_cr2();  <span class="comment">/* 从 CR2 读取发生缺页的线性地址 */</span></span><br><span class="line">    <span class="type">irqentry_state_t</span> state;</span><br><span class="line"></span><br><span class="line">    prefetchw(&amp;current-&gt;mm-&gt;mmap_lock);  <span class="comment">/* 预取锁，减少缓存 miss */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (kvm_handle_async_pf(regs, (u32)address))</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    state = irqentry_enter(regs);</span><br><span class="line">    instrumentation_begin();</span><br><span class="line">    handle_page_fault(regs, error_code, address);</span><br><span class="line">    instrumentation_end();</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>handle_page_fault</code> 判断缺页地址属于内核空间还是用户空间，用户空间路径调用 <code>do_user_addr_fault</code>，最终到达通用的 <code>handle_mm_fault</code>。</p>
+<h3 id="5-2-handle-mm-fault：分配页表"><a href="#5-2-handle-mm-fault：分配页表" class="headerlink" title="5.2 __handle_mm_fault：分配页表"></a>5.2 __handle_mm_fault：分配页表</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/memory.c  line 4997</span></span><br><span class="line"><span class="type">static</span> <span class="type">vm_fault_t</span> __handle_mm_fault(<span class="keyword">struct</span> vm_area_struct *vma,</span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> address, <span class="type">unsigned</span> <span class="type">int</span> flags)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">vm_fault</span> <span class="title">vmf</span> =</span> &#123;</span><br><span class="line">        .vma        = vma,</span><br><span class="line">        .address    = address &amp; PAGE_MASK,</span><br><span class="line">        .flags      = flags,</span><br><span class="line">        .pgoff      = linear_page_index(vma, address),</span><br><span class="line">        .gfp_mask   = __get_fault_gfp_mask(vma),</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> *<span class="title">mm</span> =</span> vma-&gt;vm_mm;</span><br><span class="line">    <span class="type">pgd_t</span> *pgd;</span><br><span class="line">    <span class="type">p4d_t</span> *p4d;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 自顶向下分配缺失的页表页 */</span></span><br><span class="line">    pgd = pgd_offset(mm, address);</span><br><span class="line">    p4d = p4d_alloc(mm, pgd, address);</span><br><span class="line">    <span class="keyword">if</span> (!p4d)</span><br><span class="line">        <span class="keyword">return</span> VM_FAULT_OOM;</span><br><span class="line"></span><br><span class="line">    vmf.pud = pud_alloc(mm, p4d, address);</span><br><span class="line">    <span class="keyword">if</span> (!vmf.pud)</span><br><span class="line">        <span class="keyword">return</span> VM_FAULT_OOM;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 检查是否可用 1 GB 大页 */</span></span><br><span class="line">    <span class="keyword">if</span> (pud_none(*vmf.pud) &amp;&amp;</span><br><span class="line">        hugepage_vma_check(vma, vm_flags, <span class="literal">false</span>, <span class="literal">true</span>, <span class="literal">true</span>)) &#123;</span><br><span class="line">        ret = create_huge_pud(&amp;vmf);</span><br><span class="line">        <span class="keyword">if</span> (!(ret &amp; VM_FAULT_FALLBACK))</span><br><span class="line">            <span class="keyword">return</span> ret;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    vmf.pmd = pmd_alloc(mm, vmf.pud, address);</span><br><span class="line">    <span class="keyword">if</span> (!vmf.pmd)</span><br><span class="line">        <span class="keyword">return</span> VM_FAULT_OOM;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 检查是否可用 2 MB 透明大页 */</span></span><br><span class="line">    <span class="keyword">if</span> (pmd_none(*vmf.pmd) &amp;&amp;</span><br><span class="line">        hugepage_vma_check(vma, vm_flags, <span class="literal">false</span>, <span class="literal">true</span>, <span class="literal">true</span>)) &#123;</span><br><span class="line">        ret = create_huge_pmd(&amp;vmf);</span><br><span class="line">        <span class="keyword">if</span> (!(ret &amp; VM_FAULT_FALLBACK))</span><br><span class="line">            <span class="keyword">return</span> ret;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> handle_pte_fault(&amp;vmf);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-handle-pte-fault：分发具体缺页类型"><a href="#5-3-handle-pte-fault：分发具体缺页类型" class="headerlink" title="5.3 handle_pte_fault：分发具体缺页类型"></a>5.3 handle_pte_fault：分发具体缺页类型</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/memory.c  line 4893</span></span><br><span class="line"><span class="type">static</span> <span class="type">vm_fault_t</span> <span class="title function_">handle_pte_fault</span><span class="params">(<span class="keyword">struct</span> vm_fault *vmf)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">pte_t</span> entry;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (unlikely(pmd_none(*vmf-&gt;pmd))) &#123;</span><br><span class="line">        <span class="comment">/* PMD 为空，PTE 尚未分配，延迟到具体 fault handler */</span></span><br><span class="line">        vmf-&gt;pte = <span class="literal">NULL</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        vmf-&gt;pte = pte_offset_map(vmf-&gt;pmd, vmf-&gt;address);</span><br><span class="line">        vmf-&gt;orig_pte = *vmf-&gt;pte;</span><br><span class="line">        barrier();</span><br><span class="line">        <span class="keyword">if</span> (pte_none(vmf-&gt;orig_pte)) &#123;</span><br><span class="line">            pte_unmap(vmf-&gt;pte);</span><br><span class="line">            vmf-&gt;pte = <span class="literal">NULL</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!vmf-&gt;pte)</span><br><span class="line">        <span class="keyword">return</span> do_pte_missing(vmf);   <span class="comment">/* PTE 缺失：匿名页或文件页 */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!pte_present(vmf-&gt;orig_pte))</span><br><span class="line">        <span class="keyword">return</span> do_swap_page(vmf);     <span class="comment">/* 页在 swap，需换入 */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (pte_protnone(vmf-&gt;orig_pte) &amp;&amp; vma_is_accessible(vmf-&gt;vma))</span><br><span class="line">        <span class="keyword">return</span> do_numa_page(vmf);     <span class="comment">/* NUMA 迁移提示 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* PTE 存在但写保护 → COW */</span></span><br><span class="line">    <span class="keyword">if</span> (vmf-&gt;flags &amp; (FAULT_FLAG_WRITE|FAULT_FLAG_UNSHARE)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!pte_write(entry))</span><br><span class="line">            <span class="keyword">return</span> do_wp_page(vmf);</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>do_pte_missing</code> 会进一步区分：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/memory.c  line 3640（do_pte_missing 内部）</span></span><br><span class="line"><span class="keyword">if</span> (vma-&gt;vm_ops)</span><br><span class="line">    <span class="keyword">return</span> do_fault(vmf);       <span class="comment">/* 文件映射缺页 */</span></span><br><span class="line"><span class="keyword">return</span> do_anonymous_page(vmf);  <span class="comment">/* 匿名映射缺页 */</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-4-匿名缺页：do-anonymous-page"><a href="#5-4-匿名缺页：do-anonymous-page" class="headerlink" title="5.4 匿名缺页：do_anonymous_page"></a>5.4 匿名缺页：do_anonymous_page</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/memory.c  line 4031</span></span><br><span class="line"><span class="type">static</span> <span class="type">vm_fault_t</span> <span class="title function_">do_anonymous_page</span><span class="params">(<span class="keyword">struct</span> vm_fault *vmf)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">vm_area_struct</span> *<span class="title">vma</span> =</span> vmf-&gt;vma;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">folio</span> *<span class="title">folio</span>;</span></span><br><span class="line">    <span class="type">pte_t</span> entry;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 读缺页：映射零页（zero page），避免分配物理页 */</span></span><br><span class="line">    <span class="keyword">if</span> (!(vmf-&gt;flags &amp; FAULT_FLAG_WRITE) &amp;&amp; !mm_forbids_zeropage(vma-&gt;vm_mm)) &#123;</span><br><span class="line">        entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf-&gt;address),</span><br><span class="line">                                       vma-&gt;vm_page_prot));</span><br><span class="line">        <span class="comment">/* ... 安装 PTE 后返回 */</span></span><br><span class="line">        <span class="keyword">goto</span> setpte;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 写缺页：分配并清零新物理页 */</span></span><br><span class="line">    <span class="keyword">if</span> (unlikely(anon_vma_prepare(vma)))</span><br><span class="line">        <span class="keyword">goto</span> oom;</span><br><span class="line">    folio = vma_alloc_zeroed_movable_folio(vma, vmf-&gt;address);</span><br><span class="line">    <span class="keyword">if</span> (!folio)</span><br><span class="line">        <span class="keyword">goto</span> oom;</span><br><span class="line"></span><br><span class="line">    entry = mk_pte(&amp;folio-&gt;page, vma-&gt;vm_page_prot);</span><br><span class="line">    entry = pte_sw_mkyoung(entry);</span><br><span class="line">    <span class="keyword">if</span> (vma-&gt;vm_flags &amp; VM_WRITE)</span><br><span class="line">        entry = pte_mkwrite(pte_mkdirty(entry));</span><br><span class="line"></span><br><span class="line">    vmf-&gt;pte = pte_offset_map_lock(vma-&gt;vm_mm, vmf-&gt;pmd,</span><br><span class="line">                                   vmf-&gt;address, &amp;vmf-&gt;ptl);</span><br><span class="line">    <span class="comment">/* 安装 PTE */</span></span><br><span class="line">    set_pte_at(vma-&gt;vm_mm, vmf-&gt;address, vmf-&gt;pte, entry);</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>零页优化</strong>：进程第一次读未初始化匿名内存时，内核将虚拟地址映射到一个全局共享的只读零页（<code>my_zero_pfn</code>），物理内存实际零分配。当写入发生时，才触发 COW 分配真实物理页。</p>
+<h3 id="5-5-文件缺页：-do-fault"><a href="#5-5-文件缺页：-do-fault" class="headerlink" title="5.5 文件缺页：__do_fault"></a>5.5 文件缺页：__do_fault</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/memory.c  line 4150</span></span><br><span class="line"><span class="type">static</span> <span class="type">vm_fault_t</span> __do_fault(<span class="keyword">struct</span> vm_fault *vmf)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">vm_area_struct</span> *<span class="title">vma</span> =</span> vmf-&gt;vma;</span><br><span class="line">    <span class="type">vm_fault_t</span> ret;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 预分配 PTE 页表页，避免在持锁情况下分配内存导致死锁 */</span></span><br><span class="line">    <span class="keyword">if</span> (pmd_none(*vmf-&gt;pmd) &amp;&amp; !vmf-&gt;prealloc_pte) &#123;</span><br><span class="line">        vmf-&gt;prealloc_pte = pte_alloc_one(vma-&gt;vm_mm);</span><br><span class="line">        <span class="keyword">if</span> (!vmf-&gt;prealloc_pte)</span><br><span class="line">            <span class="keyword">return</span> VM_FAULT_OOM;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 调用 VMA 的 fault 钩子（如 filemap_fault）从页缓存读取数据 */</span></span><br><span class="line">    ret = vma-&gt;vm_ops-&gt;fault(vmf);</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对于 ext4&#x2F;xfs 等文件系统，<code>vm_ops-&gt;fault</code> 最终调用 <code>filemap_fault</code>，先在 page cache 中查找，命中则直接返回（minor fault）；否则提交 I&#x2F;O 并等待（major fault）。</p>
+<h3 id="5-6-写时复制：do-wp-page"><a href="#5-6-写时复制：do-wp-page" class="headerlink" title="5.6 写时复制：do_wp_page"></a>5.6 写时复制：do_wp_page</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// mm/memory.c  line 3324</span></span><br><span class="line"><span class="type">static</span> <span class="type">vm_fault_t</span> <span class="title function_">do_wp_page</span><span class="params">(<span class="keyword">struct</span> vm_fault *vmf)</span></span><br><span class="line">    __<span class="title function_">releases</span><span class="params">(vmf-&gt;ptl)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">vm_area_struct</span> *<span class="title">vma</span> =</span> vmf-&gt;vma;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">folio</span> *<span class="title">folio</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    vmf-&gt;page = vm_normal_page(vma, vmf-&gt;address, vmf-&gt;orig_pte);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 共享映射：标记页可写，通知文件系统 */</span></span><br><span class="line">    <span class="keyword">if</span> (vma-&gt;vm_flags &amp; (VM_SHARED | VM_MAYSHARE)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!vmf-&gt;page)</span><br><span class="line">            <span class="keyword">return</span> wp_pfn_shared(vmf);</span><br><span class="line">        <span class="keyword">return</span> wp_page_shared(vmf);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 私有映射：若页面为进程独占，可直接复用 */</span></span><br><span class="line">    <span class="keyword">if</span> (folio &amp;&amp; folio_test_anon(folio)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (PageAnonExclusive(vmf-&gt;page))</span><br><span class="line">            <span class="keyword">goto</span> reuse;   <span class="comment">/* 跳过复制，直接设置写权限 */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 通用路径：分配新页，复制数据，安装新 PTE */</span></span><br><span class="line">    <span class="keyword">return</span> wp_page_copy(vmf);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>wp_page_copy</code> 分配一个新的物理页，调用 <code>__wp_page_copy_user</code> 复制内容，然后将原来的只读 PTE 替换为指向新页的可写 PTE，并 flush TLB 使旧映射失效。</p>
+<hr>
+<h2 id="六、TLB-管理"><a href="#六、TLB-管理" class="headerlink" title="六、TLB 管理"></a>六、TLB 管理</h2><h3 id="6-1-TLB-的作用"><a href="#6-1-TLB-的作用" class="headerlink" title="6.1 TLB 的作用"></a>6.1 TLB 的作用</h3><p>TLB（Translation Lookaside Buffer）是 CPU 内部对最近页表查找结果的缓存，避免每次内存访问都遍历多级页表（每级一次内存读取）。x86-64 通常有独立的 L1 iTLB &#x2F; dTLB 以及共享的 L2 TLB。</p>
+<p>当内核修改页表（unmap、mprotect、mremap 等）后，必须使相关 TLB 条目失效（TLB shootdown），否则其他 CPU 可能使用过时的映射。</p>
+<h3 id="6-2-TLB-刷新接口"><a href="#6-2-TLB-刷新接口" class="headerlink" title="6.2 TLB 刷新接口"></a>6.2 TLB 刷新接口</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 刷新整个进程的 TLB（进程退出、exec 等） */</span></span><br><span class="line">flush_tlb_mm(mm);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 刷新指定地址范围的 TLB（munmap、mprotect） */</span></span><br><span class="line">flush_tlb_range(vma, start, end);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 刷新单个页面 */</span></span><br><span class="line">flush_tlb_page(vma, address);</span><br></pre></td></tr></table></figure>
+
+<p>x86 的 SMP TLB shootdown 通过 IPI（Inter-Processor Interrupt）通知其他 CPU 执行 <code>INVLPG</code> 指令（针对单页）或 <code>MOV CR3</code>（针对整个地址空间）。</p>
+<h3 id="6-3-PCID-优化"><a href="#6-3-PCID-优化" class="headerlink" title="6.3 PCID 优化"></a>6.3 PCID 优化</h3><p>传统 <code>MOV CR3</code> 切换进程时会完全刷新 TLB，代价高昂。Intel Haswell 以后支持 <strong>PCID</strong>（Process Context Identifier），允许 TLB 条目携带 12 位的进程标识，切换时通过设置 <code>CR3</code> 的第 63 位为 0 来保留其他进程的 TLB 条目：</p>
+<ul>
+<li>内核在 <code>switch_mm_irqs_off</code> 中维护 PCID → mm 的映射；</li>
+<li>每个 CPU 可缓存最多 6 个活跃 PCID（内核实现中）；</li>
+<li>Meltdown 修复引入了内核&#x2F;用户 PCID 对（Kaiser&#x2F;PTI），切换额外开销约 100 ns。</li>
+</ul>
+<h3 id="6-4-透明大页（THP）"><a href="#6-4-透明大页（THP）" class="headerlink" title="6.4 透明大页（THP）"></a>6.4 透明大页（THP）</h3><p>THP（Transparent Huge Pages）允许匿名映射自动使用 2 MB PMD 大页，由 <code>__handle_mm_fault</code> 中的 <code>create_huge_pmd</code> 触发，实际调用 <code>do_huge_pmd_anonymous_page</code>：</p>
+<ol>
+<li>分配 512 个连续物理页（order-9 compound page）；</li>
+<li>设置 PMD 项的 <code>_PAGE_PSE</code> 位，指向 2 MB 物理基地址；</li>
+<li>TLB 条目覆盖 2 MB，减少 TLB miss 次数；</li>
+<li>写时发生 COW 时通过 <code>__split_huge_pmd</code> 降级为 4 KB 页。</li>
+</ol>
+<hr>
+<h2 id="七、诊断方法"><a href="#七、诊断方法" class="headerlink" title="七、诊断方法"></a>七、诊断方法</h2><h3 id="7-1-proc-PID-maps"><a href="#7-1-proc-PID-maps" class="headerlink" title="7.1 &#x2F;proc&#x2F;PID&#x2F;maps"></a>7.1 &#x2F;proc&#x2F;PID&#x2F;maps</h3><p><code>/proc/PID/maps</code> 列出进程所有 VMA，每行对应一个 <code>vm_area_struct</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">地址范围               权限   偏移量   设备  inode   文件路径</span><br><span class="line">7f3a4c000000-7f3a4c021000 r--p 00000000 fd:01 1234567 /lib/x86_64-linux-gnu/libc.so.6</span><br><span class="line">7f3a4c021000-7f3a4c176000 r-xp 00021000 fd:01 1234567 /lib/x86_64-linux-gnu/libc.so.6</span><br><span class="line">7f3a4c176000-7f3a4c1c4000 r--p 00176000 fd:01 1234567 /lib/x86_64-linux-gnu/libc.so.6</span><br><span class="line">7f3a4c1c4000-7f3a4c1c5000 r--p 001c3000 fd:01 1234567 /lib/x86_64-linux-gnu/libc.so.6</span><br><span class="line">7f3a4c1c5000-7f3a4c1c8000 rw-p 001c4000 fd:01 1234567 /lib/x86_64-linux-gnu/libc.so.6</span><br><span class="line">7fff8e200000-7fff8e221000 rw-p 00000000 00:00 0        [stack]</span><br></pre></td></tr></table></figure>
+
+<p>权限字段含义：<code>r</code>（VM_READ）、<code>w</code>（VM_WRITE）、<code>x</code>（VM_EXEC）、<code>p</code>（MAP_PRIVATE）&#x2F; <code>s</code>（MAP_SHARED）。</p>
+<h3 id="7-2-proc-PID-smaps"><a href="#7-2-proc-PID-smaps" class="headerlink" title="7.2 &#x2F;proc&#x2F;PID&#x2F;smaps"></a>7.2 &#x2F;proc&#x2F;PID&#x2F;smaps</h3><p><code>smaps</code> 在 <code>maps</code> 基础上提供每个 VMA 的内存统计：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">7f3a4c021000-7f3a4c176000 r-xp 00021000 fd:01 1234567  /lib/.../libc.so.6</span><br><span class="line">Size:               1364 kB      # VMA 虚拟大小</span><br><span class="line">KernelPageSize:        4 kB      # 内核页大小</span><br><span class="line">MMUPageSize:           4 kB      # MMU 页大小</span><br><span class="line">Rss:                 892 kB      # 常驻内存（已映射物理页）</span><br><span class="line">Pss:                 124 kB      # 按共享比例分摊的常驻内存</span><br><span class="line">Shared_Clean:        892 kB      # 共享且未脏页</span><br><span class="line">Shared_Dirty:          0 kB</span><br><span class="line">Private_Clean:         0 kB</span><br><span class="line">Private_Dirty:         0 kB</span><br><span class="line">Referenced:          892 kB      # 近期被访问的页</span><br><span class="line">Anonymous:             0 kB      # 匿名页数量</span><br><span class="line">LazyFree:              0 kB      # madvise(MADV_FREE) 标记待回收</span><br><span class="line">AnonHugePages:         0 kB      # 透明大页匿名部分</span><br><span class="line">ShmemPmdMapped:        0 kB</span><br><span class="line">FilePmdMapped:         0 kB</span><br><span class="line">Swap:                  0 kB      # 换出到 swap 的页</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-3-proc-PID-pagemap"><a href="#7-3-proc-PID-pagemap" class="headerlink" title="7.3 &#x2F;proc&#x2F;PID&#x2F;pagemap"></a>7.3 &#x2F;proc&#x2F;PID&#x2F;pagemap</h3><p><code>pagemap</code> 是虚拟地址到物理帧（PFN）的映射接口，每个虚拟页对应一个 8 字节条目：</p>
+<ul>
+<li>bit 63：页存在（Present）</li>
+<li>bit 62：页换出到 swap</li>
+<li>bit 61：文件映射或共享匿名页</li>
+<li>bits 54:0：若存在，为 PFN；若换出，为 swap 偏移</li>
+</ul>
+<p>示例读取脚本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看进程虚拟地址 0x400000 对应的物理帧号</span></span><br><span class="line">python3 -c <span class="string">&quot;</span></span><br><span class="line"><span class="string">import struct, os, sys</span></span><br><span class="line"><span class="string">pid = int(sys.argv[1])</span></span><br><span class="line"><span class="string">va  = 0x400000</span></span><br><span class="line"><span class="string">with open(f&#x27;/proc/&#123;pid&#125;/pagemap&#x27;, &#x27;rb&#x27;) as f:</span></span><br><span class="line"><span class="string">    f.seek((va &gt;&gt; 12) * 8)</span></span><br><span class="line"><span class="string">    entry = struct.unpack(&#x27;Q&#x27;, f.read(8))[0]</span></span><br><span class="line"><span class="string">present = (entry &gt;&gt; 63) &amp; 1</span></span><br><span class="line"><span class="string">pfn     = entry &amp; ((1 &lt;&lt; 55) - 1)</span></span><br><span class="line"><span class="string">print(f&#x27;present=&#123;present&#125;, pfn=0x&#123;pfn:x&#125;, phys=0x&#123;pfn &lt;&lt; 12:x&#125;&#x27;)</span></span><br><span class="line"><span class="string">&quot;</span> &lt;PID&gt;</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-4-proc-PID-status-内存字段"><a href="#7-4-proc-PID-status-内存字段" class="headerlink" title="7.4 &#x2F;proc&#x2F;PID&#x2F;status 内存字段"></a>7.4 &#x2F;proc&#x2F;PID&#x2F;status 内存字段</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">VmPeak:   102400 kB   # 历史峰值虚拟内存</span><br><span class="line">VmSize:    98304 kB   # 当前虚拟内存大小</span><br><span class="line">VmRSS:     12288 kB   # 常驻物理内存（= RssAnon + RssFile + RssShmem）</span><br><span class="line">RssAnon:    8192 kB   # 匿名页 RSS</span><br><span class="line">RssFile:    4096 kB   # 文件映射 RSS</span><br><span class="line">RssShmem:      0 kB   # 共享内存 RSS</span><br><span class="line">VmSwap:     1024 kB   # 换出到 swap 的大小</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-5-pmap-x"><a href="#7-5-pmap-x" class="headerlink" title="7.5 pmap -x"></a>7.5 pmap -x</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">pmap -x &lt;PID&gt;</span><br></pre></td></tr></table></figure>
+
+<p>输出中 <code>RSS</code> 列为常驻集大小，<code>Dirty</code> 列为脏页大小（写入但未回写），<code>Mapping</code> 列为文件名或 <code>[ anon ]</code>&#x2F; <code>[ stack ]</code>。</p>
+<h3 id="7-6-bpftrace-追踪缺页"><a href="#7-6-bpftrace-追踪缺页" class="headerlink" title="7.6 bpftrace 追踪缺页"></a>7.6 bpftrace 追踪缺页</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪某进程的缺页异常，打印触发地址和故障类型</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:handle_mm_fault /pid == $1/ &#123;</span></span><br><span class="line"><span class="string">    printf(&quot;fault addr=0x%lx flags=0x%x comm=%s\n&quot;,</span></span><br><span class="line"><span class="string">           arg1, arg2, comm);</span></span><br><span class="line"><span class="string">&#125;&#x27;</span> &lt;PID&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪 do_anonymous_page（匿名缺页）调用频率</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;kprobe:do_anonymous_page &#123; @[comm] = count(); &#125;&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪 do_wp_page（写时复制）</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;kprobe:do_wp_page &#123; @[comm] = count(); &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-7-perf-统计缺页频率"><a href="#7-7-perf-统计缺页频率" class="headerlink" title="7.7 perf 统计缺页频率"></a>7.7 perf 统计缺页频率</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 统计目标进程的缺页次数（运行 5 秒）</span></span><br><span class="line">perf <span class="built_in">stat</span> -e page-faults,major-faults,minor-faults -p &lt;PID&gt; -- <span class="built_in">sleep</span> 5</span><br><span class="line"></span><br><span class="line"><span class="comment"># 采样 page-faults 事件，生成火焰图</span></span><br><span class="line">perf record -e page-faults -g -p &lt;PID&gt; -- <span class="built_in">sleep</span> 10</span><br><span class="line">perf script | stackcollapse-perf.pl | flamegraph.pl &gt; pagefault.svg</span><br></pre></td></tr></table></figure>
+
+<p><code>minor-faults</code>（次缺页）：页表项缺失但数据已在内存（如零页映射、文件已在 page cache），无需 I&#x2F;O；<code>major-faults</code>（主缺页）：需要从磁盘读取数据，延迟高达毫秒级。</p>
+<hr>
+<h2 id="八、源码阅读路线"><a href="#八、源码阅读路线" class="headerlink" title="八、源码阅读路线"></a>八、源码阅读路线</h2><p>理解本文涉及的机制，建议按以下顺序阅读源码：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>关键内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>include/linux/mm_types.h</code></td>
+<td><code>mm_struct</code>、<code>vm_area_struct</code>、<code>vm_fault</code> 等核心数据结构</td>
+</tr>
+<tr>
+<td><code>include/linux/mm.h</code></td>
+<td><code>vm_operations_struct</code>、VM_* 标志、<code>find_vma</code>&#x2F;<code>find_vma_intersection</code> 等内联函数</td>
+</tr>
+<tr>
+<td><code>include/linux/pgtable.h</code></td>
+<td><code>pgd_offset</code>、<code>pmd_offset</code>、<code>pte_offset_map</code> 宏与页表遍历函数</td>
+</tr>
+<tr>
+<td><code>arch/x86/include/asm/pgtable_types.h</code></td>
+<td>x86 页表项位定义、<code>pgd_t</code>&#x2F;<code>pte_t</code> 类型</td>
+</tr>
+<tr>
+<td><code>arch/x86/include/asm/pgtable_64_types.h</code></td>
+<td>x86-64 各级页表移位常量（<code>PGDIR_SHIFT</code>、<code>PMD_SHIFT</code> 等）</td>
+</tr>
+<tr>
+<td><code>mm/mmap.c</code></td>
+<td><code>do_mmap</code>、<code>mmap_region</code>、<code>find_vma</code>、<code>vma_merge</code> 实现</td>
+</tr>
+<tr>
+<td><code>mm/memory.c</code></td>
+<td><code>handle_mm_fault</code>、<code>handle_pte_fault</code>、<code>do_anonymous_page</code>、<code>do_fault</code>、<code>do_wp_page</code></td>
+</tr>
+<tr>
+<td><code>arch/x86/mm/fault.c</code></td>
+<td>x86 缺页异常入口 <code>exc_page_fault</code> → <code>handle_page_fault</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>虚拟内存是现代操作系统最重要的抽象之一。Linux 通过 <code>mm_struct</code> 和 VMA 体系将进程的虚拟地址空间划分为具有语义的区段，通过多级页表（四级&#x2F;五级）在硬件层面实现地址翻译，通过缺页异常机制实现按需分页（demand paging）、写时复制（COW）和内存映射文件（mmap）。TLB 则是整个体系的性能关键，PCID 和 Huge Page 是两种重要的 TLB 优化手段。</p>
+<p>理解这套机制不仅有助于写出更高效的用户态程序（合理使用 mmap、mlock、madvise），也是分析内存泄漏、性能瓶颈、OOM 问题的基础。后续文章将深入讨论物理内存分配器（Buddy System 与 SLAB）以及内存回收（Kswapd 与 LRU 算法）。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Virtual-Memory/" rel="tag"># Virtual Memory</a>
+              <a href="/tags/Page-Table/" rel="tag"># Page Table</a>
+              <a href="/tags/VMA/" rel="tag"># VMA</a>
+              <a href="/tags/mmap/" rel="tag"># mmap</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-mm-part2-slab-allocator/" rel="prev" title="Linux 内存管理深度剖析（二）：Slab/Slub 分配器源码解析">
+                  <i class="fa fa-angle-left"></i> Linux 内存管理深度剖析（二）：Slab/Slub 分配器源码解析
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-mm-part4-memory-reclaim/" rel="next" title="Linux 内存管理深度剖析（四）：内存回收机制与 OOM Killer">
+                  Linux 内存管理深度剖析（四）：内存回收机制与 OOM Killer <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
