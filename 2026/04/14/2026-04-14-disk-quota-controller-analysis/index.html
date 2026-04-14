@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="The disk-quota controller is a Kubernetes component that manages disk quotas for various resources in a Kubernetes cluster, including:  emptyDir volumes Container root directories Container log direct">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Disk Quota Controller Analysis">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-disk-quota-controller-analysis/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="The disk-quota controller is a Kubernetes component that manages disk quotas for various resources in a Kubernetes cluster, including:  emptyDir volumes Container root directories Container log direct">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://smileusd.github.io/images/disk-quota-controller/code-flow.png">
+<meta property="article:published_time" content="2026-04-14T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T06:16:04.648Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Storage">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="XFS">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://smileusd.github.io/images/disk-quota-controller/code-flow.png">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-disk-quota-controller-analysis/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-disk-quota-controller-analysis/","path":"2026/04/14/2026-04-14-disk-quota-controller-analysis/","title":"Disk Quota Controller Analysis"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Disk Quota Controller Analysis | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Architecture-Overview"><span class="nav-number">1.</span> <span class="nav-text">Architecture Overview</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Code-Flow-Diagram"><span class="nav-number">2.</span> <span class="nav-text">Code Flow Diagram</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Key-Components"><span class="nav-number">3.</span> <span class="nav-text">Key Components</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-QuotaController"><span class="nav-number">3.1.</span> <span class="nav-text">1. QuotaController</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-QuotaManagement"><span class="nav-number">3.2.</span> <span class="nav-text">2. QuotaManagement</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-DesiredStateOfWorld"><span class="nav-number">3.3.</span> <span class="nav-text">3. DesiredStateOfWorld</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-ActualStateOfWorld"><span class="nav-number">3.4.</span> <span class="nav-text">4. ActualStateOfWorld</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-Reconciler"><span class="nav-number">3.5.</span> <span class="nav-text">5. Reconciler</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-DesiredStateOfWorldPopulator"><span class="nav-number">3.6.</span> <span class="nav-text">6. DesiredStateOfWorldPopulator</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-MetricsCollector"><span class="nav-number">3.7.</span> <span class="nav-text">7. MetricsCollector</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Quota-Types"><span class="nav-number">4.</span> <span class="nav-text">Quota Types</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Implementation-Details"><span class="nav-number">5.</span> <span class="nav-text">Implementation Details</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#XFS-Project-Quotas"><span class="nav-number">5.1.</span> <span class="nav-text">XFS Project Quotas</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Quota-Application-Process"><span class="nav-number">5.2.</span> <span class="nav-text">Quota Application Process</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Quota-Removal-Process"><span class="nav-number">5.3.</span> <span class="nav-text">Quota Removal Process</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Metrics"><span class="nav-number">5.4.</span> <span class="nav-text">Metrics</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">97</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">34</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">245</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-disk-quota-controller-analysis/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Disk Quota Controller Analysis | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Disk Quota Controller Analysis
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 12:00:00 / Modified: 14:16:04" itemprop="dateCreated datePublished" datetime="2026-04-14T12:00:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud-kubernetes-learning/" itemprop="url" rel="index"><span itemprop="name">cloud/kubernetes-learning</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>The disk-quota controller is a Kubernetes component that manages disk quotas for various resources in a Kubernetes cluster, including:</p>
+<ol>
+<li>emptyDir volumes</li>
+<li>Container root directories</li>
+<li>Container log directories</li>
+</ol>
+<span id="more"></span>
+
+<h2 id="Architecture-Overview"><a href="#Architecture-Overview" class="headerlink" title="Architecture Overview"></a>Architecture Overview</h2><p>The controller uses XFS project quotas to limit disk usage. It follows a reconciliation pattern common in Kubernetes controllers, maintaining a desired state of the world (what quotas should be applied) and an actual state of the world (what quotas are currently applied), then reconciling the differences.</p>
+<h2 id="Code-Flow-Diagram"><a href="#Code-Flow-Diagram" class="headerlink" title="Code Flow Diagram"></a>Code Flow Diagram</h2><p><img src="/images/disk-quota-controller/code-flow.png" alt="Code Flow Diagram"></p>
+<h2 id="Key-Components"><a href="#Key-Components" class="headerlink" title="Key Components"></a>Key Components</h2><h3 id="1-QuotaController"><a href="#1-QuotaController" class="headerlink" title="1. QuotaController"></a>1. QuotaController</h3><ul>
+<li>Main controller that orchestrates all components</li>
+<li>Watches for pod events and updates the desired state</li>
+<li>Initializes and starts all other components</li>
+</ul>
+<h3 id="2-QuotaManagement"><a href="#2-QuotaManagement" class="headerlink" title="2. QuotaManagement"></a>2. QuotaManagement</h3><ul>
+<li>Manages XFS project quotas</li>
+<li>Provides methods to set and clear quotas</li>
+<li>Tracks project IDs for paths</li>
+</ul>
+<h3 id="3-DesiredStateOfWorld"><a href="#3-DesiredStateOfWorld" class="headerlink" title="3. DesiredStateOfWorld"></a>3. DesiredStateOfWorld</h3><ul>
+<li>In-memory cache of paths that should have quotas applied</li>
+<li>Updated when pods are added, updated, or deleted</li>
+</ul>
+<h3 id="4-ActualStateOfWorld"><a href="#4-ActualStateOfWorld" class="headerlink" title="4. ActualStateOfWorld"></a>4. ActualStateOfWorld</h3><ul>
+<li>In-memory cache of paths that currently have quotas applied</li>
+<li>Updated when quotas are applied or removed</li>
+</ul>
+<h3 id="5-Reconciler"><a href="#5-Reconciler" class="headerlink" title="5. Reconciler"></a>5. Reconciler</h3><ul>
+<li>Periodically compares desired state with actual state</li>
+<li>Applies quotas to paths in desired state but not in actual state</li>
+<li>Removes quotas from paths in actual state but not in desired state</li>
+</ul>
+<h3 id="6-DesiredStateOfWorldPopulator"><a href="#6-DesiredStateOfWorldPopulator" class="headerlink" title="6. DesiredStateOfWorldPopulator"></a>6. DesiredStateOfWorldPopulator</h3><ul>
+<li>Periodically refreshes the desired state based on current pods</li>
+<li>Removes paths from desired state if pods no longer exist</li>
+<li>Removes paths from desired state if paths no longer exist</li>
+</ul>
+<h3 id="7-MetricsCollector"><a href="#7-MetricsCollector" class="headerlink" title="7. MetricsCollector"></a>7. MetricsCollector</h3><ul>
+<li>Collects quota usage metrics</li>
+<li>Exposes metrics via Prometheus</li>
+</ul>
+<h2 id="Quota-Types"><a href="#Quota-Types" class="headerlink" title="Quota Types"></a>Quota Types</h2><p>The controller manages three types of quotas:</p>
+<ol>
+<li><strong>EmptyDir Quotas</strong>: Limits the size of emptyDir volumes<ul>
+<li>Path: <code>/var/mnt/kubelet/pods/&lt;pod-uid&gt;/volumes/kubernetes.io~empty-dir/&lt;volume-name&gt;</code></li>
+<li>Size: Configurable via annotation or flag</li>
+</ul>
+</li>
+<li><strong>Container Root Quotas</strong>: Limits the size of container root filesystems<ul>
+<li>Path: Container’s overlayfs upper directory</li>
+<li>Size: Configurable via annotation or flag</li>
+</ul>
+</li>
+<li><strong>Log Quotas</strong>: Limits the size of container logs<ul>
+<li>Path: <code>/var/log/pods/&lt;pod-uid&gt;</code> or <code>/var/log/pods/&lt;namespace&gt;_&lt;pod-name&gt;_&lt;pod-uid&gt;</code></li>
+<li>Size: Configurable via flag</li>
+</ul>
+</li>
+</ol>
+<h2 id="Implementation-Details"><a href="#Implementation-Details" class="headerlink" title="Implementation Details"></a>Implementation Details</h2><h3 id="XFS-Project-Quotas"><a href="#XFS-Project-Quotas" class="headerlink" title="XFS Project Quotas"></a>XFS Project Quotas</h3><p>The controller uses XFS project quotas to limit disk usage. Each path gets assigned a unique project ID, and a quota is set for that project ID.</p>
+<h3 id="Quota-Application-Process"><a href="#Quota-Application-Process" class="headerlink" title="Quota Application Process"></a>Quota Application Process</h3><ol>
+<li>A path is added to the desired state when a pod is created</li>
+<li>The reconciler detects the path needs a quota</li>
+<li>A project ID is assigned to the path</li>
+<li>The project ID is set on the path using <code>SetProjectID</code></li>
+<li>A quota is set for the project ID using <code>SetProjectQuota</code></li>
+<li>The path is added to the actual state</li>
+</ol>
+<h3 id="Quota-Removal-Process"><a href="#Quota-Removal-Process" class="headerlink" title="Quota Removal Process"></a>Quota Removal Process</h3><ol>
+<li>A path is removed from the desired state when a pod is deleted</li>
+<li>The reconciler detects the path no longer needs a quota</li>
+<li>The quota is cleared using <code>ClearQuota</code></li>
+<li>The path is removed from the actual state</li>
+</ol>
+<h3 id="Metrics"><a href="#Metrics" class="headerlink" title="Metrics"></a>Metrics</h3><p>The controller exposes the following metrics:</p>
+<ul>
+<li><code>emptyDir_volume_used</code>: Current usage of emptyDir volumes</li>
+<li><code>emptyDir_volume_limit</code>: Size limit of emptyDir volumes</li>
+<li><code>emptyDir_volume_usage</code>: Usage percentage of emptyDir volumes</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Storage/" rel="tag"># Storage</a>
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/XFS/" rel="tag"># XFS</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-net-stack-part10-diagnostics/" rel="prev" title="Linux 网络内核协议栈深度剖析（十）：网络诊断工具与实战排查">
+                  <i class="fa fa-angle-left"></i> Linux 网络内核协议栈深度剖析（十）：网络诊断工具与实战排查
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-mm-part1-physical-memory/" rel="next" title="Linux 内存管理深度剖析（一）：物理内存组织与伙伴分配系统">
+                  Linux 内存管理深度剖析（一）：物理内存组织与伙伴分配系统 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

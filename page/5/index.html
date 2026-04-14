@@ -112,18 +112,18 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">95</span>
+          <span class="site-state-item-count">97</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
           <a href="/categories/">
-        <span class="site-state-item-count">31</span>
+        <span class="site-state-item-count">34</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
           <a href="/tags/">
-        <span class="site-state-item-count">240</span>
+        <span class="site-state-item-count">245</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -140,6 +140,209 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-filesystem-series-overview/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/04/12/2026-04-12-linux-storage-filesystem-series-overview/" class="post-title-link" itemprop="url">Linux 存储与文件系统深度剖析系列（一）：总览与架构</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-12 10:00:00 / Modified: 10:15:47" itemprop="dateCreated datePublished" datetime="2026-04-12T10:00:00+08:00">2026-04-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="Linux-存储与文件系统深度剖析系列（一）：总览与架构"><a href="#Linux-存储与文件系统深度剖析系列（一）：总览与架构" class="headerlink" title="Linux 存储与文件系统深度剖析系列（一）：总览与架构"></a>Linux 存储与文件系统深度剖析系列（一）：总览与架构</h1><h2 id="系列介绍"><a href="#系列介绍" class="headerlink" title="系列介绍"></a>系列介绍</h2><p>欢迎来到 Linux 存储与文件系统深度剖析系列！本系列将从代码级别深入探讨 Linux 内核中的存储子系统和文件系统实现，基于 <strong>Linux 6.4-rc1</strong> 内核源码进行分析。</p>
+<h3 id="系列文章目录"><a href="#系列文章目录" class="headerlink" title="系列文章目录"></a>系列文章目录</h3><ol>
+<li><strong>总览与架构</strong>（本文）</li>
+<li>VFS 虚拟文件系统层深度剖析</li>
+<li>块设备层（Block Layer）详解</li>
+<li>页缓存（Page Cache）与缓冲区缓存机制</li>
+<li>Ext4 文件系统源码分析</li>
+<li>Btrfs 文件系统核心原理</li>
+<li>XFS 文件系统实现细节</li>
+<li>IO 调度器深度剖析</li>
+<li>直接 IO 与异步 IO 实现</li>
+<li>文件系统性能优化与调试</li>
+</ol>
+<h2 id="Linux-存储栈整体架构"><a href="#Linux-存储栈整体架构" class="headerlink" title="Linux 存储栈整体架构"></a>Linux 存储栈整体架构</h2><p>Linux 存储栈是一个复杂的分层架构，从用户空间到物理硬件，主要包含以下几层：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────┐</span><br><span class="line">│          用户空间应用                        │</span><br><span class="line">│    (read, write, open, close, mmap...)      │</span><br><span class="line">└─────────────────┬───────────────────────────┘</span><br><span class="line">                  │ System Call Interface</span><br><span class="line">┌─────────────────▼───────────────────────────┐</span><br><span class="line">│        VFS (Virtual Filesystem Switch)      │</span><br><span class="line">│    - struct inode, dentry, file, super      │</span><br><span class="line">│    - 通用文件操作接口                         │</span><br><span class="line">└─────────────────┬───────────────────────────┘</span><br><span class="line">                  │</span><br><span class="line">      ┌───────────┼───────────┐</span><br><span class="line">      │           │           │</span><br><span class="line">┌─────▼────┐ ┌───▼────┐ ┌───▼────┐</span><br><span class="line">│   Ext4   │ │ Btrfs  │ │  XFS   │  ... (具体文件系统)</span><br><span class="line">└─────┬────┘ └───┬────┘ └───┬────┘</span><br><span class="line">      │          │          │</span><br><span class="line">      └──────────┼──────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│         Page Cache / Buffer Cache           │</span><br><span class="line">│    (struct address_space, struct page)      │</span><br><span class="line">└────────────────┬────────────────────────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│          Block Layer (块设备层)              │</span><br><span class="line">│    - struct bio, struct request             │</span><br><span class="line">│    - 块设备通用操作                           │</span><br><span class="line">└────────────────┬────────────────────────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│          IO Scheduler (IO调度器)            │</span><br><span class="line">│    - mq-deadline, BFQ, Kyber                │</span><br><span class="line">└────────────────┬────────────────────────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│      Block Device Drivers (块设备驱动)       │</span><br><span class="line">│    - SCSI, NVMe, virtio-blk, ...            │</span><br><span class="line">└────────────────┬────────────────────────────┘</span><br><span class="line">                 │</span><br><span class="line">┌────────────────▼────────────────────────────┐</span><br><span class="line">│          Physical Storage (物理存储)         │</span><br><span class="line">│    - HDD, SSD, NVMe, RAID, ...              │</span><br><span class="line">└─────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<h2 id="核心数据结构概览"><a href="#核心数据结构概览" class="headerlink" title="核心数据结构概览"></a>核心数据结构概览</h2><h3 id="1-VFS-层核心结构"><a href="#1-VFS-层核心结构" class="headerlink" title="1. VFS 层核心结构"></a>1. VFS 层核心结构</h3><p>在 Linux 内核中，VFS 使用以下核心数据结构：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/linux/fs.h</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// inode: 代表文件系统中的一个对象（文件、目录等）</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">inode</span> &#123;</span></span><br><span class="line">    <span class="type">umode_t</span>                 i_mode;      <span class="comment">// 文件类型和权限</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>          i_opflags;</span><br><span class="line">    <span class="type">kuid_t</span>                  i_uid;       <span class="comment">// 所有者 UID</span></span><br><span class="line">    <span class="type">kgid_t</span>                  i_gid;       <span class="comment">// 所有者 GID</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            i_flags;</span><br><span class="line"></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">inode_operations</span> *<span class="title">i_op</span>;</span>  <span class="comment">// inode 操作方法</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">super_block</span>      *<span class="title">i_sb</span>;</span>        <span class="comment">// 所属超级块</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">address_space</span>    *<span class="title">i_mapping</span>;</span>   <span class="comment">// 页缓存映射</span></span><br><span class="line"></span><br><span class="line">    <span class="type">loff_t</span>                  i_size;       <span class="comment">// 文件大小（字节）</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">timespec64</span>       <span class="title">i_atime</span>;</span>      <span class="comment">// 访问时间</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">timespec64</span>       <span class="title">i_mtime</span>;</span>      <span class="comment">// 修改时间</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">timespec64</span>       <span class="title">i_ctime</span>;</span>      <span class="comment">// 状态改变时间</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           i_ino;        <span class="comment">// inode 编号</span></span><br><span class="line">    <span class="type">dev_t</span>                   i_rdev;       <span class="comment">// 设备号（设备文件）</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// dentry: 目录项，连接路径名和 inode</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">dentry</span> &#123;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> d_flags;</span><br><span class="line">    <span class="type">seqcount_spinlock_t</span> d_seq;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">hlist_bl_node</span> <span class="title">d_hash</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dentry</span> *<span class="title">d_parent</span>;</span>              <span class="comment">// 父目录项</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">qstr</span> <span class="title">d_name</span>;</span>                   <span class="comment">// 文件名</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">d_inode</span>;</span>                <span class="comment">// 关联的 inode</span></span><br><span class="line"></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">dentry_operations</span> *<span class="title">d_op</span>;</span> <span class="comment">// dentry 操作方法</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">super_block</span> *<span class="title">d_sb</span>;</span>             <span class="comment">// 所属超级块</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// file: 代表打开的文件</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">file</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">path</span>             <span class="title">f_path</span>;</span>       <span class="comment">// 包含 dentry 和 vfsmount</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span>            *<span class="title">f_inode</span>;</span>     <span class="comment">// 缓存的 inode 指针</span></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> *<span class="title">f_op</span>;</span>   <span class="comment">// 文件操作方法</span></span><br><span class="line"></span><br><span class="line">    <span class="type">spinlock_t</span>              f_lock;</span><br><span class="line">    <span class="type">atomic_long_t</span>           f_count;      <span class="comment">// 引用计数</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            f_flags;      <span class="comment">// 打开标志</span></span><br><span class="line">    <span class="type">fmode_t</span>                 f_mode;       <span class="comment">// 文件模式</span></span><br><span class="line">    <span class="type">loff_t</span>                  f_pos;        <span class="comment">// 文件位置指针</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">address_space</span>    *<span class="title">f_mapping</span>;</span>   <span class="comment">// 页缓存映射</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// super_block: 超级块，代表已挂载的文件系统</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">super_block</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>        <span class="title">s_list</span>;</span></span><br><span class="line">    <span class="type">dev_t</span>                   s_dev;        <span class="comment">// 设备号</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span>           s_blocksize_bits;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           s_blocksize;  <span class="comment">// 块大小</span></span><br><span class="line">    <span class="type">loff_t</span>                  s_maxbytes;   <span class="comment">// 最大文件大小</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file_system_type</span> *<span class="title">s_type</span>;</span>      <span class="comment">// 文件系统类型</span></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">super_operations</span> *<span class="title">s_op</span>;</span>  <span class="comment">// 超级块操作方法</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           s_flags;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           s_magic;      <span class="comment">// 魔数</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dentry</span>           *<span class="title">s_root</span>;</span>      <span class="comment">// 根目录项</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-Block-Layer-核心结构"><a href="#2-Block-Layer-核心结构" class="headerlink" title="2. Block Layer 核心结构"></a>2. Block Layer 核心结构</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/linux/blk_types.h</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// bio: Block I/O，描述一次块 I/O 操作</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bio</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>              *<span class="title">bi_next</span>;</span>     <span class="comment">// 请求队列链表</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">block_device</span>     *<span class="title">bi_bdev</span>;</span>     <span class="comment">// 目标块设备</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            bi_opf;       <span class="comment">// 操作标志（读/写等）</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>          bi_vcnt;      <span class="comment">// bio_vec 数组大小</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>          bi_max_vecs;  <span class="comment">// bio_vec 最大数量</span></span><br><span class="line"></span><br><span class="line">    <span class="type">atomic_t</span>                __bi_cnt;     <span class="comment">// 引用计数</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span>          *<span class="title">bi_io_vec</span>;</span>   <span class="comment">// 指向页向量数组</span></span><br><span class="line"></span><br><span class="line">    <span class="type">bio_end_io_t</span>            *bi_end_io;   <span class="comment">// I/O 完成回调</span></span><br><span class="line">    <span class="type">void</span>                    *bi_private;  <span class="comment">// 私有数据</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// request: 代表一个或多个 bio 组成的请求</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">request</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span>    *<span class="title">q</span>;</span>           <span class="comment">// 所属请求队列</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ctx</span>       *<span class="title">mq_ctx</span>;</span>      <span class="comment">// 多队列上下文</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_hw_ctx</span>    *<span class="title">mq_hctx</span>;</span>     <span class="comment">// 硬件队列上下文</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            cmd_flags;    <span class="comment">// 命令标志</span></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">rq_qos_id</span>          <span class="title">rq_qos_id</span>;</span>    <span class="comment">// QoS ID</span></span><br><span class="line"></span><br><span class="line">    <span class="type">sector_t</span>                __sector;     <span class="comment">// 起始扇区</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>            __data_len;   <span class="comment">// 数据长度</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>              *<span class="title">bio</span>;</span>         <span class="comment">// bio 链表头</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>              *<span class="title">biotail</span>;</span>     <span class="comment">// bio 链表尾</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... 更多字段</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h2 id="关键源码文件位置"><a href="#关键源码文件位置" class="headerlink" title="关键源码文件位置"></a>关键源码文件位置</h2><p>基于 Linux 6.4-rc1 内核，以下是主要的源码文件位置：</p>
+<h3 id="VFS-层"><a href="#VFS-层" class="headerlink" title="VFS 层"></a>VFS 层</h3><ul>
+<li><code>fs/</code> - 文件系统核心代码<ul>
+<li><code>fs/namei.c</code> - 路径查找和解析</li>
+<li><code>fs/open.c</code> - 文件打开操作</li>
+<li><code>fs/read_write.c</code> - 读写操作</li>
+<li><code>fs/inode.c</code> - inode 管理</li>
+<li><code>fs/dcache.c</code> - dentry 缓存</li>
+<li><code>fs/super.c</code> - 超级块管理</li>
+</ul>
+</li>
+</ul>
+<h3 id="Block-Layer"><a href="#Block-Layer" class="headerlink" title="Block Layer"></a>Block Layer</h3><ul>
+<li><code>block/</code> - 块设备层代码<ul>
+<li><code>block/blk-core.c</code> - 核心功能</li>
+<li><code>block/blk-mq.c</code> - 多队列实现</li>
+<li><code>block/bio.c</code> - bio 处理</li>
+<li><code>block/blk-merge.c</code> - 请求合并</li>
+<li><code>block/blk-settings.c</code> - 块设备设置</li>
+</ul>
+</li>
+</ul>
+<h3 id="IO-Schedulers"><a href="#IO-Schedulers" class="headerlink" title="IO Schedulers"></a>IO Schedulers</h3><ul>
+<li><code>block/mq-deadline.c</code> - Deadline 调度器</li>
+<li><code>block/bfq-iosched.c</code> - BFQ (Budget Fair Queueing) 调度器</li>
+<li><code>block/kyber-iosched.c</code> - Kyber 调度器</li>
+</ul>
+<h3 id="具体文件系统"><a href="#具体文件系统" class="headerlink" title="具体文件系统"></a>具体文件系统</h3><ul>
+<li><code>fs/ext4/</code> - Ext4 文件系统</li>
+<li><code>fs/btrfs/</code> - Btrfs 文件系统</li>
+<li><code>fs/xfs/</code> - XFS 文件系统</li>
+</ul>
+<h3 id="Page-Cache"><a href="#Page-Cache" class="headerlink" title="Page Cache"></a>Page Cache</h3><ul>
+<li><code>mm/filemap.c</code> - 文件映射和页缓存</li>
+<li><code>mm/readahead.c</code> - 预读机制</li>
+<li><code>fs/buffer.c</code> - 缓冲区缓存</li>
+</ul>
+<h2 id="一个文件读取的完整流程"><a href="#一个文件读取的完整流程" class="headerlink" title="一个文件读取的完整流程"></a>一个文件读取的完整流程</h2><p>让我们通过一个简单的 <code>read()</code> 系统调用，看看数据是如何从磁盘流向用户空间的：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line">用户程序: read(fd, buffer, size)</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">系统调用入口: sys_read()  (fs/read_write.c)</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">VFS 层: vfs_read()</span><br><span class="line">    | - 检查权限和文件状态</span><br><span class="line">    | - 调用 file-&gt;f_op-&gt;read_iter()</span><br><span class="line">    v</span><br><span class="line">文件系统层: ext4_file_read_iter()  (以 Ext4 为例)</span><br><span class="line">    | - 调用 generic_file_read_iter()</span><br><span class="line">    v</span><br><span class="line">Page Cache: filemap_read()  (mm/filemap.c)</span><br><span class="line">    | - 在页缓存中查找数据</span><br><span class="line">    | - 如果缓存命中，直接返回</span><br><span class="line">    | - 如果缓存未命中，继续...</span><br><span class="line">    v</span><br><span class="line">文件系统 readpage: ext4_readpage()</span><br><span class="line">    | - 准备从磁盘读取数据</span><br><span class="line">    | - 创建 bio 结构</span><br><span class="line">    v</span><br><span class="line">Block Layer: submit_bio()  (block/bio.c)</span><br><span class="line">    | - 将 bio 提交到块设备层</span><br><span class="line">    | - 可能进行请求合并</span><br><span class="line">    v</span><br><span class="line">IO Scheduler: 调度器处理请求</span><br><span class="line">    | - mq-deadline / BFQ / Kyber</span><br><span class="line">    | - 优化 I/O 顺序</span><br><span class="line">    v</span><br><span class="line">Block Driver: SCSI/NVMe/... 驱动程序</span><br><span class="line">    | - 向硬件发送命令</span><br><span class="line">    v</span><br><span class="line">Hardware: 物理存储设备执行读取</span><br><span class="line">    |</span><br><span class="line">    v (中断返回)</span><br><span class="line">Block Driver: 中断处理程序</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">Block Layer: bio_endio()</span><br><span class="line">    | - 调用 bio-&gt;bi_end_io() 回调</span><br><span class="line">    v</span><br><span class="line">Page Cache: 将数据标记为最新</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">VFS: 将数据复制到用户空间缓冲区</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">用户程序: read() 返回</span><br></pre></td></tr></table></figure>
+
+<h2 id="核心概念解析"><a href="#核心概念解析" class="headerlink" title="核心概念解析"></a>核心概念解析</h2><h3 id="1-页缓存（Page-Cache）"><a href="#1-页缓存（Page-Cache）" class="headerlink" title="1. 页缓存（Page Cache）"></a>1. 页缓存（Page Cache）</h3><p>页缓存是 Linux 内存管理的核心组件之一，它缓存文件内容在内存中，避免重复的磁盘访问。</p>
+<p><strong>关键特性：</strong></p>
+<ul>
+<li>以页（通常 4KB）为单位缓存文件数据</li>
+<li>使用 <code>struct address_space</code> 管理文件到物理页的映射</li>
+<li>支持预读（readahead）机制优化顺序读取</li>
+<li>支持回写（writeback）机制延迟写入</li>
+</ul>
+<p><strong>代码位置：</strong> <code>mm/filemap.c</code></p>
+<h3 id="2-块-I-O-层（Block-Layer）"><a href="#2-块-I-O-层（Block-Layer）" class="headerlink" title="2. 块 I&#x2F;O 层（Block Layer）"></a>2. 块 I&#x2F;O 层（Block Layer）</h3><p>块设备层是连接文件系统和设备驱动的中间层。</p>
+<p><strong>核心功能：</strong></p>
+<ul>
+<li>将文件系统的 I&#x2F;O 请求转换为块设备请求</li>
+<li>I&#x2F;O 请求的合并和重排序</li>
+<li>支持多队列（blk-mq）架构</li>
+<li>提供 I&#x2F;O 统计和 QoS 控制</li>
+</ul>
+<p><strong>代码位置：</strong> <code>block/</code></p>
+<h3 id="3-VFS（Virtual-Filesystem-Switch）"><a href="#3-VFS（Virtual-Filesystem-Switch）" class="headerlink" title="3. VFS（Virtual Filesystem Switch）"></a>3. VFS（Virtual Filesystem Switch）</h3><p>VFS 是所有文件系统的抽象层，提供统一的接口。</p>
+<p><strong>设计理念：</strong></p>
+<ul>
+<li>对上层提供统一的系统调用接口</li>
+<li>对下层提供标准的文件系统操作接口</li>
+<li>使用面向对象的设计思想（通过函数指针实现多态）</li>
+</ul>
+<p><strong>代码位置：</strong> <code>fs/</code></p>
+<h2 id="代码示例：创建一个简单的文件系统"><a href="#代码示例：创建一个简单的文件系统" class="headerlink" title="代码示例：创建一个简单的文件系统"></a>代码示例：创建一个简单的文件系统</h2><p>为了更好地理解 VFS，让我们看一个极简的文件系统示例（基于 ramfs）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 超级块操作</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">super_operations</span> <span class="title">simple_super_ops</span> =</span> &#123;</span><br><span class="line">    .statfs     = simple_statfs,</span><br><span class="line">    .drop_inode = generic_delete_inode,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// inode 操作</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">inode_operations</span> <span class="title">simple_dir_inode_operations</span> =</span> &#123;</span><br><span class="line">    .create     = simple_create,</span><br><span class="line">    .lookup     = simple_lookup,</span><br><span class="line">    .link       = simple_link,</span><br><span class="line">    .unlink     = simple_unlink,</span><br><span class="line">    .mkdir      = simple_mkdir,</span><br><span class="line">    .rmdir      = simple_rmdir,</span><br><span class="line">    .mknod      = simple_mknod,</span><br><span class="line">    .rename     = simple_rename,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 文件操作</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> <span class="title">simple_file_operations</span> =</span> &#123;</span><br><span class="line">    .read_iter  = generic_file_read_iter,</span><br><span class="line">    .write_iter = generic_file_write_iter,</span><br><span class="line">    .mmap       = generic_file_mmap,</span><br><span class="line">    .fsync      = noop_fsync,</span><br><span class="line">    .llseek     = generic_file_llseek,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 填充超级块</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">simple_fill_super</span><span class="params">(<span class="keyword">struct</span> super_block *sb, <span class="type">void</span> *data, <span class="type">int</span> silent)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span>;</span></span><br><span class="line"></span><br><span class="line">    sb-&gt;s_blocksize = PAGE_SIZE;</span><br><span class="line">    sb-&gt;s_blocksize_bits = PAGE_SHIFT;</span><br><span class="line">    sb-&gt;s_magic = <span class="number">0x12345678</span>;</span><br><span class="line">    sb-&gt;s_op = &amp;simple_super_ops;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 创建根 inode</span></span><br><span class="line">    inode = new_inode(sb);</span><br><span class="line">    <span class="keyword">if</span> (!inode)</span><br><span class="line">        <span class="keyword">return</span> -ENOMEM;</span><br><span class="line"></span><br><span class="line">    inode-&gt;i_ino = <span class="number">1</span>;</span><br><span class="line">    inode-&gt;i_mode = S_IFDIR | <span class="number">0755</span>;</span><br><span class="line">    inode-&gt;i_op = &amp;simple_dir_inode_operations;</span><br><span class="line">    inode-&gt;i_fop = &amp;simple_file_operations;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 创建根 dentry</span></span><br><span class="line">    sb-&gt;s_root = d_make_root(inode);</span><br><span class="line">    <span class="keyword">if</span> (!sb-&gt;s_root)</span><br><span class="line">        <span class="keyword">return</span> -ENOMEM;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="性能关键路径"><a href="#性能关键路径" class="headerlink" title="性能关键路径"></a>性能关键路径</h2><p>在 Linux 存储栈中，以下是几个性能关键路径：</p>
+<h3 id="1-快速路径（Fast-Path）"><a href="#1-快速路径（Fast-Path）" class="headerlink" title="1. 快速路径（Fast Path）"></a>1. 快速路径（Fast Path）</h3><ul>
+<li>页缓存命中</li>
+<li>零拷贝操作（sendfile, splice）</li>
+<li>直接 I&#x2F;O（绕过页缓存）</li>
+</ul>
+<h3 id="2-慢速路径（Slow-Path）"><a href="#2-慢速路径（Slow-Path）" class="headerlink" title="2. 慢速路径（Slow Path）"></a>2. 慢速路径（Slow Path）</h3><ul>
+<li>页缓存未命中导致的磁盘 I&#x2F;O</li>
+<li>同步写入和 fsync 操作</li>
+<li>元数据操作（创建、删除文件）</li>
+</ul>
+<h2 id="调试工具"><a href="#调试工具" class="headerlink" title="调试工具"></a>调试工具</h2><p>在学习和调试存储系统时，以下工具非常有用：</p>
+<h3 id="系统工具"><a href="#系统工具" class="headerlink" title="系统工具"></a>系统工具</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看块设备 I/O 统计</span></span><br><span class="line">iostat -x 1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪块 I/O</span></span><br><span class="line">blktrace -d /dev/sda -o - | blkparse -i -</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看文件系统缓存统计</span></span><br><span class="line"><span class="built_in">cat</span> /proc/meminfo | grep -i cache</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 VFS 统计</span></span><br><span class="line"><span class="built_in">cat</span> /proc/sys/fs/dentry-state</span><br><span class="line"><span class="built_in">cat</span> /proc/sys/fs/inode-state</span><br></pre></td></tr></table></figure>
+
+<h3 id="内核工具"><a href="#内核工具" class="headerlink" title="内核工具"></a>内核工具</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 动态追踪（需要 CONFIG_DYNAMIC_FTRACE）</span></span><br><span class="line">trace-cmd record -e block:* -e vfs:* <span class="built_in">command</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># BPF 工具</span></span><br><span class="line">biolatency   <span class="comment"># I/O 延迟分布</span></span><br><span class="line">biosnoop     <span class="comment"># 追踪块 I/O 事件</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="下一篇预告"><a href="#下一篇预告" class="headerlink" title="下一篇预告"></a>下一篇预告</h2><p>在下一篇文章中，我们将深入探讨 <strong>VFS 虚拟文件系统层</strong>，包括：</p>
+<ul>
+<li>inode、dentry、file 的生命周期管理</li>
+<li>路径查找算法的实现细节</li>
+<li>dcache（dentry cache）的设计与优化</li>
+<li>VFS 如何处理各种文件操作的源码分析</li>
+</ul>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li>Linux 内核源码（v6.4-rc1）：<a target="_blank" rel="noopener" href="https://git.kernel.org/">https://git.kernel.org/</a></li>
+<li>Linux 内核文档：<code>Documentation/filesystems/</code></li>
+<li>《深入 Linux 内核架构》</li>
+<li>《Linux 内核设计与实现》</li>
+</ol>
+<hr>
+<p><strong>作者注：</strong> 本系列所有源码分析基于 Linux 6.4-rc1 内核版本。随着内核的演进，部分实现细节可能会有所变化，但核心设计理念保持相对稳定。</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -341,6 +544,224 @@
 </ul>
 <hr>
 <p><em>本文探讨了 CIMaster 的内部架构，这是一个生产环境的集群协调服务。所有代码示例均来自实际实现。</em></p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/06/understanding-cimaster-cluster-coordination/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/04/06/understanding-cimaster-cluster-coordination/" class="post-title-link" itemprop="url">Understanding CIMaster: Intelligent CI Cluster Coordination at Scale</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-06 00:00:00 / Modified: 16:30:01" itemprop="dateCreated datePublished" datetime="2026-04-06T00:00:00+08:00">2026-04-06</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/DevOps/" itemprop="url" rel="index"><span itemprop="name">DevOps</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/DevOps/Infrastructure/" itemprop="url" rel="index"><span itemprop="name">Infrastructure</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="Understanding-CIMaster-Intelligent-CI-Cluster-Coordination-at-Scale"><a href="#Understanding-CIMaster-Intelligent-CI-Cluster-Coordination-at-Scale" class="headerlink" title="Understanding CIMaster: Intelligent CI Cluster Coordination at Scale"></a>Understanding CIMaster: Intelligent CI Cluster Coordination at Scale</h1><p>In modern cloud-native development, continuous integration (CI) pipelines are the backbone of software delivery. At scale, managing shared test infrastructure becomes a critical challenge. This is where <strong>CIMaster</strong> comes in—a sophisticated cluster management service designed to coordinate access to shared CI test clusters, ensuring efficient resource utilization and preventing test conflicts.</p>
+<h2 id="The-Problem-Shared-CI-Infrastructure-at-Scale"><a href="#The-Problem-Shared-CI-Infrastructure-at-Scale" class="headerlink" title="The Problem: Shared CI Infrastructure at Scale"></a>The Problem: Shared CI Infrastructure at Scale</h2><p>In large organizations running hundreds or thousands of CI jobs daily, test clusters are expensive resources that need to be shared efficiently. Key challenges include:</p>
+<ol>
+<li><strong>Resource Contention</strong>: Multiple CI jobs competing for limited test clusters</li>
+<li><strong>Cluster State Management</strong>: Tracking which clusters are available, occupied, or held for debugging</li>
+<li><strong>Manual Intervention</strong>: Developers needing to hold clusters for investigation without blocking others</li>
+<li><strong>Dynamic Provisioning</strong>: Creating new clusters on-demand when capacity is insufficient</li>
+<li><strong>Lifecycle Management</strong>: Automatically releasing clusters after use or expiration</li>
+</ol>
+<p>CIMaster addresses all these challenges through a centralized coordination service.</p>
+<h2 id="Architecture-Overview"><a href="#Architecture-Overview" class="headerlink" title="Architecture Overview"></a>Architecture Overview</h2><p>CIMaster is a Kubernetes-native service written in Go that provides a REST API for cluster lifecycle management. It consists of several key components:</p>
+<h3 id="Core-Components"><a href="#Core-Components" class="headerlink" title="Core Components"></a>Core Components</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────────────────┐</span><br><span class="line">│                        CIMaster Service                      │</span><br><span class="line">│                                                              │</span><br><span class="line">│  ┌──────────────────┐       ┌─────────────────────────┐    │</span><br><span class="line">│  │  HTTP API Server │       │   Cluster Manager       │    │</span><br><span class="line">│  │   (Port 8080)    │◄─────►│   - State Management    │    │</span><br><span class="line">│  │                  │       │   - Allocation Logic    │    │</span><br><span class="line">│  │  /getvacant      │       │   - Hold Expiration     │    │</span><br><span class="line">│  │  /holdcluster    │       │                         │    │</span><br><span class="line">│  │  /releasecluster │       │                         │    │</span><br><span class="line">│  │  /createcluster  │       └───────────┬─────────────┘    │</span><br><span class="line">│  │  ...             │                   │                   │</span><br><span class="line">│  └──────────────────┘                   │                   │</span><br><span class="line">│                                         │                   │</span><br><span class="line">│  ┌──────────────────┐       ┌───────────▼─────────────┐    │</span><br><span class="line">│  │ Metrics Server   │       │  Kubernetes ConfigMap   │    │</span><br><span class="line">│  │  (Port 8090)     │       │  - cluster.json         │    │</span><br><span class="line">│  │                  │       │  - Optimistic Locking   │    │</span><br><span class="line">│  └──────────────────┘       └─────────────────────────┘    │</span><br><span class="line">│                                                              │</span><br><span class="line">└────────────────┬─────────────────────────────────────────────┘</span><br><span class="line">                 │</span><br><span class="line">                 │ HTTP POST</span><br><span class="line">                 ▼</span><br><span class="line">     ┌───────────────────────┐</span><br><span class="line">     │  Prow Manual Trigger  │</span><br><span class="line">     │  /manual-trigger      │</span><br><span class="line">     └───────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<h3 id="1-Cluster-Manager-cluster-manager-go"><a href="#1-Cluster-Manager-cluster-manager-go" class="headerlink" title="1. Cluster Manager (cluster-manager.go)"></a>1. <strong>Cluster Manager</strong> (<code>cluster-manager.go</code>)</h3><p>The heart of the system, responsible for:</p>
+<ul>
+<li><strong>Cluster Allocation</strong>: Finding and assigning vacant clusters to CI jobs</li>
+<li><strong>Hold Management</strong>: Allowing developers to reserve clusters for debugging (with 6-hour expiration)</li>
+<li><strong>Automatic Cleanup</strong>: Periodically releasing expired holds</li>
+<li><strong>Integration with Prow</strong>: Triggering cluster creation through Prow’s manual-trigger endpoint</li>
+</ul>
+<h3 id="2-Cluster-Operations-cluster-ops-go"><a href="#2-Cluster-Operations-cluster-ops-go" class="headerlink" title="2. Cluster Operations (cluster-ops.go)"></a>2. <strong>Cluster Operations</strong> (<code>cluster-ops.go</code>)</h3><p>Implements the <code>ClusterInterface</code> with operations like:</p>
+<ul>
+<li><code>OccupyVacantCluster</code>: Atomically allocate an available cluster</li>
+<li><code>FinishOccupiedCluster</code>: Return a cluster to the available pool</li>
+<li><code>HoldCluster</code>&#x2F;<code>ReleaseCluster</code>: Manual hold management</li>
+<li><code>AddCluster</code>&#x2F;<code>DeleteCluster</code>: Cluster inventory management</li>
+</ul>
+<h3 id="3-State-Persistence"><a href="#3-State-Persistence" class="headerlink" title="3. State Persistence"></a>3. <strong>State Persistence</strong></h3><p>All cluster state is stored in a Kubernetes ConfigMap (<code>clusters</code> in the <code>ci</code> namespace):</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">[</span></span><br><span class="line">  <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;cluster-01&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;region&quot;</span><span class="punctuation">:</span> <span class="string">&quot;us-west&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;status&quot;</span><span class="punctuation">:</span> <span class="string">&quot;testing&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;lastJob&quot;</span><span class="punctuation">:</span> <span class="string">&quot;e2e-conformance&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;lastBuild&quot;</span><span class="punctuation">:</span> <span class="string">&quot;12345&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;lastTriggerName&quot;</span><span class="punctuation">:</span> <span class="string">&quot;john&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;hold&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;disabled&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;purpose&quot;</span><span class="punctuation">:</span> <span class="string">&quot;tess-ci&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;osimage&quot;</span><span class="punctuation">:</span> <span class="string">&quot;centos-atomic-7.6.1810-qcow2&quot;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">]</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>Optimistic Locking</strong> prevents race conditions during concurrent updates using Kubernetes ResourceVersion.</p>
+<h2 id="Integration-with-Prow’s-Manual-Trigger"><a href="#Integration-with-Prow’s-Manual-Trigger" class="headerlink" title="Integration with Prow’s Manual Trigger"></a>Integration with Prow’s Manual Trigger</h2><p>One of CIMaster’s powerful features is its integration with Prow through the <strong>manual-trigger</strong> component. This enables dynamic cluster provisioning when existing capacity is insufficient.</p>
+<h3 id="What-is-Prow-Manual-Trigger"><a href="#What-is-Prow-Manual-Trigger" class="headerlink" title="What is Prow Manual Trigger?"></a>What is Prow Manual Trigger?</h3><p>Prow is Kubernetes’ CI&#x2F;CD system. The <code>manual-trigger</code> component (<code>/Users/tashen/test-infra/prow/cmd/manual-trigger</code>) is an HTTP server that allows programmatic creation of ProwJobs outside the normal GitHub webhook flow.</p>
+<p><strong>Key Capabilities:</strong></p>
+<ul>
+<li>Accepts HTTP POST requests with job specifications</li>
+<li>Creates ProwJob custom resources in Kubernetes</li>
+<li>Supports presubmit, postsubmit, and periodic job types</li>
+<li>Injects environment variables (like <code>AUTHOR</code>) into jobs</li>
+</ul>
+<h3 id="How-Uses-Manual-Trigger"><a href="#How-Uses-Manual-Trigger" class="headerlink" title="How  Uses Manual Trigger"></a>How <USER_NAME> Uses Manual Trigger</h3><p>When a user calls <USER_NAME>‘s <code>/createcluster</code> endpoint:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl <span class="string">&quot;http://cimaster:8080/createcluster?user=john&amp;branch=master&amp;job=e2e-k8s-1.32&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>CIMaster performs the following flow:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. Construct Prow request</span></span><br><span class="line">prowRequest := types.ProwManualTriggerRequest&#123;</span><br><span class="line">    Org:      <span class="string">&quot;tess&quot;</span>,</span><br><span class="line">    Repo:     <span class="string">&quot;tessops&quot;</span>,</span><br><span class="line">    BaseRef:  <span class="string">&quot;master&quot;</span>,              <span class="comment">// from branch parameter</span></span><br><span class="line">    ProwType: <span class="string">&quot;postsubmit&quot;</span>,</span><br><span class="line">    ProwJob:  <span class="string">&quot;e2e-k8s-1.32&quot;</span>,        <span class="comment">// cluster creation job</span></span><br><span class="line">    User:     <span class="string">&quot;john&quot;</span>,                <span class="comment">// sets AUTHOR env var</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 2. Send to Prow manual-trigger endpoint</span></span><br><span class="line">resp, err := http.Post(</span><br><span class="line">    <span class="string">&quot;https://prow.tess.io/manual-trigger&quot;</span>,</span><br><span class="line">    <span class="string">&quot;application/json&quot;</span>,</span><br><span class="line">    requestBody,</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 3. Return status to caller</span></span><br></pre></td></tr></table></figure>
+
+<p>On the Prow side, the manual-trigger service:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. Receives the request</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *server)</span></span> handleManualTrigger(w http.ResponseWriter, r *http.Request) &#123;</span><br><span class="line">    <span class="keyword">var</span> req triggerRequest</span><br><span class="line">    json.NewDecoder(r.Body).Decode(&amp;req)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. Looks up the job definition from config</span></span><br><span class="line">    postsubmits := cfg.PostsubmitsStatic[req.Org+<span class="string">&quot;/&quot;</span>+req.Repo]</span><br><span class="line">    <span class="keyword">for</span> _, p := <span class="keyword">range</span> postsubmits &#123;</span><br><span class="line">        <span class="keyword">if</span> p.Name == req.ProwJob &#123;</span><br><span class="line">            prowJob = createProwJobFromPostsubmit(p, req)</span><br><span class="line">            <span class="keyword">break</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 3. Injects AUTHOR environment variable</span></span><br><span class="line">    <span class="keyword">if</span> req.User != <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">        addAuthorEnvToProwJob(prowJob, req.User)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 4. Creates ProwJob in Kubernetes</span></span><br><span class="line">    prowJobClient.Create(ctx, prowJob, metav1.CreateOptions&#123;&#125;)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 5. Waits for BuildID and returns status link</span></span><br><span class="line">    statusLink := fmt.Sprintf(<span class="string">&quot;https://prow.tess.io/prowjob?prowjob=%s&quot;</span>, prowJob.Name)</span><br><span class="line">    logLink := fmt.Sprintf(<span class="string">&quot;https://prow.tess.io/log?job=%s&amp;id=%s&quot;</span>, req.ProwJob, buildID)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Request-Response-Flow"><a href="#Request-Response-Flow" class="headerlink" title="Request-Response Flow"></a>Request-Response Flow</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">┌──────────┐         ┌──────────┐         ┌──────────────┐         ┌────────────┐</span><br><span class="line">│   User   │         │ &lt;USER_NAME&gt; │         │ Prow Manual  │         │ Kubernetes │</span><br><span class="line">│          │         │          │         │   Trigger    │         │            │</span><br><span class="line">└────┬─────┘         └────┬─────┘         └──────┬───────┘         └─────┬──────┘</span><br><span class="line">     │                    │                      │                       │</span><br><span class="line">     │  POST /createcluster                      │                       │</span><br><span class="line">     │  user=john        │                      │                       │</span><br><span class="line">     ├──────────────────►│                      │                       │</span><br><span class="line">     │                   │                      │                       │</span><br><span class="line">     │                   │  POST /manual-trigger│                       │</span><br><span class="line">     │                   │  &#123;org, repo, prowjob&#125;│                       │</span><br><span class="line">     │                   ├─────────────────────►│                       │</span><br><span class="line">     │                   │                      │                       │</span><br><span class="line">     │                   │                      │  Create ProwJob       │</span><br><span class="line">     │                   │                      │  with AUTHOR=john     │</span><br><span class="line">     │                   │                      ├──────────────────────►│</span><br><span class="line">     │                   │                      │                       │</span><br><span class="line">     │                   │                      │  ◄─────────────────── │</span><br><span class="line">     │                   │                      │  ProwJob Created      │</span><br><span class="line">     │                   │                      │                       │</span><br><span class="line">     │                   │ ◄────────────────────┤                       │</span><br><span class="line">     │                   │  &#123;success, job_name, │                       │</span><br><span class="line">     │  ◄────────────────┤   status_link&#125;       │                       │</span><br><span class="line">     │  cluster creation │                      │                       │</span><br><span class="line">     │  triggered        │                      │                       │</span><br><span class="line">     │                   │                      │                       │</span><br></pre></td></tr></table></figure>
+
+<p>The triggered ProwJob typically runs infrastructure-as-code (like Terraform or Ansible) to provision a new Kubernetes cluster, which is then added to CIMaster’s pool once ready.</p>
+<h2 id="Cluster-Lifecycle-State-Machine"><a href="#Cluster-Lifecycle-State-Machine" class="headerlink" title="Cluster Lifecycle State Machine"></a>Cluster Lifecycle State Machine</h2><p>Clusters transition through several states:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">┌───────────┐</span><br><span class="line">│  finished │ ◄───────────────────┐</span><br><span class="line">│ (vacant)  │                     │</span><br><span class="line">└─────┬─────┘                     │</span><br><span class="line">      │                           │</span><br><span class="line">      │ /getvacant                │</span><br><span class="line">      │                           │</span><br><span class="line">      ▼                           │</span><br><span class="line">┌──────────┐                      │</span><br><span class="line">│ testing  │                      │</span><br><span class="line">│(occupied)│                      │</span><br><span class="line">└────┬─────┘                      │</span><br><span class="line">     │                            │</span><br><span class="line">     │ /finishtest                │</span><br><span class="line">     │                            │</span><br><span class="line">     └────────────────────────────┘</span><br><span class="line"></span><br><span class="line">Hold State (overlay):</span><br><span class="line">┌─────────┐</span><br><span class="line">│ hold=   │</span><br><span class="line">│ false   │◄──── /releasecluster ────┐</span><br><span class="line">└────┬────┘                           │</span><br><span class="line">     │                                │</span><br><span class="line">     │ /holdcluster                   │</span><br><span class="line">     │                                │</span><br><span class="line">     ▼                                │</span><br><span class="line">┌─────────┐                           │</span><br><span class="line">│ hold=   │                           │</span><br><span class="line">│ true    │────────────────────────────┘</span><br><span class="line">└─────────┘    (auto-expires in 6h)</span><br></pre></td></tr></table></figure>
+
+<h2 id="Key-Features-and-Implementation-Details"><a href="#Key-Features-and-Implementation-Details" class="headerlink" title="Key Features and Implementation Details"></a>Key Features and Implementation Details</h2><h3 id="1-Intelligent-Allocation-with-Retry-Logic"><a href="#1-Intelligent-Allocation-with-Retry-Logic" class="headerlink" title="1. Intelligent Allocation with Retry Logic"></a>1. <strong>Intelligent Allocation with Retry Logic</strong></h3><p>CIMaster implements exponential backoff with jitter to handle concurrent allocation:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> RandomBackoff <span class="keyword">struct</span> &#123;</span><br><span class="line">    MinBackoff time.Duration</span><br><span class="line">    MaxBackoff time.Duration</span><br><span class="line">    rng        *rand.Rand</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(rb *RandomBackoff)</span></span> GetRetryInterval() time.Duration &#123;</span><br><span class="line">    delta := rb.MaxBackoff - rb.MinBackoff</span><br><span class="line">    <span class="keyword">return</span> rb.MinBackoff + time.Duration(rb.rng.Int63n(<span class="type">int64</span>(delta)+<span class="number">1</span>))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Each operation retries up to 3 times with random 50-200ms backoff to avoid thundering herd problems.</p>
+<h3 id="2-Automatic-Hold-Expiration"><a href="#2-Automatic-Hold-Expiration" class="headerlink" title="2. Automatic Hold Expiration"></a>2. <strong>Automatic Hold Expiration</strong></h3><p>A background goroutine continuously checks for expired holds:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(cm *ClusterManager)</span></span> runCronReleaseHeldEnvs() &#123;</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        durationUntilNextExpire, err := cm.clearExpiredHolds()</span><br><span class="line">        timer.Reset(durationUntilNextExpire)</span><br><span class="line">        &lt;-timer.C</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>This ensures clusters don’t remain locked indefinitely if developers forget to release them.</p>
+<h3 id="3-Multi-Purpose-Cluster-Support"><a href="#3-Multi-Purpose-Cluster-Support" class="headerlink" title="3. Multi-Purpose Cluster Support"></a>3. <strong>Multi-Purpose Cluster Support</strong></h3><p>CIMaster supports different cluster types:</p>
+<ul>
+<li><strong><code>tess-ci</code></strong>: Standard CI test clusters</li>
+<li><strong><code>tnet-ci</code></strong>: Network-specific test clusters with OS image selection</li>
+</ul>
+<p>Allocation respects purpose and OS image requirements:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> cluster.Purpose != purpose &#123;</span><br><span class="line">    <span class="keyword">continue</span>  <span class="comment">// skip incompatible clusters</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> cluster.Purpose == TnetCI &amp;&amp; cluster.OSImage != osimage &#123;</span><br><span class="line">    <span class="keyword">continue</span>  <span class="comment">// skip wrong OS image</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-Admin-Authorization"><a href="#4-Admin-Authorization" class="headerlink" title="4. Admin Authorization"></a>4. <strong>Admin Authorization</strong></h3><p>Protected endpoints use a simple file-based authorization:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">checkUser</span><span class="params">(h http.HandlerFunc, users []<span class="type">string</span>)</span></span> http.HandlerFunc &#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="function"><span class="keyword">func</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> &#123;</span><br><span class="line">        userName := r.URL.Query().Get(<span class="string">&quot;name&quot;</span>)</span><br><span class="line">        <span class="keyword">if</span> !contains(users, userName) &#123;</span><br><span class="line">            fmt.Fprintf(w, <span class="string">&quot;user %s is not authorized&quot;</span>, userName)</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        &#125;</span><br><span class="line">        h(w, r)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Admin users are loaded from <code>/botadmin/users</code> file (semicolon-separated).</p>
+<h3 id="5-Observability"><a href="#5-Observability" class="headerlink" title="5. Observability"></a>5. <strong>Observability</strong></h3><ul>
+<li><strong>Prometheus Metrics</strong>: Exposed on port 8090 (<code>/metrics</code>)</li>
+<li><strong>Structured Logging</strong>: All operations logged with correlation IDs</li>
+<li><strong>Graceful Shutdown</strong>: 120-second grace period to handle in-flight requests</li>
+</ul>
+<h2 id="API-Examples"><a href="#API-Examples" class="headerlink" title="API Examples"></a>API Examples</h2><h3 id="Allocating-a-Cluster-for-CI"><a href="#Allocating-a-Cluster-for-CI" class="headerlink" title="Allocating a Cluster for CI"></a>Allocating a Cluster for CI</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Get a vacant cluster for build #123</span></span><br><span class="line">CLUSTER=$(curl -s <span class="string">&quot;http://cimaster:8080/getvacant?build=123&amp;job=e2e-test&amp;email=ci-bot@ebay.com&quot;</span>)</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;Using cluster: <span class="variable">$CLUSTER</span>&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Run tests...</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Return cluster to pool</span></span><br><span class="line">curl <span class="string">&quot;http://cimaster:8080/finishtest?cluster=<span class="variable">$CLUSTER</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="Debugging-Workflow"><a href="#Debugging-Workflow" class="headerlink" title="Debugging Workflow"></a>Debugging Workflow</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Hold cluster for investigation</span></span><br><span class="line">curl <span class="string">&quot;http://cimaster:8080/holdcluster?cluster=cluster-05&amp;name=alice&amp;desc=debugging+network+issue&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Investigate...</span></span><br><span class="line">kubectl get pods -n test-namespace</span><br><span class="line"></span><br><span class="line"><span class="comment"># Release when done</span></span><br><span class="line">curl <span class="string">&quot;http://cimaster:8080/releasecluster?cluster=cluster-05&amp;name=alice&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="Creating-a-New-Cluster"><a href="#Creating-a-New-Cluster" class="headerlink" title="Creating a New Cluster"></a>Creating a New Cluster</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Trigger cluster creation via Prow</span></span><br><span class="line">curl <span class="string">&quot;http://cimaster:8080/createcluster?user=alice&amp;branch=master&amp;job=e2e-k8s-1.32&quot;</span></span><br><span class="line"><span class="comment"># Response: cluster creation triggered successfully: &#123;...&#125;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Monitor Prow job</span></span><br><span class="line"><span class="comment"># https://prow.tess.io/prowjob?prowjob=&lt;job-name&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Once ready, admin adds it to the pool</span></span><br><span class="line">curl <span class="string">&quot;http://cimaster:8080/addcluster?cluster=cluster-20&amp;region=eu-central&amp;name=admin&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="JSON-API-Support"><a href="#JSON-API-Support" class="headerlink" title="JSON API Support"></a>JSON API Support</h3><p>For programmatic access:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -H <span class="string">&quot;Accept: application/json&quot;</span> <span class="string">&quot;http://cimaster:8080/getvacant?build=123&amp;job=test&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>Response:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;cluster-07&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;region&quot;</span><span class="punctuation">:</span> <span class="string">&quot;us-west&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;status&quot;</span><span class="punctuation">:</span> <span class="string">&quot;testing&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;lastBuild&quot;</span><span class="punctuation">:</span> <span class="string">&quot;123&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;lastJob&quot;</span><span class="punctuation">:</span> <span class="string">&quot;test&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;lastTriggerName&quot;</span><span class="punctuation">:</span> <span class="string">&quot;john&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;purpose&quot;</span><span class="punctuation">:</span> <span class="string">&quot;tess-ci&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="Deployment"><a href="#Deployment" class="headerlink" title="Deployment"></a>Deployment</h2><p>CIMaster runs as a Kubernetes Deployment with 3 replicas for high availability:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">cimaster</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">ci</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">3</span></span><br><span class="line">  <span class="attr">minReadySeconds:</span> <span class="number">90</span></span><br><span class="line">  <span class="attr">strategy:</span></span><br><span class="line">    <span class="attr">rollingUpdate:</span></span><br><span class="line">      <span class="attr">maxSurge:</span> <span class="number">25</span><span class="string">%</span></span><br><span class="line">      <span class="attr">maxUnavailable:</span> <span class="number">25</span><span class="string">%</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">cimaster</span></span><br><span class="line">        <span class="attr">image:</span> <span class="string">hub.tess.io/tess/cimaster:v0.0.37</span></span><br><span class="line">        <span class="attr">command:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">cimaster</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">--manageCluster=true</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">--cluster-config-map=clusters</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">--botAdminDir=/botadmin</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">--prow-url=https://prow.tess.io/manual-trigger</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">--default-prow-job=e2e-k8s-1.32</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">8080</span>  <span class="comment"># API</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">8090</span>  <span class="comment"># Metrics</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="Performance-Characteristics"><a href="#Performance-Characteristics" class="headerlink" title="Performance Characteristics"></a>Performance Characteristics</h2><ul>
+<li><strong>Allocation Latency</strong>: ~100-300ms (includes ConfigMap read-write cycle)</li>
+<li><strong>Retry Overhead</strong>: 50-200ms per retry (max 3 attempts)</li>
+<li><strong>Hold Expiration Check</strong>: Every 10 minutes (default)</li>
+<li><strong>Concurrency</strong>: Safe for multiple replicas via optimistic locking</li>
+</ul>
+<h2 id="Real-World-Impact"><a href="#Real-World-Impact" class="headerlink" title="Real-World Impact"></a>Real-World Impact</h2><p>At eBay’s TESS platform, CIMaster manages:</p>
+<ul>
+<li><strong>20+ shared test clusters</strong> across multiple regions</li>
+<li><strong>Hundreds of CI jobs daily</strong> from various teams</li>
+<li><strong>6-hour automatic hold expiration</strong> preventing resource lock-ups</li>
+<li><strong>Sub-second allocation</strong> for most requests</li>
+<li><strong>Dynamic scaling</strong> through Prow integration</li>
+</ul>
+<h2 id="Future-Enhancements"><a href="#Future-Enhancements" class="headerlink" title="Future Enhancements"></a>Future Enhancements</h2><p>Potential improvements being considered:</p>
+<ol>
+<li><strong>Priority Queues</strong>: Allow critical jobs to jump the allocation queue</li>
+<li><strong>Cluster Health Checks</strong>: Automatic disabling of unhealthy clusters</li>
+<li><strong>Usage Analytics</strong>: Track allocation patterns and optimize capacity</li>
+<li><strong>Webhook Notifications</strong>: Slack&#x2F;email alerts for hold expirations</li>
+<li><strong>Multi-Cluster Federation</strong>: Coordinate across multiple Kubernetes clusters</li>
+</ol>
+<h2 id="Conclusion"><a href="#Conclusion" class="headerlink" title="Conclusion"></a>Conclusion</h2><p>CIMaster demonstrates how a relatively simple coordination service can solve complex resource management challenges in CI&#x2F;CD infrastructure. By combining:</p>
+<ul>
+<li><strong>Stateful cluster tracking</strong> in Kubernetes ConfigMaps</li>
+<li><strong>Optimistic locking</strong> for safe concurrent access</li>
+<li><strong>Automatic expiration</strong> for abandoned holds</li>
+<li><strong>Prow integration</strong> for dynamic provisioning</li>
+<li><strong>REST API</strong> for easy integration</li>
+</ul>
+<p>…it provides a robust foundation for shared test infrastructure at scale.</p>
+<p>The integration with Prow’s manual-trigger component is particularly elegant—CIMaster doesn’t need to know <em>how</em> to create clusters, only <em>when</em> to request them. This separation of concerns allows infrastructure teams to evolve cluster provisioning strategies independently.</p>
+<p>Whether you’re building CI infrastructure for a large organization or looking to optimize resource utilization in your Kubernetes platform, the patterns demonstrated by CIMaster offer valuable insights into distributed system coordination.</p>
+<h2 id="Links-and-Resources"><a href="#Links-and-Resources" class="headerlink" title="Links and Resources"></a>Links and Resources</h2><ul>
+<li><strong>CIMaster Repository</strong>: <code>tess.io/contrib/cimaster</code></li>
+<li><strong>Prow Documentation</strong>: <a target="_blank" rel="noopener" href="https://github.com/kubernetes/test-infra/tree/master/prow">k8s.io&#x2F;test-infra&#x2F;prow</a></li>
+<li><strong>Manual Trigger Component</strong>: <code>/Users/tashen/test-infra/prow/cmd/manual-trigger</code></li>
+<li><strong>API Guide</strong>: <a href="../doc/guide.md">&#x2F;Users&#x2F;tashen&#x2F;cimaster&#x2F;doc&#x2F;guide.md</a></li>
+</ul>
+<hr>
+<p><em>This article explores the internal architecture of CIMaster, a production cluster coordination service. All code examples are from the actual implementation.</em></p>
 
       
     </div>
@@ -997,200 +1418,6 @@
           <!--noindex-->
             <div class="post-button">
               <a class="btn" href="/2026/03/17/2026-03-17-kubernetes-technical-challenges-solutions/">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/03/17/2026-03-17-kubernetes-troubleshooting-complete-guide/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/03/17/2026-03-17-kubernetes-troubleshooting-complete-guide/" class="post-title-link" itemprop="url">Kubernetes核心组件故障排查完整指南 - 诊断工具与解决方案</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-      
-
-      <time title="Created: 2026-03-17 19:00:00 / Modified: 21:41:28" itemprop="dateCreated datePublished" datetime="2026-03-17T19:00:00+08:00">2026-03-17</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-          , 
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/kubernetes-learning/" itemprop="url" rel="index"><span itemprop="name">kubernetes-learning</span></a>
-        </span>
-          , 
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/kubernetes-learning/troubleshooting/" itemprop="url" rel="index"><span itemprop="name">troubleshooting</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>全面的Kubernetes故障排查指南，涵盖API Server、etcd、Container Runtime的常见问题诊断和解决方案</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2026/03/17/2026-03-17-kubernetes-troubleshooting-complete-guide/">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/03/17/2026-03-17-etcd-architecture-deep-dive/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/03/17/2026-03-17-etcd-architecture-deep-dive/" class="post-title-link" itemprop="url">etcd架构设计深度剖析 - Raft共识算法与分布式存储引擎</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2026-03-17 18:00:00" itemprop="dateCreated datePublished" datetime="2026-03-17T18:00:00+08:00">2026-03-17</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar-check"></i>
-      </span>
-      <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-03-18 14:58:37" itemprop="dateModified" datetime="2026-03-18T14:58:37+08:00">2026-03-18</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-          , 
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/kubernetes-learning/" itemprop="url" rel="index"><span itemprop="name">kubernetes-learning</span></a>
-        </span>
-          , 
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/kubernetes-learning/distributed-systems/" itemprop="url" rel="index"><span itemprop="name">distributed-systems</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>深度剖析etcd分布式键值存储的内部架构，详解Raft共识算法、MVCC存储引擎、WAL日志系统和网络通信设计</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2026/03/17/2026-03-17-etcd-architecture-deep-dive/">
                 Read more &raquo;
               </a>
             </div>
