@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="BPF CPU Usage High issueObjectiveProblem Statementhttps:&#x2F;&#x2F;docs.google.com&#x2F;document&#x2F;d&#x2F;1HlvGBoT8gL3LToCIB8KH88EG4toh7YiiQnNApNyosOo&#x2F;edit https:&#x2F;&#x2F;docs.google.com&#x2F;document&#x2F;d&#x2F;1ibjJWueVClKet0by0fWbFHz2vEfj3">
+<meta property="og:type" content="article">
+<meta property="og:title" content="BPF CPU Usage High Issue: Root Cause Analysis and Fix">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/14/2026-04-14-bpf-cpu-usage-high-issue/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="BPF CPU Usage High issueObjectiveProblem Statementhttps:&#x2F;&#x2F;docs.google.com&#x2F;document&#x2F;d&#x2F;1HlvGBoT8gL3LToCIB8KH88EG4toh7YiiQnNApNyosOo&#x2F;edit https:&#x2F;&#x2F;docs.google.com&#x2F;document&#x2F;d&#x2F;1ibjJWueVClKet0by0fWbFHz2vEfj3">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-14T05:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-14T06:37:40.268Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Networking">
+<meta property="article:tag" content="Debugging">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="BPF">
+<meta property="article:tag" content="Cilium">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/14/2026-04-14-bpf-cpu-usage-high-issue/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/14/2026-04-14-bpf-cpu-usage-high-issue/","path":"2026/04/14/2026-04-14-bpf-cpu-usage-high-issue/","title":"BPF CPU Usage High Issue: Root Cause Analysis and Fix"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>BPF CPU Usage High Issue: Root Cause Analysis and Fix | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#BPF-CPU-Usage-High-issue"><span class="nav-number">1.</span> <span class="nav-text">BPF CPU Usage High issue</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Objective"><span class="nav-number">2.</span> <span class="nav-text">Objective</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Problem-Statement"><span class="nav-number">3.</span> <span class="nav-text">Problem Statement</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Reproduce-Steps"><span class="nav-number">4.</span> <span class="nav-text">Reproduce Steps</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Ingressgateway"><span class="nav-number">4.1.</span> <span class="nav-text">Ingressgateway</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Fortio-Clients"><span class="nav-number">4.2.</span> <span class="nav-text">Fortio Clients</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TrafficObserver"><span class="nav-number">4.3.</span> <span class="nav-text">TrafficObserver</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Reproduce-result"><span class="nav-number">4.4.</span> <span class="nav-text">Reproduce result</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">98</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">246</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-bpf-cpu-usage-high-issue/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="BPF CPU Usage High Issue: Root Cause Analysis and Fix | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          BPF CPU Usage High Issue: Root Cause Analysis and Fix
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-14 13:00:00 / Modified: 14:37:40" itemprop="dateCreated datePublished" datetime="2026-04-14T13:00:00+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux-Kernel</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="BPF-CPU-Usage-High-issue"><a href="#BPF-CPU-Usage-High-issue" class="headerlink" title="BPF CPU Usage High issue"></a>BPF CPU Usage High issue</h1><h1 id="Objective"><a href="#Objective" class="headerlink" title="Objective"></a><strong>Objective</strong></h1><h1 id="Problem-Statement"><a href="#Problem-Statement" class="headerlink" title="Problem Statement"></a><strong>Problem Statement</strong></h1><p><a target="_blank" rel="noopener" href="https://docs.google.com/document/d/1HlvGBoT8gL3LToCIB8KH88EG4toh7YiiQnNApNyosOo/edit">https://docs.google.com/document/d/1HlvGBoT8gL3LToCIB8KH88EG4toh7YiiQnNApNyosOo/edit</a></p>
+<p><a target="_blank" rel="noopener" href="https://docs.google.com/document/d/1ibjJWueVClKet0by0fWbFHz2vEfj3viL5ss8byJuuA4/edit#heading=h.ubx3xrz6e41r">https://docs.google.com/document/d/1ibjJWueVClKet0by0fWbFHz2vEfj3viL5ss8byJuuA4/edit#heading&#x3D;h.ubx3xrz6e41r</a></p>
+<p>We met <strong>the bpf cpu high issue</strong> many times <strong>after the cilium conntrack table was full</strong>. It impacts the L4&#x2F;L7 traffic reliability and also impacts the reliability confidence about cilium and the cilium rollout on tlb&#x2F;gateway nodes.</p>
+<p>We have taken some measures to try to avoid the conntrack table from getting full. However, if the load further increases or if the garbage collection is delayed for some reason, the conntrack table can still become full, which will trigger this issue. Therefore, we aim to address this problem fundamentally.</p>
+<span id="more"></span>
+
+<h1 id="Reproduce-Steps"><a href="#Reproduce-Steps" class="headerlink" title="Reproduce Steps"></a><strong>Reproduce Steps</strong></h1><p>Reproduced on tess834. (concurrent fortioclients with short connections + ingressgateway&#x2F;multi-vips + trafficobserver)</p>
+<h2 id="Ingressgateway"><a href="#Ingressgateway" class="headerlink" title="Ingressgateway"></a><strong>Ingressgateway</strong></h2><p>Key Point: Uniform high-concurrency softirq handling</p>
+<table>
+<thead>
+<tr>
+<th align="left">istio-ingressgateway-865c7b78b6-htfv5    2&#x2F;2     Running   10 (2d20h ago)   20d    10.163.84.64    tess-node-8h7nt-tess834.stratus.lvs.ebay.com   &lt;none&gt;           &lt;none&gt;</th>
+</tr>
+</thead>
+</table>
+<p>Configurations for gateway pod:</p>
+<ul>
+<li>best effort pod  </li>
+<li>dedicated node, or move all the client, server loads out of this node.  </li>
+<li>50 workers</li>
+</ul>
+<p>Configurations for this gateway node: (tlb node needs the similar configuration)</p>
+<ul>
+<li>Enlarge the netfilter conntrack settings to avoid it’s the bottleneck.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th align="left">sysctl -w net.netfilter.nf_conntrack_max&#x3D;22000000 sysctl -w net.netfilter.nf_conntrack_buckets&#x3D;5500416 sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established&#x3D;3600 sysctl -w net.netfilter.nf_conntrack_tcp_timeout_fin_wait&#x3D;30 sysctl -w net.netfilter.nf_conntrack_tcp_timeout_last_ack&#x3D;30 sysctl -w net.netfilter.nf_conntrack_tcp_timeout_syn_recv&#x3D;30 sysctl -w net.netfilter.nf_conntrack_tcp_timeout_syn_sent&#x3D;30 sysctl -w net.netfilter.nf_conntrack_tcp_timeout_time_wait&#x3D;30</th>
+</tr>
+</thead>
+</table>
+<ul>
+<li>Enable irq balance on this node to make the network handling even.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th align="left">add `IRQBALANCE_ARGS&#x3D;–policyscript&#x3D;&#x2F;etc&#x2F;sysconfig&#x2F;policyscript.sh -e 1` into &#x2F;etc&#x2F;default&#x2F;irqbalancesystemctl restart irqbalance</th>
+</tr>
+</thead>
+</table>
+<p><strong>Vips:</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">apiVersion: apps.tess.io&#x2F;v1alpha3 kind: AccessPoint metadata:   annotations:     gateway.network.tess.io&#x2F;bind-vip: “true”     gateway.network.tess.io&#x2F;cert-provider: protego     network.tess.io&#x2F;init-clusterids: “834”   labels:     foo: bar   name: fortioserver-ap-   namespace: cilium-fortio-lnp spec:   accessPoints:   - name: ap-834-     scopeIDs:     - “834”     scopeType: Cluster     strategies:       circuitBreakerStrategy: {}       loadBalancingStrategy:         loadBalancerMethod: {}       placement: {}       rollout: {}       slowStartStrategy: {}       trafficShift:         healthSelector: {}         workloadSelector: {}     traffic:       gateways:       - apiVersion: networking.istio.io&#x2F;v1beta1         kind: Gateway         metadata:           annotations:             network.tess.io&#x2F;lbprovider: tlb-ipvs             network.tess.io&#x2F;skip-proxy: “true”           creationTimestamp: null           name: fortioserver-gw-         spec:           selector:             istio: ingressgateway-production-01           servers:           - hosts:             - cilium-fortio-lnp-fortioserver-gw-.istio-production.svc.834.tess.io             port:               name: http               number: 80               protocol: HTTP         status: {}       services:       - apiVersion: v1         kind: Service         metadata:           creationTimestamp: null           name: fortioserver-         spec:           ports:           - name: http-echo             port: 8080             protocol: TCP             targetPort: 0           selector:             app: fortioserver-           type: ClusterIP         status:           loadBalancer: {}       virtualServices:       - apiVersion: networking.istio.io&#x2F;v1beta1         kind: VirtualService         metadata:           creationTimestamp: null           name: fortioserver-vs-         spec:           gateways:           - fortioserver-gw-           hosts:           - cilium-fortio-lnp-fortioserver-gw-.istio-production.svc.834.tess.io           http:           - match:             - uri:                 prefix: &#x2F;             route:             - destination:                 host: fortioserver-                 port:                   number: 8080         status: {}   applicationInstanceRef:     kind: ApplicationInstance     name: cilium-fortio-lnp     namespace: cilium-fortio-lnp</th>
+</tr>
+</thead>
+</table>
+<h2 id="Fortio-Clients"><a href="#Fortio-Clients" class="headerlink" title="Fortio Clients"></a><strong>Fortio Clients</strong></h2><p>Key Point: Continuous high-concurrency new connection establishment</p>
+<p>Configuration for client pods:</p>
+<ul>
+<li>Fortio clients  </li>
+<li>80 replicas  </li>
+<li>Best effort pods, get rid of locating on the gateway node. (make sure client cpu is not the bottleneck)  </li>
+<li>Start 240 fortio clients in total against 3 vips in the 80 client pods.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th align="left">#!&#x2F;usr&#x2F;bin&#x2F;env bash for ip in $(cat .&#x2F;ips); do   for pod in $(cat .&#x2F;pods); do         nohup kubectl --kubeconfig &#x2F;var&#x2F;lib&#x2F;kube-secrets-manager&#x2F;kubeconfig exec -n cilium-fortio-lnp $pod -- fortio load -a -c 300 -qps 1000 -t 100000s -allow-initial-errors -log-errors&#x3D;false http:&#x2F;&#x2F;$ip:80 &gt; &#x2F;dev&#x2F;null 2&gt;&amp;1 &amp;   done done</th>
+</tr>
+</thead>
+</table>
+<p>  Using vip ips instead of fqdn makes the client loads become <strong>short connections</strong> (because fqdn is configured into the gateway rule, so if using the vip ip, the request will return 404 and start a new connection again by using the above fortio command). </p>
+<h2 id="TrafficObserver"><a href="#TrafficObserver" class="headerlink" title="TrafficObserver"></a><strong>TrafficObserver</strong></h2><p>Key Point: The continuous batch lookup by BPF Syscall to lock the hash buckets</p>
+<p>Start up trafficobserver by using file mode.</p>
+<table>
+<thead>
+<tr>
+<th align="left">- args:           - &#x2F;trafficobserver           - --mode&#x3D;file           - --filepath&#x3D;’&#x2F;dev&#x2F;null’           - --v&#x3D;4           env:           - name: K8S_NODE_NAME             valueFrom:               fieldRef:                 apiVersion: v1                 fieldPath: spec.nodeName           - name: GOGC             value: “50”           image: hub.tess.io&#x2F;yingnzhang&#x2F;trafficobserver:file</th>
+</tr>
+</thead>
+</table>
+<p>this trafficobserver image include the fix for file mode: (<a target="_blank" rel="noopener" href="https://github.corp.ebay.com/ebaytess/cloudmesh/pull/108">https://github.corp.ebay.com/ebaytess/cloudmesh/pull/108</a>)</p>
+<table>
+<thead>
+<tr>
+<th align="left">diff --git a&#x2F;trafficobserver&#x2F;pkg&#x2F;exporter&#x2F;fileexporter.go b&#x2F;trafficobserver&#x2F;pkg&#x2F;exporter&#x2F;fileexporter.go index 2b7d952..b690b20 100644 -– a&#x2F;trafficobserver&#x2F;pkg&#x2F;exporter&#x2F;fileexporter.go +++ b&#x2F;trafficobserver&#x2F;pkg&#x2F;exporter&#x2F;fileexporter.go @@ -17,7 +17,6 @@ type FileExporter struct {         ConvertToJson bool         FileLocation  string         Unique        bool -       Interval      time.Duration  }  type Output struct { @@ -29,7 +28,7 @@ type Output struct {  func (e *FileExporter) Export() error {         &#x2F;&#x2F; Create a ticker that ticks every five minutes -       ticker :&#x3D; time.NewTicker(e.Interval) +       ticker :&#x3D; time.NewTicker(DefaultInterval)         &#x2F;&#x2F; Create a map to track unique lines         uniqueLines :&#x3D; make(map[string]bool)         var linesToWrite []string @@ -41,6 +40,8 @@ func (e *FileExporter) Export() error {         &#x2F;&#x2F; Run the command periodically         bpfMapReader, _ :&#x3D; reader.New([]string{}) +       &#x2F;&#x2F; start the reader +       go bpfMapReader.Run()         for range ticker.C {                 linesToWrite, err = bpfMapReader.ReadCtMap()                 if err !&#x3D; nil {</th>
+</tr>
+</thead>
+</table>
+<h2 id="Reproduce-result"><a href="#Reproduce-result" class="headerlink" title="Reproduce result"></a><strong>Reproduce result</strong></h2>
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Networking/" rel="tag"># Networking</a>
+              <a href="/tags/Debugging/" rel="tag"># Debugging</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/BPF/" rel="tag"># BPF</a>
+              <a href="/tags/Cilium/" rel="tag"># Cilium</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-disk-quota-controller-analysis/" rel="prev" title="Disk Quota Controller Analysis">
+                  <i class="fa fa-angle-left"></i> Disk Quota Controller Analysis
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-linux-mm-part1-physical-memory/" rel="next" title="Linux 内存管理深度剖析（一）：物理内存组织与伙伴分配系统">
+                  Linux 内存管理深度剖析（一）：物理内存组织与伙伴分配系统 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
