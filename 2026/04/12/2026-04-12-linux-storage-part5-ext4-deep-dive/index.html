@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析Ext4 是 Linux 世界中使用最为广泛的文件系统之一。从 1992 年诞生的 Ext2 到今天仍在亿级服务器上运行的 Ext4，这个文件系统家族经历了三十余年的演进，积累了大量为生产环境验证的设计智慧。本文基于 Linux 6.4-rc1 内核源码（fs&#x2F;ext4&#x2F; 及 fs&#x2F;jbd2&#x2F;），从磁盘格式到内核实现，逐层深入剖析">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part5-ext4-deep-dive/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析Ext4 是 Linux 世界中使用最为广泛的文件系统之一。从 1992 年诞生的 Ext2 到今天仍在亿级服务器上运行的 Ext4，这个文件系统家族经历了三十余年的演进，积累了大量为生产环境验证的设计智慧。本文基于 Linux 6.4-rc1 内核源码（fs&#x2F;ext4&#x2F; 及 fs&#x2F;jbd2&#x2F;），从磁盘格式到内核实现，逐层深入剖析">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-12T02:40:00.000Z">
+<meta property="article:modified_time" content="2026-04-13T13:30:32.875Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Filesystem">
+<meta property="article:tag" content="Journal">
+<meta property="article:tag" content="Ext4">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part5-ext4-deep-dive/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part5-ext4-deep-dive/","path":"2026/04/12/2026-04-12-linux-storage-part5-ext4-deep-dive/","title":"Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Linux-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%B7%B1%E5%BA%A6%E5%89%96%E6%9E%90%EF%BC%88%E4%BA%94%EF%BC%89%EF%BC%9AExt4-%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90"><span class="nav-number">1.</span> <span class="nav-text">Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%8E%86%E5%8F%B2%E6%BC%94%E8%BF%9B%EF%BC%9A%E4%BB%8E-Ext2-%E5%88%B0-Ext4"><span class="nav-number">1.1.</span> <span class="nav-text">1. 历史演进：从 Ext2 到 Ext4</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-Ext2%EF%BC%9A%E5%A5%A0%E5%AE%9A%E5%9F%BA%E7%A1%80%EF%BC%881993%EF%BC%89"><span class="nav-number">1.1.1.</span> <span class="nav-text">1.1 Ext2：奠定基础（1993）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-Ext3%EF%BC%9A%E5%BC%95%E5%85%A5%E6%97%A5%E5%BF%97%EF%BC%882001%EF%BC%89"><span class="nav-number">1.1.2.</span> <span class="nav-text">1.2 Ext3：引入日志（2001）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-Ext4%EF%BC%9A%E7%AA%81%E7%A0%B4%E9%99%90%E5%88%B6%EF%BC%882008%EF%BC%89"><span class="nav-number">1.1.3.</span> <span class="nav-text">1.3 Ext4：突破限制（2008）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%A3%81%E7%9B%98%E5%B8%83%E5%B1%80"><span class="nav-number">1.2.</span> <span class="nav-text">2. 磁盘布局</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84"><span class="nav-number">1.2.1.</span> <span class="nav-text">2.1 整体结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E8%B6%85%E7%BA%A7%E5%9D%97%EF%BC%9Astruct-ext4-super-block"><span class="nav-number">1.2.2.</span> <span class="nav-text">2.2 超级块：struct ext4_super_block</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%9D%97%E7%BB%84%E6%8F%8F%E8%BF%B0%E7%AC%A6%EF%BC%9Astruct-ext4-group-desc"><span class="nav-number">1.2.3.</span> <span class="nav-text">2.3 块组描述符：struct ext4_group_desc</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-inode-%E7%BB%93%E6%9E%84%EF%BC%9Astruct-ext4-inode"><span class="nav-number">1.2.4.</span> <span class="nav-text">2.4 inode 结构：struct ext4_inode</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-Extent-%E6%A0%91%E6%9C%BA%E5%88%B6"><span class="nav-number">1.3.</span> <span class="nav-text">3. Extent 树机制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.3.1.</span> <span class="nav-text">3.1 核心数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-ext4-find-extent%EF%BC%9A%E6%A0%91%E9%81%8D%E5%8E%86%E5%AE%9E%E7%8E%B0"><span class="nav-number">1.3.2.</span> <span class="nav-text">3.2 ext4_find_extent：树遍历实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%8F%B6%E5%AD%90%E5%B1%82%E4%BA%8C%E5%88%86%E6%90%9C%E7%B4%A2%EF%BC%9Aext4-ext-binsearch"><span class="nav-number">1.3.3.</span> <span class="nav-text">3.3 叶子层二分搜索：ext4_ext_binsearch</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%9D%97%E7%BB%84%E7%AE%A1%E7%90%86"><span class="nav-number">1.4.</span> <span class="nav-text">4. 块组管理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%9D%97%E5%88%86%E9%85%8D%E5%99%A8%EF%BC%9Amballoc"><span class="nav-number">1.4.1.</span> <span class="nav-text">4.1 块分配器：mballoc</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E7%81%B5%E6%B4%BB%E5%9D%97%E7%BB%84%EF%BC%88Flex-BG%EF%BC%89"><span class="nav-number">1.4.2.</span> <span class="nav-text">4.2 灵活块组（Flex_BG）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-JBD2-%E6%97%A5%E5%BF%97%E6%9C%BA%E5%88%B6%E4%B8%8E%E5%B4%A9%E6%BA%83%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-number">1.5.</span> <span class="nav-text">5. JBD2 日志机制与崩溃一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-JBD2-%E6%9E%B6%E6%9E%84"><span class="nav-number">1.5.1.</span> <span class="nav-text">5.1 JBD2 架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E4%BA%8B%E5%8A%A1%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-number">1.5.2.</span> <span class="nav-text">5.2 事务生命周期</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E4%B8%89%E7%A7%8D%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%BC%8F%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="nav-number">1.5.3.</span> <span class="nav-text">5.3 三种数据模式的实现</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E8%AF%BB%E5%86%99%E5%AE%9E%E7%8E%B0%EF%BC%9A%E4%BB%8E-VFS-%E5%88%B0%E7%A3%81%E7%9B%98"><span class="nav-number">1.6.</span> <span class="nav-text">6. 读写实现：从 VFS 到磁盘</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E8%AF%BB%E8%B7%AF%E5%BE%84%EF%BC%9Aext4-file-read-iter"><span class="nav-number">1.6.1.</span> <span class="nav-text">6.1 读路径：ext4_file_read_iter</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E5%86%99%E8%B7%AF%E5%BE%84%EF%BC%9Aext4-file-write-iter"><span class="nav-number">1.6.2.</span> <span class="nav-text">6.2 写路径：ext4_file_write_iter</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E9%80%BB%E8%BE%91%E5%9D%97%E5%88%B0%E7%89%A9%E7%90%86%E5%9D%97%E6%98%A0%E5%B0%84%EF%BC%9Aext4-map-blocks"><span class="nav-number">1.6.3.</span> <span class="nav-text">6.3 逻辑块到物理块映射：ext4_map_blocks</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%BB%B6%E8%BF%9F%E5%88%86%E9%85%8D%EF%BC%88Delayed-Allocation%EF%BC%89"><span class="nav-number">1.7.</span> <span class="nav-text">7. 延迟分配（Delayed Allocation）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E5%8E%9F%E7%90%86"><span class="nav-number">1.7.1.</span> <span class="nav-text">7.1 原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E5%AE%9E%E7%8E%B0%EF%BC%9Aext4-da-write-begin-%E5%92%8C-ext4-da-get-block-prep"><span class="nav-number">1.7.2.</span> <span class="nav-text">7.2 实现：ext4_da_write_begin 和 ext4_da_get_block_prep</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E7%9B%AE%E5%BD%95%E7%B4%A2%E5%BC%95%EF%BC%9AHTree%EF%BC%88dx-root%EF%BC%89"><span class="nav-number">1.8.</span> <span class="nav-text">8. 目录索引：HTree（dx_root）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E7%BA%BF%E6%80%A7%E7%9B%AE%E5%BD%95-vs-HTree"><span class="nav-number">1.8.1.</span> <span class="nav-text">8.1 线性目录 vs HTree</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%EF%BC%88fs-ext4-namei-c%EF%BC%89"><span class="nav-number">1.8.2.</span> <span class="nav-text">8.2 核心数据结构（fs&#x2F;ext4&#x2F;namei.c）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E6%80%A7%E8%83%BD%E8%B0%83%E4%BC%98%E6%8C%82%E8%BD%BD%E9%80%89%E9%A1%B9"><span class="nav-number">1.9.</span> <span class="nav-text">9. 性能调优挂载选项</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#9-1-%E6%95%B0%E6%8D%AE%E5%86%99%E5%85%A5%E6%A8%A1%E5%BC%8F"><span class="nav-number">1.9.1.</span> <span class="nav-text">9.1 数据写入模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-2-%E6%97%A5%E5%BF%97%E7%9B%B8%E5%85%B3"><span class="nav-number">1.9.2.</span> <span class="nav-text">9.2 日志相关</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-3-%E5%88%86%E9%85%8D%E4%B8%8E%E9%A2%84%E5%88%86%E9%85%8D"><span class="nav-number">1.9.3.</span> <span class="nav-text">9.3 分配与预分配</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-4-IO-%E7%89%B9%E6%80%A7"><span class="nav-number">1.9.4.</span> <span class="nav-text">9.4 IO 特性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-5-%E9%94%99%E8%AF%AF%E5%A4%84%E7%90%86"><span class="nav-number">1.9.5.</span> <span class="nav-text">9.5 错误处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-6-%E6%8E%A8%E8%8D%90%E7%94%9F%E4%BA%A7%E9%85%8D%E7%BD%AE%E7%A4%BA%E4%BE%8B"><span class="nav-number">1.9.6.</span> <span class="nav-text">9.6 推荐生产配置示例</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5"><span class="nav-number">1.10.</span> <span class="nav-text">10. 常见问题排查</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#10-1-e2fsck%EF%BC%9A%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%B8%80%E8%87%B4%E6%80%A7%E6%A3%80%E6%9F%A5"><span class="nav-number">1.10.1.</span> <span class="nav-text">10.1 e2fsck：文件系统一致性检查</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-2-debugfs%EF%BC%9A%E4%BD%8E%E7%BA%A7%E8%B0%83%E8%AF%95"><span class="nav-number">1.10.2.</span> <span class="nav-text">10.2 debugfs：低级调试</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-3-tune2fs%EF%BC%9A%E8%B0%83%E6%95%B4%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E5%8F%82%E6%95%B0"><span class="nav-number">1.10.3.</span> <span class="nav-text">10.3 tune2fs：调整文件系统参数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-4-%E5%B8%B8%E8%A7%81%E5%91%8A%E8%AD%A6%E4%B8%8E%E5%A4%84%E7%90%86"><span class="nav-number">1.10.4.</span> <span class="nav-text">10.4 常见告警与处理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E6%80%BB%E7%BB%93"><span class="nav-number">1.11.</span> <span class="nav-text">11. 总结</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">72</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">164</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part5-ext4-deep-dive/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2026-04-12 10:40:00" itemprop="dateCreated datePublished" datetime="2026-04-12T10:40:00+08:00">2026-04-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-04-13 21:30:32" itemprop="dateModified" datetime="2026-04-13T21:30:32+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="Linux-存储与文件系统深度剖析（五）：Ext4-文件系统源码分析"><a href="#Linux-存储与文件系统深度剖析（五）：Ext4-文件系统源码分析" class="headerlink" title="Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析"></a>Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析</h1><p>Ext4 是 Linux 世界中使用最为广泛的文件系统之一。从 1992 年诞生的 Ext2 到今天仍在亿级服务器上运行的 Ext4，这个文件系统家族经历了三十余年的演进，积累了大量为生产环境验证的设计智慧。本文基于 <strong>Linux 6.4-rc1</strong> 内核源码（<code>fs/ext4/</code> 及 <code>fs/jbd2/</code>），从磁盘格式到内核实现，逐层深入剖析 Ext4 的核心机制。</p>
+<hr>
+<h2 id="1-历史演进：从-Ext2-到-Ext4"><a href="#1-历史演进：从-Ext2-到-Ext4" class="headerlink" title="1. 历史演进：从 Ext2 到 Ext4"></a>1. 历史演进：从 Ext2 到 Ext4</h2><h3 id="1-1-Ext2：奠定基础（1993）"><a href="#1-1-Ext2：奠定基础（1993）" class="headerlink" title="1.1 Ext2：奠定基础（1993）"></a>1.1 Ext2：奠定基础（1993）</h3><p>Ext2（Second Extended Filesystem）由 Rémy Card 于 1993 年为 Linux 设计，确立了沿用至今的基本磁盘布局：块组（Block Group）划分、inode 表、块位图、inode 位图。Ext2 没有日志，崩溃后需要 <code>e2fsck</code> 做全盘一致性检查，在大容量磁盘上这可能耗时数小时。</p>
+<h3 id="1-2-Ext3：引入日志（2001）"><a href="#1-2-Ext3：引入日志（2001）" class="headerlink" title="1.2 Ext3：引入日志（2001）"></a>1.2 Ext3：引入日志（2001）</h3><p>Ext3 在 Ext2 的基础上叠加了 JBD（Journaling Block Device）日志层，提供三种日志模式：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>说明</th>
+<th>性能</th>
+<th>一致性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>journal</code></td>
+<td>数据+元数据都写日志</td>
+<td>最慢</td>
+<td>最强</td>
+</tr>
+<tr>
+<td><code>ordered</code></td>
+<td>只日志元数据，数据在元数据提交前落盘</td>
+<td>中等</td>
+<td>强（默认）</td>
+</tr>
+<tr>
+<td><code>writeback</code></td>
+<td>只日志元数据，数据顺序无保证</td>
+<td>最快</td>
+<td>弱</td>
+</tr>
+</tbody></table>
+<p>Ext3 的磁盘格式与 Ext2 完全兼容，只需在超级块中设置日志特性位即可将 Ext2 升级为 Ext3。</p>
+<h3 id="1-3-Ext4：突破限制（2008）"><a href="#1-3-Ext4：突破限制（2008）" class="headerlink" title="1.3 Ext4：突破限制（2008）"></a>1.3 Ext4：突破限制（2008）</h3><p>Ext4 于 2008 年随 Linux 2.6.28 正式合并主线，主要突破：</p>
+<ul>
+<li><strong>Extent 树</strong>取代间接块映射，大文件性能大幅提升，最大单文件 16 TiB</li>
+<li><strong>支持 48 位块地址</strong>，最大卷 1 EiB</li>
+<li><strong>延迟分配（Delalloc）</strong> 显著减少碎片</li>
+<li><strong>持久化预分配（Persistent Preallocation）</strong></li>
+<li><strong>在线碎片整理</strong></li>
+<li><strong>HTree 目录索引</strong>（实际源自 Ext3，但 Ext4 普遍启用）</li>
+<li><strong>日志校验和</strong>，JBD2 替代 JBD</li>
+<li><strong>纳秒时间戳</strong>，扩展至 2446 年</li>
+<li><strong>元数据校验和</strong>（crc32c）</li>
+</ul>
+<hr>
+<h2 id="2-磁盘布局"><a href="#2-磁盘布局" class="headerlink" title="2. 磁盘布局"></a>2. 磁盘布局</h2><h3 id="2-1-整体结构"><a href="#2-1-整体结构" class="headerlink" title="2.1 整体结构"></a>2.1 整体结构</h3><p>Ext4 将分区划分为若干<strong>块组（Block Group）</strong>，每组大小默认 128 MiB（4K 块时 32768 块）。磁盘头部保留 1024 字节的 boot sector，其后是超级块，然后是块组描述符表，最后是各块组本身。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">+----------+----------+------------+----------+----------+- - -</span><br><span class="line">| Boot     | Super    | Group Desc | Group 0  | Group 1  |</span><br><span class="line">| Sector   | Block    | Table      | Data     | Data     |</span><br><span class="line">| (1024B)  | (1024B+) | (N blocks) | ...      | ...      |</span><br><span class="line">+----------+----------+------------+----------+----------+- - -</span><br><span class="line">  0         1024       2048         ...</span><br></pre></td></tr></table></figure>
+
+<p>每个块组内部布局（以 4K 块为例）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">+----------+----------+----------+----------+---------+</span><br><span class="line">| Block    | Inode    | Inode    | Data     | Data    |</span><br><span class="line">| Bitmap   | Bitmap   | Table    | Blocks   | Blocks  |</span><br><span class="line">| (1 blk)  | (1 blk)  | (N blks) | ...      | ...     |</span><br><span class="line">+----------+----------+----------+----------+---------+</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-超级块：struct-ext4-super-block"><a href="#2-2-超级块：struct-ext4-super-block" class="headerlink" title="2.2 超级块：struct ext4_super_block"></a>2.2 超级块：<code>struct ext4_super_block</code></h3><p>超级块存于偏移 1024 字节处，是整个文件系统的”身份证”。以下是内核中的完整磁盘结构定义（<code>fs/ext4/ext4.h</code>，第 1230 行）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ext4_super_block</span> &#123;</span></span><br><span class="line"><span class="comment">/*00*/</span>  __le32  s_inodes_count;         <span class="comment">/* Inodes count */</span></span><br><span class="line">        __le32  s_blocks_count_lo;      <span class="comment">/* Blocks count */</span></span><br><span class="line">        __le32  s_r_blocks_count_lo;    <span class="comment">/* Reserved blocks count */</span></span><br><span class="line">        __le32  s_free_blocks_count_lo; <span class="comment">/* Free blocks count */</span></span><br><span class="line"><span class="comment">/*10*/</span>  __le32  s_free_inodes_count;    <span class="comment">/* Free inodes count */</span></span><br><span class="line">        __le32  s_first_data_block;     <span class="comment">/* First Data Block */</span></span><br><span class="line">        __le32  s_log_block_size;       <span class="comment">/* Block size: 1024 &lt;&lt; s_log_block_size */</span></span><br><span class="line">        __le32  s_log_cluster_size;     <span class="comment">/* Allocation cluster size */</span></span><br><span class="line"><span class="comment">/*20*/</span>  __le32  s_blocks_per_group;     <span class="comment">/* # Blocks per group */</span></span><br><span class="line">        __le32  s_clusters_per_group;   <span class="comment">/* # Clusters per group */</span></span><br><span class="line">        __le32  s_inodes_per_group;     <span class="comment">/* # Inodes per group */</span></span><br><span class="line">        __le32  s_mtime;                <span class="comment">/* Mount time */</span></span><br><span class="line"><span class="comment">/*30*/</span>  __le32  s_wtime;                <span class="comment">/* Write time */</span></span><br><span class="line">        __le16  s_mnt_count;            <span class="comment">/* Mount count */</span></span><br><span class="line">        __le16  s_max_mnt_count;        <span class="comment">/* Maximal mount count */</span></span><br><span class="line">        __le16  s_magic;                <span class="comment">/* Magic signature: 0xEF53 */</span></span><br><span class="line">        __le16  s_state;                <span class="comment">/* File system state */</span></span><br><span class="line">        __le16  s_errors;               <span class="comment">/* Behaviour when detecting errors */</span></span><br><span class="line">        __le16  s_minor_rev_level;      <span class="comment">/* minor revision level */</span></span><br><span class="line"><span class="comment">/*40*/</span>  __le32  s_lastcheck;            <span class="comment">/* time of last check */</span></span><br><span class="line">        __le32  s_checkinterval;        <span class="comment">/* max. time between checks */</span></span><br><span class="line">        __le32  s_creator_os;           <span class="comment">/* OS */</span></span><br><span class="line">        __le32  s_rev_level;            <span class="comment">/* Revision level */</span></span><br><span class="line"><span class="comment">/*50*/</span>  __le16  s_def_resuid;           <span class="comment">/* Default uid for reserved blocks */</span></span><br><span class="line">        __le16  s_def_resgid;           <span class="comment">/* Default gid for reserved blocks */</span></span><br><span class="line">        <span class="comment">/* EXT4_DYNAMIC_REV superblocks only: */</span></span><br><span class="line">        __le32  s_first_ino;            <span class="comment">/* First non-reserved inode */</span></span><br><span class="line">        __le16  s_inode_size;           <span class="comment">/* size of inode structure */</span></span><br><span class="line">        __le16  s_block_group_nr;       <span class="comment">/* block group # of this superblock */</span></span><br><span class="line">        __le32  s_feature_compat;       <span class="comment">/* compatible feature set */</span></span><br><span class="line"><span class="comment">/*60*/</span>  __le32  s_feature_incompat;     <span class="comment">/* incompatible feature set */</span></span><br><span class="line">        __le32  s_feature_ro_compat;    <span class="comment">/* readonly-compatible feature set */</span></span><br><span class="line"><span class="comment">/*68*/</span>  __u8    s_uuid[<span class="number">16</span>];             <span class="comment">/* 128-bit uuid for volume */</span></span><br><span class="line"><span class="comment">/*78*/</span>  <span class="type">char</span>    s_volume_name[EXT4_LABEL_MAX]; <span class="comment">/* volume name */</span></span><br><span class="line"><span class="comment">/*88*/</span>  <span class="type">char</span>    s_last_mounted[<span class="number">64</span>];     <span class="comment">/* directory where last mounted */</span></span><br><span class="line"><span class="comment">/*D0*/</span>  __u8    s_journal_uuid[<span class="number">16</span>];     <span class="comment">/* uuid of journal superblock */</span></span><br><span class="line"><span class="comment">/*E0*/</span>  __le32  s_journal_inum;         <span class="comment">/* inode number of journal file */</span></span><br><span class="line">        __le32  s_journal_dev;          <span class="comment">/* device number of journal file */</span></span><br><span class="line">        __le32  s_last_orphan;          <span class="comment">/* start of list of inodes to delete */</span></span><br><span class="line">        __le32  s_hash_seed[<span class="number">4</span>];         <span class="comment">/* HTREE hash seed */</span></span><br><span class="line">        __u8    s_def_hash_version;     <span class="comment">/* Default hash version to use */</span></span><br><span class="line">        __le16  s_desc_size;            <span class="comment">/* size of group descriptor */</span></span><br><span class="line"><span class="comment">/*100*/</span> __le32  s_default_mount_opts;</span><br><span class="line">        __le32  s_first_meta_bg;        <span class="comment">/* First metablock block group */</span></span><br><span class="line">        __le32  s_mkfs_time;            <span class="comment">/* When the filesystem was created */</span></span><br><span class="line">        __le32  s_jnl_blocks[<span class="number">17</span>];       <span class="comment">/* Backup of the journal inode */</span></span><br><span class="line">        <span class="comment">/* 64bit support valid if EXT4_FEATURE_INCOMPAT_64BIT */</span></span><br><span class="line"><span class="comment">/*150*/</span> __le32  s_blocks_count_hi;      <span class="comment">/* Blocks count (high 32 bits) */</span></span><br><span class="line">        __le32  s_r_blocks_count_hi;    <span class="comment">/* Reserved blocks count */</span></span><br><span class="line">        __le32  s_free_blocks_count_hi; <span class="comment">/* Free blocks count */</span></span><br><span class="line">        __le16  s_min_extra_isize;      <span class="comment">/* All inodes have at least # bytes */</span></span><br><span class="line">        __le16  s_want_extra_isize;     <span class="comment">/* New inodes should reserve # bytes */</span></span><br><span class="line">        __le32  s_flags;                <span class="comment">/* Miscellaneous flags */</span></span><br><span class="line">        __le16  s_raid_stride;          <span class="comment">/* RAID stride */</span></span><br><span class="line">        __le16  s_mmp_update_interval;  <span class="comment">/* # seconds to wait in MMP checking */</span></span><br><span class="line">        __le64  s_mmp_block;            <span class="comment">/* Block for multi-mount protection */</span></span><br><span class="line">        __le32  s_raid_stripe_width;    <span class="comment">/* blocks on all data disks (N*stride)*/</span></span><br><span class="line">        __u8    s_log_groups_per_flex;  <span class="comment">/* FLEX_BG group size */</span></span><br><span class="line">        __u8    s_checksum_type;        <span class="comment">/* metadata checksum algorithm used */</span></span><br><span class="line">        __le64  s_kbytes_written;       <span class="comment">/* nr of lifetime kilobytes written */</span></span><br><span class="line">        __le32  s_error_count;          <span class="comment">/* number of fs errors */</span></span><br><span class="line">        __le32  s_first_error_time;     <span class="comment">/* first time an error happened */</span></span><br><span class="line">        __le32  s_first_error_ino;      <span class="comment">/* inode involved in first error */</span></span><br><span class="line">        __le64  s_first_error_block;    <span class="comment">/* block involved of first error */</span></span><br><span class="line">        __u8    s_first_error_func[<span class="number">32</span>]; <span class="comment">/* function where the error happened */</span></span><br><span class="line">        __le32  s_first_error_line;     <span class="comment">/* line number where error happened */</span></span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">        __le32  s_checksum_seed;        <span class="comment">/* crc32c(uuid) if csum_seed set */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>几个关键字段解析：</p>
+<ul>
+<li>**<code>s_magic</code>**：魔数 <code>0xEF53</code>，内核挂载时首先校验此值。</li>
+<li>**<code>s_log_block_size</code>**：实际块大小 &#x3D; <code>1024 &lt;&lt; s_log_block_size</code>，合法值 0&#x2F;1&#x2F;2&#x2F;3 对应 1K&#x2F;2K&#x2F;4K&#x2F;8K。</li>
+<li><strong><code>s_feature_compat/incompat/ro_compat</code><strong>：三级特性位。<code>incompat</code> 中存在内核不认识的位时，</strong>必须拒绝挂载</strong>；<code>ro_compat</code> 中有未知位时只能只读挂载；<code>compat</code> 中有未知位可以正常挂载（向后兼容）。</li>
+<li>**<code>s_journal_inum</code>**：日志文件对应的 inode 号，通常为 inode 8。</li>
+<li>**<code>s_last_orphan</code>**：崩溃前未完成删除的 inode 链表头，挂载时由 <code>ext4_orphan_cleanup()</code> 处理。</li>
+<li>**<code>s_error_*</code>**：内核会将首次和最近一次错误的函数名、行号、涉及的块&#x2F;inode 持久化到超级块，<code>tune2fs -l</code> 可以查看。</li>
+</ul>
+<h3 id="2-3-块组描述符：struct-ext4-group-desc"><a href="#2-3-块组描述符：struct-ext4-group-desc" class="headerlink" title="2.3 块组描述符：struct ext4_group_desc"></a>2.3 块组描述符：<code>struct ext4_group_desc</code></h3><p>每个块组的元数据地址由块组描述符表记录，定义于 <code>fs/ext4/ext4.h</code>，第 338 行：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ext4_group_desc</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    __le32  bg_block_bitmap_lo;      <span class="comment">/* Blocks bitmap block */</span></span><br><span class="line">    __le32  bg_inode_bitmap_lo;      <span class="comment">/* Inodes bitmap block */</span></span><br><span class="line">    __le32  bg_inode_table_lo;       <span class="comment">/* Inodes table block */</span></span><br><span class="line">    __le16  bg_free_blocks_count_lo; <span class="comment">/* Free blocks count */</span></span><br><span class="line">    __le16  bg_free_inodes_count_lo; <span class="comment">/* Free inodes count */</span></span><br><span class="line">    __le16  bg_used_dirs_count_lo;   <span class="comment">/* Directories count */</span></span><br><span class="line">    __le16  bg_flags;                <span class="comment">/* EXT4_BG_flags (INODE_UNINIT, etc) */</span></span><br><span class="line">    __le32  bg_exclude_bitmap_lo;    <span class="comment">/* Exclude bitmap for snapshots */</span></span><br><span class="line">    __le16  bg_block_bitmap_csum_lo; <span class="comment">/* crc32c(s_uuid+grp_num+bbitmap) LE */</span></span><br><span class="line">    __le16  bg_inode_bitmap_csum_lo; <span class="comment">/* crc32c(s_uuid+grp_num+ibitmap) LE */</span></span><br><span class="line">    __le16  bg_itable_unused_lo;     <span class="comment">/* Unused inodes count */</span></span><br><span class="line">    __le16  bg_checksum;             <span class="comment">/* crc16(sb_uuid+group+desc) */</span></span><br><span class="line">    <span class="comment">/* 以下字段仅在启用 64BIT 特性时存在 */</span></span><br><span class="line">    __le32  bg_block_bitmap_hi;      <span class="comment">/* Blocks bitmap block MSB */</span></span><br><span class="line">    __le32  bg_inode_bitmap_hi;      <span class="comment">/* Inodes bitmap block MSB */</span></span><br><span class="line">    __le32  bg_inode_table_hi;       <span class="comment">/* Inodes table block MSB */</span></span><br><span class="line">    __le16  bg_free_blocks_count_hi; <span class="comment">/* Free blocks count MSB */</span></span><br><span class="line">    __le16  bg_free_inodes_count_hi; <span class="comment">/* Free inodes count MSB */</span></span><br><span class="line">    __le16  bg_used_dirs_count_hi;   <span class="comment">/* Directories count MSB */</span></span><br><span class="line">    __le16  bg_itable_unused_hi;     <span class="comment">/* Unused inodes count MSB */</span></span><br><span class="line">    __le32  bg_exclude_bitmap_hi;    <span class="comment">/* Exclude bitmap block MSB */</span></span><br><span class="line">    __le16  bg_block_bitmap_csum_hi; <span class="comment">/* crc32c(s_uuid+grp_num+bbitmap) BE */</span></span><br><span class="line">    __le16  bg_inode_bitmap_csum_hi; <span class="comment">/* crc32c(s_uuid+grp_num+ibitmap) BE */</span></span><br><span class="line">    __u32   bg_reserved;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>bg_flags</code> 字段中有几个重要标志位：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_BG_INODE_UNINIT  0x0001  <span class="comment">/* Inode 表/位图未初始化（新建组优化）*/</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_BG_BLOCK_UNINIT  0x0002  <span class="comment">/* 块位图未初始化 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_BG_INODE_ZEROED  0x0004  <span class="comment">/* 磁盘上的 inode 表已初始化为零 */</span></span></span><br></pre></td></tr></table></figure>
+
+<p><code>INODE_UNINIT</code> 和 <code>BLOCK_UNINIT</code> 是 Ext4 的延迟初始化（lazy init）特性：<code>mke2fs</code> 只初始化第一个块组，其余块组在内核后台线程中异步初始化，大容量磁盘格式化因此能在秒级完成。</p>
+<h3 id="2-4-inode-结构：struct-ext4-inode"><a href="#2-4-inode-结构：struct-ext4-inode" class="headerlink" title="2.4 inode 结构：struct ext4_inode"></a>2.4 inode 结构：<code>struct ext4_inode</code></h3><p>inode 是文件系统的核心抽象，存储文件的元数据和数据块地址。Ext4 的磁盘 inode 定义于 <code>fs/ext4/ext4.h</code>，第 714 行：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ext4_inode</span> &#123;</span></span><br><span class="line">    __le16  i_mode;         <span class="comment">/* File mode: 类型+权限位 */</span></span><br><span class="line">    __le16  i_uid;          <span class="comment">/* Low 16 bits of Owner Uid */</span></span><br><span class="line">    __le32  i_size_lo;      <span class="comment">/* Size in bytes (低32位) */</span></span><br><span class="line">    __le32  i_atime;        <span class="comment">/* Access time */</span></span><br><span class="line">    __le32  i_ctime;        <span class="comment">/* Inode Change time */</span></span><br><span class="line">    __le32  i_mtime;        <span class="comment">/* Modification time */</span></span><br><span class="line">    __le32  i_dtime;        <span class="comment">/* Deletion Time */</span></span><br><span class="line">    __le16  i_gid;          <span class="comment">/* Low 16 bits of Group Id */</span></span><br><span class="line">    __le16  i_links_count;  <span class="comment">/* Links count */</span></span><br><span class="line">    __le32  i_blocks_lo;    <span class="comment">/* Blocks count (以512字节扇区为单位) */</span></span><br><span class="line">    __le32  i_flags;        <span class="comment">/* File flags: EXTENTS_FL, INLINE_DATA_FL 等 */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span> __le32 l_i_version; &#125; linux1;</span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">    &#125; osd1;</span><br><span class="line">    __le32  i_block[EXT4_N_BLOCKS]; <span class="comment">/* 数据块指针区域，共60字节 */</span></span><br><span class="line">    __le32  i_generation;   <span class="comment">/* File version (for NFS) */</span></span><br><span class="line">    __le32  i_file_acl_lo;  <span class="comment">/* File ACL */</span></span><br><span class="line">    __le32  i_size_high;    <span class="comment">/* Size in bytes (高32位) */</span></span><br><span class="line">    __le32  i_obso_faddr;   <span class="comment">/* Obsoleted fragment address */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">            __le16  l_i_blocks_high;</span><br><span class="line">            __le16  l_i_file_acl_high;</span><br><span class="line">            __le16  l_i_uid_high;</span><br><span class="line">            __le16  l_i_gid_high;</span><br><span class="line">            __le16  l_i_checksum_lo; <span class="comment">/* crc32c(uuid+inum+inode) LE */</span></span><br><span class="line">            __le16  l_i_reserved;</span><br><span class="line">        &#125; linux2;</span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">    &#125; osd2;</span><br><span class="line">    __le16  i_extra_isize;       <span class="comment">/* 扩展区域大小，用于存额外字段 */</span></span><br><span class="line">    __le16  i_checksum_hi;       <span class="comment">/* crc32c(uuid+inum+inode) BE */</span></span><br><span class="line">    __le32  i_ctime_extra;       <span class="comment">/* 纳秒+epoch扩展 ctime */</span></span><br><span class="line">    __le32  i_mtime_extra;       <span class="comment">/* 纳秒+epoch扩展 mtime */</span></span><br><span class="line">    __le32  i_atime_extra;       <span class="comment">/* 纳秒+epoch扩展 atime */</span></span><br><span class="line">    __le32  i_crtime;            <span class="comment">/* File Creation time */</span></span><br><span class="line">    __le32  i_crtime_extra;      <span class="comment">/* 纳秒+epoch扩展 crtime */</span></span><br><span class="line">    __le32  i_version_hi;        <span class="comment">/* 64位版本号高32位 */</span></span><br><span class="line">    __le32  i_projid;            <span class="comment">/* Project ID */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>关键设计点：</p>
+<ol>
+<li><p><strong><code>i_block[EXT4_N_BLOCKS]</code><strong>：共 15 个 <code>__le32</code>，占 60 字节。对于传统间接块映射（Ext2&#x2F;3 遗留），前 12 个是直接块指针，第 13&#x2F;14&#x2F;15 个分别是一级&#x2F;二级&#x2F;三级间接块指针。</strong>对于启用 Extent 树的 Ext4 文件（<code>EXT4_EXTENTS_FL</code>），这 60 字节改为存储 extent 头和 extent 叶子节点</strong>，完全不同的语义。</p>
+</li>
+<li><p><strong>纳秒时间戳</strong>：<code>i_ctime</code> 等字段存 Unix 秒数（32位），<code>i_ctime_extra</code> 用 <code>nsec &lt;&lt; 2 | epoch</code> 编码：低2位为 epoch 扩展位，可将时间范围延伸至 2446 年；高30位为纳秒。</p>
+</li>
+<li><p>**<code>i_extra_isize</code>**：Ext4 支持大 inode（256字节起），<code>i_extra_isize</code> 记录 <code>EXT4_GOOD_OLD_INODE_SIZE</code>（128字节）之后额外使用的字节数，存放扩展字段（crtime、版本号、校验和等）。</p>
+</li>
+</ol>
+<hr>
+<h2 id="3-Extent-树机制"><a href="#3-Extent-树机制" class="headerlink" title="3. Extent 树机制"></a>3. Extent 树机制</h2><p>Ext4 最重要的性能改进之一是用 <strong>B+ 树形式的 Extent 树</strong>替代了 Ext2&#x2F;3 的多级间接块指针。</p>
+<h3 id="3-1-核心数据结构"><a href="#3-1-核心数据结构" class="headerlink" title="3.1 核心数据结构"></a>3.1 核心数据结构</h3><p>定义于 <code>fs/ext4/ext4_extents.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * This is the extent on-disk structure.</span></span><br><span class="line"><span class="comment"> * It&#x27;s used at the bottom of the tree (leaf nodes).</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ext4_extent</span> &#123;</span></span><br><span class="line">    __le32  ee_block;       <span class="comment">/* first logical block extent covers */</span></span><br><span class="line">    __le16  ee_len;         <span class="comment">/* number of blocks covered by extent */</span></span><br><span class="line">    __le16  ee_start_hi;    <span class="comment">/* high 16 bits of physical block */</span></span><br><span class="line">    __le32  ee_start_lo;    <span class="comment">/* low 32 bits of physical block */</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * This is index on-disk structure.</span></span><br><span class="line"><span class="comment"> * It&#x27;s used at all the levels except the bottom (internal nodes).</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ext4_extent_idx</span> &#123;</span></span><br><span class="line">    __le32  ei_block;       <span class="comment">/* index covers logical blocks from &#x27;block&#x27; */</span></span><br><span class="line">    __le32  ei_leaf_lo;     <span class="comment">/* pointer to the physical block of the next</span></span><br><span class="line"><span class="comment">                             * level. leaf or next index could be there */</span></span><br><span class="line">    __le16  ei_leaf_hi;     <span class="comment">/* high 16 bits of physical block */</span></span><br><span class="line">    __u16   ei_unused;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Each block (leaves and indexes), even inode-stored has header.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ext4_extent_header</span> &#123;</span></span><br><span class="line">    __le16  eh_magic;       <span class="comment">/* probably will support different formats */</span></span><br><span class="line">    __le16  eh_entries;     <span class="comment">/* number of valid entries */</span></span><br><span class="line">    __le16  eh_max;         <span class="comment">/* capacity of store in entries */</span></span><br><span class="line">    __le16  eh_depth;       <span class="comment">/* has tree real underlying blocks?</span></span><br><span class="line"><span class="comment">                             * depth == 0 means the tree is a leaf */</span></span><br><span class="line">    __le32  eh_generation;  <span class="comment">/* generation of the tree */</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_EXT_MAGIC  cpu_to_le16(0xf30a)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_MAX_EXTENT_DEPTH 5</span></span><br></pre></td></tr></table></figure>
+
+<p><strong><code>ext4_extent</code>（叶子节点）</strong> 是一个”运行”（run）描述符：从逻辑块 <code>ee_block</code> 开始的 <code>ee_len</code> 个连续块，映射到物理块 <code>(ee_start_hi &lt;&lt; 32) | ee_start_lo</code>。注意 <code>ee_len</code> 的最高位（MSB）有特殊含义：</p>
+<ul>
+<li><code>ee_len &lt;= 0x8000</code>：已初始化的 extent</li>
+<li><code>ee_len &gt; 0x8000</code>：未写（unwritten&#x2F;preallocated）extent，实际长度为 <code>ee_len &amp; 0x7FFF</code></li>
+</ul>
+<p>最大初始化 extent 覆盖 32768 块（<code>EXT_INIT_MAX_LEN = 0x8000</code>），即 4K 块时 128 MiB。</p>
+<p><strong><code>ext4_extent_idx</code>（内部节点）</strong> 存储索引，<code>ei_block</code> 是该子树覆盖的起始逻辑块，<code>ei_leaf_lo/hi</code> 指向子节点所在物理块。</p>
+<p><strong>树的根</strong>始终存在 inode 的 <code>i_block[0..14]</code>（60字节）中：前 12 字节是 <code>ext4_extent_header</code>，后 48 字节最多放 3 个 <code>ext4_extent</code>（叶子）或 <code>ext4_extent_idx</code>（内部节点）。</p>
+<p>路径查找使用辅助结构 <code>ext4_ext_path</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ext4_ext_path</span> &#123;</span></span><br><span class="line">    <span class="type">ext4_fsblk_t</span>             p_block;    <span class="comment">/* physical block of this level */</span></span><br><span class="line">    __u16                    p_depth;    <span class="comment">/* depth of this level */</span></span><br><span class="line">    __u16                    p_maxdepth;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ext4_extent</span>      *<span class="title">p_ext</span>;</span>      <span class="comment">/* pointer to extent (leaf) */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ext4_extent_idx</span>  *<span class="title">p_idx</span>;</span>      <span class="comment">/* pointer to index (internal) */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ext4_extent_header</span> *<span class="title">p_hdr</span>;</span>   <span class="comment">/* header of this block */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">buffer_head</span>       *<span class="title">p_bh</span>;</span>     <span class="comment">/* buffer head for this block */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-ext4-find-extent：树遍历实现"><a href="#3-2-ext4-find-extent：树遍历实现" class="headerlink" title="3.2 ext4_find_extent：树遍历实现"></a>3.2 <code>ext4_find_extent</code>：树遍历实现</h3><p>核心查找函数 <code>ext4_find_extent()</code>（<code>fs/ext4/extents.c</code>，第 883 行）从根向叶子走一遍 B+ 树，每层调用二分搜索：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> ext4_ext_path *</span><br><span class="line"><span class="title function_">ext4_find_extent</span><span class="params">(<span class="keyword">struct</span> inode *inode, <span class="type">ext4_lblk_t</span> block,</span></span><br><span class="line"><span class="params">                 <span class="keyword">struct</span> ext4_ext_path **orig_path, <span class="type">int</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ext4_extent_header</span> *<span class="title">eh</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">buffer_head</span> *<span class="title">bh</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ext4_ext_path</span> *<span class="title">path</span> =</span> orig_path ? *orig_path : <span class="literal">NULL</span>;</span><br><span class="line">    <span class="type">short</span> <span class="type">int</span> depth, i, ppos = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> ret;</span><br><span class="line">    <span class="type">gfp_t</span> gfp_flags = GFP_NOFS;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (flags &amp; EXT4_EX_NOFAIL)</span><br><span class="line">        gfp_flags |= __GFP_NOFAIL;</span><br><span class="line"></span><br><span class="line">    eh = ext_inode_hdr(inode);       <span class="comment">/* 从 inode.i_block 取树根 header */</span></span><br><span class="line">    depth = ext_depth(inode);        <span class="comment">/* 当前树深度 */</span></span><br><span class="line">    <span class="keyword">if</span> (depth &lt; <span class="number">0</span> || depth &gt; EXT4_MAX_EXTENT_DEPTH) &#123;</span><br><span class="line">        EXT4_ERROR_INODE(inode, <span class="string">&quot;inode has invalid extent depth: %d&quot;</span>, depth);</span><br><span class="line">        ret = -EFSCORRUPTED;</span><br><span class="line">        <span class="keyword">goto</span> err;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!path) &#123;</span><br><span class="line">        <span class="comment">/* account possible depth increase */</span></span><br><span class="line">        path = kcalloc(depth + <span class="number">2</span>, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> ext4_ext_path), gfp_flags);</span><br><span class="line">        <span class="keyword">if</span> (unlikely(!path))</span><br><span class="line">            <span class="keyword">return</span> ERR_PTR(-ENOMEM);</span><br><span class="line">        path[<span class="number">0</span>].p_maxdepth = depth + <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    path[<span class="number">0</span>].p_hdr = eh;</span><br><span class="line">    path[<span class="number">0</span>].p_bh = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    i = depth;</span><br><span class="line">    <span class="comment">/* 对深度为0的树（全在inode内）可以直接缓存 extent */</span></span><br><span class="line">    <span class="keyword">if</span> (!(flags &amp; EXT4_EX_NOCACHE) &amp;&amp; depth == <span class="number">0</span>)</span><br><span class="line">        ext4_cache_extents(inode, eh);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 从根向叶子遍历内部节点 */</span></span><br><span class="line">    <span class="keyword">while</span> (i) &#123;</span><br><span class="line">        <span class="comment">/* 在当前层的 idx 数组中二分查找 */</span></span><br><span class="line">        ext4_ext_binsearch_idx(inode, path + ppos, block);</span><br><span class="line">        path[ppos].p_block = ext4_idx_pblock(path[ppos].p_idx);</span><br><span class="line">        path[ppos].p_depth = i;</span><br><span class="line">        path[ppos].p_ext = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* 读取子节点对应的磁盘块 */</span></span><br><span class="line">        bh = read_extent_tree_block(inode, path[ppos].p_idx, --i, flags);</span><br><span class="line">        <span class="keyword">if</span> (IS_ERR(bh)) &#123;</span><br><span class="line">            ret = PTR_ERR(bh);</span><br><span class="line">            <span class="keyword">goto</span> err;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        eh = ext_block_hdr(bh);</span><br><span class="line">        ppos++;</span><br><span class="line">        path[ppos].p_bh = bh;</span><br><span class="line">        path[ppos].p_hdr = eh;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    path[ppos].p_depth = i;</span><br><span class="line">    path[ppos].p_ext = <span class="literal">NULL</span>;</span><br><span class="line">    path[ppos].p_idx = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 在叶子节点做二分搜索找到对应 extent */</span></span><br><span class="line">    ext4_ext_binsearch(inode, path + ppos, block);</span><br><span class="line">    <span class="keyword">if</span> (path[ppos].p_ext)</span><br><span class="line">        path[ppos].p_block = ext4_ext_pblock(path[ppos].p_ext);</span><br><span class="line"></span><br><span class="line">    ext4_ext_show_path(inode, path);</span><br><span class="line">    <span class="keyword">return</span> path;</span><br><span class="line"></span><br><span class="line">err:</span><br><span class="line">    ext4_free_ext_path(path);</span><br><span class="line">    <span class="keyword">if</span> (orig_path) *orig_path = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">return</span> ERR_PTR(ret);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-叶子层二分搜索：ext4-ext-binsearch"><a href="#3-3-叶子层二分搜索：ext4-ext-binsearch" class="headerlink" title="3.3 叶子层二分搜索：ext4_ext_binsearch"></a>3.3 叶子层二分搜索：<code>ext4_ext_binsearch</code></h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span></span><br><span class="line"><span class="title function_">ext4_ext_binsearch</span><span class="params">(<span class="keyword">struct</span> inode *inode,</span></span><br><span class="line"><span class="params">        <span class="keyword">struct</span> ext4_ext_path *path, <span class="type">ext4_lblk_t</span> block)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ext4_extent_header</span> *<span class="title">eh</span> =</span> path-&gt;p_hdr;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ext4_extent</span> *<span class="title">r</span>, *<span class="title">l</span>, *<span class="title">m</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (eh-&gt;eh_entries == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">/* 空叶子：在 split/add 路径中会遇到 */</span></span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    l = EXT_FIRST_EXTENT(eh) + <span class="number">1</span>;   <span class="comment">/* 从第二个 extent 开始搜 */</span></span><br><span class="line">    r = EXT_LAST_EXTENT(eh);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (l &lt;= r) &#123;</span><br><span class="line">        m = l + (r - l) / <span class="number">2</span>;</span><br><span class="line">        <span class="keyword">if</span> (block &lt; le32_to_cpu(m-&gt;ee_block))</span><br><span class="line">            r = m - <span class="number">1</span>;</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">            l = m + <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* path-&gt;p_ext 指向不大于 block 的最后一个 extent */</span></span><br><span class="line">    path-&gt;p_ext = l - <span class="number">1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>函数返回后，<code>path-&gt;p_ext</code> 指向起始逻辑块不超过目标 <code>block</code> 的那个 extent。调用者还需检查 <code>block &lt; ee_block + ee_len</code> 来确认 block 确实落在该 extent 范围内，否则说明是个”洞”（hole）。</p>
+<hr>
+<h2 id="4-块组管理"><a href="#4-块组管理" class="headerlink" title="4. 块组管理"></a>4. 块组管理</h2><h3 id="4-1-块分配器：mballoc"><a href="#4-1-块分配器：mballoc" class="headerlink" title="4.1 块分配器：mballoc"></a>4.1 块分配器：mballoc</h3><p>Ext4 使用<strong>多块分配器</strong>（<code>mballoc</code>，<code>fs/ext4/mballoc.c</code>）一次申请多个连续块，减少碎片。分配请求用 <code>struct ext4_allocation_request</code> 描述：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">ext4_allocation_request</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span>;</span>        <span class="comment">/* 目标 inode */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> len;           <span class="comment">/* 希望分配的块数 */</span></span><br><span class="line">    <span class="type">ext4_lblk_t</span> logical;        <span class="comment">/* 目标逻辑块号 */</span></span><br><span class="line">    <span class="type">ext4_lblk_t</span> lleft;          <span class="comment">/* 最近已分配的左侧逻辑块 */</span></span><br><span class="line">    <span class="type">ext4_lblk_t</span> lright;         <span class="comment">/* 最近已分配的右侧逻辑块 */</span></span><br><span class="line">    <span class="type">ext4_fsblk_t</span> goal;          <span class="comment">/* 物理块 hint（优先尝试目标） */</span></span><br><span class="line">    <span class="type">ext4_fsblk_t</span> pleft;         <span class="comment">/* 左侧逻辑块对应的物理块 */</span></span><br><span class="line">    <span class="type">ext4_fsblk_t</span> pright;        <span class="comment">/* 右侧逻辑块对应的物理块 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> flags;         <span class="comment">/* EXT4_MB_HINT_* 标志 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>flags</code> 字段的核心标志：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_MB_HINT_MERGE       0x0001  <span class="comment">/* 优先尝试合并到相邻 extent */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_MB_HINT_METADATA    0x0004  <span class="comment">/* 分配元数据块 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_MB_HINT_DATA        0x0020  <span class="comment">/* 分配数据块 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_MB_HINT_NOPREALLOC  0x0040  <span class="comment">/* 不预分配 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_MB_DELALLOC_RESERVED 0x0400 <span class="comment">/* 延迟分配预留块 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> EXT4_MB_STREAM_ALLOC     0x0800  <span class="comment">/* 流式分配（顺序写优化）*/</span></span></span><br></pre></td></tr></table></figure>
+
+<p>mballoc 的核心策略是”伙伴系统”（buddy system）：每个块组维护一个伙伴位图，记录不同大小的空闲连续块位置。分配时按 <code>cr</code>（criteria，标准）从 0 到 3 逐步放宽条件：</p>
+<ul>
+<li><strong>cr&#x3D;0</strong>：只分配大碎片（≥ 请求大小），延迟分配优先路径</li>
+<li><strong>cr&#x3D;1</strong>：平均碎片大小匹配，红黑树查找</li>
+<li><strong>cr&#x3D;2</strong>：顺序扫描块组</li>
+<li><strong>cr&#x3D;3</strong>：任意可用块</li>
+</ul>
+<h3 id="4-2-灵活块组（Flex-BG）"><a href="#4-2-灵活块组（Flex-BG）" class="headerlink" title="4.2 灵活块组（Flex_BG）"></a>4.2 灵活块组（Flex_BG）</h3><p>当 <code>flex_bg</code> 特性启用时，相邻的若干块组（默认 16 个）合并为一个”超级块组”（flex group）。超级块组内的块位图和 inode 位图集中存放在第一个块组，数据块则紧随其后连续分布，大幅减少了寻道次数。</p>
+<hr>
+<h2 id="5-JBD2-日志机制与崩溃一致性"><a href="#5-JBD2-日志机制与崩溃一致性" class="headerlink" title="5. JBD2 日志机制与崩溃一致性"></a>5. JBD2 日志机制与崩溃一致性</h2><h3 id="5-1-JBD2-架构"><a href="#5-1-JBD2-架构" class="headerlink" title="5.1 JBD2 架构"></a>5.1 JBD2 架构</h3><p>Ext4 使用 <strong>JBD2</strong>（Journaling Block Device 2）提供日志能力，JBD2 是独立内核子系统，也可被其他文件系统（如 OCFS2）使用。核心实体：</p>
+<p><strong><code>journal_t</code>（<code>include/linux/jbd2.h</code>，第 770 行）</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">journal_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>       j_flags;         <span class="comment">/* General journaling state flags */</span></span><br><span class="line">    <span class="type">int</span>                 j_errno;         <span class="comment">/* Outstanding error on journal */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mutex</span>        <span class="title">j_abort_mutex</span>;</span>   <span class="comment">/* Lock for aborting procedure */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">buffer_head</span>  *<span class="title">j_sb_buffer</span>;</span>    <span class="comment">/* Superblock buffer */</span></span><br><span class="line">    <span class="type">journal_superblock_t</span> *j_superblock;  <span class="comment">/* Superblock structure */</span></span><br><span class="line">    <span class="type">rwlock_t</span>            j_state_lock;    <span class="comment">/* Protect scalar fields */</span></span><br><span class="line">    <span class="type">int</span>                 j_barrier_count; <span class="comment">/* Processes waiting for barrier lock */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mutex</span>        <span class="title">j_barrier</span>;</span>       <span class="comment">/* The barrier lock itself */</span></span><br><span class="line">    <span class="type">transaction_t</span>       *j_running_transaction;    <span class="comment">/* Current running transaction */</span></span><br><span class="line">    <span class="type">transaction_t</span>       *j_committing_transaction; <span class="comment">/* Being committed */</span></span><br><span class="line">    <span class="type">transaction_t</span>       *j_checkpoint_transactions;<span class="comment">/* Checkpointed transactions */</span></span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>       j_commit_interval;  <span class="comment">/* commit interval in jiffies */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span>  *<span class="title">j_task</span>;</span>            <span class="comment">/* kjournald2 thread */</span></span><br><span class="line">    <span class="type">int</span>                 j_max_transaction_buffers; <span class="comment">/* max buffers per transaction */</span></span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>transaction_t</code>（<code>include/linux/jbd2.h</code>，第 560 行）</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">transaction_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="type">journal_t</span>           *t_journal;         <span class="comment">/* 所属日志 */</span></span><br><span class="line">    <span class="type">tid_t</span>               t_tid;              <span class="comment">/* 事务序号 */</span></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">        T_RUNNING,          <span class="comment">/* 正在接收修改 */</span></span><br><span class="line">        T_LOCKED,           <span class="comment">/* 准备提交，不再接收 */</span></span><br><span class="line">        T_SWITCH,           <span class="comment">/* 切换到新事务 */</span></span><br><span class="line">        T_FLUSH,            <span class="comment">/* 刷新数据 */</span></span><br><span class="line">        T_COMMIT,           <span class="comment">/* 提交阶段 */</span></span><br><span class="line">        T_COMMIT_DFLUSH,    <span class="comment">/* 提交数据刷盘 */</span></span><br><span class="line">        T_COMMIT_JFLUSH,    <span class="comment">/* 提交日志刷盘 */</span></span><br><span class="line">        T_COMMIT_CALLBACK,  <span class="comment">/* 执行提交后回调 */</span></span><br><span class="line">        T_FINISHED          <span class="comment">/* 已完成 */</span></span><br><span class="line">    &#125;                   t_state;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>       t_log_start;        <span class="comment">/* 事务在日志中的起始位置 */</span></span><br><span class="line">    <span class="type">int</span>                 t_nr_buffers;       <span class="comment">/* t_buffers 链表中的 buffer 数 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">journal_head</span> *<span class="title">t_reserved_list</span>;</span>   <span class="comment">/* 已预留但未修改的 buffer */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">journal_head</span> *<span class="title">t_buffers</span>;</span>         <span class="comment">/* 已修改的元数据 buffer */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">journal_head</span> *<span class="title">t_forget</span>;</span>          <span class="comment">/* 可在 checkpoint 后释放的 buffer */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">journal_head</span> *<span class="title">t_checkpoint_list</span>;</span> <span class="comment">/* 等待 checkpoint 的 buffer */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">journal_head</span> *<span class="title">t_shadow_list</span>;</span>     <span class="comment">/* IO 过程中的 shadow buffer */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>    <span class="title">t_inode_list</span>;</span>       <span class="comment">/* 关联 inode 列表 */</span></span><br><span class="line">    <span class="type">spinlock_t</span>          t_handle_lock;      <span class="comment">/* 保护 handle 相关信息 */</span></span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-事务生命周期"><a href="#5-2-事务生命周期" class="headerlink" title="5.2 事务生命周期"></a>5.2 事务生命周期</h3><p>JBD2 事务遵循严格的状态机，一次完整的写操作流程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">应用程序写入</span><br><span class="line">     │</span><br><span class="line">     ▼</span><br><span class="line">ext4_journal_start()   ──→  获取 handle_t，绑定到 running transaction</span><br><span class="line">     │</span><br><span class="line">     ▼</span><br><span class="line">jbd2_journal_get_write_access(handle, bh)</span><br><span class="line">     │                    将 buffer 的原始内容（或修改后）拷贝到日志 shadow</span><br><span class="line">     ▼</span><br><span class="line">修改 buffer_head 内容</span><br><span class="line">     │</span><br><span class="line">     ▼</span><br><span class="line">jbd2_journal_dirty_metadata(handle, bh)</span><br><span class="line">     │                    标记 buffer 为&quot;脏元数据&quot;，加入 t_buffers 链表</span><br><span class="line">     ▼</span><br><span class="line">jbd2_journal_stop(handle)</span><br><span class="line">     │                    减少 handle 引用计数，若为0则可触发事务提交</span><br><span class="line">     ▼</span><br><span class="line">kjournald2 线程</span><br><span class="line">     │</span><br><span class="line">     ├── 写 Journal Descriptor Block（描述本次事务涉及的所有块）</span><br><span class="line">     ├── 写 Journal Data（所有脏的元数据块内容）</span><br><span class="line">     ├── 写 Journal Commit Block（表示事务完整写入日志）</span><br><span class="line">     │</span><br><span class="line">     ▼</span><br><span class="line">  checkpoint（异步）</span><br><span class="line">     │</span><br><span class="line">     └── 将日志中的块真正写回文件系统原始位置，释放日志空间</span><br></pre></td></tr></table></figure>
+
+<p><code>jbd2_journal_start()</code> 函数定义于 <code>fs/jbd2/transaction.c</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">handle_t</span> *<span class="title function_">jbd2_journal_start</span><span class="params">(<span class="type">journal_t</span> *journal, <span class="type">int</span> nblocks)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> jbd2__journal_start(journal, nblocks, <span class="number">0</span>, <span class="number">0</span>, GFP_NOFS, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>参数 <code>nblocks</code> 是本次操作预期修改的日志块数量上限，JBD2 会为此在日志中预留空间。</p>
+<h3 id="5-3-三种数据模式的实现"><a href="#5-3-三种数据模式的实现" class="headerlink" title="5.3 三种数据模式的实现"></a>5.3 三种数据模式的实现</h3><p>在 <code>data=ordered</code>（默认）模式下，<code>fs/ext4/ext4_jbd2.h</code> 中的宏 <code>EXT4_ORDERED_DATA_MODE</code> 控制以下逻辑：提交事务的元数据之前，必须确保文件的<strong>数据页</strong>先于元数据落盘——这通过将 inode 加入 <code>t_inode_list</code> 并在提交时强制 <code>writeback</code> 实现，防止日志重放后看到指向未初始化块的元数据。</p>
+<hr>
+<h2 id="6-读写实现：从-VFS-到磁盘"><a href="#6-读写实现：从-VFS-到磁盘" class="headerlink" title="6. 读写实现：从 VFS 到磁盘"></a>6. 读写实现：从 VFS 到磁盘</h2><h3 id="6-1-读路径：ext4-file-read-iter"><a href="#6-1-读路径：ext4-file-read-iter" class="headerlink" title="6.1 读路径：ext4_file_read_iter"></a>6.1 读路径：<code>ext4_file_read_iter</code></h3><p>定义于 <code>fs/ext4/file.c</code>，第 130 行：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">ssize_t</span> <span class="title function_">ext4_file_read_iter</span><span class="params">(<span class="keyword">struct</span> kiocb *iocb, <span class="keyword">struct</span> iov_iter *to)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span> =</span> file_inode(iocb-&gt;ki_filp);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 若文件系统已强制关闭（forced shutdown），直接返回 EIO */</span></span><br><span class="line">    <span class="keyword">if</span> (unlikely(ext4_forced_shutdown(EXT4_SB(inode-&gt;i_sb))))</span><br><span class="line">        <span class="keyword">return</span> -EIO;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 零长度读无需更新 atime */</span></span><br><span class="line">    <span class="keyword">if</span> (!iov_iter_count(to))</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_FS_DAX</span></span><br><span class="line">    <span class="comment">/* 若是 DAX（直接访问 PMEM）模式，走 DAX 路径 */</span></span><br><span class="line">    <span class="keyword">if</span> (IS_DAX(inode))</span><br><span class="line">        <span class="keyword">return</span> ext4_dax_read_iter(iocb, to);</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    <span class="comment">/* Direct I/O：绕过 page cache */</span></span><br><span class="line">    <span class="keyword">if</span> (iocb-&gt;ki_flags &amp; IOCB_DIRECT)</span><br><span class="line">        <span class="keyword">return</span> ext4_dio_read_iter(iocb, to);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 默认：buffered I/O，经由 page cache */</span></span><br><span class="line">    <span class="keyword">return</span> generic_file_read_iter(iocb, to);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>generic_file_read_iter</code> 在 VFS 层实现，最终通过 <code>mapping-&gt;a_ops-&gt;read_folio()</code> 触发 Ext4 的 <code>ext4_read_folio()</code>，后者通过 <code>ext4_map_blocks()</code> 将逻辑块号翻译为物理块号，再提交 bio 到块层。</p>
+<h3 id="6-2-写路径：ext4-file-write-iter"><a href="#6-2-写路径：ext4-file-write-iter" class="headerlink" title="6.2 写路径：ext4_file_write_iter"></a>6.2 写路径：<code>ext4_file_write_iter</code></h3><p>定义于 <code>fs/ext4/file.c</code>，第 696 行：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">ssize_t</span></span><br><span class="line"><span class="title function_">ext4_file_write_iter</span><span class="params">(<span class="keyword">struct</span> kiocb *iocb, <span class="keyword">struct</span> iov_iter *from)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span> =</span> file_inode(iocb-&gt;ki_filp);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (unlikely(ext4_forced_shutdown(EXT4_SB(inode-&gt;i_sb))))</span><br><span class="line">        <span class="keyword">return</span> -EIO;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_FS_DAX</span></span><br><span class="line">    <span class="keyword">if</span> (IS_DAX(inode))</span><br><span class="line">        <span class="keyword">return</span> ext4_dax_write_iter(iocb, from);</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    <span class="comment">/* Direct I/O 写 */</span></span><br><span class="line">    <span class="keyword">if</span> (iocb-&gt;ki_flags &amp; IOCB_DIRECT)</span><br><span class="line">        <span class="keyword">return</span> ext4_dio_write_iter(iocb, from);</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        <span class="comment">/* Buffered 写（包含延迟分配路径） */</span></span><br><span class="line">        <span class="keyword">return</span> ext4_buffered_write_iter(iocb, from);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>ext4_buffered_write_iter</code> 调用 <code>generic_perform_write</code>，后者对每个页面调用 <code>address_space_operations</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">ssize_t</span> <span class="title function_">ext4_buffered_write_iter</span><span class="params">(<span class="keyword">struct</span> kiocb *iocb,</span></span><br><span class="line"><span class="params">                                        <span class="keyword">struct</span> iov_iter *from)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">ssize_t</span> ret;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span> =</span> file_inode(iocb-&gt;ki_filp);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (iocb-&gt;ki_flags &amp; IOCB_NOWAIT)</span><br><span class="line">        <span class="keyword">return</span> -EOPNOTSUPP;</span><br><span class="line"></span><br><span class="line">    inode_lock(inode);                     <span class="comment">/* 持有 inode 写锁 */</span></span><br><span class="line">    ret = ext4_write_checks(iocb, from);   <span class="comment">/* 检查大小、quota 等 */</span></span><br><span class="line">    <span class="keyword">if</span> (ret &lt;= <span class="number">0</span>)</span><br><span class="line">        <span class="keyword">goto</span> out;</span><br><span class="line"></span><br><span class="line">    current-&gt;backing_dev_info = inode_to_bdi(inode);</span><br><span class="line">    ret = generic_perform_write(iocb, from); <span class="comment">/* 核心写入循环 */</span></span><br><span class="line">    current-&gt;backing_dev_info = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">out:</span><br><span class="line">    inode_unlock(inode);</span><br><span class="line">    <span class="keyword">if</span> (likely(ret &gt; <span class="number">0</span>)) &#123;</span><br><span class="line">        iocb-&gt;ki_pos += ret;</span><br><span class="line">        ret = generic_write_sync(iocb, ret); <span class="comment">/* 若 O_SYNC 则等待落盘 */</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>generic_perform_write</code> 的每次迭代都调用：</p>
+<ol>
+<li><code>ext4_da_write_begin()</code>：准备页面，标记延迟分配</li>
+<li>将用户数据拷贝进页面</li>
+<li><code>ext4_da_write_end()</code>：完成写入，更新 <code>i_disksize</code></li>
+</ol>
+<h3 id="6-3-逻辑块到物理块映射：ext4-map-blocks"><a href="#6-3-逻辑块到物理块映射：ext4-map-blocks" class="headerlink" title="6.3 逻辑块到物理块映射：ext4_map_blocks"></a>6.3 逻辑块到物理块映射：<code>ext4_map_blocks</code></h3><p><code>ext4_map_blocks()</code>（<code>fs/ext4/inode.c</code>，第 478 行）是读写路径的核心枢纽：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">ext4_map_blocks</span><span class="params">(<span class="type">handle_t</span> *handle, <span class="keyword">struct</span> inode *inode,</span></span><br><span class="line"><span class="params">                    <span class="keyword">struct</span> ext4_map_blocks *<span class="built_in">map</span>, <span class="type">int</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">extent_status</span> <span class="title">es</span>;</span></span><br><span class="line">    <span class="type">int</span> retval;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">map</span>-&gt;m_flags = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 首先查询内存中的 extent status 缓存（避免磁盘读） */</span></span><br><span class="line">    <span class="keyword">if</span> (!(EXT4_SB(inode-&gt;i_sb)-&gt;s_mount_state &amp; EXT4_FC_REPLAY) &amp;&amp;</span><br><span class="line">        ext4_es_lookup_extent(inode, <span class="built_in">map</span>-&gt;m_lblk, <span class="literal">NULL</span>, &amp;es)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (ext4_es_is_written(&amp;es) || ext4_es_is_unwritten(&amp;es)) &#123;</span><br><span class="line">            <span class="comment">/* 已写或未写的真实 extent，直接返回物理地址 */</span></span><br><span class="line">            <span class="built_in">map</span>-&gt;m_pblk = ext4_es_pblock(&amp;es) +</span><br><span class="line">                          <span class="built_in">map</span>-&gt;m_lblk - es.es_lblk;</span><br><span class="line">            <span class="built_in">map</span>-&gt;m_flags |= ext4_es_is_written(&amp;es) ?</span><br><span class="line">                            EXT4_MAP_MAPPED : EXT4_MAP_UNWRITTEN;</span><br><span class="line">            retval = es.es_len - (<span class="built_in">map</span>-&gt;m_lblk - es.es_lblk);</span><br><span class="line">            <span class="keyword">if</span> (retval &gt; <span class="built_in">map</span>-&gt;m_len)</span><br><span class="line">                retval = <span class="built_in">map</span>-&gt;m_len;</span><br><span class="line">            <span class="built_in">map</span>-&gt;m_len = retval;</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (ext4_es_is_delayed(&amp;es) || ext4_es_is_hole(&amp;es)) &#123;</span><br><span class="line">            <span class="comment">/* 延迟分配或空洞：返回0，上层按需分配 */</span></span><br><span class="line">            <span class="built_in">map</span>-&gt;m_pblk = <span class="number">0</span>;</span><br><span class="line">            retval = <span class="number">0</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">        <span class="keyword">goto</span> found;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* cache miss：持 i_data_sem 读锁查询 extent 树 */</span></span><br><span class="line">    <span class="comment">/* 若 flags 含 EXT4_GET_BLOCKS_CREATE，则可能触发实际块分配 */</span></span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>ext4_map_blocks</code> 三步查询策略：</p>
+<ol>
+<li><strong>Extent Status Tree（内存缓存）</strong>：高速 RB 树，存储已查询过的 extent 状态（written&#x2F;unwritten&#x2F;delayed&#x2F;hole）。</li>
+<li><strong>Extent 树（磁盘 B+ 树）</strong>：调用 <code>ext4_ext_map_blocks()</code> 走 <code>ext4_find_extent()</code> 查找。</li>
+<li><strong>块分配</strong>：若需要创建新块，调用 mballoc 分配物理块，再通过 <code>ext4_ext_insert_extent()</code> 插入 extent 树。</li>
+</ol>
+<hr>
+<h2 id="7-延迟分配（Delayed-Allocation）"><a href="#7-延迟分配（Delayed-Allocation）" class="headerlink" title="7. 延迟分配（Delayed Allocation）"></a>7. 延迟分配（Delayed Allocation）</h2><p>延迟分配是 Ext4 性能优化的核心特性，通过挂载选项 <code>delalloc</code>（默认开启）启用。</p>
+<h3 id="7-1-原理"><a href="#7-1-原理" class="headerlink" title="7.1 原理"></a>7.1 原理</h3><p>传统文件系统在 <code>write()</code> 时立即分配物理块。Ext4 延迟分配将块分配推迟到 <code>writeback</code>（脏页回写）时，好处在于：</p>
+<ol>
+<li>写入更多数据后，分配器对局部性有更好的判断，可以分配连续的大块</li>
+<li>若文件被删除前从未发生回写（如临时文件），完全避免了磁盘分配</li>
+</ol>
+<h3 id="7-2-实现：ext4-da-write-begin-和-ext4-da-get-block-prep"><a href="#7-2-实现：ext4-da-write-begin-和-ext4-da-get-block-prep" class="headerlink" title="7.2 实现：ext4_da_write_begin 和 ext4_da_get_block_prep"></a>7.2 实现：<code>ext4_da_write_begin</code> 和 <code>ext4_da_get_block_prep</code></h3><p>延迟分配写入由 <code>ext4_da_write_begin()</code> 启动（<code>fs/ext4/inode.c</code>，第 2875 行）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">ext4_da_write_begin</span><span class="params">(<span class="keyword">struct</span> file *file, <span class="keyword">struct</span> address_space *mapping,</span></span><br><span class="line"><span class="params">                               <span class="type">loff_t</span> pos, <span class="type">unsigned</span> len,</span></span><br><span class="line"><span class="params">                               <span class="keyword">struct</span> page **pagep, <span class="type">void</span> **fsdata)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> ret, retries = <span class="number">0</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">folio</span> *<span class="title">folio</span>;</span></span><br><span class="line">    <span class="type">pgoff_t</span> index;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span> =</span> mapping-&gt;host;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (unlikely(ext4_forced_shutdown(EXT4_SB(inode-&gt;i_sb))))</span><br><span class="line">        <span class="keyword">return</span> -EIO;</span><br><span class="line"></span><br><span class="line">    index = pos &gt;&gt; PAGE_SHIFT;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 若文件系统已满或正在进行 fsverity，退回到非延迟分配模式 */</span></span><br><span class="line">    <span class="keyword">if</span> (ext4_nonda_switch(inode-&gt;i_sb) || ext4_verity_in_progress(inode)) &#123;</span><br><span class="line">        *fsdata = (<span class="type">void</span> *)FALL_BACK_TO_NONDELALLOC;</span><br><span class="line">        <span class="keyword">return</span> ext4_write_begin(file, mapping, pos, len, pagep, fsdata);</span><br><span class="line">    &#125;</span><br><span class="line">    *fsdata = (<span class="type">void</span> *)<span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 处理 inline data（小文件数据存 inode 内）*/</span></span><br><span class="line">    <span class="keyword">if</span> (ext4_test_inode_state(inode, EXT4_STATE_MAY_INLINE_DATA)) &#123;</span><br><span class="line">        ret = ext4_da_write_inline_data_begin(mapping, inode, pos, len,</span><br><span class="line">                                              pagep, fsdata);</span><br><span class="line">        <span class="keyword">if</span> (ret &lt; <span class="number">0</span>) <span class="keyword">return</span> ret;</span><br><span class="line">        <span class="keyword">if</span> (ret == <span class="number">1</span>) <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">retry:</span><br><span class="line">    folio = __filemap_get_folio(mapping, index, FGP_WRITEBEGIN,</span><br><span class="line">                                mapping_gfp_mask(mapping));</span><br><span class="line">    <span class="keyword">if</span> (IS_ERR(folio))</span><br><span class="line">        <span class="keyword">return</span> PTR_ERR(folio);</span><br><span class="line"></span><br><span class="line">    folio_wait_stable(folio);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* ext4_da_get_block_prep：标记块为 delayed，不实际分配 */</span></span><br><span class="line">    ret = __block_write_begin(&amp;folio-&gt;page, pos, len, ext4_da_get_block_prep);</span><br><span class="line">    <span class="keyword">if</span> (ret &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        folio_unlock(folio);</span><br><span class="line">        folio_put(folio);</span><br><span class="line">        <span class="keyword">if</span> (pos + len &gt; inode-&gt;i_size)</span><br><span class="line">            ext4_truncate_failed_write(inode);</span><br><span class="line">        <span class="keyword">if</span> (ret == -ENOSPC &amp;&amp;</span><br><span class="line">            ext4_should_retry_alloc(inode-&gt;i_sb, &amp;retries))</span><br><span class="line">            <span class="keyword">goto</span> retry;</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line">    &#125;</span><br><span class="line">    *pagep = &amp;folio-&gt;page;</span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>ext4_da_get_block_prep()</code> 是关键：它调用 <code>ext4_da_map_blocks()</code>，如果块还未分配，只在 extent status tree 中标记一个 <code>delayed</code> 状态，<strong>不分配任何物理块</strong>，并将 buffer 标记为 <code>BH_Delay</code>。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">ext4_da_get_block_prep</span><span class="params">(<span class="keyword">struct</span> inode *inode, <span class="type">sector_t</span> iblock,</span></span><br><span class="line"><span class="params">                           <span class="keyword">struct</span> buffer_head *bh, <span class="type">int</span> create)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">ext4_map_blocks</span> <span class="title">map</span>;</span></span><br><span class="line">    <span class="type">int</span> ret = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    BUG_ON(create == <span class="number">0</span>);</span><br><span class="line">    BUG_ON(bh-&gt;b_size != inode-&gt;i_sb-&gt;s_blocksize);</span><br><span class="line"></span><br><span class="line">    <span class="built_in">map</span>.m_lblk = iblock;</span><br><span class="line">    <span class="built_in">map</span>.m_len = <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 查询现有映射：若已分配则直接返回；若是空洞则创建 delayed 记录 */</span></span><br><span class="line">    ret = ext4_da_map_blocks(inode, iblock, &amp;<span class="built_in">map</span>, bh);</span><br><span class="line">    <span class="keyword">if</span> (ret &lt;= <span class="number">0</span>)</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">    map_bh(bh, inode-&gt;i_sb, <span class="built_in">map</span>.m_pblk);</span><br><span class="line">    ext4_update_bh_state(bh, <span class="built_in">map</span>.m_flags);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (buffer_unwritten(bh)) &#123;</span><br><span class="line">        set_buffer_new(bh);</span><br><span class="line">        set_buffer_mapped(bh);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>真正的块分配发生在 <code>writeback</code> 路径的 <code>ext4_writepages()</code> → <code>mpage_prepare_extent_to_map()</code> → <code>ext4_map_blocks()</code> 中，此时一次为多个连续的 delayed 块分配物理空间。</p>
+<hr>
+<h2 id="8-目录索引：HTree（dx-root）"><a href="#8-目录索引：HTree（dx-root）" class="headerlink" title="8. 目录索引：HTree（dx_root）"></a>8. 目录索引：HTree（dx_root）</h2><h3 id="8-1-线性目录-vs-HTree"><a href="#8-1-线性目录-vs-HTree" class="headerlink" title="8.1 线性目录 vs HTree"></a>8.1 线性目录 vs HTree</h3><p>Ext2&#x2F;3 中目录是简单的线性链表，每次查找要从头遍历所有目录项，在大目录（数千文件）中性能极差。Ext4 的 <strong>HTree</strong>（Hash Tree）将目录实现为基于文件名哈希的 B+ 树，查找复杂度降为 O(log n)。</p>
+<h3 id="8-2-核心数据结构（fs-ext4-namei-c）"><a href="#8-2-核心数据结构（fs-ext4-namei-c）" class="headerlink" title="8.2 核心数据结构（fs/ext4/namei.c）"></a>8.2 核心数据结构（<code>fs/ext4/namei.c</code>）</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* HTree 的一个索引项：哈希值 → 数据块号 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">dx_entry</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    __le32 hash;   <span class="comment">/* 文件名哈希值 */</span></span><br><span class="line">    __le32 block;  <span class="comment">/* 指向的目录数据块号 */</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 目录树根节点（位于目录的第一个数据块） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">dx_root</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fake_dirent</span> <span class="title">dot</span>;</span>       <span class="comment">/* &quot;.&quot;  目录项（占位） */</span></span><br><span class="line">    <span class="type">char</span> dot_name[<span class="number">4</span>];</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fake_dirent</span> <span class="title">dotdot</span>;</span>    <span class="comment">/* &quot;..&quot; 目录项（占位） */</span></span><br><span class="line">    <span class="type">char</span> dotdot_name[<span class="number">4</span>];</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dx_root_info</span></span></span><br><span class="line"><span class="class">    &#123;</span></span><br><span class="line">        __le32 reserved_zero;</span><br><span class="line">        u8  hash_version;         <span class="comment">/* 哈希函数版本：half-MD4/tea/siphash 等 */</span></span><br><span class="line">        u8  info_length;          <span class="comment">/* = 8，本结构体大小 */</span></span><br><span class="line">        u8  indirect_levels;      <span class="comment">/* 树深度（0 = 单层索引）*/</span></span><br><span class="line">        u8  unused_flags;</span><br><span class="line">    &#125; info;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dx_entry</span> <span class="title">entries</span>[];</span>    <span class="comment">/* 索引项数组（紧随其后）*/</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 内部节点（非根的索引块） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">dx_node</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fake_dirent</span> <span class="title">fake</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dx_entry</span> <span class="title">entries</span>[];</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 每个 htree 块末尾的尾部（存 checksum） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">dx_tail</span> &#123;</span></span><br><span class="line">    u32    dt_reserved;</span><br><span class="line">    __le32 dt_checksum;   <span class="comment">/* crc32c(uuid+inum+dirblock) */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>查找时流程：计算文件名哈希 → 在 <code>dx_root.entries[]</code> 中二分查找对应数据块 → 读取该数据块，线性扫描目录项匹配文件名。</p>
+<p>哈希版本由超级块 <code>s_def_hash_version</code> 指定，默认为 <code>half-MD4</code>（Half-MD4，快速且分布均匀）。</p>
+<hr>
+<h2 id="9-性能调优挂载选项"><a href="#9-性能调优挂载选项" class="headerlink" title="9. 性能调优挂载选项"></a>9. 性能调优挂载选项</h2><p>Ext4 提供丰富的挂载选项，以下是关键参数（来自 <code>fs/ext4/super.c</code>）：</p>
+<h3 id="9-1-数据写入模式"><a href="#9-1-数据写入模式" class="headerlink" title="9.1 数据写入模式"></a>9.1 数据写入模式</h3><table>
+<thead>
+<tr>
+<th>选项</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>data=journal</code></td>
+<td>数据和元数据都写日志，最安全，最慢</td>
+</tr>
+<tr>
+<td><code>data=ordered</code></td>
+<td>默认；元数据写日志，数据在元数据前落盘</td>
+</tr>
+<tr>
+<td><code>data=writeback</code></td>
+<td>元数据写日志，数据写序不保证</td>
+</tr>
+</tbody></table>
+<h3 id="9-2-日志相关"><a href="#9-2-日志相关" class="headerlink" title="9.2 日志相关"></a>9.2 日志相关</h3><table>
+<thead>
+<tr>
+<th>选项</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>journal_async_commit</code></td>
+<td>异步提交日志，减少写延迟</td>
+</tr>
+<tr>
+<td><code>journal_checksum</code></td>
+<td>启用日志块校验和（默认开）</td>
+</tr>
+<tr>
+<td><code>commit=N</code></td>
+<td>日志提交间隔（秒），默认 5 秒</td>
+</tr>
+<tr>
+<td><code>noload</code></td>
+<td>挂载时不加载日志（只读模式用）</td>
+</tr>
+</tbody></table>
+<h3 id="9-3-分配与预分配"><a href="#9-3-分配与预分配" class="headerlink" title="9.3 分配与预分配"></a>9.3 分配与预分配</h3><table>
+<thead>
+<tr>
+<th>选项</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>delalloc</code></td>
+<td>延迟块分配（默认开）</td>
+</tr>
+<tr>
+<td><code>nodelalloc</code></td>
+<td>禁用延迟分配（数据库场景）</td>
+</tr>
+<tr>
+<td><code>noauto_da_alloc</code></td>
+<td>关闭 close 时的强制 delalloc 落盘</td>
+</tr>
+<tr>
+<td><code>max_batch_time=N</code></td>
+<td>mballoc 批量分配最大等待时间（微秒）</td>
+</tr>
+<tr>
+<td><code>min_batch_time=N</code></td>
+<td>mballoc 批量分配最小等待时间（微秒）</td>
+</tr>
+</tbody></table>
+<h3 id="9-4-IO-特性"><a href="#9-4-IO-特性" class="headerlink" title="9.4 IO 特性"></a>9.4 IO 特性</h3><table>
+<thead>
+<tr>
+<th>选项</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>barrier</code> &#x2F; <code>nobarrier</code></td>
+<td>写屏障控制（默认开）；SSD 可以安全关闭</td>
+</tr>
+<tr>
+<td><code>discard</code> &#x2F; <code>nodiscard</code></td>
+<td>trim&#x2F;discard 支持（SSD 推荐开）</td>
+</tr>
+<tr>
+<td><code>dioread_nolock</code></td>
+<td>Direct I&#x2F;O 读时不持 inode 锁，提升并发读性能</td>
+</tr>
+</tbody></table>
+<h3 id="9-5-错误处理"><a href="#9-5-错误处理" class="headerlink" title="9.5 错误处理"></a>9.5 错误处理</h3><table>
+<thead>
+<tr>
+<th>选项</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>errors=continue</code></td>
+<td>遇错继续（不推荐）</td>
+</tr>
+<tr>
+<td><code>errors=remount-ro</code></td>
+<td>遇错重挂载为只读（默认）</td>
+</tr>
+<tr>
+<td><code>errors=panic</code></td>
+<td>遇错 kernel panic</td>
+</tr>
+</tbody></table>
+<h3 id="9-6-推荐生产配置示例"><a href="#9-6-推荐生产配置示例" class="headerlink" title="9.6 推荐生产配置示例"></a>9.6 推荐生产配置示例</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 普通服务器（高可靠性）</span></span><br><span class="line">mount -o defaults,data=ordered,barrier=1,journal_async_commit /dev/sda1 /data</span><br><span class="line"></span><br><span class="line"><span class="comment"># SSD 优化</span></span><br><span class="line">mount -o defaults,discard,nobarrier,delalloc,data=ordered /dev/nvme0n1 /data</span><br><span class="line"></span><br><span class="line"><span class="comment"># 数据库（需 Direct I/O，避免延迟分配带来的不确定性）</span></span><br><span class="line">mount -o defaults,nodelalloc,data=writeback,nobarrier /dev/sdb1 /dbdata</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="10-常见问题排查"><a href="#10-常见问题排查" class="headerlink" title="10. 常见问题排查"></a>10. 常见问题排查</h2><h3 id="10-1-e2fsck：文件系统一致性检查"><a href="#10-1-e2fsck：文件系统一致性检查" class="headerlink" title="10.1 e2fsck：文件系统一致性检查"></a>10.1 <code>e2fsck</code>：文件系统一致性检查</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 强制全面检查（卸载后运行）</span></span><br><span class="line">e2fsck -f -v /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 自动修复（生产环境慎用，建议先 -n 查看）</span></span><br><span class="line">e2fsck -p /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 只检查不修复</span></span><br><span class="line">e2fsck -n /dev/sda1</span><br></pre></td></tr></table></figure>
+
+<p><code>e2fsck</code> 按 5 个阶段检查：块&#x2F;inode 位图、inode 结构、目录连通性、目录引用计数、块引用计数。超级块 <code>s_error_count</code>、<code>s_first_error_func</code>、<code>s_first_error_line</code> 等字段可以帮助定位历史错误来源。</p>
+<h3 id="10-2-debugfs：低级调试"><a href="#10-2-debugfs：低级调试" class="headerlink" title="10.2 debugfs：低级调试"></a>10.2 <code>debugfs</code>：低级调试</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 交互式进入（只读）</span></span><br><span class="line">debugfs /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 inode 信息</span></span><br><span class="line">debugfs -R <span class="string">&quot;stat &lt;inode_number&gt;&quot;</span> /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 extent 树</span></span><br><span class="line">debugfs -R <span class="string">&quot;extents &lt;inode_number&gt;&quot;</span> /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看超级块</span></span><br><span class="line">debugfs -R <span class="string">&quot;stats&quot;</span> /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># dump 指定文件内容</span></span><br><span class="line">debugfs -R <span class="string">&quot;dump &lt;inode_number&gt; /tmp/recovered&quot;</span> /dev/sda1</span><br></pre></td></tr></table></figure>
+
+<p>常用 debugfs 命令：</p>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>stat &lt;inum&gt;</code></td>
+<td>显示 inode 详细信息</td>
+</tr>
+<tr>
+<td><code>extents &lt;inum&gt;</code></td>
+<td>显示 extent 树结构</td>
+</tr>
+<tr>
+<td><code>htree &lt;dir_inum&gt;</code></td>
+<td>显示目录 HTree 结构</td>
+</tr>
+<tr>
+<td><code>logdump</code></td>
+<td>dump 日志内容（需 <code>-f</code> 挂载）</td>
+</tr>
+<tr>
+<td><code>lsdel</code></td>
+<td>列出已删除的 inode</td>
+</tr>
+<tr>
+<td><code>undelete &lt;inum&gt; &lt;name&gt;</code></td>
+<td>恢复已删除文件（有限支持）</td>
+</tr>
+</tbody></table>
+<h3 id="10-3-tune2fs：调整文件系统参数"><a href="#10-3-tune2fs：调整文件系统参数" class="headerlink" title="10.3 tune2fs：调整文件系统参数"></a>10.3 <code>tune2fs</code>：调整文件系统参数</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看所有参数（包含错误历史）</span></span><br><span class="line">tune2fs -l /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 修改挂载间隔和最大挂载次数</span></span><br><span class="line">tune2fs -i 0 -c 0 /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置保留块比例（默认 5%，大盘可降低）</span></span><br><span class="line">tune2fs -m 1 /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用/禁用特性</span></span><br><span class="line">tune2fs -O extents,uninit_bg,dir_index /dev/sda1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看日志大小</span></span><br><span class="line">tune2fs -l /dev/sda1 | grep -i journal</span><br></pre></td></tr></table></figure>
+
+<h3 id="10-4-常见告警与处理"><a href="#10-4-常见告警与处理" class="headerlink" title="10.4 常见告警与处理"></a>10.4 常见告警与处理</h3><p><strong>告警：EXT4-fs error (device sda1): ext4_find_extent:880: inode has invalid extent depth</strong></p>
+<p>原因：extent 树头部损坏，<code>eh_depth</code> 超过 <code>EXT4_MAX_EXTENT_DEPTH(5)</code>。</p>
+<p>处理：<code>e2fsck -f /dev/sda1</code>，若无法修复则需从备份恢复。</p>
+<p><strong>告警：EXT4-fs warning: maximal mount count reached</strong></p>
+<p>原因：挂载次数达到 <code>s_max_mnt_count</code>（默认 -1 表示不检查，但旧版本会有此限制）。</p>
+<p>处理：<code>tune2fs -c 0 /dev/sda1</code> 取消限制，或 <code>e2fsck -f</code> 清零计数。</p>
+<p><strong>告警：EXT4-fs (sda1): delayed block allocation failed for inode … No space left</strong></p>
+<p>原因：延迟分配时发现空间不足，<code>ext4_nonda_switch()</code> 触发非延迟模式但仍分配失败。</p>
+<p>处理：清理磁盘空间；检查 <code>df -i</code> 是否 inode 耗尽；检查 reserved block 占比（<code>tune2fs -m</code>）。</p>
+<hr>
+<h2 id="11-总结"><a href="#11-总结" class="headerlink" title="11. 总结"></a>11. 总结</h2><p>Ext4 是一个在 30 年演进中积累大量工程智慧的成熟文件系统。其核心设计决策：</p>
+<ol>
+<li><strong>Extent 树</strong> 以 60 字节的 inode 内嵌空间为根，5 层 B+ 树可寻址 1 EiB 空间，查找效率高，碎片少。</li>
+<li><strong>JBD2 日志</strong> 提供元数据原子性，三种数据模式灵活适配不同一致性需求。</li>
+<li><strong>延迟分配</strong> 通过推迟物理块分配到 writeback 时机，实现更大范围的连续分配，显著减少随机写碎片。</li>
+<li><strong>HTree 目录索引</strong> 将目录查找从 O(n) 降为 O(log n)，数万文件的目录查找毫秒级完成。</li>
+<li><strong>元数据校验和</strong> 结合 JBD2 日志校验，从磁盘静默错误到日志重放错误均有保护。</li>
+</ol>
+<p>对于大多数通用场景，Ext4 的默认配置（<code>data=ordered</code>、<code>delalloc</code>、<code>barrier</code>）是合理的起点。在高性能场景可开启 <code>discard</code>、<code>journal_async_commit</code>；数据库等需要精确控制 IO 语义的场景则应关闭 <code>delalloc</code>，配合 Direct I&#x2F;O 使用。</p>
+<hr>
+<p><strong>参考源码</strong>（Linux 6.4-rc1）：</p>
+<ul>
+<li><code>fs/ext4/ext4.h</code> — 核心数据结构定义（<code>ext4_super_block</code>、<code>ext4_group_desc</code>、<code>ext4_inode</code>）</li>
+<li><code>fs/ext4/ext4_extents.h</code> — Extent 树结构体</li>
+<li><code>fs/ext4/extents.c</code> — Extent 树实现（<code>ext4_find_extent</code>、<code>ext4_ext_binsearch</code>）</li>
+<li><code>fs/ext4/inode.c</code> — inode 操作、<code>ext4_map_blocks</code>、延迟分配</li>
+<li><code>fs/ext4/file.c</code> — <code>ext4_file_read_iter</code>、<code>ext4_file_write_iter</code></li>
+<li><code>fs/ext4/namei.c</code> — 目录操作、HTree（<code>dx_root</code>、<code>dx_entry</code>）</li>
+<li><code>fs/ext4/super.c</code> — 超级块挂载、挂载选项解析</li>
+<li><code>fs/ext4/mballoc.c</code> — 多块分配器</li>
+<li><code>fs/jbd2/journal.c</code> — JBD2 日志核心</li>
+<li><code>fs/jbd2/transaction.c</code> — 事务管理（<code>jbd2_journal_start</code>）</li>
+<li><code>include/linux/jbd2.h</code> — <code>journal_t</code>、<code>transaction_t</code> 定义</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Filesystem/" rel="tag"># Filesystem</a>
+              <a href="/tags/Journal/" rel="tag"># Journal</a>
+              <a href="/tags/Ext4/" rel="tag"># Ext4</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part4-page-cache/" rel="prev" title="Linux 存储与文件系统深度剖析（四）：页缓存与缓冲区缓存">
+                  <i class="fa fa-angle-left"></i> Linux 存储与文件系统深度剖析（四）：页缓存与缓冲区缓存
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part6-btrfs/" rel="next" title="Linux 存储与文件系统深度剖析（六）：Btrfs 文件系统核心原理">
+                  Linux 存储与文件系统深度剖析（六）：Btrfs 文件系统核心原理 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

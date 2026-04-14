@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="XFS 是目前 Linux 生产环境中使用最广泛的高性能文件系统之一，也是 RHEL&#x2F;CentOS 7 及以后版本的默认文件系统。本文基于 Linux 6.4-rc1 内核源码（fs&#x2F;xfs&#x2F;），从磁盘格式、核心数据结构、B-Tree 管理、日志子系统到并行化设计，对 XFS 进行深度技术剖析。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 存储与文件系统深度剖析：XFS 文件系统实现细节">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part6b-xfs/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="XFS 是目前 Linux 生产环境中使用最广泛的高性能文件系统之一，也是 RHEL&#x2F;CentOS 7 及以后版本的默认文件系统。本文基于 Linux 6.4-rc1 内核源码（fs&#x2F;xfs&#x2F;），从磁盘格式、核心数据结构、B-Tree 管理、日志子系统到并行化设计，对 XFS 进行深度技术剖析。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-12T02:55:00.000Z">
+<meta property="article:modified_time" content="2026-04-13T13:28:46.632Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Filesystem">
+<meta property="article:tag" content="XFS">
+<meta property="article:tag" content="Journal">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part6b-xfs/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part6b-xfs/","path":"2026/04/12/2026-04-12-linux-storage-part6b-xfs/","title":"Linux 存储与文件系统深度剖析：XFS 文件系统实现细节"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 存储与文件系统深度剖析：XFS 文件系统实现细节 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-XFS-%E5%8E%86%E5%8F%B2%E4%B8%8E%E8%AE%BE%E8%AE%A1%E7%9B%AE%E6%A0%87"><span class="nav-number">1.</span> <span class="nav-text">1. XFS 历史与设计目标</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-XFS-%E7%A3%81%E7%9B%98%E5%B8%83%E5%B1%80%EF%BC%9AAllocation-Group-%E8%AE%BE%E8%AE%A1"><span class="nav-number">2.</span> <span class="nav-text">2. XFS 磁盘布局：Allocation Group 设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%95%B4%E4%BD%93%E5%88%86%E5%8C%BA%E7%BB%93%E6%9E%84"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 整体分区结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E8%B6%85%E7%BA%A7%E5%9D%97%E7%BB%93%E6%9E%84"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 超级块结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-AGF-%E4%B8%8E-AGI-%E7%BB%93%E6%9E%84"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 AGF 与 AGI 结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E6%AF%8F%E4%B8%AA-AG-%E7%9A%84%E5%86%85%E6%A0%B8%E7%BC%93%E5%AD%98%EF%BC%9Axfs-perag"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 每个 AG 的内核缓存：xfs_perag</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%EF%BC%9AXFS-Inode"><span class="nav-number">3.</span> <span class="nav-text">3. 核心数据结构：XFS Inode</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E7%A3%81%E7%9B%98-inode-%E4%B8%8E%E5%86%85%E6%A0%B8-inode-%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 磁盘 inode 与内核 inode 的关系</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-inode-fork%EF%BC%9A%E6%95%B0%E6%8D%AE%E5%88%86%E5%8F%89%E4%B8%8E%E5%B1%9E%E6%80%A7%E5%88%86%E5%8F%89"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 inode fork：数据分叉与属性分叉</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-inode-%E5%8F%B7%E7%9A%84%E7%BC%96%E7%A0%81"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 inode 号的编码</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-Extent-%E7%AE%A1%E7%90%86%E4%B8%8E-B-Tree"><span class="nav-number">4.</span> <span class="nav-text">4. Extent 管理与 B-Tree</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-Extent-%E7%9A%84%E8%A1%A8%E7%A4%BA%EF%BC%9Abmbt-record"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 Extent 的表示：bmbt record</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-B-Tree-%E6%A1%86%E6%9E%B6%EF%BC%88xfs-btree%EF%BC%89"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 B-Tree 框架（xfs_btree）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-bmbt%EF%BC%88Block-Map-B-Tree%EF%BC%89"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 bmbt（Block Map B-Tree）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E7%A9%BA%E9%97%B2%E7%A9%BA%E9%97%B4-B-Tree%EF%BC%88allocbt%EF%BC%89"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 空闲空间 B-Tree（allocbt）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-inobt-%E4%B8%8E-finobt"><span class="nav-number">4.5.</span> <span class="nav-text">4.5 inobt 与 finobt</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E6%97%A5%E5%BF%97%E5%AD%90%E7%B3%BB%E7%BB%9F%EF%BC%88XFS-Journal%EF%BC%89"><span class="nav-number">5.</span> <span class="nav-text">5. 日志子系统（XFS Journal）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E6%97%A5%E5%BF%97%E6%9E%B6%E6%9E%84%E6%A6%82%E8%BF%B0"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 日志架构概述</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E6%97%A5%E5%BF%97%E8%AE%B0%E5%BD%95%E6%A0%BC%E5%BC%8F%E4%B8%8E-LSN"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 日志记录格式与 LSN</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-In-Core-Log%EF%BC%88iclog%EF%BC%89%E7%8E%AF%E5%BD%A2%E7%BC%93%E5%86%B2%E5%8C%BA"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 In-Core Log（iclog）环形缓冲区</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E6%97%A5%E5%BF%97%E7%A5%A8%E6%8D%AE%EF%BC%88Log-Ticket%EF%BC%89"><span class="nav-number">5.4.</span> <span class="nav-text">5.4 日志票据（Log Ticket）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-CIL%EF%BC%88Committed-Item-List%EF%BC%89%EF%BC%9A%E5%BB%B6%E8%BF%9F%E6%8F%90%E4%BA%A4"><span class="nav-number">5.5.</span> <span class="nav-text">5.5 CIL（Committed Item List）：延迟提交</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-6-%E6%97%A5%E5%BF%97%E6%81%A2%E5%A4%8D"><span class="nav-number">5.6.</span> <span class="nav-text">5.6 日志恢复</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%BB%B6%E8%BF%9F%E5%86%99%EF%BC%88Delayed-Allocation%EF%BC%89%E6%9C%BA%E5%88%B6"><span class="nav-number">6.</span> <span class="nav-text">6. 延迟写（Delayed Allocation）机制</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-XFS-%E5%B9%B6%E8%A1%8C%E5%8C%96%E8%AE%BE%E8%AE%A1"><span class="nav-number">7.</span> <span class="nav-text">7. XFS 并行化设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-AG-%E7%BA%A7%E5%B9%B6%E8%A1%8C"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 AG 级并行</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-inode-%E9%94%81%E8%AE%BE%E8%AE%A1"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 inode 锁设计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-AIL%EF%BC%88Active-Item-List%EF%BC%89"><span class="nav-number">7.3.</span> <span class="nav-text">7.3 AIL（Active Item List）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E5%B9%B6%E8%A1%8C%E5%B7%A5%E4%BD%9C%E9%98%9F%E5%88%97%EF%BC%88pwork%EF%BC%89"><span class="nav-number">7.4.</span> <span class="nav-text">7.4 并行工作队列（pwork）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-XFS-%E9%85%8D%E9%A2%9D%E4%B8%8E-inode-%E7%AE%A1%E7%90%86"><span class="nav-number">8.</span> <span class="nav-text">8. XFS 配额与 inode 管理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E9%85%8D%E9%A2%9D%E7%B1%BB%E5%9E%8B"><span class="nav-number">8.1.</span> <span class="nav-text">8.1 配额类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-dquot-%E7%BB%93%E6%9E%84"><span class="nav-number">8.2.</span> <span class="nav-text">8.2 dquot 结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-inode-%E7%BC%93%E5%AD%98%E4%B8%8E%E6%83%B0%E6%80%A7%E9%87%8A%E6%94%BE"><span class="nav-number">8.3.</span> <span class="nav-text">8.3 inode 缓存与惰性释放</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-XFS-%E5%B8%B8%E7%94%A8%E7%AE%A1%E7%90%86%E5%B7%A5%E5%85%B7"><span class="nav-number">9.</span> <span class="nav-text">9. XFS 常用管理工具</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-XFS-%E6%80%A7%E8%83%BD%E8%B0%83%E4%BC%98"><span class="nav-number">10.</span> <span class="nav-text">10. XFS 性能调优</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#10-1-%E6%A0%BC%E5%BC%8F%E5%8C%96%E5%8F%82%E6%95%B0"><span class="nav-number">10.1.</span> <span class="nav-text">10.1 格式化参数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-2-%E6%8C%82%E8%BD%BD%E9%80%89%E9%A1%B9"><span class="nav-number">10.2.</span> <span class="nav-text">10.2 挂载选项</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-3-%E8%BF%90%E8%A1%8C%E6%97%B6%E8%B0%83%E4%BC%98"><span class="nav-number">10.3.</span> <span class="nav-text">10.3 运行时调优</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-4-%E5%85%B8%E5%9E%8B%E5%9C%BA%E6%99%AF%E5%BB%BA%E8%AE%AE"><span class="nav-number">10.4.</span> <span class="nav-text">10.4 典型场景建议</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-XFS-vs-Ext4-vs-Btrfs-%E5%AF%B9%E6%AF%94"><span class="nav-number">11.</span> <span class="nav-text">11. XFS vs Ext4 vs Btrfs 对比</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">12.</span> <span class="nav-text">参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">72</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">164</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part6b-xfs/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 存储与文件系统深度剖析：XFS 文件系统实现细节 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 存储与文件系统深度剖析：XFS 文件系统实现细节
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2026-04-12 10:55:00" itemprop="dateCreated datePublished" datetime="2026-04-12T10:55:00+08:00">2026-04-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-04-13 21:28:46" itemprop="dateModified" datetime="2026-04-13T21:28:46+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>XFS 是目前 Linux 生产环境中使用最广泛的高性能文件系统之一，也是 RHEL&#x2F;CentOS 7 及以后版本的默认文件系统。本文基于 Linux 6.4-rc1 内核源码（<code>fs/xfs/</code>），从磁盘格式、核心数据结构、B-Tree 管理、日志子系统到并行化设计，对 XFS 进行深度技术剖析。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="1-XFS-历史与设计目标"><a href="#1-XFS-历史与设计目标" class="headerlink" title="1. XFS 历史与设计目标"></a>1. XFS 历史与设计目标</h2><p>XFS 由 Silicon Graphics（SGI）于 1993 年为 IRIX 操作系统设计，2001 年移植进入 Linux 内核。它的设计背景是媒体制作行业对超大文件和极高 I&#x2F;O 吞吐量的需求——当时 SGI 的客户需要实时编辑未压缩的高分辨率视频。</p>
+<p>XFS 围绕三个核心目标展开：</p>
+<p><strong>高性能</strong>：通过延迟分配（Delayed Allocation）减少碎片，通过 B+ Tree 管理 extent（连续块区间），以及高度并行的内部结构，XFS 在顺序和随机 I&#x2F;O 场景下均表现优异。</p>
+<p><strong>超大规模</strong>：XFS 支持最大 8 EiB 的文件系统（64 位块号）和最大 8 EiB 的单文件，远超很多同类文件系统。inode 号同样是 64 位，支持近乎无限数量的文件。</p>
+<p><strong>高并发</strong>：XFS 的 Allocation Group（AG）设计将整个文件系统切分成多个独立的空间管理单元，不同 AG 的分配操作可以完全并行执行，在多核和多磁盘场景下几乎线性扩展。</p>
+<p>Linux 6.4-rc1 中的 XFS 代码版本已发展至 v5 超级块格式（带 CRC 校验），并引入了稀疏 inode、反向映射 B-Tree（rmapbt）、引用计数 B-Tree（refcountbt）等一系列现代特性。</p>
+<hr>
+<h2 id="2-XFS-磁盘布局：Allocation-Group-设计"><a href="#2-XFS-磁盘布局：Allocation-Group-设计" class="headerlink" title="2. XFS 磁盘布局：Allocation Group 设计"></a>2. XFS 磁盘布局：Allocation Group 设计</h2><h3 id="2-1-整体分区结构"><a href="#2-1-整体分区结构" class="headerlink" title="2.1 整体分区结构"></a>2.1 整体分区结构</h3><p>XFS 将磁盘空间划分为若干个大小相等的 <strong>Allocation Group（AG）</strong>。每个 AG 都是一个相对独立的空间管理单元，内部包含：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">AG 0                      AG 1                     AG N</span><br><span class="line">+--------+---+---+---+    +--------+---+---+---+</span><br><span class="line">| SB copy| AGF| AGI|AGFL|  | SB copy| AGF| AGI|AGFL|  ...</span><br><span class="line">+--------+---+---+---+    +--------+---+---+---+</span><br><span class="line">| inode chunks           | | inode chunks           |</span><br><span class="line">| free space B-Trees     | | free space B-Trees     |</span><br><span class="line">| data blocks            | | data blocks            |</span><br><span class="line">+------------------------+ +------------------------+</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>SB（Superblock）</strong>：第 0 块，只有 AG 0 的超级块是权威副本，其余 AG 中的是冗余备份（仅在 <code>growfs</code> 时更新）。</li>
+<li><strong>AGF（AG Freespace Header）</strong>：记录该 AG 的空闲块信息，包含两棵空闲空间 B-Tree 的根节点。</li>
+<li><strong>AGI（AG Inode Header）</strong>：记录该 AG 的 inode 分配信息，包含 inode B-Tree 根节点。</li>
+<li><strong>AGFL（AG Freelist）</strong>：一个固定大小的块指针数组，作为 B-Tree 分裂时的紧急空闲块缓冲。</li>
+</ul>
+<p>AG 数量通常是几十到几百个，单个 AG 最大为 1 TiB（<code>sb_agblocks</code> 字段上限）。</p>
+<h3 id="2-2-超级块结构"><a href="#2-2-超级块结构" class="headerlink" title="2.2 超级块结构"></a>2.2 超级块结构</h3><p>超级块定义在 <code>fs/xfs/libxfs/xfs_format.h</code>，in-core 版本是 <code>struct xfs_sb</code>，on-disk 版本是 <code>struct xfs_dsb</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_format.h</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_MAGIC    0x58465342  <span class="comment">/* &#x27;XFSB&#x27; */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_VERSION_5  5         <span class="comment">/* CRC enabled filesystem */</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">xfs_sb</span> &#123;</span></span><br><span class="line">    <span class="type">uint32_t</span>    sb_magicnum;    <span class="comment">/* magic number == XFS_SB_MAGIC */</span></span><br><span class="line">    <span class="type">uint32_t</span>    sb_blocksize;   <span class="comment">/* logical block size, bytes */</span></span><br><span class="line">    <span class="type">xfs_rfsblock_t</span>  sb_dblocks; <span class="comment">/* number of data blocks */</span></span><br><span class="line">    <span class="type">xfs_rfsblock_t</span>  sb_rblocks; <span class="comment">/* number of realtime blocks */</span></span><br><span class="line">    <span class="type">xfs_rtblock_t</span>   sb_rextents;<span class="comment">/* number of realtime extents */</span></span><br><span class="line">    <span class="type">uuid_t</span>      sb_uuid;        <span class="comment">/* user-visible file system unique id */</span></span><br><span class="line">    <span class="type">xfs_fsblock_t</span>   sb_logstart;<span class="comment">/* starting block of log if internal */</span></span><br><span class="line">    <span class="type">xfs_ino_t</span>   sb_rootino;     <span class="comment">/* root inode number */</span></span><br><span class="line">    <span class="type">xfs_agblock_t</span>   sb_agblocks;<span class="comment">/* size of an allocation group */</span></span><br><span class="line">    <span class="type">xfs_agnumber_t</span>  sb_agcount; <span class="comment">/* number of allocation groups */</span></span><br><span class="line">    <span class="type">uint16_t</span>    sb_versionnum;  <span class="comment">/* header version == XFS_SB_VERSION */</span></span><br><span class="line">    <span class="type">uint16_t</span>    sb_inodesize;   <span class="comment">/* inode size, bytes */</span></span><br><span class="line">    <span class="type">uint64_t</span>    sb_icount;      <span class="comment">/* allocated inodes */</span></span><br><span class="line">    <span class="type">uint64_t</span>    sb_ifree;       <span class="comment">/* free inodes */</span></span><br><span class="line">    <span class="type">uint64_t</span>    sb_fdblocks;    <span class="comment">/* free data blocks */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* version 5 superblock fields start here */</span></span><br><span class="line">    <span class="type">uint32_t</span>    sb_features_compat;</span><br><span class="line">    <span class="type">uint32_t</span>    sb_features_ro_compat;</span><br><span class="line">    <span class="type">uint32_t</span>    sb_features_incompat;</span><br><span class="line">    <span class="type">uint32_t</span>    sb_features_log_incompat;</span><br><span class="line">    <span class="type">uint32_t</span>    sb_crc;         <span class="comment">/* superblock crc */</span></span><br><span class="line">    <span class="type">xfs_lsn_t</span>   sb_lsn;        <span class="comment">/* last write sequence */</span></span><br><span class="line">    <span class="type">uuid_t</span>      sb_meta_uuid;   <span class="comment">/* metadata file system unique id */</span></span><br><span class="line">&#125; <span class="type">xfs_sb_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p>v5 超级块（<code>XFS_SB_VERSION_5</code>）新增了 <code>sb_crc</code> 字段对超级块本身做 CRC32c 校验，以及 <code>sb_lsn</code> 记录最近一次写入时的日志序列号，用于检测是否需要日志恢复。</p>
+<p>不兼容特性（<code>sb_features_incompat</code>）的典型位：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_format.h</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_INCOMPAT_FTYPE      (1 &lt;&lt; 0)  <span class="comment">/* filetype in dirent */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_INCOMPAT_SPINODES   (1 &lt;&lt; 1)  <span class="comment">/* sparse inode chunks */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_INCOMPAT_META_UUID  (1 &lt;&lt; 2)  <span class="comment">/* metadata UUID */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_INCOMPAT_BIGTIME    (1 &lt;&lt; 3)  <span class="comment">/* large timestamps */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_INCOMPAT_NEEDSREPAIR (1 &lt;&lt; 4) <span class="comment">/* needs xfs_repair */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_INCOMPAT_NREXT64    (1 &lt;&lt; 5)  <span class="comment">/* large extent counters */</span></span></span><br></pre></td></tr></table></figure>
+
+<p>只读兼容特性（<code>sb_features_ro_compat</code>）包括空闲 inode B-Tree（finobt）、反向映射 B-Tree（rmapbt）、引用计数 B-Tree（reflink）等：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_RO_COMPAT_FINOBT   (1 &lt;&lt; 0)  <span class="comment">/* free inode btree */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_RO_COMPAT_RMAPBT   (1 &lt;&lt; 1)  <span class="comment">/* reverse map btree */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_RO_COMPAT_REFLINK  (1 &lt;&lt; 2)  <span class="comment">/* reflinked files */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_SB_FEAT_RO_COMPAT_INOBTCNT (1 &lt;&lt; 3)  <span class="comment">/* inobt block counts */</span></span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-AGF-与-AGI-结构"><a href="#2-3-AGF-与-AGI-结构" class="headerlink" title="2.3 AGF 与 AGI 结构"></a>2.3 AGF 与 AGI 结构</h3><p>AGF（AG Freespace Header）管理该 AG 的空闲块，包含两棵 B-Tree：按块号排序的 BNO tree 和按大小排序的 CNT tree：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_format.h</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">xfs_agf</span> &#123;</span></span><br><span class="line">    __be32  agf_magicnum;   <span class="comment">/* magic number == XFS_AGF_MAGIC */</span></span><br><span class="line">    __be32  agf_versionnum; <span class="comment">/* header version == XFS_AGF_VERSION */</span></span><br><span class="line">    __be32  agf_seqno;      <span class="comment">/* sequence # starting from 0 */</span></span><br><span class="line">    __be32  agf_length;     <span class="comment">/* size in blocks of a.g. */</span></span><br><span class="line">    __be32  agf_roots[XFS_BTNUM_AGF];   <span class="comment">/* root blocks */</span></span><br><span class="line">    __be32  agf_levels[XFS_BTNUM_AGF];  <span class="comment">/* btree levels */</span></span><br><span class="line">    __be32  agf_flfirst;    <span class="comment">/* first freelist block&#x27;s index */</span></span><br><span class="line">    __be32  agf_fllast;     <span class="comment">/* last freelist block&#x27;s index */</span></span><br><span class="line">    __be32  agf_flcount;    <span class="comment">/* count of blocks in freelist */</span></span><br><span class="line">    __be32  agf_freeblks;   <span class="comment">/* total free blocks */</span></span><br><span class="line">    __be32  agf_longest;    <span class="comment">/* longest free space */</span></span><br><span class="line">    __be32  agf_btreeblks;  <span class="comment">/* # of blocks held in AGF btrees */</span></span><br><span class="line">    <span class="type">uuid_t</span>  agf_uuid;       <span class="comment">/* uuid of filesystem */</span></span><br><span class="line">    __be64  agf_lsn;        <span class="comment">/* last write sequence */</span></span><br><span class="line">    __be32  agf_crc;        <span class="comment">/* crc of agf sector */</span></span><br><span class="line">&#125; <span class="type">xfs_agf_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p>AGI（AG Inode Header）管理该 AG 的 inode，包含 inobt 根节点和 64 个 unlinked inode 哈希桶：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_format.h</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">xfs_agi</span> &#123;</span></span><br><span class="line">    __be32  agi_magicnum;   <span class="comment">/* magic number == XFS_AGI_MAGIC */</span></span><br><span class="line">    __be32  agi_seqno;      <span class="comment">/* sequence # starting from 0 */</span></span><br><span class="line">    __be32  agi_length;     <span class="comment">/* size in blocks of a.g. */</span></span><br><span class="line">    __be32  agi_count;      <span class="comment">/* count of allocated inodes */</span></span><br><span class="line">    __be32  agi_root;       <span class="comment">/* root of inode btree */</span></span><br><span class="line">    __be32  agi_level;      <span class="comment">/* levels in inode btree */</span></span><br><span class="line">    __be32  agi_freecount;  <span class="comment">/* number of free inodes */</span></span><br><span class="line">    __be32  agi_newino;     <span class="comment">/* new inode just allocated */</span></span><br><span class="line">    __be32  agi_unlinked[XFS_AGI_UNLINKED_BUCKETS];  <span class="comment">/* 64 buckets */</span></span><br><span class="line">    <span class="type">uuid_t</span>  agi_uuid;</span><br><span class="line">    __be32  agi_crc;</span><br><span class="line">    __be32  agi_free_root;  <span class="comment">/* root of the free inode btree */</span></span><br><span class="line">    __be32  agi_free_level; <span class="comment">/* levels in free inode btree */</span></span><br><span class="line">&#125; <span class="type">xfs_agi_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>agi_unlinked</code> 数组维护已 <code>unlink()</code> 但尚未释放（仍有进程打开）的 inode 链表，这是崩溃恢复的关键结构，日志恢复时会遍历这些链表完成 inode 清理。</p>
+<h3 id="2-4-每个-AG-的内核缓存：xfs-perag"><a href="#2-4-每个-AG-的内核缓存：xfs-perag" class="headerlink" title="2.4 每个 AG 的内核缓存：xfs_perag"></a>2.4 每个 AG 的内核缓存：xfs_perag</h3><p>内核为每个 AG 维护一个 <code>struct xfs_perag</code>，缓存 AGF&#x2F;AGI 中的关键字段，避免每次操作都读磁盘：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_ag.h</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xfs_perag</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_mount</span> *<span class="title">pag_mount</span>;</span>    <span class="comment">/* owner filesystem */</span></span><br><span class="line">    <span class="type">xfs_agnumber_t</span>  pag_agno;       <span class="comment">/* AG this structure belongs to */</span></span><br><span class="line">    <span class="type">atomic_t</span>        pag_ref;        <span class="comment">/* passive reference count */</span></span><br><span class="line">    <span class="type">atomic_t</span>        pag_active_ref; <span class="comment">/* active reference count */</span></span><br><span class="line">    <span class="type">uint8_t</span>         pagf_levels[XFS_BTNUM_AGF]; <span class="comment">/* btree levels */</span></span><br><span class="line">    <span class="type">uint32_t</span>        pagf_flcount;   <span class="comment">/* count of blocks in freelist */</span></span><br><span class="line">    <span class="type">xfs_extlen_t</span>    pagf_freeblks;  <span class="comment">/* total free blocks */</span></span><br><span class="line">    <span class="type">xfs_extlen_t</span>    pagf_longest;   <span class="comment">/* longest free space */</span></span><br><span class="line">    <span class="type">xfs_agino_t</span>     pagi_freecount; <span class="comment">/* number of free inodes */</span></span><br><span class="line">    <span class="type">xfs_agino_t</span>     pagi_count;     <span class="comment">/* number of allocated inodes */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Precalculated geometry info */</span></span><br><span class="line">    <span class="type">xfs_agblock_t</span>   block_count;</span><br><span class="line">    <span class="type">xfs_agblock_t</span>   min_block;</span><br><span class="line">    <span class="type">xfs_agino_t</span>     agino_min;</span><br><span class="line">    <span class="type">xfs_agino_t</span>     agino_max;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这种设计使得空间分配决策（选择哪个 AG 分配）可以在纯内存操作中完成，只有实际分配时才需要对目标 AG 加锁并访问磁盘。</p>
+<hr>
+<h2 id="3-核心数据结构：XFS-Inode"><a href="#3-核心数据结构：XFS-Inode" class="headerlink" title="3. 核心数据结构：XFS Inode"></a>3. 核心数据结构：XFS Inode</h2><h3 id="3-1-磁盘-inode-与内核-inode-的关系"><a href="#3-1-磁盘-inode-与内核-inode-的关系" class="headerlink" title="3.1 磁盘 inode 与内核 inode 的关系"></a>3.1 磁盘 inode 与内核 inode 的关系</h3><p>XFS inode 的设计非常精妙：<strong>对于小文件，数据可以直接内嵌在 inode 中</strong>（inline data）；对于中等大小的文件，extent 列表直接存储在 inode 的数据分叉（data fork）中；只有当 extent 数量超过阈值时，才会将 extent 信息迁移到一棵 B-Tree。</p>
+<p>内核中的 XFS inode 结构体（<code>xfs_inode_t</code>）定义在 <code>fs/xfs/xfs_inode.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_inode.h</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">xfs_inode</span> &#123;</span></span><br><span class="line">    <span class="comment">/* Inode linking and identification information. */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_mount</span>    *<span class="title">i_mount</span>;</span>   <span class="comment">/* fs mount struct ptr */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot</span>    *<span class="title">i_udquot</span>;</span>  <span class="comment">/* user dquot */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot</span>    *<span class="title">i_gdquot</span>;</span>  <span class="comment">/* group dquot */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot</span>    *<span class="title">i_pdquot</span>;</span>  <span class="comment">/* project dquot */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Inode location stuff */</span></span><br><span class="line">    <span class="type">xfs_ino_t</span>           i_ino;      <span class="comment">/* inode number (agno/agino) */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_imap</span>     <span class="title">i_imap</span>;</span>     <span class="comment">/* location for xfs_imap() */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Extent information. */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_ifork</span>    *<span class="title">i_cowfp</span>;</span>   <span class="comment">/* copy on write extents */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_ifork</span>    <span class="title">i_df</span>;</span>       <span class="comment">/* data fork */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_ifork</span>    <span class="title">i_af</span>;</span>       <span class="comment">/* attribute fork */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Transaction and locking information. */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_inode_log_item</span> *<span class="title">i_itemp</span>;</span> <span class="comment">/* logging information */</span></span><br><span class="line">    <span class="type">mrlock_t</span>            i_lock;     <span class="comment">/* inode lock */</span></span><br><span class="line">    <span class="type">atomic_t</span>            i_pincount; <span class="comment">/* inode pin count */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">spinlock_t</span>          i_flags_lock;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>       i_flags;    <span class="comment">/* see defined flags below */</span></span><br><span class="line">    <span class="type">uint64_t</span>            i_delayed_blks; <span class="comment">/* count of delay alloc blks */</span></span><br><span class="line">    <span class="type">xfs_fsize_t</span>         i_disk_size;<span class="comment">/* number of bytes in file */</span></span><br><span class="line">    <span class="type">xfs_rfsblock_t</span>      i_nblocks;  <span class="comment">/* # of direct &amp; btree blocks */</span></span><br><span class="line">    <span class="type">prid_t</span>              i_projid;   <span class="comment">/* owner&#x27;s project id */</span></span><br><span class="line">    <span class="type">xfs_extlen_t</span>        i_extsize;  <span class="comment">/* basic/minimum extent size */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="type">xfs_extlen_t</span>    i_cowextsize; <span class="comment">/* basic cow extent size */</span></span><br><span class="line">        <span class="type">uint16_t</span>        i_flushiter;  <span class="comment">/* incremented on flush */</span></span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="type">uint8_t</span>             i_forkoff;  <span class="comment">/* attr fork offset &gt;&gt; 3 */</span></span><br><span class="line">    <span class="type">uint16_t</span>            i_diflags;  <span class="comment">/* XFS_DIFLAG_... */</span></span><br><span class="line">    <span class="type">uint64_t</span>            i_diflags2; <span class="comment">/* XFS_DIFLAG2_... */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">timespec64</span>   <span class="title">i_crtime</span>;</span>   <span class="comment">/* time created */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* unlinked list pointers */</span></span><br><span class="line">    <span class="type">xfs_agino_t</span>         i_next_unlinked;</span><br><span class="line">    <span class="type">xfs_agino_t</span>         i_prev_unlinked;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* VFS inode */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span>        <span class="title">i_vnode</span>;</span>    <span class="comment">/* embedded VFS inode */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">spinlock_t</span>          i_ioend_lock;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">work_struct</span>  <span class="title">i_ioend_work</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>    <span class="title">i_ioend_list</span>;</span></span><br><span class="line">&#125; <span class="type">xfs_inode_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>xfs_inode_t</code> 尾部内嵌了 <code>struct inode</code>（Linux VFS 的通用 inode），内核通过 <code>container_of</code> 和 <code>XFS_I()</code> 宏在两者之间转换。</p>
+<h3 id="3-2-inode-fork：数据分叉与属性分叉"><a href="#3-2-inode-fork：数据分叉与属性分叉" class="headerlink" title="3.2 inode fork：数据分叉与属性分叉"></a>3.2 inode fork：数据分叉与属性分叉</h3><p>XFS inode 使用 <strong>fork（分叉）</strong> 的概念将数据 extent 和扩展属性 extent 分开管理，对应 <code>i_df</code>（data fork）和 <code>i_af</code>（attribute fork）。每个 fork 的格式由 <code>if_format</code> 字段决定：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_inode_fork.h</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xfs_ifork</span> &#123;</span></span><br><span class="line">    <span class="type">int64_t</span>         if_bytes;       <span class="comment">/* bytes in if_u1 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_btree_block</span> *<span class="title">if_broot</span>;</span> <span class="comment">/* file&#x27;s incore btree root */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>    if_seq;         <span class="comment">/* fork mod counter */</span></span><br><span class="line">    <span class="type">int</span>             if_height;      <span class="comment">/* height of the extent tree */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="type">void</span>        *if_root;       <span class="comment">/* extent tree root */</span></span><br><span class="line">        <span class="type">char</span>        *if_data;       <span class="comment">/* inline file data */</span></span><br><span class="line">    &#125; if_u1;</span><br><span class="line">    <span class="type">xfs_extnum_t</span>    if_nextents;    <span class="comment">/* # of extents in this fork */</span></span><br><span class="line">    <span class="type">short</span>           if_broot_bytes; <span class="comment">/* bytes allocated for root */</span></span><br><span class="line">    <span class="type">int8_t</span>          if_format;      <span class="comment">/* format of this fork */</span></span><br><span class="line">    <span class="type">uint8_t</span>         if_needextents; <span class="comment">/* extents have not been read */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>if_format</code> 有三种取值：</p>
+<ul>
+<li><code>XFS_DINODE_FMT_LOCAL</code>：数据内嵌在 inode 的 literal area（小目录、小符号链接、小文件）。</li>
+<li><code>XFS_DINODE_FMT_EXTENTS</code>：extent 列表直接存储在 inode 中，<code>if_u1.if_root</code> 指向内存中的 extent 列表。</li>
+<li><code>XFS_DINODE_FMT_BTREE</code>：extent 数量超阈值，使用 B-Tree 管理，<code>if_broot</code> 指向根节点。</li>
+</ul>
+<p><code>i_forkoff</code> 字段决定 inode literal area 如何在 data fork 和 attribute fork 之间分配空间：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_inode.h</span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">unsigned</span> <span class="type">int</span> <span class="title function_">xfs_inode_fork_boff</span><span class="params">(<span class="keyword">struct</span> xfs_inode *ip)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> ip-&gt;i_forkoff &lt;&lt; <span class="number">3</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">unsigned</span> <span class="type">int</span> <span class="title function_">xfs_inode_data_fork_size</span><span class="params">(<span class="keyword">struct</span> xfs_inode *ip)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (xfs_inode_has_attr_fork(ip))</span><br><span class="line">        <span class="keyword">return</span> xfs_inode_fork_boff(ip);</span><br><span class="line">    <span class="keyword">return</span> XFS_LITINO(ip-&gt;i_mount);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>i_forkoff</code> 以 8 字节为单位，<code>i_forkoff &lt;&lt; 3</code> 即为 data fork 在 literal area 中可用的字节数。</p>
+<h3 id="3-3-inode-号的编码"><a href="#3-3-inode-号的编码" class="headerlink" title="3.3 inode 号的编码"></a>3.3 inode 号的编码</h3><p>XFS inode 号是 64 位，高位是 AG 编号，低位是 AG 内的 inode 号（agino）。这意味着 inode 号天然携带了位置信息，无需额外的 inode 号到磁盘位置的映射表——这是 XFS 相比 ext2&#x2F;3&#x2F;4 的重要设计差异之一。</p>
+<hr>
+<h2 id="4-Extent-管理与-B-Tree"><a href="#4-Extent-管理与-B-Tree" class="headerlink" title="4. Extent 管理与 B-Tree"></a>4. Extent 管理与 B-Tree</h2><h3 id="4-1-Extent-的表示：bmbt-record"><a href="#4-1-Extent-的表示：bmbt-record" class="headerlink" title="4.1 Extent 的表示：bmbt record"></a>4.1 Extent 的表示：bmbt record</h3><p>XFS 用 <strong>extent（bmbt record）</strong> 来描述一段连续的逻辑文件块到物理磁盘块的映射，一条 extent 只需 16 字节（128 位），紧凑地打包了 4 个字段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[127:63] startoff  - 64 位文件逻辑偏移（块单位）</span><br><span class="line">[62:21]  startblock- 52 位文件系统物理块号</span><br><span class="line">[20:1]   blockcount- 21 位 extent 长度（块单位）</span><br><span class="line">[0]      state     - 1 位标志（0=正常，1=unwritten/预分配）</span><br></pre></td></tr></table></figure>
+
+<p>一个 <code>unwritten</code> extent 表示磁盘空间已预分配但数据尚未写入（<code>FALLOC_FL_KEEP_SIZE</code> 的语义），读取时返回零而非随机数据，写入完成后通过事务将其转换为 <code>written</code> 状态。</p>
+<h3 id="4-2-B-Tree-框架（xfs-btree）"><a href="#4-2-B-Tree-框架（xfs-btree）" class="headerlink" title="4.2 B-Tree 框架（xfs_btree）"></a>4.2 B-Tree 框架（xfs_btree）</h3><p>XFS 的所有 B-Tree 共享同一套底层框架，定义在 <code>fs/xfs/libxfs/xfs_btree.h</code>。树节点中的指针（<code>union xfs_btree_ptr</code>）分为短指针（<code>__be32</code>，AG 内相对块号）和长指针（<code>__be64</code>，全局块号）两种形式：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_btree.h</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">union</span> <span class="title">xfs_btree_ptr</span> &#123;</span></span><br><span class="line">    __be32  s;  <span class="comment">/* short form ptr - AG-relative block number */</span></span><br><span class="line">    __be64  l;  <span class="comment">/* long form ptr  - filesystem block number  */</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">union</span> <span class="title">xfs_btree_key</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_bmbt_key</span>     <span class="title">bmbt</span>;</span></span><br><span class="line">    <span class="type">xfs_bmdr_key_t</span>          bmbr;   <span class="comment">/* bmbt root block */</span></span><br><span class="line">    <span class="type">xfs_alloc_key_t</span>         alloc;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_inobt_key</span>    <span class="title">inobt</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_rmap_key</span>     <span class="title">rmap</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_refcount_key</span> <span class="title">refc</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>B-Tree 块头（<code>struct xfs_btree_block</code>）中记录了 magic number、level（叶节点为 0）、numrecs、左右兄弟指针，以及在 v5 文件系统上额外的 UUID、LSN、CRC 字段用于完整性验证。</p>
+<h3 id="4-3-bmbt（Block-Map-B-Tree）"><a href="#4-3-bmbt（Block-Map-B-Tree）" class="headerlink" title="4.3 bmbt（Block Map B-Tree）"></a>4.3 bmbt（Block Map B-Tree）</h3><p>当一个文件的 extent 数量超过可在 inode 中内联存储的上限时，XFS 将 extent 列表迁移到 bmbt（Block Map B-Tree）中。bmbt 使用长指针（全局块号），key 为文件逻辑偏移，record 为完整的 128 位 extent 描述符。</p>
+<p><code>fs/xfs/libxfs/xfs_bmap_btree.h</code> 中定义了 bmbt 块的寻址宏：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_bmap_btree.h</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// bmbt 块头长度（v5 文件系统带 CRC）</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_BMBT_BLOCK_LEN(mp) \</span></span><br><span class="line"><span class="meta">    (xfs_has_crc(((mp))) ? \</span></span><br><span class="line"><span class="meta">        XFS_BTREE_LBLOCK_CRC_LEN : XFS_BTREE_LBLOCK_LEN)</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 获取叶节点中第 index 条 record 的地址</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_BMBT_REC_ADDR(mp, block, index) \</span></span><br><span class="line"><span class="meta">    ((xfs_bmbt_rec_t *) \</span></span><br><span class="line"><span class="meta">        ((char *)(block) + \</span></span><br><span class="line"><span class="meta">         XFS_BMBT_BLOCK_LEN(mp) + \</span></span><br><span class="line"><span class="meta">         ((index) - 1) * sizeof(xfs_bmbt_rec_t)))</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 内部节点中第 index 个 ptr 的地址</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XFS_BMBT_PTR_ADDR(mp, block, index, maxrecs) \</span></span><br><span class="line"><span class="meta">    ((xfs_bmbt_ptr_t *) \</span></span><br><span class="line"><span class="meta">        ((char *)(block) + \</span></span><br><span class="line"><span class="meta">         XFS_BMBT_BLOCK_LEN(mp) + \</span></span><br><span class="line"><span class="meta">         (maxrecs) * sizeof(xfs_bmbt_key_t) + \</span></span><br><span class="line"><span class="meta">         ((index) - 1) * sizeof(xfs_bmbt_ptr_t)))</span></span><br></pre></td></tr></table></figure>
+
+<p>bmbt 的根节点特别处理：当 extent 数量刚超过内联上限时，根节点可以直接存储在 inode 的 <code>i_df.if_broot</code> 指向的内存中（bmap root，简称 broot），只有树高增长后才会溢出到独立的磁盘块。</p>
+<h3 id="4-4-空闲空间-B-Tree（allocbt）"><a href="#4-4-空闲空间-B-Tree（allocbt）" class="headerlink" title="4.4 空闲空间 B-Tree（allocbt）"></a>4.4 空闲空间 B-Tree（allocbt）</h3><p>每个 AG 维护两棵空闲空间 B-Tree，均使用短指针（AG 相对块号）：</p>
+<ul>
+<li><strong>BNO tree</strong>：按起始块号排序，用于合并相邻空闲区域。</li>
+<li><strong>CNT tree</strong>：按区域大小排序，用于最优适配（best-fit）分配。</li>
+</ul>
+<p>两棵树共享 AGF 中的根节点信息（<code>agf_roots[]</code>，<code>agf_levels[]</code>）。分配时会同时更新两棵树，保持一致性。</p>
+<h3 id="4-5-inobt-与-finobt"><a href="#4-5-inobt-与-finobt" class="headerlink" title="4.5 inobt 与 finobt"></a>4.5 inobt 与 finobt</h3><p>每个 AG 还有两棵 inode 相关的 B-Tree：</p>
+<ul>
+<li><strong>inobt（Inode B-Tree）</strong>：以 agino 为键，记录 inode chunk 的分配状态。每条 record 对应 64 个连续 inode，一个 64 位掩码标记哪些 inode 已分配。</li>
+<li><strong>finobt（Free Inode B-Tree）</strong>：仅在 <code>XFS_SB_FEAT_RO_COMPAT_FINOBT</code> 开启时存在，只记录有空闲 inode 的 chunk，大幅加速 inode 分配时的查找过程。</li>
+</ul>
+<hr>
+<h2 id="5-日志子系统（XFS-Journal）"><a href="#5-日志子系统（XFS-Journal）" class="headerlink" title="5. 日志子系统（XFS Journal）"></a>5. 日志子系统（XFS Journal）</h2><h3 id="5-1-日志架构概述"><a href="#5-1-日志架构概述" class="headerlink" title="5.1 日志架构概述"></a>5.1 日志架构概述</h3><p>XFS 使用 <strong>WAL（Write-Ahead Logging）</strong> 保证崩溃一致性。与 ext4 的 journaling 不同，XFS 只记录<strong>元数据</strong>（默认不记录文件数据），日志写入是 XFS 所有元数据修改的唯一持久化路径。</p>
+<p>XFS 日志系统由以下几层组成：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">应用层事务</span><br><span class="line">   ↓</span><br><span class="line">xfs_trans（事务管理）</span><br><span class="line">   ↓</span><br><span class="line">CIL（Committed Item List，延迟提交日志）</span><br><span class="line">   ↓</span><br><span class="line">iclog（In-Core Log，环形缓冲区）</span><br><span class="line">   ↓</span><br><span class="line">磁盘日志区</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-日志记录格式与-LSN"><a href="#5-2-日志记录格式与-LSN" class="headerlink" title="5.2 日志记录格式与 LSN"></a>5.2 日志记录格式与 LSN</h3><p>日志中的每条记录（log record）有一个固定的 512 字节头部：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_log_format.h</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">xlog_rec_header</span> &#123;</span></span><br><span class="line">    __be32  h_magicno;      <span class="comment">/* log record identifier */</span></span><br><span class="line">    __be32  h_cycle;        <span class="comment">/* write cycle of log */</span></span><br><span class="line">    __be32  h_version;      <span class="comment">/* LR version */</span></span><br><span class="line">    __be32  h_len;          <span class="comment">/* len in bytes; 64-bit aligned */</span></span><br><span class="line">    __be64  h_lsn;          <span class="comment">/* lsn of this LR */</span></span><br><span class="line">    __be64  h_tail_lsn;     <span class="comment">/* lsn of 1st LR with uncommitted buffers */</span></span><br><span class="line">    __le32  h_crc;          <span class="comment">/* crc of log record */</span></span><br><span class="line">    __be32  h_prev_block;   <span class="comment">/* block number to previous LR */</span></span><br><span class="line">    __be32  h_num_logops;   <span class="comment">/* number of log operations in this LR */</span></span><br><span class="line">    __be32  h_cycle_data[XLOG_HEADER_CYCLE_SIZE / BBSIZE];</span><br><span class="line">    __be32  h_fmt;          <span class="comment">/* format of log record */</span></span><br><span class="line">    <span class="type">uuid_t</span>  h_fs_uuid;      <span class="comment">/* uuid of FS */</span></span><br><span class="line">    __be32  h_size;         <span class="comment">/* iclog size */</span></span><br><span class="line">&#125; <span class="type">xlog_rec_header_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>LSN（Log Sequence Number）</strong> 是 XFS 日志的核心概念。LSN 是一个 64 位整数，高 32 位是 cycle（日志绕回次数），低 32 位是 block offset：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_log_format.h</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> CYCLE_LSN(lsn) ((uint)((lsn)&gt;&gt;32))</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> BLOCK_LSN(lsn) ((uint)(lsn))</span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">xfs_lsn_t</span> <span class="title function_">xlog_assign_lsn</span><span class="params">(uint cycle, uint block)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> ((<span class="type">xfs_lsn_t</span>)cycle &lt;&lt; <span class="number">32</span>) | block;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>LSN 的单调递增特性使得 XFS 可以通过比较 LSN 来判断哪些元数据更新已持久化。</p>
+<p>每条日志操作（log operation）都有一个 <code>xlog_op_header</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/libxfs/xfs_log_format.h</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">xlog_op_header</span> &#123;</span></span><br><span class="line">    __be32  oh_tid;         <span class="comment">/* transaction id of operation */</span></span><br><span class="line">    __be32  oh_len;         <span class="comment">/* bytes in data region */</span></span><br><span class="line">    __u8    oh_clientid;    <span class="comment">/* who sent me this (XFS_TRANSACTION=0x69) */</span></span><br><span class="line">    __u8    oh_flags;       <span class="comment">/* XLOG_START_TRANS / XLOG_COMMIT_TRANS ... */</span></span><br><span class="line">    __u16   oh_res2;        <span class="comment">/* 32 bit align */</span></span><br><span class="line">&#125; <span class="type">xlog_op_header_t</span>;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XLOG_START_TRANS    0x01  <span class="comment">/* Start a new transaction */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XLOG_COMMIT_TRANS   0x02  <span class="comment">/* Commit this transaction */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XLOG_CONTINUE_TRANS 0x04  <span class="comment">/* Cont this trans into new region */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> XLOG_END_TRANS      0x10  <span class="comment">/* End a continued transaction */</span></span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-In-Core-Log（iclog）环形缓冲区"><a href="#5-3-In-Core-Log（iclog）环形缓冲区" class="headerlink" title="5.3 In-Core Log（iclog）环形缓冲区"></a>5.3 In-Core Log（iclog）环形缓冲区</h3><p>日志写入的核心缓冲区是 <code>xlog_in_core</code>（iclog）。iclog 以环形链表组织，默认有 2～8 个，每个大小为 32KB～256KB：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_log_priv.h</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">xlog_in_core</span> &#123;</span></span><br><span class="line">    <span class="type">wait_queue_head_t</span>   ic_force_wait;  <span class="comment">/* 同步强制刷盘的等待队列 */</span></span><br><span class="line">    <span class="type">wait_queue_head_t</span>   ic_write_wait;  <span class="comment">/* 写入完成的等待队列 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xlog_in_core</span> *<span class="title">ic_next</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xlog_in_core</span> *<span class="title">ic_prev</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xlog</span>         *<span class="title">ic_log</span>;</span></span><br><span class="line">    u32                 ic_size;        <span class="comment">/* iclog 全部大小 */</span></span><br><span class="line">    u32                 ic_offset;      <span class="comment">/* 当前写入偏移 */</span></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">xlog_iclog_state</span> <span class="title">ic_state</span>;</span>     <span class="comment">/* 状态机 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>        ic_flags;</span><br><span class="line">    <span class="type">void</span>                *ic_datap;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>    <span class="title">ic_callbacks</span>;</span>   <span class="comment">/* 提交回调链表 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">atomic_t</span>            ic_refcnt ____cacheline_aligned_in_smp;</span><br><span class="line">    <span class="type">xlog_in_core_2_t</span>    *ic_data;       <span class="comment">/* 磁盘格式数据区 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>          <span class="title">ic_bio</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span>      <span class="title">ic_bvec</span>[];</span></span><br><span class="line">&#125; <span class="type">xlog_in_core_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p>iclog 的状态机：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_log_priv.h</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">xlog_iclog_state</span> &#123;</span></span><br><span class="line">    XLOG_STATE_ACTIVE,      <span class="comment">/* 当前正在被写入 */</span></span><br><span class="line">    XLOG_STATE_WANT_SYNC,   <span class="comment">/* 已满，等待提交 */</span></span><br><span class="line">    XLOG_STATE_SYNCING,     <span class="comment">/* 正在写入磁盘 */</span></span><br><span class="line">    XLOG_STATE_DONE_SYNC,   <span class="comment">/* 已写入磁盘 */</span></span><br><span class="line">    XLOG_STATE_CALLBACK,    <span class="comment">/* 正在执行回调 */</span></span><br><span class="line">    XLOG_STATE_DIRTY,       <span class="comment">/* 脏，等待复用 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-4-日志票据（Log-Ticket）"><a href="#5-4-日志票据（Log-Ticket）" class="headerlink" title="5.4 日志票据（Log Ticket）"></a>5.4 日志票据（Log Ticket）</h3><p>每个事务在写入日志之前必须先预留空间，通过 <code>xlog_ticket</code> 管理：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_log_priv.h</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">xlog_ticket</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>    <span class="title">t_queue</span>;</span>    <span class="comment">/* reserve/write queue */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span>  *<span class="title">t_task</span>;</span>    <span class="comment">/* task that owns this ticket */</span></span><br><span class="line">    <span class="type">xlog_tid_t</span>          t_tid;      <span class="comment">/* transaction identifier */</span></span><br><span class="line">    <span class="type">atomic_t</span>            t_ref;      <span class="comment">/* ticket reference count */</span></span><br><span class="line">    <span class="type">int</span>                 t_curr_res; <span class="comment">/* current reservation */</span></span><br><span class="line">    <span class="type">int</span>                 t_unit_res; <span class="comment">/* unit reservation */</span></span><br><span class="line">    <span class="type">char</span>                t_ocnt;     <span class="comment">/* original unit count */</span></span><br><span class="line">    <span class="type">char</span>                t_cnt;      <span class="comment">/* current unit count */</span></span><br><span class="line">    <span class="type">uint8_t</span>             t_flags;    <span class="comment">/* XLOG_TIC_PERM_RESERV etc. */</span></span><br><span class="line">    <span class="type">int</span>                 t_iclog_hdrs;</span><br><span class="line">&#125; <span class="type">xlog_ticket_t</span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>XLOG_TIC_PERM_RESERV</code> 标志表示永久预留（Permanent Reservation）——事务可以滚动提交而无需每次重新申请空间，这对于长事务（如目录操作）非常重要。</p>
+<p>日志空间管理通过原子操作维护 <code>grant head</code>，避免全局锁竞争：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_log.c</span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span></span><br><span class="line"><span class="title function_">xlog_grant_sub_space</span><span class="params">(</span></span><br><span class="line"><span class="params">    <span class="keyword">struct</span> xlog     *<span class="built_in">log</span>,</span></span><br><span class="line"><span class="params">    <span class="type">atomic64_t</span>      *head,</span></span><br><span class="line"><span class="params">    <span class="type">int</span>             bytes)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int64_t</span> head_val = atomic64_read(head);</span><br><span class="line">    <span class="type">int64_t</span> new, old;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        <span class="type">int</span> cycle, space;</span><br><span class="line">        xlog_crack_grant_head_val(head_val, &amp;cycle, &amp;space);</span><br><span class="line"></span><br><span class="line">        space -= bytes;</span><br><span class="line">        <span class="keyword">if</span> (space &lt; <span class="number">0</span>) &#123;</span><br><span class="line">            space += <span class="built_in">log</span>-&gt;l_logsize;</span><br><span class="line">            cycle--;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        old = head_val;</span><br><span class="line">        new = xlog_assign_grant_head_val(cycle, space);</span><br><span class="line">        head_val = atomic64_cmpxchg(head, old, new);</span><br><span class="line">    &#125; <span class="keyword">while</span> (head_val != old);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里的 CAS 循环（<code>atomic64_cmpxchg</code>）是 XFS 日志空间管理的无锁核心，允许多个 CPU 同时修改 grant head 而不引发竞争。</p>
+<h3 id="5-5-CIL（Committed-Item-List）：延迟提交"><a href="#5-5-CIL（Committed-Item-List）：延迟提交" class="headerlink" title="5.5 CIL（Committed Item List）：延迟提交"></a>5.5 CIL（Committed Item List）：延迟提交</h3><p>现代 XFS（引入于 2.6.29）使用 <strong>CIL（Committed Item List）</strong> 机制将事务的实际日志写入延迟到 checkpoint 时间，从而大幅减少小事务带来的日志写放大：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_log_priv.h</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xfs_cil_ctx</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_cil</span>      *<span class="title">cil</span>;</span></span><br><span class="line">    <span class="type">xfs_csn_t</span>           sequence;       <span class="comment">/* chkpt sequence # */</span></span><br><span class="line">    <span class="type">xfs_lsn_t</span>           start_lsn;      <span class="comment">/* first LSN of chkpt commit */</span></span><br><span class="line">    <span class="type">xfs_lsn_t</span>           commit_lsn;     <span class="comment">/* chkpt commit record lsn */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xlog_in_core</span> *<span class="title">commit_iclog</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xlog_ticket</span>  *<span class="title">ticket</span>;</span></span><br><span class="line">    <span class="type">atomic_t</span>            space_used;     <span class="comment">/* aggregate size of regions */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>    <span class="title">busy_extents</span>;</span>   <span class="comment">/* busy extents in chkpt */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>    <span class="title">log_items</span>;</span>      <span class="comment">/* log items in chkpt */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>    <span class="title">lv_chain</span>;</span>       <span class="comment">/* logvecs being pushed */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">work_struct</span>  <span class="title">push_work</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>CIL 的工作流程：事务提交时，dirty log item 的数据被复制到 per-cpu 的 CIL 上下文中；当 CIL 积累到足够大（约 32MB）或被强制触发时，整批数据才会作为一个 checkpoint 写入 iclog。这将大量的随机小写入合并为顺序的大批量写入，显著提升 I&#x2F;O 效率。</p>
+<h3 id="5-6-日志恢复"><a href="#5-6-日志恢复" class="headerlink" title="5.6 日志恢复"></a>5.6 日志恢复</h3><p>崩溃后重新挂载时，XFS 会执行日志恢复（<code>xfs_log_recover.c</code>）。恢复流程：</p>
+<ol>
+<li>扫描日志区，根据 cycle 信息确定有效日志记录的范围（<code>h_tail_lsn</code> 到最新的 commit record）。</li>
+<li>按事务顺序重放日志：提取每个事务的操作，将最终状态写回到元数据缓冲区。</li>
+<li>处理 <code>agi_unlinked</code> 链表，释放那些已 <code>unlink</code> 但崩溃前未来得及释放的 inode 和块。</li>
+<li>写入 <code>XLOG_UNMOUNT_TYPE</code> 记录，标记日志已干净。</li>
+</ol>
+<hr>
+<h2 id="6-延迟写（Delayed-Allocation）机制"><a href="#6-延迟写（Delayed-Allocation）机制" class="headerlink" title="6. 延迟写（Delayed Allocation）机制"></a>6. 延迟写（Delayed Allocation）机制</h2><p>XFS 的延迟写（Delalloc）是其在顺序写入和随机写入场景中都保持低碎片率的关键机制。</p>
+<p>传统文件系统在 <code>write()</code> 系统调用时立即分配磁盘块。XFS 则不同：<strong>只在 page cache 的 page 即将刷出时（writeback 时）才真正分配磁盘块</strong>，中间阶段用 “delay extent”（特殊的预留 extent）占位。</p>
+<p>延迟分配的好处是显而易见的：当应用连续写入一个文件时，XFS 可以观察到完整的写入范围，然后一次性分配连续的磁盘块，而不是每次写入 4KB 就分配一个分散的小块。</p>
+<p>相关的文件大小更新逻辑在 <code>fs/xfs/xfs_aops.c</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_aops.c</span></span><br><span class="line"></span><br><span class="line"><span class="type">int</span></span><br><span class="line"><span class="title function_">xfs_setfilesize</span><span class="params">(</span></span><br><span class="line"><span class="params">    <span class="keyword">struct</span> xfs_inode    *ip,</span></span><br><span class="line"><span class="params">    <span class="type">xfs_off_t</span>           offset,</span></span><br><span class="line"><span class="params">    <span class="type">size_t</span>              size)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_mount</span>    *<span class="title">mp</span> =</span> ip-&gt;i_mount;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_trans</span>    *<span class="title">tp</span>;</span></span><br><span class="line">    <span class="type">xfs_fsize_t</span>         isize;</span><br><span class="line">    <span class="type">int</span>                 error;</span><br><span class="line"></span><br><span class="line">    error = xfs_trans_alloc(mp, &amp;M_RES(mp)-&gt;tr_fsyncts, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, &amp;tp);</span><br><span class="line">    <span class="keyword">if</span> (error)</span><br><span class="line">        <span class="keyword">return</span> error;</span><br><span class="line"></span><br><span class="line">    xfs_ilock(ip, XFS_ILOCK_EXCL);</span><br><span class="line">    isize = xfs_new_eof(ip, offset + size);</span><br><span class="line">    <span class="keyword">if</span> (!isize) &#123;</span><br><span class="line">        xfs_iunlock(ip, XFS_ILOCK_EXCL);</span><br><span class="line">        xfs_trans_cancel(tp);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    ip-&gt;i_disk_size = isize;</span><br><span class="line">    xfs_trans_ijoin(tp, ip, XFS_ILOCK_EXCL);</span><br><span class="line">    xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> xfs_trans_commit(tp);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里的 <code>xfs_trans_log_inode</code> 将 inode 修改记入日志，<code>xfs_trans_commit</code> 将事务提交到 CIL——所有这些都在 I&#x2F;O 完成后的回调路径中完成，这就是 WAL（Write-Ahead Logging）在 XFS 中的体现。</p>
+<p><code>fsync()</code> 的实现也清晰地展示了 WAL 的语义：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_file.c</span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">int</span></span><br><span class="line"><span class="title function_">xfs_fsync_flush_log</span><span class="params">(</span></span><br><span class="line"><span class="params">    <span class="keyword">struct</span> xfs_inode    *ip,</span></span><br><span class="line"><span class="params">    <span class="type">bool</span>                datasync,</span></span><br><span class="line"><span class="params">    <span class="type">int</span>                 *log_flushed)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span>     error = <span class="number">0</span>;</span><br><span class="line">    <span class="type">xfs_csn_t</span> seq;</span><br><span class="line"></span><br><span class="line">    xfs_ilock(ip, XFS_ILOCK_SHARED);</span><br><span class="line">    seq = xfs_fsync_seq(ip, datasync);</span><br><span class="line">    <span class="keyword">if</span> (seq) &#123;</span><br><span class="line">        error = xfs_log_force_seq(ip-&gt;i_mount, seq, XFS_LOG_SYNC,</span><br><span class="line">                                  log_flushed);</span><br><span class="line">        spin_lock(&amp;ip-&gt;i_itemp-&gt;ili_lock);</span><br><span class="line">        ip-&gt;i_itemp-&gt;ili_fsync_fields = <span class="number">0</span>;</span><br><span class="line">        spin_unlock(&amp;ip-&gt;i_itemp-&gt;ili_lock);</span><br><span class="line">    &#125;</span><br><span class="line">    xfs_iunlock(ip, XFS_ILOCK_SHARED);</span><br><span class="line">    <span class="keyword">return</span> error;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>fsync()</code> 不需要将 page cache 全部写出，只需强制日志写入磁盘（<code>xfs_log_force_seq</code>），因为元数据已经通过 WAL 先于数据记录到日志中。</p>
+<hr>
+<h2 id="7-XFS-并行化设计"><a href="#7-XFS-并行化设计" class="headerlink" title="7. XFS 并行化设计"></a>7. XFS 并行化设计</h2><p>XFS 的高并发性能来自于系统性的并行化设计，而不仅仅是锁优化。</p>
+<h3 id="7-1-AG-级并行"><a href="#7-1-AG-级并行" class="headerlink" title="7.1 AG 级并行"></a>7.1 AG 级并行</h3><p>每个 AG 都有独立的：</p>
+<ul>
+<li>AGF&#x2F;AGI 锁（<code>pagf_state</code>，<code>pagi_state</code>）</li>
+<li>空闲空间 B-Tree</li>
+<li>inode B-Tree</li>
+<li>perag（per-AG inode 分配状态）</li>
+</ul>
+<p>创建文件时，XFS 会根据负载均衡策略（文件数量、剩余空间）选择一个 AG，然后所有操作都限制在该 AG 内，完全不影响其他 AG 的操作。这使得在多核机器上，同时创建大量文件的扩展性接近线性。</p>
+<h3 id="7-2-inode-锁设计"><a href="#7-2-inode-锁设计" class="headerlink" title="7.2 inode 锁设计"></a>7.2 inode 锁设计</h3><p>XFS inode 使用 <code>mrlock_t</code>（multi-reader lock，即读写锁）而非简单的自旋锁，支持多个读者并发：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_inode.h (mrlock_t 定义在 mrlock.h)</span></span><br><span class="line"></span><br><span class="line"><span class="type">mrlock_t</span>    i_lock;     <span class="comment">/* inode lock */</span></span><br></pre></td></tr></table></figure>
+
+<p>XFS 还细化了 inode 锁的语义，对不同操作使用不同级别：</p>
+<ul>
+<li><code>XFS_ILOCK_SHARED</code>：用于读操作、fsync 的 LSN 读取。</li>
+<li><code>XFS_ILOCK_EXCL</code>：用于写操作、extent 分配、大小更新。</li>
+</ul>
+<h3 id="7-3-AIL（Active-Item-List）"><a href="#7-3-AIL（Active-Item-List）" class="headerlink" title="7.3 AIL（Active Item List）"></a>7.3 AIL（Active Item List）</h3><p>AIL（Active Item List）是所有 dirty log item 的全局有序链表，按 LSN 排序。它是 XFS 元数据刷盘的推手：<code>xfsaild</code> 守护线程周期性扫描 AIL，将 LSN 最老的脏元数据缓冲区强制写回磁盘，然后推进日志的 tail LSN，释放日志空间。</p>
+<h3 id="7-4-并行工作队列（pwork）"><a href="#7-4-并行工作队列（pwork）" class="headerlink" title="7.4 并行工作队列（pwork）"></a>7.4 并行工作队列（pwork）</h3><p><code>fs/xfs/xfs_pwork.c</code> 实现了一套并行工作队列，用于在多 CPU 上并行执行文件系统操作（如并行 inode 遍历、并行 scrub）。</p>
+<hr>
+<h2 id="8-XFS-配额与-inode-管理"><a href="#8-XFS-配额与-inode-管理" class="headerlink" title="8. XFS 配额与 inode 管理"></a>8. XFS 配额与 inode 管理</h2><h3 id="8-1-配额类型"><a href="#8-1-配额类型" class="headerlink" title="8.1 配额类型"></a>8.1 配额类型</h3><p>XFS 支持三种配额类型，在 <code>xfs_inode.h</code> 中的 inode 直接引用了对应的 dquot：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot</span>    *<span class="title">i_udquot</span>;</span>  <span class="comment">/* user dquot */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot</span>    *<span class="title">i_gdquot</span>;</span>  <span class="comment">/* group dquot */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot</span>    *<span class="title">i_pdquot</span>;</span>  <span class="comment">/* project dquot */</span></span><br></pre></td></tr></table></figure>
+
+<p>项目配额（project quota）是 XFS 独有的特性，可以对目录树（而非某个用户）设置配额，常用于虚拟化存储和多租户场景。</p>
+<h3 id="8-2-dquot-结构"><a href="#8-2-dquot-结构" class="headerlink" title="8.2 dquot 结构"></a>8.2 dquot 结构</h3><p><code>xfs_dquot</code> 结构在 <code>fs/xfs/xfs_dquot.h</code> 中定义，包含块、inode、realtime 块三个维度的配额资源：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_dquot.h</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>    <span class="title">q_lru</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_mount</span>    *<span class="title">q_mount</span>;</span></span><br><span class="line">    <span class="type">xfs_dqtype_t</span>        q_type;</span><br><span class="line">    <span class="type">xfs_dqid_t</span>          q_id;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot_res</span> <span class="title">q_blk</span>;</span>     <span class="comment">/* regular blocks */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot_res</span> <span class="title">q_ino</span>;</span>     <span class="comment">/* inodes */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_dquot_res</span> <span class="title">q_rtb</span>;</span>     <span class="comment">/* realtime blocks */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xfs_dq_logitem</span> <span class="title">q_logitem</span>;</span></span><br><span class="line">    <span class="type">xfs_qcnt_t</span>          q_prealloc_lo_wmark;</span><br><span class="line">    <span class="type">xfs_qcnt_t</span>          q_prealloc_hi_wmark;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个 <code>xfs_dquot_res</code> 都有 <code>reserved</code>（预留+已用）、<code>count</code>（已用）、<code>hardlimit</code>、<code>softlimit</code> 和 <code>timer</code>（宽限期到期时间）字段。</p>
+<h3 id="8-3-inode-缓存与惰性释放"><a href="#8-3-inode-缓存与惰性释放" class="headerlink" title="8.3 inode 缓存与惰性释放"></a>8.3 inode 缓存与惰性释放</h3><p>XFS 使用 <code>xfs_icache.c</code> 管理内存 inode 缓存，通过 per-cpu 的 <code>xfs_inodegc</code> 实现惰性 inode 释放（deferred inactivation）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// fs/xfs/xfs_mount.h</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xfs_inodegc</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">llist_head</span>   <span class="title">list</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">delayed_work</span> <span class="title">work</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>        items;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>        shrinker_hits;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>当 inode 的 VFS 引用计数降为零时，XFS 不立即释放磁盘 inode，而是将其放入 per-cpu 的 <code>xfs_inodegc</code> 列表，由后台工作线程批量处理。这减少了 <code>unlink()</code> 等操作的延迟，提升了单线程删除文件的性能。</p>
+<hr>
+<h2 id="9-XFS-常用管理工具"><a href="#9-XFS-常用管理工具" class="headerlink" title="9. XFS 常用管理工具"></a>9. XFS 常用管理工具</h2><p>XFS 提供了完整的用户态工具集（<code>xfsprogs</code>），涵盖检查、修复、备份等场景：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mkfs.xfs</code></td>
+<td>创建 XFS 文件系统，可指定 AG 数量、块大小、inode 大小、stripe unit 等</td>
+</tr>
+<tr>
+<td><code>xfs_info</code></td>
+<td>显示已挂载 XFS 文件系统的几何参数（AG 数量、块大小等）</td>
+</tr>
+<tr>
+<td><code>xfs_admin</code></td>
+<td>修改文件系统参数（UUID、label、特性标志）</td>
+</tr>
+<tr>
+<td><code>xfs_repair</code></td>
+<td>离线修复损坏的 XFS 文件系统，功能远超 <code>fsck.xfs</code></td>
+</tr>
+<tr>
+<td><code>xfsdump</code> &#x2F; <code>xfsrestore</code></td>
+<td>XFS 专用备份&#x2F;恢复工具，支持增量备份和 extended attributes</td>
+</tr>
+<tr>
+<td><code>xfs_db</code></td>
+<td>XFS 调试工具，可直接检查磁盘结构（superblock、AG header、inode 等）</td>
+</tr>
+<tr>
+<td><code>xfs_io</code></td>
+<td>文件级 I&#x2F;O 调试工具，支持 fallocate、punch hole、fiemap 等操作</td>
+</tr>
+<tr>
+<td><code>xfs_growfs</code></td>
+<td>在线扩容文件系统（只支持扩大，不支持缩小）</td>
+</tr>
+<tr>
+<td><code>xfs_freeze</code></td>
+<td>冻结&#x2F;解冻文件系统，用于快照</td>
+</tr>
+<tr>
+<td><code>xfs_scrub</code></td>
+<td>在线元数据一致性检查（需要 rmapbt 支持）</td>
+</tr>
+</tbody></table>
+<p>常用命令示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建 XFS 文件系统，4K 块，512B inode</span></span><br><span class="line">mkfs.xfs -b size=4096 -i size=512 /dev/sdb</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看文件系统几何参数</span></span><br><span class="line">xfs_info /mnt/xfs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查 inode 的 extent 列表（调试用）</span></span><br><span class="line">xfs_db -r /dev/sdb -c <span class="string">&quot;inode 128&quot;</span> -c <span class="string">&quot;bmap&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 在线扩容（先扩磁盘分区，再扩文件系统）</span></span><br><span class="line">xfs_growfs /mnt/xfs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 离线修复（必须先卸载）</span></span><br><span class="line">xfs_repair /dev/sdb</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="10-XFS-性能调优"><a href="#10-XFS-性能调优" class="headerlink" title="10. XFS 性能调优"></a>10. XFS 性能调优</h2><h3 id="10-1-格式化参数"><a href="#10-1-格式化参数" class="headerlink" title="10.1 格式化参数"></a>10.1 格式化参数</h3><p>在 <code>mkfs.xfs</code> 阶段选择合理的参数对性能影响深远：</p>
+<ul>
+<li>**<code>-b size=N</code>**：块大小，默认 4096，可选 512 到 65536。对于大文件顺序 I&#x2F;O，可设为 65536；对于随机小 I&#x2F;O（如数据库），保持 4096 或匹配数据库 page size。</li>
+<li>**<code>-i size=N</code>**：inode 大小，默认 512，可设为 1024 或 2048。更大的 inode 可以容纳更多 inline extent，减少 B-Tree 分配，但会浪费 inode 空间。</li>
+<li>**<code>-d su=N,sw=M</code>**：RAID stripe unit 和 stripe width。正确设置后，XFS 会对齐 AG 边界和数据分配，避免跨 stripe 写入。</li>
+<li>**<code>-l size=N</code>**：日志大小。更大的日志（最大 2GB）可以容纳更多未提交事务，减少日志刷盘频率，但延长崩溃恢复时间。</li>
+</ul>
+<h3 id="10-2-挂载选项"><a href="#10-2-挂载选项" class="headerlink" title="10.2 挂载选项"></a>10.2 挂载选项</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">noatime      - 禁用 atime 更新，减少元数据写入</span><br><span class="line">logbsize=N   - 日志缓冲区（iclog）大小，建议 256k（最大值）</span><br><span class="line">allocsize=N  - 预分配 extent 大小，如 allocsize=64m 可减少碎片</span><br><span class="line">largeio      - 优化大 I/O，设置 stat 返回的最优 I/O 大小</span><br><span class="line">inode64      - 强制在整个磁盘范围内分配 inode（而非限于前 1TB）</span><br></pre></td></tr></table></figure>
+
+<h3 id="10-3-运行时调优"><a href="#10-3-运行时调优" class="headerlink" title="10.3 运行时调优"></a>10.3 运行时调优</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看 XFS 统计信息</span></span><br><span class="line"><span class="built_in">cat</span> /proc/fs/xfs/stat</span><br><span class="line"></span><br><span class="line"><span class="comment"># 调整预读大小（影响顺序读性能）</span></span><br><span class="line">blockdev --setra 16384 /dev/sdb</span><br><span class="line"></span><br><span class="line"><span class="comment"># 对于 NVMe，可调整 I/O 调度器</span></span><br><span class="line"><span class="built_in">echo</span> none &gt; /sys/block/nvme0n1/queue/scheduler</span><br></pre></td></tr></table></figure>
+
+<h3 id="10-4-典型场景建议"><a href="#10-4-典型场景建议" class="headerlink" title="10.4 典型场景建议"></a>10.4 典型场景建议</h3><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>关键参数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>大文件顺序 I&#x2F;O（视频、备份）</td>
+<td><code>allocsize=1g</code>, <code>-b size=65536</code>, <code>noatime</code></td>
+</tr>
+<tr>
+<td>高 IOPS 随机 I&#x2F;O（数据库）</td>
+<td><code>-b size=4096</code>, <code>-i size=2048</code>, <code>logbsize=256k</code></td>
+</tr>
+<tr>
+<td>海量小文件（邮件、代码库）</td>
+<td><code>-i size=512 -i maxpct=25</code>, <code>noatime</code></td>
+</tr>
+<tr>
+<td>RAID 阵列</td>
+<td><code>-d su=&lt;stripe_unit&gt;,sw=&lt;stripe_width&gt;</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="11-XFS-vs-Ext4-vs-Btrfs-对比"><a href="#11-XFS-vs-Ext4-vs-Btrfs-对比" class="headerlink" title="11. XFS vs Ext4 vs Btrfs 对比"></a>11. XFS vs Ext4 vs Btrfs 对比</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>XFS</th>
+<th>Ext4</th>
+<th>Btrfs</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>最大文件系统</td>
+<td>8 EiB</td>
+<td>1 EiB</td>
+<td>16 EiB</td>
+</tr>
+<tr>
+<td>最大文件大小</td>
+<td>8 EiB</td>
+<td>16 TiB</td>
+<td>16 EiB</td>
+</tr>
+<tr>
+<td>日志模式</td>
+<td>仅元数据 WAL</td>
+<td>元数据&#x2F;数据&#x2F;混合</td>
+<td>CoW（无传统 journal）</td>
+</tr>
+<tr>
+<td>在线扩容</td>
+<td>仅扩大</td>
+<td>扩大&#x2F;缩小</td>
+<td>扩大&#x2F;缩小</td>
+</tr>
+<tr>
+<td>在线碎片整理</td>
+<td>支持（<code>xfs_fsr</code>）</td>
+<td>支持（<code>e4defrag</code>）</td>
+<td>内置（自动）</td>
+</tr>
+<tr>
+<td>CoW &#x2F; 引用链接</td>
+<td>支持（v5，reflink）</td>
+<td>不支持</td>
+<td>核心特性</td>
+</tr>
+<tr>
+<td>快照</td>
+<td>不支持</td>
+<td>不支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>数据校验和</td>
+<td>仅元数据 CRC</td>
+<td>仅元数据 CRC</td>
+<td>数据+元数据</td>
+</tr>
+<tr>
+<td>RAID 内置支持</td>
+<td>不支持</td>
+<td>不支持</td>
+<td>支持（RAID 5&#x2F;6 不稳定）</td>
+</tr>
+<tr>
+<td>并发扩展性</td>
+<td>极佳（AG 并行）</td>
+<td>较好</td>
+<td>一般（CoW 写放大）</td>
+</tr>
+<tr>
+<td>大文件顺序 I&#x2F;O</td>
+<td>极佳</td>
+<td>良好</td>
+<td>良好</td>
+</tr>
+<tr>
+<td>海量小文件</td>
+<td>良好</td>
+<td>良好</td>
+<td>较差（元数据开销大）</td>
+</tr>
+<tr>
+<td>崩溃一致性</td>
+<td>高（经过生产验证）</td>
+<td>高（经过生产验证）</td>
+<td>较高（持续改进中）</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>高性能存储、企业级工作负载</td>
+<td>通用场景、桌面</td>
+<td>需要快照&#x2F;CoW 的场景</td>
+</tr>
+</tbody></table>
+<p><strong>总结</strong>：</p>
+<ul>
+<li>XFS 在<strong>大文件、高吞吐、高并发</strong>场景下仍是 Linux 上的首选（RHEL 默认）。它的 AG 并行架构和成熟的日志子系统提供了极佳的可预测性能和可靠性。</li>
+<li>Ext4 是<strong>通用场景</strong>下的稳健选择，工具链最成熟，在桌面和 Debian 系发行版中应用广泛。</li>
+<li>Btrfs 的<strong>CoW 和快照</strong>特性使它在需要数据保护和弹性存储的场景下有优势，但在 I&#x2F;O 密集型工作负载下的写放大问题需要关注。</li>
+</ul>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Linux 6.4-rc1 内核源码：<code>fs/xfs/</code></li>
+<li><a target="_blank" rel="noopener" href="https://mirrors.edge.kernel.org/pub/linux/utils/fs/xfs/docs/xfs_filesystem_structure.pdf">XFS Filesystem Structure</a> - 官方磁盘格式文档</li>
+<li><a target="_blank" rel="noopener" href="https://xfs.wiki.kernel.org/">XFS Project Wiki</a></li>
+<li><code>man 5 xfs</code>，<code>man 8 mkfs.xfs</code>，<code>man 8 xfs_repair</code></li>
+<li>Dave Chinner，”XFS: How XFS Works”，2019 Linux Storage &amp; Filesystem Conference</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Filesystem/" rel="tag"># Filesystem</a>
+              <a href="/tags/XFS/" rel="tag"># XFS</a>
+              <a href="/tags/Journal/" rel="tag"># Journal</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part6-btrfs/" rel="prev" title="Linux 存储与文件系统深度剖析（六）：Btrfs 文件系统核心原理">
+                  <i class="fa fa-angle-left"></i> Linux 存储与文件系统深度剖析（六）：Btrfs 文件系统核心原理
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part7-io-scheduler/" rel="next" title="Linux 存储与文件系统深度剖析（七）：IO 调度器深度剖析">
+                  Linux 存储与文件系统深度剖析（七）：IO 调度器深度剖析 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="页缓存（Page Cache）是 Linux 内核中性能优化最关键的子系统之一。它充当内存与磁盘之间的高速缓冲层，使得绝大多数文件读写操作无需真正触达磁盘。本文基于 Linux 6.4-rc1 内核源码，从数据结构到核心算法，系统地剖析页缓存的实现原理。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 存储与文件系统深度剖析（四）：页缓存与缓冲区缓存">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part4-page-cache/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="页缓存（Page Cache）是 Linux 内核中性能优化最关键的子系统之一。它充当内存与磁盘之间的高速缓冲层，使得绝大多数文件读写操作无需真正触达磁盘。本文基于 Linux 6.4-rc1 内核源码，从数据结构到核心算法，系统地剖析页缓存的实现原理。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-12T02:30:00.000Z">
+<meta property="article:modified_time" content="2026-04-13T13:30:30.250Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Page Cache">
+<meta property="article:tag" content="Memory">
+<meta property="article:tag" content="Writeback">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part4-page-cache/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part4-page-cache/","path":"2026/04/12/2026-04-12-linux-storage-part4-page-cache/","title":"Linux 存储与文件系统深度剖析（四）：页缓存与缓冲区缓存"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 存储与文件系统深度剖析（四）：页缓存与缓冲区缓存 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E8%AE%BE%E8%AE%A1%E7%9B%AE%E6%A0%87%E4%B8%8E%E5%9F%BA%E6%9C%AC%E5%8E%9F%E7%90%86"><span class="nav-number">1.</span> <span class="nav-text">一、设计目标与基本原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E9%A1%B5%E7%BC%93%E5%AD%98"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 为什么需要页缓存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E4%BB%8E-Buffer-Cache-%E5%88%B0%E7%BB%9F%E4%B8%80%E7%9A%84-Page-Cache"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 从 Buffer Cache 到统一的 Page Cache</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-Folio%EF%BC%9A%E9%9D%A2%E5%90%91%E6%9C%AA%E6%9D%A5%E7%9A%84%E6%8A%BD%E8%B1%A1"><span class="nav-number">1.3.</span> <span class="nav-text">1.3 Folio：面向未来的抽象</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">二、核心数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-struct-address-space%EF%BC%9A%E6%96%87%E4%BB%B6%E5%88%B0%E9%A1%B5%E7%9A%84%E6%98%A0%E5%B0%84%E6%A0%B8%E5%BF%83"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 struct address_space：文件到页的映射核心</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-struct-address-space-operations%EF%BC%9A%E6%93%8D%E4%BD%9C%E6%96%B9%E6%B3%95%E9%9B%86"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 struct address_space_operations：操作方法集</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-struct-file-ra-state%EF%BC%9A%E9%A2%84%E8%AF%BB%E7%8A%B6%E6%80%81"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 struct file_ra_state：预读状态</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E9%A1%B5%E7%BC%93%E5%AD%98%E7%9A%84%E6%9F%A5%E6%89%BE%E4%B8%8E%E5%88%86%E9%85%8D"><span class="nav-number">3.</span> <span class="nav-text">三、页缓存的查找与分配</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%9F%A5%E6%89%BE%E9%A1%B5%E7%BC%93%E5%AD%98"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 查找页缓存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%90%91%E9%A1%B5%E7%BC%93%E5%AD%98%E6%B7%BB%E5%8A%A0%E6%96%B0%E9%A1%B5"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 向页缓存添加新页</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E8%AF%BB%E6%96%87%E4%BB%B6%E7%9A%84%E9%A1%B5%E7%BC%93%E5%AD%98%E6%B5%81%E7%A8%8B"><span class="nav-number">4.</span> <span class="nav-text">四、读文件的页缓存流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-filemap-read%EF%BC%9A%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%E8%AF%BB%E8%B7%AF%E5%BE%84"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 filemap_read：系统调用读路径</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-filemap-fault%EF%BC%9Ammap-%E7%BC%BA%E9%A1%B5%E4%B8%AD%E6%96%AD%E8%B7%AF%E5%BE%84"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 filemap_fault：mmap 缺页中断路径</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E9%A2%84%E8%AF%BB%E6%9C%BA%E5%88%B6%EF%BC%88Readahead%EF%BC%89%E8%AF%A6%E8%A7%A3"><span class="nav-number">5.</span> <span class="nav-text">五、预读机制（Readahead）详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E9%A2%84%E8%AF%BB%E7%9A%84%E8%AE%BE%E8%AE%A1%E5%93%B2%E5%AD%A6"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 预读的设计哲学</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%8E%E7%AA%97%E5%8F%A3%E5%A2%9E%E9%95%BF"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 初始化与窗口增长</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-page-cache-ra-unbounded%EF%BC%9A%E9%A2%84%E8%AF%BB-I-O-%E7%9A%84%E6%A0%B8%E5%BF%83"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 page_cache_ra_unbounded：预读 I&#x2F;O 的核心</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-ondemand-readahead%EF%BC%9A%E6%8C%89%E9%9C%80%E9%A2%84%E8%AF%BB%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-number">5.4.</span> <span class="nav-text">5.4 ondemand_readahead：按需预读状态机</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E8%84%8F%E9%A1%B5%E5%9B%9E%E5%86%99%EF%BC%88Writeback%EF%BC%89%E6%9C%BA%E5%88%B6"><span class="nav-number">6.</span> <span class="nav-text">六、脏页回写（Writeback）机制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E8%84%8F%E9%A1%B5%E7%9A%84%E4%BA%A7%E7%94%9F"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 脏页的产生</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E5%9B%9E%E5%86%99%E7%BA%BF%E7%A8%8B%E4%B8%8E%E8%A7%A6%E5%8F%91%E6%97%B6%E6%9C%BA"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 回写线程与触发时机</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-wb-writeback%EF%BC%9A%E5%9B%9E%E5%86%99%E6%89%A7%E8%A1%8C%E5%BE%AA%E7%8E%AF"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 wb_writeback：回写执行循环</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E5%9B%9E%E5%86%99%E7%9A%84%E4%B8%89%E4%B8%AA-inode-%E9%98%9F%E5%88%97"><span class="nav-number">6.4.</span> <span class="nav-text">6.4 回写的三个 inode 队列</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E7%BC%93%E5%86%B2%E5%8C%BA%E7%BC%93%E5%AD%98%EF%BC%88Buffer-Cache%EF%BC%89%E4%B8%8E%E9%A1%B5%E7%BC%93%E5%AD%98%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="nav-number">7.</span> <span class="nav-text">七、缓冲区缓存（Buffer Cache）与页缓存的关系</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-struct-buffer-head%EF%BC%9A%E7%A3%81%E7%9B%98%E5%9D%97%E5%88%B0%E9%A1%B5%E7%9A%84%E6%98%A0%E5%B0%84"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 struct buffer_head：磁盘块到页的映射</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E4%B8%80%E4%B8%AA%E9%A1%B5%E9%9D%A2%E4%B8%8A%E7%9A%84%E5%A4%9A%E4%B8%AA-buffer-head"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 一个页面上的多个 buffer_head</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-Direct-I-O-%E7%BB%95%E8%BF%87%E9%A1%B5%E7%BC%93%E5%AD%98"><span class="nav-number">7.3.</span> <span class="nav-text">7.3 Direct I&#x2F;O 绕过页缓存</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E9%A1%B5%E7%BC%93%E5%AD%98%E7%9A%84%E5%86%85%E5%AD%98%E5%8E%8B%E5%8A%9B%E5%A4%84%E7%90%86"><span class="nav-number">8.</span> <span class="nav-text">八、页缓存的内存压力处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%8F%8C%E9%93%BE%E8%A1%A8-LRU-%E8%BF%91%E4%BC%BC%E7%AE%97%E6%B3%95"><span class="nav-number">8.1.</span> <span class="nav-text">8.1 双链表 LRU 近似算法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-folio-check-references%EF%BC%9A%E5%88%A4%E6%96%AD%E6%98%AF%E5%90%A6%E5%8F%AF%E5%9B%9E%E6%94%B6"><span class="nav-number">8.2.</span> <span class="nav-text">8.2 folio_check_references：判断是否可回收</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-%E5%B7%A5%E4%BD%9C%E9%9B%86%E6%A3%80%E6%B5%8B%EF%BC%88Workingset%EF%BC%89"><span class="nav-number">8.3.</span> <span class="nav-text">8.3 工作集检测（Workingset）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%9D%E3%80%81%E9%A1%B5%E7%BC%93%E5%AD%98%E8%B0%83%E4%BC%98%E5%8F%82%E6%95%B0"><span class="nav-number">9.</span> <span class="nav-text">九、页缓存调优参数</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#9-1-%E8%84%8F%E9%A1%B5%E5%9B%9E%E5%86%99%E7%9B%B8%E5%85%B3"><span class="nav-number">9.1.</span> <span class="nav-text">9.1 脏页回写相关</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-2-%E5%86%85%E5%AD%98%E5%8E%8B%E5%8A%9B%E4%B8%8E%E5%9B%9E%E6%94%B6"><span class="nav-number">9.2.</span> <span class="nav-text">9.2 内存压力与回收</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-3-%E9%A2%84%E8%AF%BB%E8%B0%83%E4%BC%98"><span class="nav-number">9.3.</span> <span class="nav-text">9.3 预读调优</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-4-%E5%AE%9E%E6%97%B6%E8%A7%82%E6%B5%8B"><span class="nav-number">9.4.</span> <span class="nav-text">9.4 实时观测</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%81%E3%80%81%E6%80%BB%E7%BB%93"><span class="nav-number">10.</span> <span class="nav-text">十、总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">72</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">164</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part4-page-cache/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 存储与文件系统深度剖析（四）：页缓存与缓冲区缓存 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 存储与文件系统深度剖析（四）：页缓存与缓冲区缓存
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2026-04-12 10:30:00" itemprop="dateCreated datePublished" datetime="2026-04-12T10:30:00+08:00">2026-04-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-04-13 21:30:30" itemprop="dateModified" datetime="2026-04-13T21:30:30+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>页缓存（Page Cache）是 Linux 内核中性能优化最关键的子系统之一。它充当内存与磁盘之间的高速缓冲层，使得绝大多数文件读写操作无需真正触达磁盘。本文基于 Linux 6.4-rc1 内核源码，从数据结构到核心算法，系统地剖析页缓存的实现原理。</p>
+<span id="more"></span>
+
+<h2 id="一、设计目标与基本原理"><a href="#一、设计目标与基本原理" class="headerlink" title="一、设计目标与基本原理"></a>一、设计目标与基本原理</h2><h3 id="1-1-为什么需要页缓存"><a href="#1-1-为什么需要页缓存" class="headerlink" title="1.1 为什么需要页缓存"></a>1.1 为什么需要页缓存</h3><p>磁盘的随机访问延迟（机械硬盘约 5-10ms，SSD 约 0.1ms）与内存访问延迟（约 100ns）之间存在数个数量级的差距。如果每次文件读写都直接访问磁盘，I&#x2F;O 密集型应用的性能将无法接受。</p>
+<p>Linux 页缓存的设计目标体现在以下几个维度：</p>
+<ul>
+<li><strong>读缓存（Read Cache）</strong>：将磁盘数据缓存到内存，相同数据的再次读取直接从内存返回</li>
+<li><strong>写缓存（Write Cache）</strong>：写操作先写入缓存页，由内核统一批量回写（writeback），实现写聚合</li>
+<li><strong>共享内存映射</strong>：多个进程可以通过 <code>mmap</code> 共享同一文件的页缓存，避免数据在内核态和用户态之间的拷贝</li>
+<li><strong>预读（Readahead）</strong>：通过访问模式预测，提前将后续数据加载到缓存中，隐藏 I&#x2F;O 延迟</li>
+</ul>
+<h3 id="1-2-从-Buffer-Cache-到统一的-Page-Cache"><a href="#1-2-从-Buffer-Cache-到统一的-Page-Cache" class="headerlink" title="1.2 从 Buffer Cache 到统一的 Page Cache"></a>1.2 从 Buffer Cache 到统一的 Page Cache</h3><p>在 Linux 2.2 以前，内核同时维护两套缓存：<strong>页缓存</strong>（以内存页为单位，缓存文件数据）和<strong>缓冲区缓存</strong>（以 <code>buffer_head</code> 为单位，缓存块设备原始数据）。两套缓存相互独立，同一磁盘数据可能同时占据两份内存，造成严重浪费。</p>
+<p>Linux 2.4 完成了两者的统一：buffer cache 不再独立存在，而是以 <code>buffer_head</code> 的形式附着在页缓存的 folio（页）上，作为页到磁盘块映射关系的元数据。</p>
+<h3 id="1-3-Folio：面向未来的抽象"><a href="#1-3-Folio：面向未来的抽象" class="headerlink" title="1.3 Folio：面向未来的抽象"></a>1.3 Folio：面向未来的抽象</h3><p>Linux 5.16 引入了 <code>struct folio</code>，6.4 中已大量使用。一个 folio 可以代表一个或多个连续的物理页（对应透明大页 THP），是比 <code>struct page</code> 更高层次的抽象。本文中凡涉及内核实现，均使用 folio 接口。</p>
+<hr>
+<h2 id="二、核心数据结构"><a href="#二、核心数据结构" class="headerlink" title="二、核心数据结构"></a>二、核心数据结构</h2><h3 id="2-1-struct-address-space：文件到页的映射核心"><a href="#2-1-struct-address-space：文件到页的映射核心" class="headerlink" title="2.1 struct address_space：文件到页的映射核心"></a>2.1 <code>struct address_space</code>：文件到页的映射核心</h3><p><code>address_space</code> 是页缓存最核心的数据结构，每个可缓存的对象（inode 或块设备）都有一个与之关联的 <code>address_space</code> 实例。它负责管理该对象在页缓存中的所有缓存页，以及提供操作方法集。</p>
+<p>定义位于 <code>include/linux/fs.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * struct address_space - Contents of a cacheable, mappable object.</span></span><br><span class="line"><span class="comment"> * @host: Owner, either the inode or the block_device.</span></span><br><span class="line"><span class="comment"> * @i_pages: Cached pages.</span></span><br><span class="line"><span class="comment"> * @invalidate_lock: Guards coherency between page cache contents and</span></span><br><span class="line"><span class="comment"> *   file offset-&gt;disk block mappings in the filesystem during invalidates.</span></span><br><span class="line"><span class="comment"> *   It is also used to block modification of page cache contents through</span></span><br><span class="line"><span class="comment"> *   memory mappings.</span></span><br><span class="line"><span class="comment"> * @gfp_mask: Memory allocation flags to use for allocating pages.</span></span><br><span class="line"><span class="comment"> * @i_mmap_writable: Number of VM_SHARED mappings.</span></span><br><span class="line"><span class="comment"> * @nr_thps: Number of THPs in the pagecache (non-shmem only).</span></span><br><span class="line"><span class="comment"> * @i_mmap: Tree of private and shared mappings.</span></span><br><span class="line"><span class="comment"> * @i_mmap_rwsem: Protects @i_mmap and @i_mmap_writable.</span></span><br><span class="line"><span class="comment"> * @nrpages: Number of page entries, protected by the i_pages lock.</span></span><br><span class="line"><span class="comment"> * @writeback_index: Writeback starts here.</span></span><br><span class="line"><span class="comment"> * @a_ops: Methods.</span></span><br><span class="line"><span class="comment"> * @flags: Error bits and flags (AS_*).</span></span><br><span class="line"><span class="comment"> * @wb_err: The most recent error which has occurred.</span></span><br><span class="line"><span class="comment"> * @private_lock: For use by the owner of the address_space.</span></span><br><span class="line"><span class="comment"> * @private_list: For use by the owner of the address_space.</span></span><br><span class="line"><span class="comment"> * @private_data: For use by the owner of the address_space.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">address_space</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span>            *<span class="title">host</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xarray</span>           <span class="title">i_pages</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rw_semaphore</span>     <span class="title">invalidate_lock</span>;</span></span><br><span class="line">    <span class="type">gfp_t</span>                   gfp_mask;</span><br><span class="line">    <span class="type">atomic_t</span>                i_mmap_writable;</span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_READ_ONLY_THP_FOR_FS</span></span><br><span class="line">    <span class="comment">/* number of thp, only for non-shmem files */</span></span><br><span class="line">    <span class="type">atomic_t</span>                nr_thps;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_root_cached</span>   <span class="title">i_mmap</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rw_semaphore</span>     <span class="title">i_mmap_rwsem</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           nrpages;</span><br><span class="line">    <span class="type">pgoff_t</span>                 writeback_index;</span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">address_space_operations</span> *<span class="title">a_ops</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>           flags;</span><br><span class="line">    <span class="type">errseq_t</span>                wb_err;</span><br><span class="line">    <span class="type">spinlock_t</span>              private_lock;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>        <span class="title">private_list</span>;</span></span><br><span class="line">    <span class="type">void</span>                    *private_data;</span><br><span class="line">&#125; __attribute__((aligned(<span class="keyword">sizeof</span>(<span class="type">long</span>)))) __randomize_layout;</span><br></pre></td></tr></table></figure>
+
+<p>各字段详解：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>host</code></td>
+<td><code>struct inode *</code></td>
+<td>拥有此 address_space 的 inode（或块设备的 inode）</td>
+</tr>
+<tr>
+<td><code>i_pages</code></td>
+<td><code>struct xarray</code></td>
+<td><strong>核心索引树</strong>，以文件页偏移（<code>pgoff_t</code>）为键，存储所有缓存的 folio 指针。XArray 替代了旧版的 radix_tree，提供更好的并发支持</td>
+</tr>
+<tr>
+<td><code>invalidate_lock</code></td>
+<td><code>struct rw_semaphore</code></td>
+<td>在 truncate &#x2F; 失效操作与页缓存写入之间保证一致性；也用于阻止通过 mmap 修改页缓存内容</td>
+</tr>
+<tr>
+<td><code>gfp_mask</code></td>
+<td><code>gfp_t</code></td>
+<td>分配缓存页时使用的内存分配标志，文件系统通常设置 <code>__GFP_NOFS</code> 防止在回收过程中重入文件系统</td>
+</tr>
+<tr>
+<td><code>i_mmap_writable</code></td>
+<td><code>atomic_t</code></td>
+<td>引用此 mapping 的 <code>VM_SHARED</code> 可写 mmap 数量；当此值非零时，写入操作需要额外注意 D-cache 一致性</td>
+</tr>
+<tr>
+<td><code>i_mmap</code></td>
+<td><code>struct rb_root_cached</code></td>
+<td>红黑树，索引所有映射到此文件的 VMA（虚拟内存区域），用于反向映射（RMAP）和 <code>msync</code> 操作</td>
+</tr>
+<tr>
+<td><code>nrpages</code></td>
+<td><code>unsigned long</code></td>
+<td>当前缓存的页数（受 <code>i_pages</code> 锁保护）</td>
+</tr>
+<tr>
+<td><code>writeback_index</code></td>
+<td><code>pgoff_t</code></td>
+<td>上次回写操作结束的位置，用于范围循环（range_cyclic）回写策略</td>
+</tr>
+<tr>
+<td><code>a_ops</code></td>
+<td><code>const struct address_space_operations *</code></td>
+<td>文件系统或块设备实现的操作方法集</td>
+</tr>
+<tr>
+<td><code>flags</code></td>
+<td><code>unsigned long</code></td>
+<td>错误标志位，包括 <code>AS_EIO</code>（I&#x2F;O 错误）、<code>AS_ENOSPC</code>（空间不足）等</td>
+</tr>
+<tr>
+<td><code>wb_err</code></td>
+<td><code>errseq_t</code></td>
+<td>最近一次写回错误，使用序列化错误机制（errseq），支持多进程独立感知错误</td>
+</tr>
+</tbody></table>
+<p><strong><code>__attribute__((aligned(sizeof(long))))</code> 的意义</strong>：确保结构体对齐到指针大小的整数倍。<code>struct page</code> 的 <code>mapping</code> 字段的最低位被用于区分匿名页（<code>PAGE_MAPPING_ANON = 1</code>），强制对齐确保 <code>address_space</code> 指针的最低位始终为 0，避免混淆。</p>
+<p><strong>XArray 与 Radix Tree</strong>：<code>i_pages</code> 从旧的 <code>radix_tree_root</code> 升级为 <code>struct xarray</code>。XArray 提供了更好的并发支持（通过 <code>xa_lock</code> 替代外部自旋锁），支持在迭代时插入和删除，并内置了多标记（marks）机制——<code>PAGECACHE_TAG_DIRTY</code>、<code>PAGECACHE_TAG_WRITEBACK</code>、<code>PAGECACHE_TAG_TOWRITE</code> 用于高效地标记和查找脏页、回写中的页。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* XArray tags, for tagging dirty and writeback pages in the pagecache. */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PAGECACHE_TAG_DIRTY     XA_MARK_0</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PAGECACHE_TAG_WRITEBACK XA_MARK_1</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PAGECACHE_TAG_TOWRITE   XA_MARK_2</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-struct-address-space-operations：操作方法集"><a href="#2-2-struct-address-space-operations：操作方法集" class="headerlink" title="2.2 struct address_space_operations：操作方法集"></a>2.2 <code>struct address_space_operations</code>：操作方法集</h3><p>每种文件系统（ext4、XFS、btrfs 等）以及块设备都需要实现 <code>address_space_operations</code>，告知页缓存如何读写数据。定义位于 <code>include/linux/fs.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">address_space_operations</span> &#123;</span></span><br><span class="line">    <span class="type">int</span> (*writepage)(<span class="keyword">struct</span> page *page, <span class="keyword">struct</span> writeback_control *wbc);</span><br><span class="line">    <span class="type">int</span> (*read_folio)(<span class="keyword">struct</span> file *, <span class="keyword">struct</span> folio *);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Write back some dirty pages from this mapping. */</span></span><br><span class="line">    <span class="type">int</span> (*writepages)(<span class="keyword">struct</span> address_space *, <span class="keyword">struct</span> writeback_control *);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Mark a folio dirty.  Return true if this dirtied it */</span></span><br><span class="line">    <span class="type">bool</span> (*dirty_folio)(<span class="keyword">struct</span> address_space *, <span class="keyword">struct</span> folio *);</span><br><span class="line"></span><br><span class="line">    <span class="type">void</span> (*readahead)(<span class="keyword">struct</span> readahead_control *);</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> (*write_begin)(<span class="keyword">struct</span> file *, <span class="keyword">struct</span> address_space *mapping,</span><br><span class="line">                <span class="type">loff_t</span> pos, <span class="type">unsigned</span> len,</span><br><span class="line">                <span class="keyword">struct</span> page **pagep, <span class="type">void</span> **fsdata);</span><br><span class="line">    <span class="type">int</span> (*write_end)(<span class="keyword">struct</span> file *, <span class="keyword">struct</span> address_space *mapping,</span><br><span class="line">                <span class="type">loff_t</span> pos, <span class="type">unsigned</span> len, <span class="type">unsigned</span> copied,</span><br><span class="line">                <span class="keyword">struct</span> page *page, <span class="type">void</span> *fsdata);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Unfortunately this kludge is needed for FIBMAP. Don&#x27;t use it */</span></span><br><span class="line">    <span class="type">sector_t</span> (*bmap)(<span class="keyword">struct</span> address_space *, <span class="type">sector_t</span>);</span><br><span class="line">    <span class="type">void</span> (*invalidate_folio) (<span class="keyword">struct</span> folio *, <span class="type">size_t</span> offset, <span class="type">size_t</span> len);</span><br><span class="line">    <span class="type">bool</span> (*release_folio)(<span class="keyword">struct</span> folio *, <span class="type">gfp_t</span>);</span><br><span class="line">    <span class="type">void</span> (*free_folio)(<span class="keyword">struct</span> folio *folio);</span><br><span class="line">    <span class="type">ssize_t</span> (*direct_IO)(<span class="keyword">struct</span> kiocb *, <span class="keyword">struct</span> iov_iter *iter);</span><br><span class="line">    <span class="type">int</span> (*migrate_folio)(<span class="keyword">struct</span> address_space *, <span class="keyword">struct</span> folio *dst,</span><br><span class="line">            <span class="keyword">struct</span> folio *src, <span class="keyword">enum</span> migrate_mode);</span><br><span class="line">    <span class="type">int</span> (*launder_folio)(<span class="keyword">struct</span> folio *);</span><br><span class="line">    <span class="type">bool</span> (*is_partially_uptodate) (<span class="keyword">struct</span> folio *, <span class="type">size_t</span> from,</span><br><span class="line">            <span class="type">size_t</span> count);</span><br><span class="line">    <span class="type">void</span> (*is_dirty_writeback) (<span class="keyword">struct</span> folio *, <span class="type">bool</span> *dirty, <span class="type">bool</span> *wb);</span><br><span class="line">    <span class="type">int</span> (*error_remove_page)(<span class="keyword">struct</span> address_space *, <span class="keyword">struct</span> page *);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* swapfile support */</span></span><br><span class="line">    <span class="type">int</span> (*swap_activate)(<span class="keyword">struct</span> swap_info_struct *sis, <span class="keyword">struct</span> file *file,</span><br><span class="line">                <span class="type">sector_t</span> *span);</span><br><span class="line">    <span class="type">void</span> (*swap_deactivate)(<span class="keyword">struct</span> file *file);</span><br><span class="line">    <span class="type">int</span> (*swap_rw)(<span class="keyword">struct</span> kiocb *iocb, <span class="keyword">struct</span> iov_iter *iter);</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>关键方法说明：</p>
+<ul>
+<li>**<code>read_folio</code>**：从存储设备读取单个 folio 的内容。当页缓存中不存在某页时，由此方法触发实际的磁盘 I&#x2F;O（取代旧版 <code>readpage</code>）。</li>
+<li>**<code>readahead</code>**：批量预读操作，比逐页调用 <code>read_folio</code> 更高效。文件系统通过 <code>readahead_folio()</code> 迭代获取待预读的页，并统一提交 I&#x2F;O。</li>
+<li>**<code>writepage</code> &#x2F; <code>writepages</code>**：将脏页写回磁盘。<code>writepages</code> 是批量版本，允许文件系统将多个连续页合并为一次 I&#x2F;O 请求。</li>
+<li>**<code>dirty_folio</code>**：将 folio 标记为脏（dirty）。默认实现为 <code>filemap_dirty_folio</code>，设置 folio 的 dirty 标志并将其加入回写队列。</li>
+<li>**<code>write_begin</code> &#x2F; <code>write_end</code>**：写操作的两阶段提交。<code>write_begin</code> 准备（可能分配并锁定）目标 folio，<code>write_end</code> 在数据复制后完成状态更新。</li>
+<li>**<code>invalidate_folio</code>**：在 truncate 等操作使页失效时调用，清除该页上的 buffer_head 等私有数据。</li>
+<li>**<code>release_folio</code>**：在内存回收时，判断是否可以释放 folio 上的私有数据（如 buffer_head）。</li>
+<li>**<code>direct_IO</code>**：绕过页缓存的直接 I&#x2F;O 实现（对应 <code>O_DIRECT</code> 标志）。</li>
+</ul>
+<h3 id="2-3-struct-file-ra-state：预读状态"><a href="#2-3-struct-file-ra-state：预读状态" class="headerlink" title="2.3 struct file_ra_state：预读状态"></a>2.3 <code>struct file_ra_state</code>：预读状态</h3><p>每个打开的文件描述符（<code>struct file</code>）都持有一个 <code>file_ra_state</code>，记录该文件句柄的预读窗口状态：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">file_ra_state</span> &#123;</span></span><br><span class="line">    <span class="type">pgoff_t</span> start;          <span class="comment">/* 当前预读窗口的起始页偏移 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> size;      <span class="comment">/* 当前预读窗口的总页数 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> async_size;<span class="comment">/* 异步预读部分的页数（窗口末尾） */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> ra_pages;  <span class="comment">/* 最大预读页数，从 bdi 复制 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> mmap_miss; <span class="comment">/* mmap 访问未命中页缓存的次数 */</span></span><br><span class="line">    <span class="type">loff_t</span> prev_pos;        <span class="comment">/* 上次读请求的最后一个字节位置 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>预读窗口的示意图（来自内核注释）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">                    |&lt;----- async_size ---------|</span><br><span class="line">|------------------- size --------------------&gt;|</span><br><span class="line">|==================#===========================|</span><br><span class="line">^start             ^page marked with PG_readahead</span><br></pre></td></tr></table></figure>
+
+<p><code>PG_readahead</code> 标志被设置在异步预读部分的第一个页上。当应用程序访问到该页时，触发下一轮异步预读，形成预读流水线，使磁盘 I&#x2F;O 与应用处理时间重叠。</p>
+<hr>
+<h2 id="三、页缓存的查找与分配"><a href="#三、页缓存的查找与分配" class="headerlink" title="三、页缓存的查找与分配"></a>三、页缓存的查找与分配</h2><h3 id="3-1-查找页缓存"><a href="#3-1-查找页缓存" class="headerlink" title="3.1 查找页缓存"></a>3.1 查找页缓存</h3><p>页缓存的查找通过 XArray 接口完成。<code>filemap_get_folio()</code> 是查找的入口，它在 <code>mapping-&gt;i_pages</code> 中以页偏移为键进行查找：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 快速路径：通过 xa_load 在 XArray 中查找</span></span><br><span class="line">folio = xa_load(&amp;mapping-&gt;i_pages, index);</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>filemap_get_pages()</code>（<code>mm/filemap.c</code>）中可以看到完整的查找逻辑：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">filemap_get_pages</span><span class="params">(<span class="keyword">struct</span> kiocb *iocb, <span class="type">size_t</span> count,</span></span><br><span class="line"><span class="params">        <span class="keyword">struct</span> folio_batch *fbatch, <span class="type">bool</span> need_uptodate)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">filp</span> =</span> iocb-&gt;ki_filp;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">address_space</span> *<span class="title">mapping</span> =</span> filp-&gt;f_mapping;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file_ra_state</span> *<span class="title">ra</span> =</span> &amp;filp-&gt;f_ra;</span><br><span class="line">    <span class="type">pgoff_t</span> index = iocb-&gt;ki_pos &gt;&gt; PAGE_SHIFT;</span><br><span class="line">    <span class="type">pgoff_t</span> last_index;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">folio</span> *<span class="title">folio</span>;</span></span><br><span class="line">    <span class="type">int</span> err = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* &quot;last_index&quot; is the index of the page beyond the end of the read */</span></span><br><span class="line">    last_index = DIV_ROUND_UP(iocb-&gt;ki_pos + count, PAGE_SIZE);</span><br><span class="line">retry:</span><br><span class="line">    <span class="keyword">if</span> (fatal_signal_pending(current))</span><br><span class="line">        <span class="keyword">return</span> -EINTR;</span><br><span class="line"></span><br><span class="line">    filemap_get_read_batch(mapping, index, last_index - <span class="number">1</span>, fbatch);</span><br><span class="line">    <span class="keyword">if</span> (!folio_batch_count(fbatch)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (iocb-&gt;ki_flags &amp; IOCB_NOIO)</span><br><span class="line">            <span class="keyword">return</span> -EAGAIN;</span><br><span class="line">        page_cache_sync_readahead(mapping, ra, filp, index,</span><br><span class="line">                last_index - index);</span><br><span class="line">        filemap_get_read_batch(mapping, index, last_index - <span class="number">1</span>, fbatch);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (!folio_batch_count(fbatch)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (iocb-&gt;ki_flags &amp; (IOCB_NOWAIT | IOCB_WAITQ))</span><br><span class="line">            <span class="keyword">return</span> -EAGAIN;</span><br><span class="line">        err = filemap_create_folio(filp, mapping,</span><br><span class="line">                iocb-&gt;ki_pos &gt;&gt; PAGE_SHIFT, fbatch);</span><br><span class="line">        <span class="keyword">if</span> (err == AOP_TRUNCATED_PAGE)</span><br><span class="line">            <span class="keyword">goto</span> retry;</span><br><span class="line">        <span class="keyword">return</span> err;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// ... 处理预读标志和 uptodate 状态</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>查找路径的三个层次：</p>
+<ol>
+<li><strong>批量查找</strong>（<code>filemap_get_read_batch</code>）：直接在 XArray 中扫描连续页，填充 <code>folio_batch</code></li>
+<li><strong>同步预读触发</strong>：缓存未命中时，触发 <code>page_cache_sync_readahead</code>，然后再次查找</li>
+<li><strong>分配新页</strong>（<code>filemap_create_folio</code>）：若预读也未能填充页缓存（如随机读），则分配新 folio 并发起单页读取</li>
+</ol>
+<h3 id="3-2-向页缓存添加新页"><a href="#3-2-向页缓存添加新页" class="headerlink" title="3.2 向页缓存添加新页"></a>3.2 向页缓存添加新页</h3><p><code>filemap_add_folio()</code>（<code>mm/filemap.c</code>）负责将新分配的 folio 插入页缓存：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">filemap_add_folio</span><span class="params">(<span class="keyword">struct</span> address_space *mapping, <span class="keyword">struct</span> folio *folio,</span></span><br><span class="line"><span class="params">                <span class="type">pgoff_t</span> index, <span class="type">gfp_t</span> gfp)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">void</span> *shadow = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">    __folio_set_locked(folio);</span><br><span class="line">    ret = __filemap_add_folio(mapping, folio, index, gfp, &amp;shadow);</span><br><span class="line">    <span class="keyword">if</span> (unlikely(ret))</span><br><span class="line">        __folio_clear_locked(folio);</span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">/*</span></span><br><span class="line"><span class="comment">         * The folio might have been evicted from cache only</span></span><br><span class="line"><span class="comment">         * recently, in which case it should be activated like</span></span><br><span class="line"><span class="comment">         * any other repeatedly accessed folio.</span></span><br><span class="line"><span class="comment">         * The exception is folios getting rewritten; evicting other</span></span><br><span class="line"><span class="comment">         * data from the working set, only to cache data that will</span></span><br><span class="line"><span class="comment">         * get overwritten with something else, is a waste of memory.</span></span><br><span class="line"><span class="comment">         */</span></span><br><span class="line">        WARN_ON_ONCE(folio_test_active(folio));</span><br><span class="line">        <span class="keyword">if</span> (!(gfp &amp; __GFP_WRITE) &amp;&amp; shadow)</span><br><span class="line">            workingset_refault(folio, shadow);</span><br><span class="line">        folio_add_lru(folio);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>底层 <code>__filemap_add_folio()</code> 完成真正的插入工作：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">noinline <span class="type">int</span> __filemap_add_folio(<span class="keyword">struct</span> address_space *mapping,</span><br><span class="line">        <span class="keyword">struct</span> folio *folio, <span class="type">pgoff_t</span> index, <span class="type">gfp_t</span> gfp, <span class="type">void</span> **shadowp)</span><br><span class="line">&#123;</span><br><span class="line">    XA_STATE(xas, &amp;mapping-&gt;i_pages, index);</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    folio_ref_add(folio, nr);    <span class="comment">// 增加引用计数</span></span><br><span class="line">    folio-&gt;mapping = mapping;    <span class="comment">// 设置反向指针</span></span><br><span class="line">    folio-&gt;index = xas.xa_index; <span class="comment">// 记录页偏移</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        xas_lock_irq(&amp;xas);</span><br><span class="line">        xas_for_each_conflict(&amp;xas, entry) &#123;</span><br><span class="line">            old = entry;</span><br><span class="line">            <span class="keyword">if</span> (!xa_is_value(entry)) &#123;</span><br><span class="line">                xas_set_err(&amp;xas, -EEXIST); <span class="comment">// 页已存在</span></span><br><span class="line">                <span class="keyword">goto</span> unlock;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        xas_store(&amp;xas, folio);  <span class="comment">// 存入 XArray</span></span><br><span class="line">        mapping-&gt;nrpages += nr;  <span class="comment">// 更新页数统计</span></span><br><span class="line">        __lruvec_stat_mod_folio(folio, NR_FILE_PAGES, nr); <span class="comment">// 更新 LRU 统计</span></span><br><span class="line">unlock:</span><br><span class="line">        xas_unlock_irq(&amp;xas);</span><br><span class="line">    &#125; <span class="keyword">while</span> (xas_nomem(&amp;xas, gfp));</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>shadow</code> 机制值得关注：当一个页从缓存中被驱逐时，内核会在其 XArray 槽位留下一个 “shadow” 值（通过 <code>workingset_eviction()</code> 生成）。当同一页再次被加载时，<code>workingset_refault()</code> 检测到 shadow，可以推断该页属于活跃工作集，并将其直接放入 active LRU 列表，避免再次被快速驱逐。</p>
+<hr>
+<h2 id="四、读文件的页缓存流程"><a href="#四、读文件的页缓存流程" class="headerlink" title="四、读文件的页缓存流程"></a>四、读文件的页缓存流程</h2><h3 id="4-1-filemap-read：系统调用读路径"><a href="#4-1-filemap-read：系统调用读路径" class="headerlink" title="4.1 filemap_read：系统调用读路径"></a>4.1 <code>filemap_read</code>：系统调用读路径</h3><p><code>read()</code> 系统调用经由 VFS 层，最终调用到 <code>generic_file_read_iter()</code>，再到 <code>filemap_read()</code>（<code>mm/filemap.c</code>）。这是所有通用文件系统的标准读路径：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">ssize_t</span> <span class="title function_">filemap_read</span><span class="params">(<span class="keyword">struct</span> kiocb *iocb, <span class="keyword">struct</span> iov_iter *iter,</span></span><br><span class="line"><span class="params">        <span class="type">ssize_t</span> already_read)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">filp</span> =</span> iocb-&gt;ki_filp;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file_ra_state</span> *<span class="title">ra</span> =</span> &amp;filp-&gt;f_ra;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">address_space</span> *<span class="title">mapping</span> =</span> filp-&gt;f_mapping;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span> =</span> mapping-&gt;host;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">folio_batch</span> <span class="title">fbatch</span>;</span></span><br><span class="line">    <span class="type">int</span> i, error = <span class="number">0</span>;</span><br><span class="line">    <span class="type">bool</span> writably_mapped;</span><br><span class="line">    <span class="type">loff_t</span> isize, end_offset;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (unlikely(iocb-&gt;ki_pos &gt;= inode-&gt;i_sb-&gt;s_maxbytes))</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">if</span> (unlikely(!iov_iter_count(iter)))</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    iov_iter_truncate(iter, inode-&gt;i_sb-&gt;s_maxbytes);</span><br><span class="line">    folio_batch_init(&amp;fbatch);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        cond_resched();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (unlikely(iocb-&gt;ki_pos &gt;= i_size_read(inode)))</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        error = filemap_get_pages(iocb, iter-&gt;count, &amp;fbatch,</span><br><span class="line">                          iov_iter_is_pipe(iter));</span><br><span class="line">        <span class="keyword">if</span> (error &lt; <span class="number">0</span>)</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        isize = i_size_read(inode);</span><br><span class="line">        <span class="keyword">if</span> (unlikely(iocb-&gt;ki_pos &gt;= isize))</span><br><span class="line">            <span class="keyword">goto</span> put_folios;</span><br><span class="line">        end_offset = <span class="type">min_t</span>(<span class="type">loff_t</span>, isize, iocb-&gt;ki_pos + iter-&gt;count);</span><br><span class="line"></span><br><span class="line">        writably_mapped = mapping_writably_mapped(mapping);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!pos_same_folio(iocb-&gt;ki_pos, ra-&gt;prev_pos - <span class="number">1</span>,</span><br><span class="line">                                        fbatch.folios[<span class="number">0</span>]))</span><br><span class="line">            folio_mark_accessed(fbatch.folios[<span class="number">0</span>]);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; folio_batch_count(&amp;fbatch); i++) &#123;</span><br><span class="line">            <span class="class"><span class="keyword">struct</span> <span class="title">folio</span> *<span class="title">folio</span> =</span> fbatch.folios[i];</span><br><span class="line">            <span class="type">size_t</span> fsize = folio_size(folio);</span><br><span class="line">            <span class="type">size_t</span> offset = iocb-&gt;ki_pos &amp; (fsize - <span class="number">1</span>);</span><br><span class="line">            <span class="type">size_t</span> bytes = <span class="type">min_t</span>(<span class="type">loff_t</span>, end_offset - iocb-&gt;ki_pos,</span><br><span class="line">                             fsize - offset);</span><br><span class="line">            <span class="type">size_t</span> copied;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (end_offset &lt; folio_pos(folio))</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            <span class="keyword">if</span> (i &gt; <span class="number">0</span>)</span><br><span class="line">                folio_mark_accessed(folio);</span><br><span class="line">            <span class="keyword">if</span> (writably_mapped)</span><br><span class="line">                flush_dcache_folio(folio);  <span class="comment">// 处理 D-cache 别名</span></span><br><span class="line"></span><br><span class="line">            copied = copy_folio_to_iter(folio, offset, bytes, iter);</span><br><span class="line"></span><br><span class="line">            already_read += copied;</span><br><span class="line">            iocb-&gt;ki_pos += copied;</span><br><span class="line">            ra-&gt;prev_pos = iocb-&gt;ki_pos;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (copied &lt; bytes) &#123;</span><br><span class="line">                error = -EFAULT;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">put_folios:</span><br><span class="line">        <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; folio_batch_count(&amp;fbatch); i++)</span><br><span class="line">            folio_put(fbatch.folios[i]);</span><br><span class="line">        folio_batch_init(&amp;fbatch);</span><br><span class="line">    &#125; <span class="keyword">while</span> (iov_iter_count(iter) &amp;&amp; iocb-&gt;ki_pos &lt; isize &amp;&amp; !error);</span><br><span class="line"></span><br><span class="line">    file_accessed(filp);</span><br><span class="line">    <span class="keyword">return</span> already_read ? already_read : error;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>整个 <code>filemap_read</code> 的执行循环：</p>
+<ol>
+<li>调用 <code>filemap_get_pages()</code> 获取一批已就绪的 folio（必要时触发预读或同步 I&#x2F;O）</li>
+<li>对每个 folio 调用 <code>folio_mark_accessed()</code> 更新 LRU 活跃度</li>
+<li>对于可写 mmap 映射的页，调用 <code>flush_dcache_folio()</code> 确保 D-cache 一致性</li>
+<li><code>copy_folio_to_iter()</code> 将数据从内核页拷贝到用户空间 <code>iov_iter</code></li>
+<li>循环直到读取完请求的字节数或到达文件末尾</li>
+</ol>
+<p><strong><code>folio_mark_accessed()</code> 的 LRU 含义</strong>：每次读取都会调用此函数，它将 folio 从 inactive LRU 提升到 active LRU，或在已是 active 时设置 referenced 标志。这是 LRU 近似算法的核心——内核没有维护精确的访问计数，而是通过两阶段 LRU（active&#x2F;inactive）模拟 LRU 驱逐策略。</p>
+<h3 id="4-2-filemap-fault：mmap-缺页中断路径"><a href="#4-2-filemap-fault：mmap-缺页中断路径" class="headerlink" title="4.2 filemap_fault：mmap 缺页中断路径"></a>4.2 <code>filemap_fault</code>：mmap 缺页中断路径</h3><p>当进程通过 <code>mmap</code> 访问文件，触发缺页中断（page fault）时，VFS 调用 <code>filemap_fault()</code>（<code>mm/filemap.c</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">vm_fault_t</span> <span class="title function_">filemap_fault</span><span class="params">(<span class="keyword">struct</span> vm_fault *vmf)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> error;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">file</span> =</span> vmf-&gt;vma-&gt;vm_file;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">fpin</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">address_space</span> *<span class="title">mapping</span> =</span> file-&gt;f_mapping;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span> =</span> mapping-&gt;host;</span><br><span class="line">    <span class="type">pgoff_t</span> max_idx, index = vmf-&gt;pgoff;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">folio</span> *<span class="title">folio</span>;</span></span><br><span class="line">    <span class="type">vm_fault_t</span> ret = <span class="number">0</span>;</span><br><span class="line">    <span class="type">bool</span> mapping_locked = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">    max_idx = DIV_ROUND_UP(i_size_read(inode), PAGE_SIZE);</span><br><span class="line">    <span class="keyword">if</span> (unlikely(index &gt;= max_idx))</span><br><span class="line">        <span class="keyword">return</span> VM_FAULT_SIGBUS;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * Do we have something in the page cache already?</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    folio = filemap_get_folio(mapping, index);</span><br><span class="line">    <span class="keyword">if</span> (likely(!IS_ERR(folio))) &#123;</span><br><span class="line">        <span class="comment">/* 页已在缓存中：触发异步预读，但不等待 */</span></span><br><span class="line">        <span class="keyword">if</span> (!(vmf-&gt;flags &amp; FAULT_FLAG_TRIED))</span><br><span class="line">            fpin = do_async_mmap_readahead(vmf, folio);</span><br><span class="line">        <span class="keyword">if</span> (unlikely(!folio_test_uptodate(folio))) &#123;</span><br><span class="line">            filemap_invalidate_lock_shared(mapping);</span><br><span class="line">            mapping_locked = <span class="literal">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">/* 主缺页（major fault）：页不在缓存中 */</span></span><br><span class="line">        count_vm_event(PGMAJFAULT);</span><br><span class="line">        count_memcg_event_mm(vmf-&gt;vma-&gt;vm_mm, PGMAJFAULT);</span><br><span class="line">        ret = VM_FAULT_MAJOR;</span><br><span class="line">        fpin = do_sync_mmap_readahead(vmf);  <span class="comment">// 同步预读</span></span><br><span class="line">retry_find:</span><br><span class="line">        <span class="keyword">if</span> (!mapping_locked) &#123;</span><br><span class="line">            filemap_invalidate_lock_shared(mapping);</span><br><span class="line">            mapping_locked = <span class="literal">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        folio = __filemap_get_folio(mapping, index,</span><br><span class="line">                          FGP_CREAT|FGP_FOR_MMAP,</span><br><span class="line">                          vmf-&gt;gfp_mask);</span><br><span class="line">        <span class="keyword">if</span> (IS_ERR(folio)) &#123;</span><br><span class="line">            <span class="keyword">if</span> (fpin)</span><br><span class="line">                <span class="keyword">goto</span> out_retry;</span><br><span class="line">            filemap_invalidate_unlock_shared(mapping);</span><br><span class="line">            <span class="keyword">return</span> VM_FAULT_OOM;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 锁定 folio，等待 I/O 完成...</span></span><br><span class="line">    <span class="keyword">if</span> (!lock_folio_maybe_drop_mmap(vmf, folio, &amp;fpin))</span><br><span class="line">        <span class="keyword">goto</span> out_retry;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 检查是否被 truncate 截断</span></span><br><span class="line">    <span class="keyword">if</span> (unlikely(folio-&gt;mapping != mapping)) &#123;</span><br><span class="line">        folio_unlock(folio);</span><br><span class="line">        folio_put(folio);</span><br><span class="line">        <span class="keyword">goto</span> retry_find;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 检查数据是否就绪</span></span><br><span class="line">    <span class="keyword">if</span> (unlikely(!folio_test_uptodate(folio))) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!mapping_locked) &#123;</span><br><span class="line">            folio_unlock(folio);</span><br><span class="line">            folio_put(folio);</span><br><span class="line">            <span class="keyword">goto</span> retry_find;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">goto</span> page_not_uptodate;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 成功：设置 vmf-&gt;page 并返回 VM_FAULT_LOCKED</span></span><br><span class="line">    vmf-&gt;page = folio_file_page(folio, index);</span><br><span class="line">    <span class="keyword">return</span> ret | VM_FAULT_LOCKED;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>filemap_fault</code> 与 <code>filemap_read</code> 的关键区别在于：</p>
+<ul>
+<li><strong>Minor Fault</strong>（缓存命中）：页在缓存中，直接将其映射到 PTE，返回 <code>VM_FAULT_LOCKED</code></li>
+<li><strong>Major Fault</strong>（缓存未命中）：需要从磁盘读取，统计 <code>PGMAJFAULT</code> 事件，触发同步预读</li>
+<li>mmap 路径不经过 <code>copy_folio_to_iter</code>，而是通过 MMU 直接建立进程虚拟地址到物理页帧的映射</li>
+</ul>
+<hr>
+<h2 id="五、预读机制（Readahead）详解"><a href="#五、预读机制（Readahead）详解" class="headerlink" title="五、预读机制（Readahead）详解"></a>五、预读机制（Readahead）详解</h2><h3 id="5-1-预读的设计哲学"><a href="#5-1-预读的设计哲学" class="headerlink" title="5.1 预读的设计哲学"></a>5.1 预读的设计哲学</h3><p>预读的核心思想是：顺序读取是最常见的 I&#x2F;O 模式，通过提前加载后续数据，可以将磁盘 I&#x2F;O 延迟（对用户程序）”隐藏”到零。内核通过 <code>file_ra_state</code> 维护每个文件句柄的预读状态，并动态调整预读窗口大小。</p>
+<p><code>mm/readahead.c</code> 开头的注释详细描述了预读窗口的工作原理：</p>
+<blockquote>
+<p>To overlap application thinking time and disk I&#x2F;O time, we do ‘readahead pipelining’: Do not wait until the application consumed all readahead pages and stalled on the missing page at readahead_index; Instead, submit an asynchronous readahead I&#x2F;O as soon as there are only async_size pages left in the readahead window.</p>
+</blockquote>
+<h3 id="5-2-初始化与窗口增长"><a href="#5-2-初始化与窗口增长" class="headerlink" title="5.2 初始化与窗口增长"></a>5.2 初始化与窗口增长</h3><p>预读窗口从小到大动态增长，通过两个辅助函数控制：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 初始窗口大小：根据请求大小，按平方/4倍/2倍规则确定 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">unsigned</span> <span class="type">long</span> <span class="title function_">get_init_ra_size</span><span class="params">(<span class="type">unsigned</span> <span class="type">long</span> size, <span class="type">unsigned</span> <span class="type">long</span> max)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> newsize = roundup_pow_of_two(size);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (newsize &lt;= max / <span class="number">32</span>)</span><br><span class="line">        newsize = newsize * <span class="number">4</span>;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (newsize &lt;= max / <span class="number">4</span>)</span><br><span class="line">        newsize = newsize * <span class="number">2</span>;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        newsize = max;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> newsize;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 下一窗口大小：小窗口 4x 增长，中等 2x 增长，大窗口维持最大值 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">unsigned</span> <span class="type">long</span> <span class="title function_">get_next_ra_size</span><span class="params">(<span class="keyword">struct</span> file_ra_state *ra,</span></span><br><span class="line"><span class="params">                      <span class="type">unsigned</span> <span class="type">long</span> max)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> cur = ra-&gt;size;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (cur &lt; max / <span class="number">16</span>)</span><br><span class="line">        <span class="keyword">return</span> <span class="number">4</span> * cur;</span><br><span class="line">    <span class="keyword">if</span> (cur &lt;= max / <span class="number">2</span>)</span><br><span class="line">        <span class="keyword">return</span> <span class="number">2</span> * cur;</span><br><span class="line">    <span class="keyword">return</span> max;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这种指数增长策略确保：对于小文件，预读不会过度消耗内存；对于大文件的顺序读，预读窗口迅速扩大到最大值（通常由 <code>bdi-&gt;ra_pages</code> 决定，默认 128KB 到几 MB）。</p>
+<h3 id="5-3-page-cache-ra-unbounded：预读-I-O-的核心"><a href="#5-3-page-cache-ra-unbounded：预读-I-O-的核心" class="headerlink" title="5.3 page_cache_ra_unbounded：预读 I&#x2F;O 的核心"></a>5.3 <code>page_cache_ra_unbounded</code>：预读 I&#x2F;O 的核心</h3><p><code>page_cache_ra_unbounded()</code> 是实际提交预读 I&#x2F;O 的底层函数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">page_cache_ra_unbounded</span><span class="params">(<span class="keyword">struct</span> readahead_control *ractl,</span></span><br><span class="line"><span class="params">        <span class="type">unsigned</span> <span class="type">long</span> nr_to_read, <span class="type">unsigned</span> <span class="type">long</span> lookahead_size)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">address_space</span> *<span class="title">mapping</span> =</span> ractl-&gt;mapping;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> index = readahead_index(ractl);</span><br><span class="line">    <span class="type">gfp_t</span> gfp_mask = readahead_gfp_mask(mapping);</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> i;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * 使用 __GFP_NOFS 防止在分配页时重入文件系统，避免死锁。</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> nofs = memalloc_nofs_save();</span><br><span class="line"></span><br><span class="line">    filemap_invalidate_lock_shared(mapping);</span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * 第一阶段：预分配所有需要的页并加入页缓存</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; nr_to_read; i++) &#123;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">folio</span> *<span class="title">folio</span> =</span> xa_load(&amp;mapping-&gt;i_pages, index + i);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (folio &amp;&amp; !xa_is_value(folio)) &#123;</span><br><span class="line">            <span class="comment">/* 页已存在：提交当前批次，跳过 */</span></span><br><span class="line">            read_pages(ractl);</span><br><span class="line">            ractl-&gt;_index++;</span><br><span class="line">            i = ractl-&gt;_index + ractl-&gt;_nr_pages - index - <span class="number">1</span>;</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        folio = filemap_alloc_folio(gfp_mask, <span class="number">0</span>);</span><br><span class="line">        <span class="keyword">if</span> (!folio)</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">if</span> (filemap_add_folio(mapping, folio, index + i, gfp_mask) &lt; <span class="number">0</span>) &#123;</span><br><span class="line">            folio_put(folio);</span><br><span class="line">            read_pages(ractl);</span><br><span class="line">            ractl-&gt;_index++;</span><br><span class="line">            i = ractl-&gt;_index + ractl-&gt;_nr_pages - index - <span class="number">1</span>;</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">/* 在异步部分的第一个页上设置 PG_readahead 标志 */</span></span><br><span class="line">        <span class="keyword">if</span> (i == nr_to_read - lookahead_size)</span><br><span class="line">            folio_set_readahead(folio);</span><br><span class="line">        ractl-&gt;_workingset |= folio_test_workingset(folio);</span><br><span class="line">        ractl-&gt;_nr_pages++;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * 第二阶段：提交 I/O（忽略 I/O 错误，后续 read_folio 会重试）</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    read_pages(ractl);</span><br><span class="line">    filemap_invalidate_unlock_shared(mapping);</span><br><span class="line">    memalloc_nofs_restore(nofs);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>两阶段设计的意义</strong>：先分配所有页并加入页缓存，再统一提交 I&#x2F;O。这避免了”边分配边提交”可能触发内存回收 writeback，进而形成读写混合 I&#x2F;O 的问题（内核注释：<code>This avoids the very bad behaviour which would occur if page allocations are causing VM writeback</code>）。</p>
+<h3 id="5-4-ondemand-readahead：按需预读状态机"><a href="#5-4-ondemand-readahead：按需预读状态机" class="headerlink" title="5.4 ondemand_readahead：按需预读状态机"></a>5.4 <code>ondemand_readahead</code>：按需预读状态机</h3><p><code>ondemand_readahead()</code> 是预读的核心决策函数，它根据当前访问模式决定预读策略：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">ondemand_readahead</span><span class="params">(<span class="keyword">struct</span> readahead_control *ractl,</span></span><br><span class="line"><span class="params">        <span class="keyword">struct</span> folio *folio, <span class="type">unsigned</span> <span class="type">long</span> req_size)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">backing_dev_info</span> *<span class="title">bdi</span> =</span> inode_to_bdi(ractl-&gt;mapping-&gt;host);</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file_ra_state</span> *<span class="title">ra</span> =</span> ractl-&gt;ra;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> max_pages = ra-&gt;ra_pages;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> add_pages;</span><br><span class="line">    <span class="type">pgoff_t</span> index = readahead_index(ractl);</span><br><span class="line">    <span class="type">pgoff_t</span> expected, prev_index;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> order = folio ? folio_order(folio) : <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 情况 1：文件起始处，直接使用初始窗口 */</span></span><br><span class="line">    <span class="keyword">if</span> (!index)</span><br><span class="line">        <span class="keyword">goto</span> initial_readahead;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 情况 2：顺序访问，命中预期位置，扩大窗口并推进 */</span></span><br><span class="line">    expected = round_up(ra-&gt;start + ra-&gt;size - ra-&gt;async_size,</span><br><span class="line">            <span class="number">1UL</span> &lt;&lt; order);</span><br><span class="line">    <span class="keyword">if</span> (index == expected || index == (ra-&gt;start + ra-&gt;size)) &#123;</span><br><span class="line">        ra-&gt;start += ra-&gt;size;</span><br><span class="line">        ra-&gt;size = get_next_ra_size(ra, max_pages);</span><br><span class="line">        ra-&gt;async_size = ra-&gt;size;</span><br><span class="line">        <span class="keyword">goto</span> readit;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 情况 3：命中 PG_readahead 标志但状态不匹配（交错读） */</span></span><br><span class="line">    <span class="keyword">if</span> (folio) &#123;</span><br><span class="line">        <span class="type">pgoff_t</span> start;</span><br><span class="line">        rcu_read_lock();</span><br><span class="line">        start = page_cache_next_miss(ractl-&gt;mapping, index + <span class="number">1</span>, max_pages);</span><br><span class="line">        rcu_read_unlock();</span><br><span class="line">        <span class="keyword">if</span> (!start || start - index &gt; max_pages)</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        ra-&gt;start = start;</span><br><span class="line">        ra-&gt;size = start - index;</span><br><span class="line">        ra-&gt;size += req_size;</span><br><span class="line">        ra-&gt;size = get_next_ra_size(ra, max_pages);</span><br><span class="line">        ra-&gt;async_size = ra-&gt;size;</span><br><span class="line">        <span class="keyword">goto</span> readit;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 情况 4：顺序缓存未命中（prev_index 紧邻 index） */</span></span><br><span class="line">    prev_index = (<span class="type">unsigned</span> <span class="type">long</span> <span class="type">long</span>)ra-&gt;prev_pos &gt;&gt; PAGE_SHIFT;</span><br><span class="line">    <span class="keyword">if</span> (index - prev_index &lt;= <span class="number">1UL</span>)</span><br><span class="line">        <span class="keyword">goto</span> initial_readahead;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 情况 5：通过页缓存历史记录检测顺序模式 */</span></span><br><span class="line">    <span class="keyword">if</span> (try_context_readahead(ractl-&gt;mapping, ra, index, req_size, max_pages))</span><br><span class="line">        <span class="keyword">goto</span> readit;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 情况 6：独立的小随机读，直接读取，不污染预读状态 */</span></span><br><span class="line">    do_page_cache_ra(ractl, req_size, <span class="number">0</span>);</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">initial_readahead:</span><br><span class="line">    ra-&gt;start = index;</span><br><span class="line">    ra-&gt;size = get_init_ra_size(req_size, max_pages);</span><br><span class="line">    ra-&gt;async_size = ra-&gt;size &gt; req_size ? ra-&gt;size - req_size : ra-&gt;size;</span><br><span class="line"></span><br><span class="line">readit:</span><br><span class="line">    <span class="comment">/* 自触发优化：合并当前窗口和下一窗口 */</span></span><br><span class="line">    <span class="keyword">if</span> (index == ra-&gt;start &amp;&amp; ra-&gt;size == ra-&gt;async_size) &#123;</span><br><span class="line">        add_pages = get_next_ra_size(ra, max_pages);</span><br><span class="line">        <span class="keyword">if</span> (ra-&gt;size + add_pages &lt;= max_pages) &#123;</span><br><span class="line">            ra-&gt;async_size = add_pages;</span><br><span class="line">            ra-&gt;size += add_pages;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            ra-&gt;size = max_pages;</span><br><span class="line">            ra-&gt;async_size = max_pages &gt;&gt; <span class="number">1</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    ractl-&gt;_index = ra-&gt;start;</span><br><span class="line">    page_cache_ra_order(ractl, ra, order);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>预读状态机的六种情况覆盖了几乎所有真实访问场景：</p>
+<ul>
+<li>文件顺序读：初始窗口 -&gt; 指数扩大 -&gt; 维持最大窗口</li>
+<li>随机读：不更新预读状态，只读请求的页</li>
+<li>交错顺序读：通过页缓存历史推断流的位置</li>
+</ul>
+<hr>
+<h2 id="六、脏页回写（Writeback）机制"><a href="#六、脏页回写（Writeback）机制" class="headerlink" title="六、脏页回写（Writeback）机制"></a>六、脏页回写（Writeback）机制</h2><h3 id="6-1-脏页的产生"><a href="#6-1-脏页的产生" class="headerlink" title="6.1 脏页的产生"></a>6.1 脏页的产生</h3><p>当应用程序通过 <code>write()</code> 或 <code>mmap</code> 写入文件数据时，内核将对应 folio 标记为脏（设置 <code>PG_dirty</code> 标志），并通过 <code>a_ops-&gt;dirty_folio()</code> 将其加入 inode 的回写队列。脏页不会立即写回磁盘——内核采用<strong>延迟写（Write-Behind）</strong>策略，积累一定量后批量回写，实现写 I&#x2F;O 的聚合。</p>
+<h3 id="6-2-回写线程与触发时机"><a href="#6-2-回写线程与触发时机" class="headerlink" title="6.2 回写线程与触发时机"></a>6.2 回写线程与触发时机</h3><p>每个块设备的后端（<code>backing_dev_info</code>）都有一个或多个回写线程（<code>bdi_writeback</code>，即 <code>wb</code>）。回写的触发有三种来源：</p>
+<ol>
+<li><strong>定期回写（kupdate）</strong>：每隔 <code>dirty_writeback_interval</code>（默认 5 秒）唤醒一次，回写所有超过 <code>dirty_expire_interval</code>（默认 30 秒）未回写的脏页</li>
+<li><strong>后台回写（background）</strong>：当脏页比例超过 <code>dirty_background_ratio</code>（默认 10%）阈值时，后台触发回写</li>
+<li><strong>压力回写（sync&#x2F;fsync）</strong>：<code>sync()</code>、<code>fsync()</code>、<code>fdatasync()</code> 等系统调用触发同步回写</li>
+</ol>
+<p><code>wb_do_writeback()</code> 是回写线程的主循环：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">long</span> <span class="title function_">wb_do_writeback</span><span class="params">(<span class="keyword">struct</span> bdi_writeback *wb)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">wb_writeback_work</span> *<span class="title">work</span>;</span></span><br><span class="line">    <span class="type">long</span> wrote = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    set_bit(WB_writeback_running, &amp;wb-&gt;state);</span><br><span class="line">    <span class="comment">/* 处理工作队列中的显式回写请求（如 sync） */</span></span><br><span class="line">    <span class="keyword">while</span> ((work = get_next_work_item(wb)) != <span class="literal">NULL</span>) &#123;</span><br><span class="line">        trace_writeback_exec(wb, work);</span><br><span class="line">        wrote += wb_writeback(wb, work);</span><br><span class="line">        finish_writeback_work(wb, work);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 检查全局 sync 请求 */</span></span><br><span class="line">    wrote += wb_check_start_all(wb);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 检查 kupdate 定期回写（WB_REASON_PERIODIC） */</span></span><br><span class="line">    wrote += wb_check_old_data_flush(wb);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 检查后台阈值回写（WB_REASON_BACKGROUND） */</span></span><br><span class="line">    wrote += wb_check_background_flush(wb);</span><br><span class="line">    clear_bit(WB_writeback_running, &amp;wb-&gt;state);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> wrote;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-wb-writeback：回写执行循环"><a href="#6-3-wb-writeback：回写执行循环" class="headerlink" title="6.3 wb_writeback：回写执行循环"></a>6.3 <code>wb_writeback</code>：回写执行循环</h3><p><code>wb_writeback()</code> 是实际执行回写的核心函数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">long</span> <span class="title function_">wb_writeback</span><span class="params">(<span class="keyword">struct</span> bdi_writeback *wb,</span></span><br><span class="line"><span class="params">             <span class="keyword">struct</span> wb_writeback_work *work)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">long</span> nr_pages = work-&gt;nr_pages;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> dirtied_before = jiffies;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span>;</span></span><br><span class="line">    <span class="type">long</span> progress;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_plug</span> <span class="title">plug</span>;</span></span><br><span class="line"></span><br><span class="line">    blk_start_plug(&amp;plug);   <span class="comment">// 批量提交 I/O（合并为更大的 bio）</span></span><br><span class="line">    spin_lock(&amp;wb-&gt;list_lock);</span><br><span class="line">    <span class="keyword">for</span> (;;) &#123;</span><br><span class="line">        <span class="keyword">if</span> (work-&gt;nr_pages &lt;= <span class="number">0</span>)    <span class="comment">// 已回写足够页数，退出</span></span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* 后台/定期回写让步于其他高优先级工作 */</span></span><br><span class="line">        <span class="keyword">if</span> ((work-&gt;for_background || work-&gt;for_kupdate) &amp;&amp;</span><br><span class="line">            !list_empty(&amp;wb-&gt;work_list))</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* 后台回写：脏页已降到阈值以下，退出 */</span></span><br><span class="line">        <span class="keyword">if</span> (work-&gt;for_background &amp;&amp; !wb_over_bg_thresh(wb))</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* kupdate：设置过期时间戳过滤器（只回写超时的脏页） */</span></span><br><span class="line">        <span class="keyword">if</span> (work-&gt;for_kupdate) &#123;</span><br><span class="line">            dirtied_before = jiffies -</span><br><span class="line">                msecs_to_jiffies(dirty_expire_interval * <span class="number">10</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (work-&gt;for_background)</span><br><span class="line">            dirtied_before = jiffies;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (list_empty(&amp;wb-&gt;b_io))</span><br><span class="line">            queue_io(wb, work, dirtied_before);   <span class="comment">// 将 inode 放入 b_io 队列</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (work-&gt;sb)</span><br><span class="line">            progress = writeback_sb_inodes(work-&gt;sb, wb, work);</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">            progress = __writeback_inodes_wb(wb, work);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (progress)</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (list_empty(&amp;wb-&gt;b_more_io))</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* 等待某个 inode 变为可写 */</span></span><br><span class="line">        inode = wb_inode(wb-&gt;b_more_io.prev);</span><br><span class="line">        spin_lock(&amp;inode-&gt;i_lock);</span><br><span class="line">        spin_unlock(&amp;wb-&gt;list_lock);</span><br><span class="line">        inode_sleep_on_writeback(inode);</span><br><span class="line">        spin_lock(&amp;wb-&gt;list_lock);</span><br><span class="line">    &#125;</span><br><span class="line">    spin_unlock(&amp;wb-&gt;list_lock);</span><br><span class="line">    blk_finish_plug(&amp;plug);   <span class="comment">// 提交所有积累的 I/O</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> nr_pages - work-&gt;nr_pages;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>blk_plug</code> 的作用</strong>：在回写过程中，通过 <code>blk_start_plug()</code> 延迟将 bio 提交到块设备层，等 plug 关闭时（<code>blk_finish_plug()</code>）统一提交，使得多个相邻块的 I&#x2F;O 可以被合并，提升磁盘吞吐量。</p>
+<h3 id="6-4-回写的三个-inode-队列"><a href="#6-4-回写的三个-inode-队列" class="headerlink" title="6.4 回写的三个 inode 队列"></a>6.4 回写的三个 inode 队列</h3><p><code>bdi_writeback</code> 维护三个 inode 列表：</p>
+<ul>
+<li><code>b_dirty</code>：所有脏 inode 列表，按”首次变脏时间”排序</li>
+<li><code>b_io</code>：当前轮次要处理的 inode，<code>queue_io()</code> 将 <code>b_dirty</code> 中符合条件的 inode 移入此队列</li>
+<li><code>b_more_io</code>：因 I&#x2F;O 拥塞暂时无法处理的 inode，等待 I&#x2F;O 完成后重试</li>
+</ul>
+<hr>
+<h2 id="七、缓冲区缓存（Buffer-Cache）与页缓存的关系"><a href="#七、缓冲区缓存（Buffer-Cache）与页缓存的关系" class="headerlink" title="七、缓冲区缓存（Buffer Cache）与页缓存的关系"></a>七、缓冲区缓存（Buffer Cache）与页缓存的关系</h2><h3 id="7-1-struct-buffer-head：磁盘块到页的映射"><a href="#7-1-struct-buffer-head：磁盘块到页的映射" class="headerlink" title="7.1 struct buffer_head：磁盘块到页的映射"></a>7.1 <code>struct buffer_head</code>：磁盘块到页的映射</h3><p>在统一的页缓存架构下，<code>buffer_head</code> 不再是独立的缓存单元，而是作为”页到磁盘块映射”的元数据，附着在页缓存的 folio 上。定义位于 <code>include/linux/buffer_head.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">buffer_head</span> &#123;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> b_state;          <span class="comment">/* 缓冲区状态位图（BH_Uptodate、BH_Dirty 等） */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">buffer_head</span> *<span class="title">b_this_page</span>;</span><span class="comment">/* 同一页内缓冲区的环形链表 */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">page</span> *<span class="title">b_page</span>;</span>        <span class="comment">/* 所属页 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">folio</span> *<span class="title">b_folio</span>;</span>      <span class="comment">/* 所属 folio */</span></span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="type">sector_t</span> b_blocknr;             <span class="comment">/* 起始块号（磁盘逻辑块地址） */</span></span><br><span class="line">    <span class="type">size_t</span> b_size;                  <span class="comment">/* 映射大小 */</span></span><br><span class="line">    <span class="type">char</span> *b_data;                   <span class="comment">/* 指向页内数据的指针 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">block_device</span> *<span class="title">b_bdev</span>;</span></span><br><span class="line">    <span class="type">bh_end_io_t</span> *b_end_io;          <span class="comment">/* I/O 完成回调 */</span></span><br><span class="line">    <span class="type">void</span> *b_private;                <span class="comment">/* 供 b_end_io 使用的私有数据 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">b_assoc_buffers</span>;</span><span class="comment">/* 关联到其他 mapping 的链表（journal） */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">address_space</span> *<span class="title">b_assoc_map</span>;</span>  <span class="comment">/* 关联的 mapping */</span></span><br><span class="line">    <span class="type">atomic_t</span> b_count;               <span class="comment">/* 引用计数 */</span></span><br><span class="line">    <span class="type">spinlock_t</span> b_uptodate_lock;     <span class="comment">/* 保护本页第一个 bh 的锁 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>b_state</code> 位图关键状态</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>状态位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>BH_Uptodate</code></td>
+<td>缓冲区内容有效</td>
+</tr>
+<tr>
+<td><code>BH_Dirty</code></td>
+<td>数据已修改，需要写回</td>
+</tr>
+<tr>
+<td><code>BH_Lock</code></td>
+<td>缓冲区被锁定（I&#x2F;O 进行中）</td>
+</tr>
+<tr>
+<td><code>BH_Mapped</code></td>
+<td>已建立到磁盘块的映射</td>
+</tr>
+<tr>
+<td><code>BH_New</code></td>
+<td>新分配的磁盘块，尚未初始化</td>
+</tr>
+<tr>
+<td><code>BH_Async_Read</code> &#x2F; <code>BH_Async_Write</code></td>
+<td>异步 I&#x2F;O 进行中</td>
+</tr>
+<tr>
+<td><code>BH_Delay</code></td>
+<td>延迟分配：块已分配但磁盘位置尚未确定（btrfs&#x2F;ext4 延迟分配特性）</td>
+</tr>
+</tbody></table>
+<h3 id="7-2-一个页面上的多个-buffer-head"><a href="#7-2-一个页面上的多个-buffer-head" class="headerlink" title="7.2 一个页面上的多个 buffer_head"></a>7.2 一个页面上的多个 buffer_head</h3><p>对于块大小小于页大小的文件系统（如 1KB block size + 4KB page），一个 folio 上会有多个 <code>buffer_head</code>，它们形成一个以 <code>b_this_page</code> 连接的<strong>环形链表</strong>，附着在页的 <code>private</code> 字段上（通过 <code>attach_page_private()</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">folio-&gt;private</span><br><span class="line">     |</span><br><span class="line">     v</span><br><span class="line">[bh0] -&gt; [bh1] -&gt; [bh2] -&gt; [bh3] -&gt; [bh0]（环形）</span><br><span class="line"> block0    block1   block2   block3</span><br></pre></td></tr></table></figure>
+
+<p>每个 <code>buffer_head</code> 记录了页内对应区域（<code>b_data</code> 指针和 <code>b_size</code>）与磁盘块（<code>b_blocknr</code>）之间的映射关系。文件系统通过 <code>get_block_t</code> 回调（如 ext4 的 <code>ext4_get_block()</code>）填充这些映射。</p>
+<h3 id="7-3-Direct-I-O-绕过页缓存"><a href="#7-3-Direct-I-O-绕过页缓存" class="headerlink" title="7.3 Direct I&#x2F;O 绕过页缓存"></a>7.3 Direct I&#x2F;O 绕过页缓存</h3><p>当文件以 <code>O_DIRECT</code> 标志打开时，读写操作通过 <code>a_ops-&gt;direct_IO()</code> 直接在用户缓冲区与块设备之间传输数据，完全绕过页缓存。这消除了内核&#x2F;用户空间的拷贝和缓存开销，适用于数据库等自行管理缓存的应用。但使用时需要注意：请求必须按扇区对齐，且同一文件同时使用 <code>O_DIRECT</code> 和 <code>O_SYNC</code>（缓存 I&#x2F;O）可能导致一致性问题。</p>
+<hr>
+<h2 id="八、页缓存的内存压力处理"><a href="#八、页缓存的内存压力处理" class="headerlink" title="八、页缓存的内存压力处理"></a>八、页缓存的内存压力处理</h2><h3 id="8-1-双链表-LRU-近似算法"><a href="#8-1-双链表-LRU-近似算法" class="headerlink" title="8.1 双链表 LRU 近似算法"></a>8.1 双链表 LRU 近似算法</h3><p>Linux 为每个 NUMA 节点的每个内存 zone 维护一个 <code>lruvec</code>，其中包含五个 LRU 列表：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">LRU_INACTIVE_ANON   - 匿名页（堆/栈/私有 mmap），未活跃</span><br><span class="line">LRU_ACTIVE_ANON     - 匿名页，活跃</span><br><span class="line">LRU_INACTIVE_FILE   - 文件页（页缓存），未活跃</span><br><span class="line">LRU_ACTIVE_FILE     - 文件页，活跃</span><br><span class="line">LRU_UNEVICTABLE     - 不可驱逐页（mlock 锁定等）</span><br></pre></td></tr></table></figure>
+
+<p>文件页缓存使用 <code>LRU_INACTIVE_FILE</code> 和 <code>LRU_ACTIVE_FILE</code>。页的 LRU 状态转换：</p>
+<ul>
+<li><strong>新加入</strong>：<code>filemap_add_folio()</code> 调用 <code>folio_add_lru()</code> -&gt; 加入 inactive 列表</li>
+<li><strong>访问</strong>：<code>folio_mark_accessed()</code> -&gt; 若在 inactive 且已被引用，提升到 active 列表</li>
+<li><strong>回收压力</strong>：<code>shrink_active_list()</code> 周期性地将 active 列表末尾的页降级到 inactive 列表</li>
+</ul>
+<h3 id="8-2-folio-check-references：判断是否可回收"><a href="#8-2-folio-check-references：判断是否可回收" class="headerlink" title="8.2 folio_check_references：判断是否可回收"></a>8.2 <code>folio_check_references</code>：判断是否可回收</h3><p>在实际驱逐一个 folio 之前，<code>shrink_page_list()</code> 通过 <code>folio_check_references()</code> 检查它的引用情况：</p>
+<ul>
+<li><strong>FOLIOREF_ACTIVATE</strong>：有活跃的 PTE 引用（页表项中的 Accessed 位被设置），重新激活</li>
+<li><strong>FOLIOREF_KEEP</strong>：被引用但不需要激活（如单次访问）</li>
+<li><strong>FOLIOREF_RECLAIM</strong>：可以回收（脏页先写回，然后回收）</li>
+<li><strong>FOLIOREF_RECLAIM_CLEAN</strong>：干净页（或写回完成），可以直接释放</li>
+</ul>
+<h3 id="8-3-工作集检测（Workingset）"><a href="#8-3-工作集检测（Workingset）" class="headerlink" title="8.3 工作集检测（Workingset）"></a>8.3 工作集检测（Workingset）</h3><p>工作集检测（<code>mm/workingset.c</code>）是页缓存回收的重要优化。当一个 folio 被驱逐时，其 XArray 槽位留下 shadow 值，记录驱逐时的 <code>lruvec</code> 时间戳。当同一页再次被加载时，<code>workingset_refault()</code> 计算从驱逐到重新加载的时间差：</p>
+<ul>
+<li>若时间差短（在工作集的活跃周期内被再次访问）：说明该页属于工作集，直接加入 active 列表，避免再次被快速驱逐</li>
+<li>若时间差长：按正常路径加入 inactive 列表</li>
+</ul>
+<p>这个机制有效防止了 thrashing（抖动）：当内存严重不足时，刚被驱逐的页被频繁重新加载，workingset 检测会将这些页直接激活，减少驱逐-重新加载循环。</p>
+<hr>
+<h2 id="九、页缓存调优参数"><a href="#九、页缓存调优参数" class="headerlink" title="九、页缓存调优参数"></a>九、页缓存调优参数</h2><p>Linux 通过 <code>/proc/sys/vm/</code> 提供了一系列控制页缓存行为的参数，以下是最重要的几个：</p>
+<h3 id="9-1-脏页回写相关"><a href="#9-1-脏页回写相关" class="headerlink" title="9.1 脏页回写相关"></a>9.1 脏页回写相关</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>dirty_ratio</code></td>
+<td>20</td>
+<td>进程产生脏页超过内存的 20% 时，写操作被阻塞（同步回写）</td>
+</tr>
+<tr>
+<td><code>dirty_background_ratio</code></td>
+<td>10</td>
+<td>脏页超过内存的 10% 时，后台线程开始回写（异步，不阻塞进程）</td>
+</tr>
+<tr>
+<td><code>dirty_expire_centisecs</code></td>
+<td>3000</td>
+<td>脏页超过 30 秒未回写时，强制回写（单位：百分之一秒）</td>
+</tr>
+<tr>
+<td><code>dirty_writeback_centisecs</code></td>
+<td>500</td>
+<td>回写线程唤醒间隔，默认 5 秒（0 表示禁用定期回写）</td>
+</tr>
+</tbody></table>
+<p><strong>调优建议</strong>：对于写密集型应用，适当降低 <code>dirty_background_ratio</code>（如 5%）可以减少 I&#x2F;O 突发；对于数据库等对一致性要求高的应用，应确保使用 <code>O_DIRECT</code> 或 <code>O_SYNC</code> 绕过延迟回写。</p>
+<h3 id="9-2-内存压力与回收"><a href="#9-2-内存压力与回收" class="headerlink" title="9.2 内存压力与回收"></a>9.2 内存压力与回收</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>vfs_cache_pressure</code></td>
+<td>100</td>
+<td>控制内核回收 VFS 缓存（dentry&#x2F;inode）相对于文件页缓存的倾向。设为 0 几乎不回收 VFS 缓存；设为 1000 则激进回收</td>
+</tr>
+<tr>
+<td><code>min_free_kbytes</code></td>
+<td>自动计算</td>
+<td>系统保留的最小空闲内存，内存不足时触发直接回收</td>
+</tr>
+<tr>
+<td><code>watermark_scale_factor</code></td>
+<td>10</td>
+<td>控制内存水位线的间隔，影响后台回收的触发时机</td>
+</tr>
+</tbody></table>
+<h3 id="9-3-预读调优"><a href="#9-3-预读调优" class="headerlink" title="9.3 预读调优"></a>9.3 预读调优</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>位置</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>read_ahead_kb</code></td>
+<td><code>/sys/block/&lt;dev&gt;/queue/read_ahead_kb</code></td>
+<td>单设备的最大预读窗口（字节），覆盖 bdi 的 <code>ra_pages</code></td>
+</tr>
+<tr>
+<td><code>fadvise(POSIX_FADV_SEQUENTIAL)</code></td>
+<td>应用层系统调用</td>
+<td>提示内核使用更大的预读窗口</td>
+</tr>
+<tr>
+<td><code>fadvise(POSIX_FADV_RANDOM)</code></td>
+<td>应用层系统调用</td>
+<td>禁用预读（随机访问场景）</td>
+</tr>
+</tbody></table>
+<h3 id="9-4-实时观测"><a href="#9-4-实时观测" class="headerlink" title="9.4 实时观测"></a>9.4 实时观测</h3><p>通过以下接口可以观察页缓存的状态：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看整体内存使用，Cached 列为页缓存大小</span></span><br><span class="line">free -h</span><br><span class="line"></span><br><span class="line"><span class="comment"># 详细内存分类统计</span></span><br><span class="line"><span class="built_in">cat</span> /proc/meminfo | grep -E <span class="string">&quot;Cached|Dirty|Writeback|Mapped&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看回写统计（需要 procps-ng）</span></span><br><span class="line">vmstat -w 1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看特定进程的页缓存占用</span></span><br><span class="line"><span class="built_in">cat</span> /proc/&lt;pid&gt;/smaps | grep -E <span class="string">&quot;^(Size|Rss|Shared_Clean|Shared_Dirty|Private)&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用 cachestat/cachetop（来自 BCC/bpftrace）实时观察缓存命中率</span></span><br><span class="line">cachestat 1</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十、总结"><a href="#十、总结" class="headerlink" title="十、总结"></a>十、总结</h2><p>Linux 页缓存是一个设计精妙的多层次系统，其核心设计思路可以归纳为：</p>
+<ol>
+<li><p><strong>统一的抽象层</strong>：<code>address_space</code> 将文件、块设备、共享内存等不同对象以统一接口纳入页缓存管理，<code>address_space_operations</code> 提供了灵活的多态扩展点</p>
+</li>
+<li><p><strong>XArray 作为核心索引</strong>：以文件页偏移为键，XArray 提供了 O(log n) 的查找性能以及内置的标记机制（dirty&#x2F;writeback tags），使得批量处理脏页和回写页的效率极高</p>
+</li>
+<li><p><strong>预读流水线</strong>：通过 <code>PG_readahead</code> 标志和 <code>file_ra_state</code> 窗口管理，实现了 I&#x2F;O 延迟的流水线隐藏。<code>ondemand_readahead</code> 的状态机覆盖了从顺序读到随机读的各种模式</p>
+</li>
+<li><p><strong>延迟写与批量回写</strong>：脏页积累后由专门的回写线程统一处理，通过 <code>blk_plug</code> 机制合并相邻 I&#x2F;O，显著提升写吞吐量</p>
+</li>
+<li><p><strong>两级 LRU 与工作集检测</strong>：active&#x2F;inactive 双链表模拟 LRU 算法，workingset shadow 机制防止频繁驱逐工作集页，在内存压力下保护热数据</p>
+</li>
+<li><p><strong>Buffer Cache 的融合</strong>：<code>buffer_head</code> 作为元数据附着在页缓存 folio 上，消除了数据的双重缓存，统一了文件数据缓存和块设备元数据缓存</p>
+</li>
+</ol>
+<p>理解页缓存的工作原理，是进行 Linux 存储性能调优、诊断 I&#x2F;O 问题的基础。下一篇文章将深入 VFS 层，分析 <code>inode</code>、<code>dentry</code> 缓存及文件操作的完整调用链。</p>
+<hr>
+<p><em>本文源码分析基于 Linux 6.4-rc1（commit ac9a78681b92）。主要参考文件：<code>mm/filemap.c</code>、<code>mm/readahead.c</code>、<code>fs/fs-writeback.c</code>、<code>fs/buffer.c</code>、<code>include/linux/fs.h</code>、<code>include/linux/pagemap.h</code>、<code>include/linux/buffer_head.h</code>。</em></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Page-Cache/" rel="tag"># Page Cache</a>
+              <a href="/tags/Memory/" rel="tag"># Memory</a>
+              <a href="/tags/Writeback/" rel="tag"># Writeback</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part3-block-layer/" rel="prev" title="Linux 存储与文件系统深度剖析（三）：块设备层详解">
+                  <i class="fa fa-angle-left"></i> Linux 存储与文件系统深度剖析（三）：块设备层详解
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part5-ext4-deep-dive/" rel="next" title="Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析">
+                  Linux 存储与文件系统深度剖析（五）：Ext4 文件系统源码分析 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

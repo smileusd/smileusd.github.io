@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="存储 IO 性能问题是生产环境中最常见也最棘手的问题之一。数据库响应变慢、应用延迟飙升、批处理任务超时，背后往往隐藏着复杂的 IO 瓶颈。本文从内核源码层面出发，系统梳理 Linux 存储性能的监控、分析与调优方法，覆盖从 iostat 到 eBPF、从 blktrace 到 ftrace 的完整工具链。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 存储与文件系统深度剖析（九）：性能优化与调试实战">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part9-performance-tuning/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="存储 IO 性能问题是生产环境中最常见也最棘手的问题之一。数据库响应变慢、应用延迟飙升、批处理任务超时，背后往往隐藏着复杂的 IO 瓶颈。本文从内核源码层面出发，系统梳理 Linux 存储性能的监控、分析与调优方法，覆盖从 iostat 到 eBPF、从 blktrace 到 ftrace 的完整工具链。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-12T03:20:00.000Z">
+<meta property="article:modified_time" content="2026-04-13T13:27:31.750Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Debugging">
+<meta property="article:tag" content="Filesystem">
+<meta property="article:tag" content="blktrace">
+<meta property="article:tag" content="BPF">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part9-performance-tuning/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part9-performance-tuning/","path":"2026/04/12/2026-04-12-linux-storage-part9-performance-tuning/","title":"Linux 存储与文件系统深度剖析（九）：性能优化与调试实战"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 存储与文件系统深度剖析（九）：性能优化与调试实战 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%80%A7%E8%83%BD%E9%97%AE%E9%A2%98%E7%9A%84%E5%88%86%E7%B1%BB"><span class="nav-number">1.</span> <span class="nav-text">一、性能问题的分类</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-IO-%E5%BB%B6%E8%BF%9F%EF%BC%88Latency%EF%BC%89"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 IO 延迟（Latency）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E5%B8%A6%E5%AE%BD%E9%A5%B1%E5%92%8C%EF%BC%88Bandwidth-Saturation%EF%BC%89"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 带宽饱和（Bandwidth Saturation）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E5%85%83%E6%95%B0%E6%8D%AE%E7%93%B6%E9%A2%88%EF%BC%88Metadata-Bottleneck%EF%BC%89"><span class="nav-number">1.3.</span> <span class="nav-text">1.3 元数据瓶颈（Metadata Bottleneck）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-%E5%86%85%E5%AD%98%E5%8E%8B%E5%8A%9B%EF%BC%88Memory-Pressure%EF%BC%89"><span class="nav-number">1.4.</span> <span class="nav-text">1.4 内存压力（Memory Pressure）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%9F%BA%E7%A1%80%E7%9B%91%E6%8E%A7%E5%B7%A5%E5%85%B7%E5%85%A8%E8%A7%A3"><span class="nav-number">2.</span> <span class="nav-text">二、基础监控工具全解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-iostat-x-%E5%AD%97%E6%AE%B5%E8%AF%A6%E8%A7%A3"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 iostat -x 字段详解</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-iotop-%E8%BF%9B%E7%A8%8B%E7%BA%A7-IO-%E7%9B%91%E6%8E%A7"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 iotop 进程级 IO 监控</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-proc-diskstats-%E5%AD%97%E6%AE%B5%E8%A7%A3%E6%9E%90"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 &#x2F;proc&#x2F;diskstats 字段解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-sys-block-queue-%E5%8F%82%E6%95%B0%E8%A7%A3%E9%87%8A"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 &#x2F;sys&#x2F;block&#x2F;*&#x2F;queue&#x2F; 参数解释</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81blktrace-blkparse-%E6%B7%B1%E5%BA%A6%E4%BD%BF%E7%94%A8"><span class="nav-number">3.</span> <span class="nav-text">三、blktrace&#x2F;blkparse 深度使用</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-blktrace-%E4%BA%8B%E4%BB%B6%E7%B1%BB%E5%9E%8B"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 blktrace 事件类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%AE%8C%E6%95%B4-blktrace-%E5%88%86%E6%9E%90%E6%B5%81%E7%A8%8B"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 完整 blktrace 分析流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81BPF-eBPF-%E5%B7%A5%E5%85%B7%E9%9B%86"><span class="nav-number">4.</span> <span class="nav-text">四、BPF&#x2F;eBPF 工具集</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-biolatency-%E2%80%94-IO-%E5%BB%B6%E8%BF%9F%E5%88%86%E5%B8%83%E7%9B%B4%E6%96%B9%E5%9B%BE"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 biolatency — IO 延迟分布直方图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-biosnoop-%E2%80%94-IO-%E4%BA%8B%E4%BB%B6%E8%BF%BD%E8%B8%AA"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 biosnoop — IO 事件追踪</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-fileslower-%E2%80%94-%E6%85%A2%E6%96%87%E4%BB%B6%E6%93%8D%E4%BD%9C%E6%A3%80%E6%B5%8B"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 fileslower — 慢文件操作检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-filetop-%E2%80%94-%E6%96%87%E4%BB%B6-IO-Top"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 filetop — 文件 IO Top</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-ext4slower-xfsslower-%E2%80%94-%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%85%A2%E6%93%8D%E4%BD%9C%E6%A3%80%E6%B5%8B"><span class="nav-number">4.5.</span> <span class="nav-text">4.5 ext4slower &#x2F; xfsslower — 文件系统慢操作检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-%E8%87%AA%E5%AE%9A%E4%B9%89-BPF-%E7%A8%8B%E5%BA%8F%EF%BC%9A%E8%BF%BD%E8%B8%AA%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E5%86%99%E6%93%8D%E4%BD%9C%E5%BB%B6%E8%BF%9F"><span class="nav-number">4.6.</span> <span class="nav-text">4.6 自定义 BPF 程序：追踪文件系统写操作延迟</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E5%86%85%E6%A0%B8-ftrace-%E8%BF%BD%E8%B8%AA%E5%AD%98%E5%82%A8%E8%B7%AF%E5%BE%84"><span class="nav-number">5.</span> <span class="nav-text">五、内核 ftrace 追踪存储路径</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-function-tracer-%E8%BF%BD%E8%B8%AA%E7%89%B9%E5%AE%9A%E5%87%BD%E6%95%B0"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 function tracer 追踪特定函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-block-tracepoint-%E4%BA%8B%E4%BB%B6"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 block tracepoint 事件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-trace-cmd-%E5%AE%8C%E6%95%B4%E4%BD%BF%E7%94%A8%E7%A4%BA%E4%BE%8B"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 trace-cmd 完整使用示例</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E9%A1%B5%E7%BC%93%E5%AD%98%E8%B0%83%E4%BC%98"><span class="nav-number">6.</span> <span class="nav-text">六、页缓存调优</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-vm-dirty-ratio-%E4%B8%8E-vm-dirty-background-ratio"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 vm.dirty_ratio 与 vm.dirty_background_ratio</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-vm-vfs-cache-pressure-%E8%B0%83%E4%BC%98"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 vm.vfs_cache_pressure 调优</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E6%B8%85%E9%99%A4%E9%A1%B5%E7%BC%93%E5%AD%98%E7%9A%84%E5%9C%BA%E6%99%AF%E5%92%8C%E6%96%B9%E6%B3%95"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 清除页缓存的场景和方法</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81IO-%E8%B0%83%E5%BA%A6%E5%99%A8%E8%B0%83%E4%BC%98"><span class="nav-number">7.</span> <span class="nav-text">七、IO 调度器调优</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E8%B0%83%E5%BA%A6%E5%99%A8%E9%80%89%E6%8B%A9"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 调度器选择</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E8%B0%83%E5%BA%A6%E5%99%A8%E5%8F%82%E6%95%B0%E8%B0%83%E4%BC%98"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 调度器参数调优</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%8C%82%E8%BD%BD%E9%80%89%E9%A1%B9%E4%BC%98%E5%8C%96"><span class="nav-number">8.</span> <span class="nav-text">八、文件系统挂载选项优化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-ext4-%E6%80%A7%E8%83%BD%E6%8C%82%E8%BD%BD%E9%80%89%E9%A1%B9"><span class="nav-number">8.1.</span> <span class="nav-text">8.1 ext4 性能挂载选项</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-XFS-%E6%80%A7%E8%83%BD%E6%8C%82%E8%BD%BD%E9%80%89%E9%A1%B9"><span class="nav-number">8.2.</span> <span class="nav-text">8.2 XFS 性能挂载选项</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-Btrfs-%E6%80%A7%E8%83%BD%E6%8C%82%E8%BD%BD%E9%80%89%E9%A1%B9"><span class="nav-number">8.3.</span> <span class="nav-text">8.3 Btrfs 性能挂载选项</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%9D%E3%80%81%E5%AE%9E%E6%88%98%E6%A1%88%E4%BE%8B%EF%BC%9A%E6%8E%92%E6%9F%A5-IO-%E5%BB%B6%E8%BF%9F%E9%A3%99%E5%8D%87%E9%97%AE%E9%A2%98"><span class="nav-number">9.</span> <span class="nav-text">九、实战案例：排查 IO 延迟飙升问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9C%BA%E6%99%AF%E6%8F%8F%E8%BF%B0"><span class="nav-number">9.1.</span> <span class="nav-text">场景描述</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%92%E6%9F%A5%E6%AD%A5%E9%AA%A4"><span class="nav-number">9.2.</span> <span class="nav-text">排查步骤</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%81%E3%80%81%E6%80%BB%E7%BB%93"><span class="nav-number">10.</span> <span class="nav-text">十、总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">72</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">164</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part9-performance-tuning/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 存储与文件系统深度剖析（九）：性能优化与调试实战 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 存储与文件系统深度剖析（九）：性能优化与调试实战
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2026-04-12 11:20:00" itemprop="dateCreated datePublished" datetime="2026-04-12T11:20:00+08:00">2026-04-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-04-13 21:27:31" itemprop="dateModified" datetime="2026-04-13T21:27:31+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>存储 IO 性能问题是生产环境中最常见也最棘手的问题之一。数据库响应变慢、应用延迟飙升、批处理任务超时，背后往往隐藏着复杂的 IO 瓶颈。本文从内核源码层面出发，系统梳理 Linux 存储性能的监控、分析与调优方法，覆盖从 <code>iostat</code> 到 eBPF、从 blktrace 到 ftrace 的完整工具链。</p>
+<span id="more"></span>
+
+<h2 id="一、性能问题的分类"><a href="#一、性能问题的分类" class="headerlink" title="一、性能问题的分类"></a>一、性能问题的分类</h2><p>在着手分析之前，准确识别问题类型能大幅缩短排查时间。IO 性能问题通常可归为以下四类：</p>
+<h3 id="1-1-IO-延迟（Latency）"><a href="#1-1-IO-延迟（Latency）" class="headerlink" title="1.1 IO 延迟（Latency）"></a>1.1 IO 延迟（Latency）</h3><p>单次 IO 操作耗时过长。典型症状是 <code>iostat</code> 的 <code>await</code> 指标偏高，而 <code>%util</code> 不一定很高。常见根因包括：存储设备队列深度不足、RAID 重建、网络存储（NFS&#x2F;iSCSI）抖动、内核调度延迟。</p>
+<h3 id="1-2-带宽饱和（Bandwidth-Saturation）"><a href="#1-2-带宽饱和（Bandwidth-Saturation）" class="headerlink" title="1.2 带宽饱和（Bandwidth Saturation）"></a>1.2 带宽饱和（Bandwidth Saturation）</h3><p>设备带宽被打满，新 IO 请求被迫排队。表现为 <code>%util</code> 持续接近 100%，顺序读写场景下吞吐量触及硬件上限。</p>
+<h3 id="1-3-元数据瓶颈（Metadata-Bottleneck）"><a href="#1-3-元数据瓶颈（Metadata-Bottleneck）" class="headerlink" title="1.3 元数据瓶颈（Metadata Bottleneck）"></a>1.3 元数据瓶颈（Metadata Bottleneck）</h3><p>频繁的 <code>stat()</code>、<code>open()</code>、<code>readdir()</code> 等系统调用导致文件系统元数据操作成为瓶颈。在小文件密集型工作负载（如邮件服务器、包管理器）中尤为突出，此时磁盘 <code>%util</code> 可能并不高，但延迟居高不下。</p>
+<h3 id="1-4-内存压力（Memory-Pressure）"><a href="#1-4-内存压力（Memory-Pressure）" class="headerlink" title="1.4 内存压力（Memory Pressure）"></a>1.4 内存压力（Memory Pressure）</h3><p>页缓存（page cache）不足导致缓存命中率下降，读操作频繁穿透缓存到达磁盘。<code>free -m</code> 显示可用内存极少，<code>sar -B</code> 显示大量 <code>pgpgout</code> 或 <code>pgscank</code>。</p>
+<hr>
+<h2 id="二、基础监控工具全解"><a href="#二、基础监控工具全解" class="headerlink" title="二、基础监控工具全解"></a>二、基础监控工具全解</h2><h3 id="2-1-iostat-x-字段详解"><a href="#2-1-iostat-x-字段详解" class="headerlink" title="2.1 iostat -x 字段详解"></a>2.1 <code>iostat -x</code> 字段详解</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 每秒刷新一次，显示扩展统计</span></span><br><span class="line">iostat -x 1</span><br></pre></td></tr></table></figure>
+
+<p>典型输出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Device   r/s    w/s    rkB/s   wkB/s  rrqm/s  wrqm/s  %rrqm  %wrqm  r_await  w_await  aqu-sz  rareq-sz  wareq-sz  svctm  %util</span><br><span class="line">sda     12.00  48.00  512.00 4096.00    0.50    8.00   4.00  14.29     2.50    3.80    0.23     42.67     85.33   1.20   7.20</span><br><span class="line">nvme0n1 256.00 512.00 8192.00 16384.00  0.00    0.00   0.00   0.00    0.08    0.12    0.04     32.00     32.00   0.03  23.00</span><br></pre></td></tr></table></figure>
+
+<p>各字段含义：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>r/s</code> &#x2F; <code>w/s</code></td>
+<td>每秒完成的读&#x2F;写请求数</td>
+</tr>
+<tr>
+<td><code>rkB/s</code> &#x2F; <code>wkB/s</code></td>
+<td>每秒读取&#x2F;写入的数据量（KB）</td>
+</tr>
+<tr>
+<td><code>rrqm/s</code> &#x2F; <code>wrqm/s</code></td>
+<td>每秒被合并的读&#x2F;写请求数（在提交给设备前在队列中合并）</td>
+</tr>
+<tr>
+<td><code>%rrqm</code> &#x2F; <code>%wrqm</code></td>
+<td>被合并的读&#x2F;写请求占总请求的百分比，越高说明顺序性越好</td>
+</tr>
+<tr>
+<td><code>r_await</code> &#x2F; <code>w_await</code></td>
+<td>读&#x2F;写请求的平均等待时间（毫秒），包含队列等待时间 + 设备服务时间</td>
+</tr>
+<tr>
+<td><code>aqu-sz</code></td>
+<td>平均请求队列长度（队列深度），若持续 &gt; 1 说明设备跟不上请求速率</td>
+</tr>
+<tr>
+<td><code>rareq-sz</code> &#x2F; <code>wareq-sz</code></td>
+<td>平均读&#x2F;写请求大小（KB），反映 IO 粒度</td>
+</tr>
+<tr>
+<td><code>svctm</code></td>
+<td>平均设备服务时间（已废弃，不可靠，建议忽略）</td>
+</tr>
+<tr>
+<td><code>%util</code></td>
+<td>设备忙于处理 IO 的时间百分比，接近 100% 表示设备饱和</td>
+</tr>
+</tbody></table>
+<p><strong>关键判断依据：</strong></p>
+<ul>
+<li><code>r_await</code> &#x2F; <code>w_await</code> &gt; 10ms（HDD）或 &gt; 1ms（NVMe）需关注</li>
+<li><code>aqu-sz</code> 持续 &gt; 设备标称队列深度，说明存在积压</li>
+<li><code>%util</code> 接近 100% 且 <code>await</code> 高，设备是真正瓶颈；<code>%util</code> 低但 <code>await</code> 高，通常是单线程串行 IO 或软件层问题</li>
+</ul>
+<h3 id="2-2-iotop-进程级-IO-监控"><a href="#2-2-iotop-进程级-IO-监控" class="headerlink" title="2.2 iotop 进程级 IO 监控"></a>2.2 <code>iotop</code> 进程级 IO 监控</h3><p><code>iotop</code> 能直接定位到消耗 IO 的进程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 需要 root 权限</span></span><br><span class="line">sudo iotop -o          <span class="comment"># 只显示有 IO 活动的进程</span></span><br><span class="line">sudo iotop -a          <span class="comment"># 显示累计 IO 而非瞬时</span></span><br><span class="line">sudo iotop -p 1234     <span class="comment"># 只监控指定 PID</span></span><br><span class="line">sudo iotop -d 2        <span class="comment"># 每 2 秒刷新</span></span><br></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Total DISK READ:    45.23 M/s | Total DISK WRITE:    12.45 M/s</span><br><span class="line">  PID  PRIO  USER     DISK READ  DISK WRITE  SWAPIN     IO&gt;    COMMAND</span><br><span class="line"> 8421  be/4  mysql     38.12 M/s   3.21 M/s   0.00 % 92.45 % mysqld</span><br><span class="line">  987  be/4  root       5.11 M/s   1.22 M/s   0.00 %  7.21 % rsync</span><br></pre></td></tr></table></figure>
+
+<p><code>IO&gt;</code> 列是最关键的指标，表示进程等待 IO 的时间占比。</p>
+<h3 id="2-3-proc-diskstats-字段解析"><a href="#2-3-proc-diskstats-字段解析" class="headerlink" title="2.3 /proc/diskstats 字段解析"></a>2.3 <code>/proc/diskstats</code> 字段解析</h3><p><code>/proc/diskstats</code> 是 <code>iostat</code> 的数据来源。其生成逻辑位于内核 <code>block/genhd.c</code> 的 <code>diskstats_show()</code> 函数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/genhd.c: diskstats_show()</span></span><br><span class="line">seq_printf(seqf, <span class="string">&quot;%4d %7d %pg &quot;</span></span><br><span class="line">           <span class="string">&quot;%lu %lu %lu %u &quot;</span>         <span class="comment">// reads: ios, merges, sectors, ms</span></span><br><span class="line">           <span class="string">&quot;%lu %lu %lu %u &quot;</span>         <span class="comment">// writes: ios, merges, sectors, ms</span></span><br><span class="line">           <span class="string">&quot;%u %u %u &quot;</span>               <span class="comment">// inflight, io_ticks, time_in_queue</span></span><br><span class="line">           <span class="string">&quot;%lu %lu %lu %u &quot;</span>         <span class="comment">// discards: ios, merges, sectors, ms</span></span><br><span class="line">           <span class="string">&quot;%lu %u&quot;</span>                  <span class="comment">// flushes: ios, ms</span></span><br><span class="line">           <span class="string">&quot;\n&quot;</span>,</span><br><span class="line">           MAJOR(hd-&gt;bd_dev), MINOR(hd-&gt;bd_dev), hd,</span><br><span class="line">           stat.ios[STAT_READ],</span><br><span class="line">           stat.merges[STAT_READ],</span><br><span class="line">           stat.sectors[STAT_READ],</span><br><span class="line">           (<span class="type">unsigned</span> <span class="type">int</span>)div_u64(stat.nsecs[STAT_READ], NSEC_PER_MSEC),</span><br><span class="line">           stat.ios[STAT_WRITE],</span><br><span class="line">           stat.merges[STAT_WRITE],</span><br><span class="line">           stat.sectors[STAT_WRITE],</span><br><span class="line">           (<span class="type">unsigned</span> <span class="type">int</span>)div_u64(stat.nsecs[STAT_WRITE], NSEC_PER_MSEC),</span><br><span class="line">           inflight,</span><br><span class="line">           jiffies_to_msecs(stat.io_ticks),</span><br><span class="line">           (<span class="type">unsigned</span> <span class="type">int</span>)div_u64(stat.nsecs[STAT_READ] +</span><br><span class="line">                                 stat.nsecs[STAT_WRITE] +</span><br><span class="line">                                 stat.nsecs[STAT_DISCARD] +</span><br><span class="line">                                 stat.nsecs[STAT_FLUSH], NSEC_PER_MSEC),</span><br><span class="line">           stat.ios[STAT_DISCARD],</span><br><span class="line">           ...);</span><br></pre></td></tr></table></figure>
+
+<p>字段编号对应：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">字段1-2:   主设备号, 次设备号</span><br><span class="line">字段3:     设备名</span><br><span class="line">字段4:     reads_completed      - 成功完成的读请求数</span><br><span class="line">字段5:     reads_merged         - 相邻读请求被合并的次数</span><br><span class="line">字段6:     sectors_read         - 读取的扇区数（512B 为单位）</span><br><span class="line">字段7:     time_reading_ms      - 读操作总耗时（毫秒）</span><br><span class="line">字段8:     writes_completed     - 成功完成的写请求数</span><br><span class="line">字段9:     writes_merged        - 相邻写请求被合并的次数</span><br><span class="line">字段10:    sectors_written      - 写入的扇区数</span><br><span class="line">字段11:    time_writing_ms      - 写操作总耗时（毫秒）</span><br><span class="line">字段12:    io_in_progress       - 当前正在进行中的 IO 请求数</span><br><span class="line">字段13:    time_doing_io_ms     - 设备处于活跃状态的总时间（毫秒）</span><br><span class="line">字段14:    weighted_time_io_ms  - 加权 IO 时间（字段12的积分，用于计算 await）</span><br><span class="line">字段15-18: discard_*            - TRIM/discard 操作统计</span><br><span class="line">字段19-20: flush_*              - flush 操作统计</span><br></pre></td></tr></table></figure>
+
+<p>统计数据在内核中按 CPU 分片存储（<code>per_cpu_ptr(part-&gt;bd_stats, cpu)</code>），读取时对所有 CPU 求和，避免了锁竞争：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/genhd.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">part_stat_read_all</span><span class="params">(<span class="keyword">struct</span> block_device *part,</span></span><br><span class="line"><span class="params">        <span class="keyword">struct</span> disk_stats *stat)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> cpu;</span><br><span class="line">    <span class="built_in">memset</span>(stat, <span class="number">0</span>, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> disk_stats));</span><br><span class="line">    for_each_possible_cpu(cpu) &#123;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">disk_stats</span> *<span class="title">ptr</span> =</span> per_cpu_ptr(part-&gt;bd_stats, cpu);</span><br><span class="line">        <span class="type">int</span> group;</span><br><span class="line">        <span class="keyword">for</span> (group = <span class="number">0</span>; group &lt; NR_STAT_GROUPS; group++) &#123;</span><br><span class="line">            stat-&gt;nsecs[group]   += ptr-&gt;nsecs[group];</span><br><span class="line">            stat-&gt;sectors[group] += ptr-&gt;sectors[group];</span><br><span class="line">            stat-&gt;ios[group]     += ptr-&gt;ios[group];</span><br><span class="line">            stat-&gt;merges[group]  += ptr-&gt;merges[group];</span><br><span class="line">        &#125;</span><br><span class="line">        stat-&gt;io_ticks += ptr-&gt;io_ticks;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-sys-block-queue-参数解释"><a href="#2-4-sys-block-queue-参数解释" class="headerlink" title="2.4 /sys/block/*/queue/ 参数解释"></a>2.4 <code>/sys/block/*/queue/</code> 参数解释</h3><p>队列参数直接影响 IO 性能，位于 <code>/sys/block/&lt;dev&gt;/queue/</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">ls</span> /sys/block/sda/queue/</span><br></pre></td></tr></table></figure>
+
+<p>关键参数：</p>
+<table>
+<thead>
+<tr>
+<th>参数文件</th>
+<th>含义</th>
+<th>典型值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>scheduler</code></td>
+<td>当前 IO 调度器</td>
+<td><code>[mq-deadline] kyber bfq none</code></td>
+</tr>
+<tr>
+<td><code>nr_requests</code></td>
+<td>请求队列深度</td>
+<td>64 (HDD) &#x2F; 1024 (NVMe)</td>
+</tr>
+<tr>
+<td><code>read_ahead_kb</code></td>
+<td>预读大小（KB）</td>
+<td>128~4096</td>
+</tr>
+<tr>
+<td><code>max_sectors_kb</code></td>
+<td>单次 IO 最大大小（KB）</td>
+<td>512~2048</td>
+</tr>
+<tr>
+<td><code>rotational</code></td>
+<td>是否旋转设备（0&#x3D;SSD）</td>
+<td>0 或 1</td>
+</tr>
+<tr>
+<td><code>add_random</code></td>
+<td>是否向熵池贡献（SSD 可关闭）</td>
+<td>0 或 1</td>
+</tr>
+<tr>
+<td><code>nomerges</code></td>
+<td>禁用请求合并级别（0&#x3D;全合并）</td>
+<td>0&#x2F;1&#x2F;2</td>
+</tr>
+<tr>
+<td><code>iostats</code></td>
+<td>是否开启 IO 统计（开销很小）</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>wbt_lat_usec</code></td>
+<td>WBT 写回抑制目标延迟（微秒）</td>
+<td>75000</td>
+</tr>
+</tbody></table>
+<p><code>rotational</code> 参数由 <code>blk-sysfs.c</code> 中的 <code>QUEUE_SYSFS_BIT_FNS(nonrot, NONROT, 1)</code> 宏生成，它反转了 <code>QUEUE_FLAG_NONROT</code> 标志位，供调度器据此选择算法策略。</p>
+<hr>
+<h2 id="三、blktrace-blkparse-深度使用"><a href="#三、blktrace-blkparse-深度使用" class="headerlink" title="三、blktrace&#x2F;blkparse 深度使用"></a>三、blktrace&#x2F;blkparse 深度使用</h2><h3 id="3-1-blktrace-事件类型"><a href="#3-1-blktrace-事件类型" class="headerlink" title="3.1 blktrace 事件类型"></a>3.1 blktrace 事件类型</h3><p>blktrace 在内核块层各个关键路径上埋设 tracepoint，这些 tracepoint 定义在 <code>include/trace/events/block.h</code> 中。结合源码，完整事件生命周期如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">用户进程                内核块层               IO 调度器              设备驱动</span><br><span class="line">    │                     │                       │                      │</span><br><span class="line">    │── write(fd) ──►     │                       │                      │</span><br><span class="line">    │                block_bio_queue              │                      │</span><br><span class="line">    │                     │── bio 提交 ──►        │                      │</span><br><span class="line">    │                block_getrq (分配 request)   │                      │</span><br><span class="line">    │                     │                block_rq_insert               │</span><br><span class="line">    │             (可能触发) block_bio_backmerge   │                      │</span><br><span class="line">    │             (可能触发) block_bio_frontmerge  │                      │</span><br><span class="line">    │             (可能触发) block_split           │                      │</span><br><span class="line">    │                     │                block_rq_issue ──────────────►│</span><br><span class="line">    │                     │                       │               (设备处理)</span><br><span class="line">    │                     │                       │         block_rq_complete</span><br><span class="line">    │                     │                       │                      │</span><br><span class="line">    │◄── 返回 ────────────│                       │                      │</span><br></pre></td></tr></table></figure>
+
+<p>各 tracepoint 对应的源码定义：</p>
+<ul>
+<li><strong><code>block_bio_queue</code></strong>: bio 被放入请求队列，此时尚未分配 <code>request</code> 结构体</li>
+<li><strong><code>block_getrq</code></strong>: 为 bio 分配了 <code>request</code> 结构体</li>
+<li><strong><code>block_rq_insert</code></strong>: request 被插入调度器队列（elevator queue）</li>
+<li><strong><code>block_rq_issue</code></strong>: 调度器将 request 派发给设备驱动</li>
+<li><strong><code>block_rq_complete</code></strong>: 设备驱动报告 request 完成</li>
+<li><strong><code>block_rq_requeue</code></strong>: request 因某种原因被退回队列重新调度</li>
+<li><strong><code>block_rq_merge</code></strong>: 两个 request 在调度器中被合并</li>
+<li><strong><code>block_bio_bounce</code></strong>: 使用了 bounce buffer（DMA 地址限制导致），性能损耗信号</li>
+<li><strong><code>block_split</code></strong>: 一个大 bio 被拆分为两个（受设备段数&#x2F;大小限制）</li>
+<li><strong><code>block_plug</code></strong> &#x2F; <strong><code>block_unplug</code></strong>: 请求积攒（plug）和批量提交（unplug）机制</li>
+</ul>
+<p><code>block_rq_complete</code> 的定义展示了完整的事件结构：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/trace/events/block.h</span></span><br><span class="line">DECLARE_EVENT_CLASS(block_rq_completion,</span><br><span class="line">    TP_PROTO(<span class="keyword">struct</span> request *rq, <span class="type">blk_status_t</span> error, <span class="type">unsigned</span> <span class="type">int</span> nr_bytes),</span><br><span class="line">    TP_ARGS(rq, error, nr_bytes),</span><br><span class="line">    TP_STRUCT__entry(</span><br><span class="line">        __field(  <span class="type">dev_t</span>,    dev        )</span><br><span class="line">        __field(  <span class="type">sector_t</span>, sector     )</span><br><span class="line">        __field(  <span class="type">unsigned</span> <span class="type">int</span>, nr_sector  )</span><br><span class="line">        __field(  <span class="type">int</span>,      error      )</span><br><span class="line">        __array(  <span class="type">char</span>,     rwbs, RWBS_LEN )</span><br><span class="line">        __dynamic_array( <span class="type">char</span>, cmd, <span class="number">1</span>  )</span><br><span class="line">    ),</span><br><span class="line">    TP_fast_assign(</span><br><span class="line">        __entry-&gt;dev       = rq-&gt;q-&gt;disk ? disk_devt(rq-&gt;q-&gt;disk) : <span class="number">0</span>;</span><br><span class="line">        __entry-&gt;sector    = blk_rq_pos(rq);</span><br><span class="line">        __entry-&gt;nr_sector = nr_bytes &gt;&gt; <span class="number">9</span>;</span><br><span class="line">        __entry-&gt;error     = blk_status_to_errno(error);</span><br><span class="line">        blk_fill_rwbs(__entry-&gt;rwbs, rq-&gt;cmd_flags);</span><br><span class="line">        __get_str(cmd)[<span class="number">0</span>] = <span class="string">&#x27;\0&#x27;</span>;</span><br><span class="line">    ),</span><br><span class="line">    TP_printk(<span class="string">&quot;%d,%d %s (%s) %llu + %u [%d]&quot;</span>,</span><br><span class="line">              MAJOR(__entry-&gt;dev), MINOR(__entry-&gt;dev),</span><br><span class="line">              __entry-&gt;rwbs, __get_str(cmd),</span><br><span class="line">              (<span class="type">unsigned</span> <span class="type">long</span> <span class="type">long</span>)__entry-&gt;sector,</span><br><span class="line">              __entry-&gt;nr_sector, __entry-&gt;error)</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<p><code>rwbs</code> 字段是一个最多 8 字节的字符串，编码了 IO 操作类型：<code>R</code>&#x3D;读，<code>W</code>&#x3D;写，<code>D</code>&#x3D;discard，<code>F</code>&#x3D;flush，<code>S</code>&#x3D;sync，<code>M</code>&#x3D;元数据，<code>A</code>&#x3D;readahead，<code>N</code>&#x3D;none。</p>
+<h3 id="3-2-完整-blktrace-分析流程"><a href="#3-2-完整-blktrace-分析流程" class="headerlink" title="3.2 完整 blktrace 分析流程"></a>3.2 完整 blktrace 分析流程</h3><p><strong>步骤一：采集</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 方法一：直接采集到文件</span></span><br><span class="line">sudo blktrace -d /dev/sda -o /tmp/sda_trace -w 30   <span class="comment"># 采集 30 秒</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 方法二：实时管道分析</span></span><br><span class="line">sudo blktrace -d /dev/sda -o - | blkparse -i -</span><br><span class="line"></span><br><span class="line"><span class="comment"># 方法三：多设备同时采集</span></span><br><span class="line">sudo blktrace -d /dev/sda -d /dev/sdb -o /tmp/trace</span><br></pre></td></tr></table></figure>
+
+<p><strong>步骤二：解析</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 将二进制 trace 文件转换为可读格式</span></span><br><span class="line">blkparse -i /tmp/sda_trace -o /tmp/sda_trace.txt</span><br><span class="line"></span><br><span class="line"><span class="comment"># 输出格式: 设备 CPU 序号 时间戳 PID 动作 类型 扇区+长度 [进程名]</span></span><br><span class="line"><span class="comment"># 示例：</span></span><br><span class="line"><span class="comment"># 8,0    3    1     0.000000000   987  Q   W 2048 + 8 [mysqld]</span></span><br><span class="line"><span class="comment"># 8,0    3    2     0.000001234   987  G   W 2048 + 8 [mysqld]</span></span><br><span class="line"><span class="comment"># 8,0    3    3     0.000002100   987  I   W 2048 + 8 [mysqld]</span></span><br><span class="line"><span class="comment"># 8,0    3    4     0.000003400     0  D   W 2048 + 8 [swapper]</span></span><br><span class="line"><span class="comment"># 8,0    3    5     0.001234567     0  C   W 2048 + 8 [0]</span></span><br></pre></td></tr></table></figure>
+
+<p>动作字符含义：<code>Q</code>&#x3D;queued，<code>G</code>&#x3D;get request，<code>I</code>&#x3D;inserted，<code>D</code>&#x3D;dispatched（issued），<code>C</code>&#x3D;completed，<code>M</code>&#x3D;merged，<code>F</code>&#x3D;front merged，<code>S</code>&#x3D;split，<code>P</code>&#x3D;plug，<code>U</code>&#x3D;unplug，<code>X</code>&#x3D;remap，<code>A</code>&#x3D;remap (bio)</p>
+<p><strong>步骤三：统计分析</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 生成综合统计报告</span></span><br><span class="line">btt -i /tmp/sda_trace.bin</span><br><span class="line"></span><br><span class="line"><span class="comment"># 关键输出指标：</span></span><br><span class="line"><span class="comment"># Q2C: Q 事件到 C 事件的时间，即完整 IO 延迟</span></span><br><span class="line"><span class="comment"># D2C: D 事件到 C 事件的时间，即纯设备服务时间</span></span><br><span class="line"><span class="comment"># Q2D: Q 事件到 D 事件的时间，即调度器排队时间</span></span><br><span class="line"><span class="comment"># Q2G: Q 到 G 的时间（获取 request struct 的时间）</span></span><br><span class="line"><span class="comment"># G2I: G 到 I 的时间（插入调度器队列的时间）</span></span><br><span class="line"><span class="comment"># I2D: I 到 D 的时间（在调度器中等待的时间）</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>步骤四：热点定位</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 统计各进程的 IO 操作数</span></span><br><span class="line">blkparse -i /tmp/sda_trace -f <span class="string">&quot;%C\n&quot;</span> | <span class="built_in">sort</span> | <span class="built_in">uniq</span> -c | <span class="built_in">sort</span> -rn | <span class="built_in">head</span> -20</span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成 IO 时间线图（需要 seekwatcher 或 iowatcher）</span></span><br><span class="line">iowatcher -t /tmp/sda_trace.bin -o io_timeline.mp4</span><br><span class="line"></span><br><span class="line"><span class="comment"># 找出延迟最高的 IO 操作（Q2C &gt; 100ms）</span></span><br><span class="line">btt -i /tmp/sda_trace.bin -l | awk <span class="string">&#x27;$3 &gt; 0.1&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="四、BPF-eBPF-工具集"><a href="#四、BPF-eBPF-工具集" class="headerlink" title="四、BPF&#x2F;eBPF 工具集"></a>四、BPF&#x2F;eBPF 工具集</h2><p>BCC (BPF Compiler Collection) 和 bpftrace 提供了比 blktrace 更灵活、开销更低的分析手段。</p>
+<h3 id="4-1-biolatency-—-IO-延迟分布直方图"><a href="#4-1-biolatency-—-IO-延迟分布直方图" class="headerlink" title="4.1 biolatency — IO 延迟分布直方图"></a>4.1 biolatency — IO 延迟分布直方图</h3><p><code>biolatency</code> 捕获块设备 IO 的完整延迟分布，使用直方图展示：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo biolatency -d sda 10    <span class="comment"># 针对 sda，采集 10 秒</span></span><br><span class="line">sudo biolatency -F 10        <span class="comment"># 按标志位（读/写/discard）分组</span></span><br><span class="line">sudo biolatency -Q 10        <span class="comment"># 包含队列等待时间（从 bio 排队开始计时）</span></span><br></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">Tracing block device I/O... Hit Ctrl-C to end.</span><br><span class="line"></span><br><span class="line">     usecs               : count     distribution</span><br><span class="line">         0 -&gt; 1          : 0        |                                        |</span><br><span class="line">         2 -&gt; 3          : 0        |                                        |</span><br><span class="line">         4 -&gt; 7          : 12       |*                                       |</span><br><span class="line">         8 -&gt; 15         : 234      |********************                    |</span><br><span class="line">        16 -&gt; 31         : 512      |***************************************  |</span><br><span class="line">        32 -&gt; 63         : 289      |************************                |</span><br><span class="line">        64 -&gt; 127        : 45       |***                                     |</span><br><span class="line">       128 -&gt; 255        : 8        |                                        |</span><br><span class="line">       256 -&gt; 511        : 1        |                                        |</span><br></pre></td></tr></table></figure>
+
+<p><strong>原理</strong>：<code>biolatency</code> 挂钩 <code>block:block_rq_issue</code> 和 <code>block:block_rq_complete</code> tracepoint，记录每个 request 的起止时间戳，差值填入 BPF map（直方图数据结构），用户态周期性读取并打印。核心 BPF 逻辑：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 伪代码说明原理</span></span><br><span class="line">b.attach_kprobe(event=<span class="string">&quot;blk_account_io_start&quot;</span>, fn_name=<span class="string">&quot;trace_start&quot;</span>)</span><br><span class="line">b.attach_kprobe(event=<span class="string">&quot;blk_account_io_done&quot;</span>,  fn_name=<span class="string">&quot;trace_done&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># trace_start: start[req] = bpf_ktime_get_ns()</span></span><br><span class="line"><span class="comment"># trace_done:  delta = bpf_ktime_get_ns() - start[req]; hist.increment(log2(delta))</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-biosnoop-—-IO-事件追踪"><a href="#4-2-biosnoop-—-IO-事件追踪" class="headerlink" title="4.2 biosnoop — IO 事件追踪"></a>4.2 biosnoop — IO 事件追踪</h3><p>输出每一次 IO 操作的详细信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo biosnoop -Q           <span class="comment"># 包含排队时间</span></span><br><span class="line">sudo biosnoop -d nvme0n1   <span class="comment"># 过滤指定设备</span></span><br></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">TIME(s)     COMM           PID    DISK    T  SECTOR     BYTES  QUE(ms) LAT(ms)</span><br><span class="line">0.000001    mysqld         8421   sda     W  2048       65536    0.12    1.34</span><br><span class="line">0.001234    kworker/u4     237    sda     W  4096       4096     0.08    0.92</span><br><span class="line">0.002100    postgres       9912   nvme0n1 R  16384      32768    0.01    0.08</span><br></pre></td></tr></table></figure>
+
+<p>适合在延迟抖动发生时捕获具体的”问题 IO”。</p>
+<h3 id="4-3-fileslower-—-慢文件操作检测"><a href="#4-3-fileslower-—-慢文件操作检测" class="headerlink" title="4.3 fileslower — 慢文件操作检测"></a>4.3 fileslower — 慢文件操作检测</h3><p>检测超过阈值的文件读写操作（VFS 层）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo fileslower 10         <span class="comment"># 检测 &gt; 10ms 的文件 IO</span></span><br><span class="line">sudo fileslower -p 1234 5  <span class="comment"># 只监控 PID 1234，阈值 5ms</span></span><br></pre></td></tr></table></figure>
+
+<p>与 <code>biosnoop</code> 的区别：<code>fileslower</code> 工作在 VFS 层（<code>vfs_read</code>&#x2F;<code>vfs_write</code>），能看到文件名和路径，而 <code>biosnoop</code> 工作在块设备层，只能看到扇区号。</p>
+<h3 id="4-4-filetop-—-文件-IO-Top"><a href="#4-4-filetop-—-文件-IO-Top" class="headerlink" title="4.4 filetop — 文件 IO Top"></a>4.4 filetop — 文件 IO Top</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo filetop -C 5         <span class="comment"># 每 5 秒刷新，不清屏</span></span><br><span class="line">sudo filetop 1            <span class="comment"># 每 1 秒刷新</span></span><br></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Tracing... Output every 1 secs. Hit Ctrl-C to end</span><br><span class="line"></span><br><span class="line">14:23:11 loadavg: 2.34 2.12 1.98 3/423 8421</span><br><span class="line"></span><br><span class="line">TID    COMM           READS  WRITES R_Kb    W_Kb    T FILE</span><br><span class="line">8421   mysqld         234    89     18432   7168    R /var/lib/mysql/ib_logfile0</span><br><span class="line">9912   postgres       128    45     8192    3584    R /var/lib/postgresql/base/16384/1259</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-5-ext4slower-xfsslower-—-文件系统慢操作检测"><a href="#4-5-ext4slower-xfsslower-—-文件系统慢操作检测" class="headerlink" title="4.5 ext4slower &#x2F; xfsslower — 文件系统慢操作检测"></a>4.5 ext4slower &#x2F; xfsslower — 文件系统慢操作检测</h3><p>检测文件系统层（不是 VFS 层，而是具体文件系统）的慢操作：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo ext4slower 10        <span class="comment"># ext4 文件系统，阈值 10ms</span></span><br><span class="line">sudo xfsslower 5          <span class="comment"># XFS 文件系统，阈值 5ms</span></span><br><span class="line">sudo btrfsslower 20       <span class="comment"># Btrfs 文件系统，阈值 20ms</span></span><br></pre></td></tr></table></figure>
+
+<p>输出包含操作类型（READ&#x2F;WRITE&#x2F;OPEN&#x2F;FSYNC）、文件路径和实际延迟，能直接定位到具体文件。</p>
+<h3 id="4-6-自定义-BPF-程序：追踪文件系统写操作延迟"><a href="#4-6-自定义-BPF-程序：追踪文件系统写操作延迟" class="headerlink" title="4.6 自定义 BPF 程序：追踪文件系统写操作延迟"></a>4.6 自定义 BPF 程序：追踪文件系统写操作延迟</h3><p>以下是一个使用 bpftrace 追踪 ext4 写操作延迟的自定义脚本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/usr/bin/env bpftrace</span></span><br><span class="line"></span><br><span class="line">// 追踪 ext4_file_write_iter 函数的延迟</span><br><span class="line">// 保存到文件: trace_ext4_write.bt</span><br><span class="line"></span><br><span class="line">kprobe:ext4_file_write_iter</span><br><span class="line">&#123;</span><br><span class="line">    @start[tid] = nsecs;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">kretprobe:ext4_file_write_iter</span><br><span class="line">/@start[tid]/</span><br><span class="line">&#123;</span><br><span class="line">    <span class="variable">$lat_us</span> = (nsecs - @start[tid]) / 1000;</span><br><span class="line">    @latency_us = hist(<span class="variable">$lat_us</span>);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (<span class="variable">$lat_us</span> &gt; 10000) &#123;  // 超过 10ms</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;SLOW ext4 write: PID=%d COMM=%s lat=%d us\n&quot;</span>,</span><br><span class="line">               pid, <span class="built_in">comm</span>, <span class="variable">$lat_us</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    delete(@start[tid]);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">END</span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\next4 write latency distribution (us):\n&quot;</span>);</span><br><span class="line">    <span class="built_in">print</span>(@latency_us);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>运行方法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo bpftrace trace_ext4_write.bt</span><br></pre></td></tr></table></figure>
+
+<p>追踪 <code>submit_bio</code> 以统计各进程的块 IO 大小分布：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">sudo bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:submit_bio &#123;</span></span><br><span class="line"><span class="string">    @[comm, args-&gt;bio-&gt;bi_opf &amp; 1 ? &quot;W&quot; : &quot;R&quot;] =</span></span><br><span class="line"><span class="string">        hist(args-&gt;bio-&gt;bi_iter.bi_size);</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">interval:s:10 &#123; print(@); clear(@); &#125;</span></span><br><span class="line"><span class="string">&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、内核-ftrace-追踪存储路径"><a href="#五、内核-ftrace-追踪存储路径" class="headerlink" title="五、内核 ftrace 追踪存储路径"></a>五、内核 ftrace 追踪存储路径</h2><h3 id="5-1-function-tracer-追踪特定函数"><a href="#5-1-function-tracer-追踪特定函数" class="headerlink" title="5.1 function tracer 追踪特定函数"></a>5.1 function tracer 追踪特定函数</h3><p>ftrace 可以以极低开销追踪内核函数调用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 挂载 debugfs（通常已挂载）</span></span><br><span class="line">mount -t debugfs debugfs /sys/kernel/debug</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看可用 tracer</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/tracing/available_tracers</span><br><span class="line"><span class="comment"># function function_graph nop blk ...</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪 submit_bio 及其调用链</span></span><br><span class="line"><span class="built_in">cd</span> /sys/kernel/debug/tracing</span><br><span class="line"><span class="built_in">echo</span> function_graph &gt; current_tracer</span><br><span class="line"><span class="built_in">echo</span> submit_bio &gt; set_graph_function</span><br><span class="line"><span class="built_in">echo</span> 1 &gt; tracing_on</span><br><span class="line"><span class="built_in">sleep</span> 5</span><br><span class="line"><span class="built_in">echo</span> 0 &gt; tracing_on</span><br><span class="line"><span class="built_in">cat</span> trace | <span class="built_in">head</span> -100</span><br></pre></td></tr></table></figure>
+
+<p>输出示例（function_graph）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">1)               |  submit_bio() &#123;</span><br><span class="line">1)               |    bio_set_dev() &#123;</span><br><span class="line">1)   0.125 us    |      bio_associate_blkg();</span><br><span class="line">1)   0.456 us    |    &#125;</span><br><span class="line">1)               |    blk_mq_submit_bio() &#123;</span><br><span class="line">1)               |      __blk_mq_alloc_request() &#123;</span><br><span class="line">1)   0.234 us    |        blk_mq_get_tag();</span><br><span class="line">1)   1.234 us    |      &#125;</span><br><span class="line">1)               |      blk_mq_bio_to_request() &#123;&#125;</span><br><span class="line">1)               |      blk_mq_run_hw_queue() &#123;</span><br><span class="line">1)   3.456 us    |        ...</span><br><span class="line">1)   4.123 us    |      &#125;</span><br><span class="line">1)  12.345 us    |    &#125;</span><br><span class="line">1)  13.890 us    |  &#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-block-tracepoint-事件"><a href="#5-2-block-tracepoint-事件" class="headerlink" title="5.2 block tracepoint 事件"></a>5.2 block tracepoint 事件</h3><p>直接使用块设备的 tracepoint（性能优于 function tracer）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /sys/kernel/debug/tracing</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用所有块设备 tracepoint</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; events/block/enable</span><br><span class="line"></span><br><span class="line"><span class="comment"># 或者只启用特定事件</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; events/block/block_rq_issue/enable</span><br><span class="line"><span class="built_in">echo</span> 1 &gt; events/block/block_rq_complete/enable</span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置过滤器（只追踪 sda）</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;dev == 0x800&#x27;</span> &gt; events/block/block_rq_issue/filter  <span class="comment"># 8,0 = sda</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; tracing_on</span><br><span class="line"><span class="built_in">sleep</span> 10</span><br><span class="line"><span class="built_in">echo</span> 0 &gt; tracing_on</span><br><span class="line"><span class="built_in">cat</span> trace | grep -v <span class="string">&quot;^#&quot;</span> | <span class="built_in">head</span> -50</span><br></pre></td></tr></table></figure>
+
+<p>查看可用的块设备 tracepoint：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">ls</span> /sys/kernel/debug/tracing/events/block/</span><br><span class="line"><span class="comment"># block_bio_backmerge  block_bio_bounce  block_bio_complete</span></span><br><span class="line"><span class="comment"># block_bio_frontmerge block_bio_queue   block_bio_remap</span></span><br><span class="line"><span class="comment"># block_dirty_buffer   block_getrq       block_plug</span></span><br><span class="line"><span class="comment"># block_rq_complete    block_rq_error    block_rq_insert</span></span><br><span class="line"><span class="comment"># block_rq_issue       block_rq_merge    block_rq_remap</span></span><br><span class="line"><span class="comment"># block_rq_requeue     block_split       block_touch_buffer</span></span><br><span class="line"><span class="comment"># block_unplug</span></span><br></pre></td></tr></table></figure>
+
+<p>这与 <code>include/trace/events/block.h</code> 中定义的 tracepoint 一一对应。</p>
+<h3 id="5-3-trace-cmd-完整使用示例"><a href="#5-3-trace-cmd-完整使用示例" class="headerlink" title="5.3 trace-cmd 完整使用示例"></a>5.3 trace-cmd 完整使用示例</h3><p><code>trace-cmd</code> 是 ftrace 的前端工具，大幅简化操作：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装</span></span><br><span class="line">sudo apt install trace-cmd  <span class="comment"># Debian/Ubuntu</span></span><br><span class="line">sudo dnf install trace-cmd  <span class="comment"># Fedora/RHEL</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 记录 30 秒内所有块设备事件</span></span><br><span class="line">sudo trace-cmd record -e block:block_rq_issue \</span><br><span class="line">                      -e block:block_rq_complete \</span><br><span class="line">                      -e block:block_bio_queue \</span><br><span class="line">                      <span class="built_in">sleep</span> 30</span><br><span class="line"></span><br><span class="line"><span class="comment"># 分析记录结果</span></span><br><span class="line">trace-cmd report | <span class="built_in">head</span> -100</span><br><span class="line"></span><br><span class="line"><span class="comment"># 只追踪特定设备（sda = 8,0）</span></span><br><span class="line">sudo trace-cmd record \</span><br><span class="line">    -e block:block_rq_issue \</span><br><span class="line">    --filter <span class="string">&#x27;dev==0x800&#x27;</span> \</span><br><span class="line">    <span class="built_in">sleep</span> 10</span><br><span class="line"></span><br><span class="line"><span class="comment"># 同时追踪函数调用栈（诊断谁在发起 IO）</span></span><br><span class="line">sudo trace-cmd record \</span><br><span class="line">    -e block:block_rq_issue \</span><br><span class="line">    -O stacktrace \</span><br><span class="line">    <span class="built_in">sleep</span> 10</span><br><span class="line"></span><br><span class="line">trace-cmd report | grep -A 20 <span class="string">&quot;block_rq_issue&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>结合调用栈，可以准确定位到哪段代码触发了特定 IO：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">   mysqld-8421  [003]  1234.567890: block_rq_issue: 8,0 W 512 (NULL) 2048 + 8 [mysqld]</span><br><span class="line">   mysqld-8421  [003]  1234.567890: kernel_stack:</span><br><span class="line">=&gt; blk_mq_dispatch_rq_list</span><br><span class="line">=&gt; blk_mq_do_dispatch_sched</span><br><span class="line">=&gt; blk_mq_sched_dispatch_requests</span><br><span class="line">=&gt; __blk_mq_run_hw_queue</span><br><span class="line">=&gt; blk_mq_run_hw_queue</span><br><span class="line">=&gt; blk_mq_submit_bio</span><br><span class="line">=&gt; submit_bio</span><br><span class="line">=&gt; ext4_io_submit</span><br><span class="line">=&gt; ext4_writepages</span><br><span class="line">=&gt; do_writepages</span><br><span class="line">=&gt; __writeback_single_inode</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="六、页缓存调优"><a href="#六、页缓存调优" class="headerlink" title="六、页缓存调优"></a>六、页缓存调优</h2><h3 id="6-1-vm-dirty-ratio-与-vm-dirty-background-ratio"><a href="#6-1-vm-dirty-ratio-与-vm-dirty-background-ratio" class="headerlink" title="6.1 vm.dirty_ratio 与 vm.dirty_background_ratio"></a>6.1 <code>vm.dirty_ratio</code> 与 <code>vm.dirty_background_ratio</code></h3><p>这两个参数控制内核何时将脏页（dirty pages）回写到磁盘：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前值</span></span><br><span class="line">sysctl vm.dirty_ratio vm.dirty_background_ratio vm.dirty_expire_centisecs</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>vm.dirty_background_ratio</code></td>
+<td>10</td>
+<td>当脏页占可用内存的比例超过此值，后台回写线程（kworker）开始回写</td>
+</tr>
+<tr>
+<td><code>vm.dirty_ratio</code></td>
+<td>20</td>
+<td>当脏页占比超过此值，<strong>阻塞写入进程</strong>直到脏页降下来（写停顿！）</td>
+</tr>
+<tr>
+<td><code>vm.dirty_background_bytes</code></td>
+<td>0</td>
+<td>与 ratio 版本互斥，以绝对字节数指定触发阈值</td>
+</tr>
+<tr>
+<td><code>vm.dirty_bytes</code></td>
+<td>0</td>
+<td>与 ratio 版本互斥</td>
+</tr>
+<tr>
+<td><code>vm.dirty_expire_centisecs</code></td>
+<td>3000</td>
+<td>脏页超过 30 秒未回写则被标记为”过期”，强制回写</td>
+</tr>
+<tr>
+<td><code>vm.dirty_writeback_centisecs</code></td>
+<td>500</td>
+<td>后台回写线程的唤醒间隔（0&#x3D;禁用，不推荐）</td>
+</tr>
+</tbody></table>
+<p><strong>调优建议：</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 数据库服务器（需要低延迟，避免写停顿）</span></span><br><span class="line">sysctl -w vm.dirty_background_ratio=5</span><br><span class="line">sysctl -w vm.dirty_ratio=10</span><br><span class="line">sysctl -w vm.dirty_expire_centisecs=1000</span><br><span class="line"></span><br><span class="line"><span class="comment"># 大内存批处理服务器（提高吞吐量，允许累积更多脏页）</span></span><br><span class="line">sysctl -w vm.dirty_background_bytes=268435456  <span class="comment"># 256MB</span></span><br><span class="line">sysctl -w vm.dirty_bytes=1073741824            <span class="comment"># 1GB</span></span><br></pre></td></tr></table></figure>
+
+<p>写入 <code>/etc/sysctl.conf</code> 持久化：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">vm.dirty_background_ratio = 5</span><br><span class="line">vm.dirty_ratio = 10</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-vm-vfs-cache-pressure-调优"><a href="#6-2-vm-vfs-cache-pressure-调优" class="headerlink" title="6.2 vm.vfs_cache_pressure 调优"></a>6.2 <code>vm.vfs_cache_pressure</code> 调优</h3><p>该参数控制内核回收 VFS 缓存（inode 和 dentry 缓存）相对于页缓存的积极程度：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sysctl vm.vfs_cache_pressure</span><br><span class="line"><span class="comment"># vm.vfs_cache_pressure = 100  (默认)</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>= 100</code>：平等对待页缓存和 VFS 缓存（默认）</li>
+<li><code>&lt; 100</code>（如 50）：倾向于保留 VFS 缓存（有利于元数据密集型负载）</li>
+<li><code>&gt; 100</code>（如 200）：更积极地回收 VFS 缓存（内存紧张时）</li>
+<li><code>= 0</code>：永不回收 inode&#x2F;dentry 缓存（<strong>有 OOM 风险，不推荐生产使用</strong>）</li>
+</ul>
+<p>对于需要频繁 <code>stat()</code>、<code>open()</code> 小文件的服务（如 Web 服务器静态文件）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sysctl -w vm.vfs_cache_pressure=50</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-清除页缓存的场景和方法"><a href="#6-3-清除页缓存的场景和方法" class="headerlink" title="6.3 清除页缓存的场景和方法"></a>6.3 清除页缓存的场景和方法</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 只清除页缓存（不影响 inode/dentry 缓存）</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; /proc/sys/vm/drop_caches</span><br><span class="line"></span><br><span class="line"><span class="comment"># 清除 inode 和 dentry 缓存</span></span><br><span class="line"><span class="built_in">echo</span> 2 &gt; /proc/sys/vm/drop_caches</span><br><span class="line"></span><br><span class="line"><span class="comment"># 清除所有缓存（页缓存 + inode + dentry）</span></span><br><span class="line"><span class="built_in">echo</span> 3 &gt; /proc/sys/vm/drop_caches</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意</strong>：清除前建议先同步：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sync</span> &amp;&amp; <span class="built_in">echo</span> 3 &gt; /proc/sys/vm/drop_caches</span><br></pre></td></tr></table></figure>
+
+<p><strong>使用场景</strong>：</p>
+<ul>
+<li>性能测试前消除缓存影响，确保测试一致性</li>
+<li>内存不足时临时释放（治标不治本）</li>
+<li>验证应用是否依赖页缓存（清除后看性能是否下降）</li>
+</ul>
+<p>监控页缓存使用情况：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看缓存占用</span></span><br><span class="line">free -m</span><br><span class="line">vmstat -s | grep -i cache</span><br><span class="line"></span><br><span class="line"><span class="comment"># 详细查看 buffer/cache 分布</span></span><br><span class="line"><span class="built_in">cat</span> /proc/meminfo | grep -E <span class="string">&quot;Cached|Buffers|Dirty|Writeback&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看哪些文件占用了页缓存（需要 vmtouch 工具）</span></span><br><span class="line">vmtouch -v /var/lib/mysql/</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="七、IO-调度器调优"><a href="#七、IO-调度器调优" class="headerlink" title="七、IO 调度器调优"></a>七、IO 调度器调优</h2><h3 id="7-1-调度器选择"><a href="#7-1-调度器选择" class="headerlink" title="7.1 调度器选择"></a>7.1 调度器选择</h3><p>Linux 内核当前支持以下 IO 调度器（<code>block/</code> 目录下）：</p>
+<table>
+<thead>
+<tr>
+<th>调度器</th>
+<th>文件</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mq-deadline</code></td>
+<td><code>mq-deadline.c</code></td>
+<td>通用 HDD&#x2F;SATA SSD，防止 IO 饥饿</td>
+</tr>
+<tr>
+<td><code>kyber</code></td>
+<td><code>kyber-iosched.c</code></td>
+<td>高性能 NVMe，低延迟设备</td>
+</tr>
+<tr>
+<td><code>bfq</code></td>
+<td><code>bfq-iosched.c</code></td>
+<td>桌面&#x2F;混合负载，按进程公平分配带宽</td>
+</tr>
+<tr>
+<td><code>none</code></td>
+<td>—</td>
+<td>NVMe&#x2F;高性能设备（绕过调度器）</td>
+</tr>
+</tbody></table>
+<p>查看和切换：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前调度器（方括号表示当前选中）</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/sda/queue/scheduler</span><br><span class="line"><span class="comment"># [mq-deadline] kyber bfq none</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 切换调度器</span></span><br><span class="line"><span class="built_in">echo</span> mq-deadline &gt; /sys/block/sda/queue/scheduler</span><br><span class="line"><span class="built_in">echo</span> none &gt; /sys/block/nvme0n1/queue/scheduler</span><br><span class="line"></span><br><span class="line"><span class="comment"># 持久化（udev 规则）</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /etc/udev/rules.d/60-scheduler.rules &lt;&lt; <span class="string">&#x27;EOF&#x27;</span></span><br><span class="line"><span class="comment"># 旋转设备使用 mq-deadline</span></span><br><span class="line">ACTION==<span class="string">&quot;add|change&quot;</span>, KERNEL==<span class="string">&quot;sd[a-z]&quot;</span>, ATTR&#123;queue/rotational&#125;==<span class="string">&quot;1&quot;</span>, \</span><br><span class="line">    ATTR&#123;queue/scheduler&#125;=<span class="string">&quot;mq-deadline&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># NVMe 设备使用 none</span></span><br><span class="line">ACTION==<span class="string">&quot;add|change&quot;</span>, KERNEL==<span class="string">&quot;nvme[0-9]*&quot;</span>, \</span><br><span class="line">    ATTR&#123;queue/scheduler&#125;=<span class="string">&quot;none&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># SSD（非旋转）使用 mq-deadline</span></span><br><span class="line">ACTION==<span class="string">&quot;add|change&quot;</span>, KERNEL==<span class="string">&quot;sd[a-z]&quot;</span>, ATTR&#123;queue/rotational&#125;==<span class="string">&quot;0&quot;</span>, \</span><br><span class="line">    ATTR&#123;queue/scheduler&#125;=<span class="string">&quot;mq-deadline&quot;</span></span><br><span class="line">EOF</span><br><span class="line"></span><br><span class="line">udevadm control --reload-rules</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-调度器参数调优"><a href="#7-2-调度器参数调优" class="headerlink" title="7.2 调度器参数调优"></a>7.2 调度器参数调优</h3><p><strong>mq-deadline：</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 读请求最大等待时间（毫秒），防止读饥饿</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/sda/queue/iosched/read_expire   <span class="comment"># 默认 500ms</span></span><br><span class="line"><span class="built_in">echo</span> 200 &gt; /sys/block/sda/queue/iosched/read_expire</span><br><span class="line"></span><br><span class="line"><span class="comment"># 写请求最大等待时间（毫秒）</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/sda/queue/iosched/write_expire  <span class="comment"># 默认 5000ms</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 每次批量派发的最大请求数</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/sda/queue/iosched/fifo_batch     <span class="comment"># 默认 16</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>BFQ（适合桌面和混合负载）：</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 开启 BFQ 低延迟模式（对交互式进程优先）</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; /sys/block/sda/queue/iosched/low_latency</span><br><span class="line"></span><br><span class="line"><span class="comment"># 为特定 cgroup 设置 IO 权重（100-1000，默认 100）</span></span><br><span class="line"><span class="built_in">echo</span> 200 &gt; /sys/fs/cgroup/blkio/mygroup/blkio.bfq.weight</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="八、文件系统挂载选项优化"><a href="#八、文件系统挂载选项优化" class="headerlink" title="八、文件系统挂载选项优化"></a>八、文件系统挂载选项优化</h2><h3 id="8-1-ext4-性能挂载选项"><a href="#8-1-ext4-性能挂载选项" class="headerlink" title="8.1 ext4 性能挂载选项"></a>8.1 ext4 性能挂载选项</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 高性能配置（适合非关键数据）</span></span><br><span class="line">mount -o noatime,nodiratime,data=writeback,barrier=0,commit=60 \</span><br><span class="line">      /dev/sda1 /data</span><br><span class="line"></span><br><span class="line"><span class="comment"># 均衡配置（生产环境）</span></span><br><span class="line">mount -o noatime,nodiratime,data=ordered,commit=30 \</span><br><span class="line">      /dev/sda1 /data</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>选项</th>
+<th>含义</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>noatime</code></td>
+<td>不更新文件访问时间（atime）</td>
+<td>几乎所有场景都应开启</td>
+</tr>
+<tr>
+<td><code>nodiratime</code></td>
+<td>不更新目录访问时间</td>
+<td>配合 noatime 使用</td>
+</tr>
+<tr>
+<td><code>data=writeback</code></td>
+<td>元数据写入前不保证数据落盘，性能最高，崩溃可能数据不一致</td>
+<td>仅用于非关键数据</td>
+</tr>
+<tr>
+<td><code>data=ordered</code></td>
+<td>默认，数据先于元数据写入，安全与性能的平衡</td>
+<td>推荐生产使用</td>
+</tr>
+<tr>
+<td><code>data=journal</code></td>
+<td>数据和元数据都经过 journal，最安全最慢</td>
+<td>关键金融数据</td>
+</tr>
+<tr>
+<td><code>barrier=0</code></td>
+<td>关闭写屏障，提升顺序写性能，有电源丢失风险</td>
+<td>有 BBU&#x2F;UPS 时可用</td>
+</tr>
+<tr>
+<td><code>commit=N</code></td>
+<td>journal 提交间隔（秒），默认 5</td>
+<td>提高到 30-60 可降低 IO</td>
+</tr>
+<tr>
+<td><code>delalloc</code></td>
+<td>延迟分配（默认开启），有助于减少碎片</td>
+<td>保持默认</td>
+</tr>
+<tr>
+<td><code>stripe=N</code></td>
+<td>RAID 条带大小（512 字节为单位），告知文件系统 RAID 参数</td>
+<td>RAID 环境建议设置</td>
+</tr>
+</tbody></table>
+<h3 id="8-2-XFS-性能挂载选项"><a href="#8-2-XFS-性能挂载选项" class="headerlink" title="8.2 XFS 性能挂载选项"></a>8.2 XFS 性能挂载选项</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># XFS 高性能挂载</span></span><br><span class="line">mount -o noatime,nodiratime,logbsize=256k,logbufs=8,allocsize=1m \</span><br><span class="line">      /dev/sda1 /data</span><br><span class="line"></span><br><span class="line"><span class="comment"># NVMe 上的 XFS（大 stripe unit）</span></span><br><span class="line">mount -o noatime,nodiratime,logbsize=256k,swalloc \</span><br><span class="line">      /dev/nvme0n1p1 /data</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>选项</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>logbsize=256k</code></td>
+<td>日志缓冲区大小，增大可提升写入吞吐量（最大 256k）</td>
+</tr>
+<tr>
+<td><code>logbufs=8</code></td>
+<td>日志缓冲区数量（默认 8）</td>
+</tr>
+<tr>
+<td><code>allocsize=1m</code></td>
+<td>延迟分配时的预分配大小，减少碎片化</td>
+</tr>
+<tr>
+<td><code>swalloc</code></td>
+<td>条带宽度对齐分配，RAID 场景有益</td>
+</tr>
+<tr>
+<td><code>largeio</code></td>
+<td>允许更大的 IO 请求，利于顺序 IO 场景</td>
+</tr>
+</tbody></table>
+<h3 id="8-3-Btrfs-性能挂载选项"><a href="#8-3-Btrfs-性能挂载选项" class="headerlink" title="8.3 Btrfs 性能挂载选项"></a>8.3 Btrfs 性能挂载选项</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Btrfs 高性能配置（SSD）</span></span><br><span class="line">mount -o noatime,nodiratime,ssd,compress=lz4,space_cache=v2,discard=async \</span><br><span class="line">      /dev/nvme0n1p1 /data</span><br><span class="line"></span><br><span class="line"><span class="comment"># Btrfs HDD 配置</span></span><br><span class="line">mount -o noatime,nodiratime,compress=zstd:3,space_cache=v2 \</span><br><span class="line">      /dev/sda1 /data</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>选项</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ssd</code></td>
+<td>开启 SSD 优化（禁用旋转磁盘优化算法）</td>
+</tr>
+<tr>
+<td><code>compress=lz4</code></td>
+<td>透明压缩（lz4 最快，zstd 压缩率更高）</td>
+</tr>
+<tr>
+<td><code>space_cache=v2</code></td>
+<td>新版空间缓存，性能更好</td>
+</tr>
+<tr>
+<td><code>discard=async</code></td>
+<td>异步 TRIM，避免同步 TRIM 的延迟开销</td>
+</tr>
+<tr>
+<td><code>autodefrag</code></td>
+<td>自动碎片整理（数据库工作负载<strong>不建议</strong>开启）</td>
+</tr>
+<tr>
+<td><code>thread_pool=N</code></td>
+<td>并行 IO 线程数（默认 2）</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="九、实战案例：排查-IO-延迟飙升问题"><a href="#九、实战案例：排查-IO-延迟飙升问题" class="headerlink" title="九、实战案例：排查 IO 延迟飙升问题"></a>九、实战案例：排查 IO 延迟飙升问题</h2><h3 id="场景描述"><a href="#场景描述" class="headerlink" title="场景描述"></a>场景描述</h3><p>某生产环境 MySQL 服务器，业务反馈每隔约 30 分钟出现一次写入延迟飙升（约 5-10 秒），持续约 1 分钟后恢复正常，<code>iostat</code> 在正常时段 <code>%util</code> 约 40%，飙升期间 <code>%util</code> 达 100%，<code>w_await</code> 从 3ms 跳升至 200ms 以上。</p>
+<h3 id="排查步骤"><a href="#排查步骤" class="headerlink" title="排查步骤"></a>排查步骤</h3><p><strong>第一步：确认基线，收集现场数据</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 持续监控（保存到文件）</span></span><br><span class="line">iostat -x 1 3600 &gt; /tmp/iostat.log &amp;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 同时启动 blktrace（循环模式，避免磁盘满）</span></span><br><span class="line">sudo blktrace -d /dev/sda -o /tmp/blktrace -b 8192 -n 8 &amp;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 监控内存压力</span></span><br><span class="line">vmstat 1 3600 &gt; /tmp/vmstat.log &amp;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 监控 dirty page 变化</span></span><br><span class="line"><span class="keyword">while</span> <span class="literal">true</span>; <span class="keyword">do</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;<span class="subst">$(date)</span> <span class="subst">$(grep -E &#x27;Dirty|Writeback&#x27; /proc/meminfo | tr &#x27;\n&#x27; &#x27; &#x27;)</span>&quot;</span></span><br><span class="line">    <span class="built_in">sleep</span> 5</span><br><span class="line"><span class="keyword">done</span> &gt; /tmp/dirty.log &amp;</span><br></pre></td></tr></table></figure>
+
+<p><strong>第二步：分析 vmstat 日志，找到延迟发生时间点</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 找到 wa（IO wait）突升的时间窗口</span></span><br><span class="line">grep -n <span class="string">&quot;^[0-9]&quot;</span> /tmp/vmstat.log | awk <span class="string">&#x27;$17 &gt; 50 &#123;print NR, $0&#125;&#x27;</span> | <span class="built_in">head</span> -20</span><br><span class="line"></span><br><span class="line"><span class="comment"># 分析脏页日志，看是否与 dirty page 清理有关</span></span><br><span class="line">grep <span class="string">&quot;Dirty&quot;</span> /tmp/dirty.log | awk <span class="string">&#x27;&#123;</span></span><br><span class="line"><span class="string">    split($4, a, &quot;:&quot;); dirty=a[2]+0</span></span><br><span class="line"><span class="string">    if (dirty &gt; 1000000) print $0</span></span><br><span class="line"><span class="string">&#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>第三步：分析 dirty page 日志</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /tmp/dirty.log | grep -E <span class="string">&quot;Dirty: [0-9]&#123;6,&#125;&quot;</span></span><br><span class="line"><span class="comment"># 发现规律：每隔 ~30 分钟，Dirty 页从 ~200MB 突升至 ~2GB，随后触发写停顿</span></span><br><span class="line"><span class="comment"># 这与 vm.dirty_ratio=20% × 10GB RAM = 2GB 吻合</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>第四步：用 blkparse 分析 IO 模式</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 截取问题时间段的 trace（假设延迟发生在第 1820-1880 秒）</span></span><br><span class="line">blkparse -i /tmp/blktrace \</span><br><span class="line">    --start-time=1820 --stop-time=1880 \</span><br><span class="line">    -o /tmp/problem_period.txt</span><br><span class="line"></span><br><span class="line"><span class="comment"># 统计问题时段的 IO 延迟分布</span></span><br><span class="line">btt -i /tmp/blktrace.bin -B problem_latency</span><br><span class="line"></span><br><span class="line"><span class="comment"># 输出中关注 Q2C（完整延迟）的 percentile 分布</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>第五步：使用 biolatency 精确定位</strong></p>
+<p>在下一次延迟发生时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在告警触发后立即运行</span></span><br><span class="line">sudo biolatency -d sda -F 60    <span class="comment"># 采集 60 秒，按读写分组</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 同时抓取调用栈，找出谁在发起大量写 IO</span></span><br><span class="line">sudo bpftrace -e <span class="string">&#x27;</span></span><br><span class="line"><span class="string">kprobe:submit_bio</span></span><br><span class="line"><span class="string">/args-&gt;bio-&gt;bi_opf &amp; 1/  // 写操作</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    @[kstack(5)] = count();</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">interval:s:60 &#123;</span></span><br><span class="line"><span class="string">    print(@); clear(@); exit();</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>第六步：发现根因</strong></p>
+<p>分析结果揭示：</p>
+<ol>
+<li><code>vm.dirty_ratio=20%</code>（10GB 内存 → 2GB 脏页上限），MySQL 的 <code>innodb_buffer_pool_size=8GB</code> 会周期性刷脏页</li>
+<li>刷脏页触发时，瞬间产生大量写 IO，达到 <code>dirty_ratio</code> 阈值，阻塞 MySQL 写入线程</li>
+<li><code>blkparse</code> 显示问题时段存在大量顺序写，<code>D2C</code>（设备服务时间）本身正常，是 <code>Q2D</code>（队列等待）过长</li>
+</ol>
+<p><strong>第七步：修复</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 降低 dirty_ratio，提前触发后台回写，避免积累到停顿点</span></span><br><span class="line">sysctl -w vm.dirty_background_ratio=3</span><br><span class="line">sysctl -w vm.dirty_ratio=8</span><br><span class="line">sysctl -w vm.dirty_expire_centisecs=500   <span class="comment"># 脏页 5 秒就开始回写</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># MySQL 侧配合调整（减少单次 checkpoint 写入量）</span></span><br><span class="line"><span class="comment"># innodb_io_capacity=2000</span></span><br><span class="line"><span class="comment"># innodb_io_capacity_max=4000</span></span><br><span class="line"><span class="comment"># innodb_max_dirty_pages_pct=50          # 默认 90，降低减少积累</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 持久化内核参数</span></span><br><span class="line"><span class="built_in">cat</span> &gt;&gt; /etc/sysctl.conf &lt;&lt; <span class="string">&#x27;EOF&#x27;</span></span><br><span class="line">vm.dirty_background_ratio = 3</span><br><span class="line">vm.dirty_ratio = 8</span><br><span class="line">vm.dirty_expire_centisecs = 500</span><br><span class="line">EOF</span><br><span class="line">sysctl -p</span><br></pre></td></tr></table></figure>
+
+<p><strong>第八步：验证效果</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 观察延迟是否消失</span></span><br><span class="line">sudo biolatency -d sda 300      <span class="comment"># 观察 5 分钟</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 对比 dirty page 变化规律</span></span><br><span class="line">watch -n 5 <span class="string">&quot;grep -E &#x27;Dirty|Writeback&#x27; /proc/meminfo&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 确认 w_await 恢复正常</span></span><br><span class="line">iostat -x 5 12 | grep sda</span><br></pre></td></tr></table></figure>
+
+<p>结果：脏页峰值从 2GB 降至 300MB 以内，<code>w_await</code> 稳定在 3-5ms，定期写停顿消失。</p>
+<hr>
+<h2 id="十、总结"><a href="#十、总结" class="headerlink" title="十、总结"></a>十、总结</h2><p>Linux 存储性能调优是一个多层次的工程：从 <code>iostat</code> 的宏观视角，到 <code>/proc/diskstats</code> 和内核 <code>genhd.c</code> 揭示的统计细节；从 blktrace 捕获的每一个块 IO 事件（对应 <code>include/trace/events/block.h</code> 中的 tracepoint），到 eBPF 工具提供的动态追踪能力；从 ftrace 的函数级追踪，到页缓存参数和挂载选项的精细调整。</p>
+<p>性能问题的排查没有万能公式，但有清晰的方法论：<strong>先监控定位层次</strong>（应用&#x2F;VFS&#x2F;块设备&#x2F;驱动）、<strong>再用精细工具缩小范围</strong>（blktrace&#x2F;biosnoop&#x2F;ext4slower）、<strong>最后结合内核源码理解根因</strong>。当你能直接阅读 <code>genhd.c</code> 的 <code>diskstats_show()</code> 函数来理解 <code>iostat</code> 数字的来源，能对照 <code>block.h</code> 的 tracepoint 定义来解读 blktrace 输出时，存储调优便从经验主义升华为真正的工程科学。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Performance/" rel="tag"># Performance</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Debugging/" rel="tag"># Debugging</a>
+              <a href="/tags/Filesystem/" rel="tag"># Filesystem</a>
+              <a href="/tags/blktrace/" rel="tag"># blktrace</a>
+              <a href="/tags/BPF/" rel="tag"># BPF</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part8-direct-aio/" rel="prev" title="Linux 存储与文件系统深度剖析（八）：直接 IO 与异步 IO 实现">
+                  <i class="fa fa-angle-left"></i> Linux 存储与文件系统深度剖析（八）：直接 IO 与异步 IO 实现
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/13/2026-04-13-prow-images-ecosystem-zh/" rel="next" title="理解 Prow-Images 生态系统：大规模 Kubernetes CI/CD 构建实践">
+                  理解 Prow-Images 生态系统：大规模 Kubernetes CI/CD 构建实践 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

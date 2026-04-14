@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="一、IO 模型对比在深入探讨 Direct IO 与异步 IO 实现之前，有必要先厘清 Linux 下各种 IO 模型的本质差异。POSIX 标准定义了同步与异步两大类 IO，而 Linux 在此之上提供了更丰富的变体。 1.1 四种经典 IO 模型同步阻塞 IO（Blocking IO）是最直观的模型。read() 系统调用发出后，进程进入睡眠，内核等待数据就绪并完成内存拷贝，随后唤醒进程。整个">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 存储与文件系统深度剖析（八）：直接 IO 与异步 IO 实现">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part8-direct-aio/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="一、IO 模型对比在深入探讨 Direct IO 与异步 IO 实现之前，有必要先厘清 Linux 下各种 IO 模型的本质差异。POSIX 标准定义了同步与异步两大类 IO，而 Linux 在此之上提供了更丰富的变体。 1.1 四种经典 IO 模型同步阻塞 IO（Blocking IO）是最直观的模型。read() 系统调用发出后，进程进入睡眠，内核等待数据就绪并完成内存拷贝，随后唤醒进程。整个">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-12T03:10:00.000Z">
+<meta property="article:modified_time" content="2026-04-13T13:32:19.999Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Direct IO">
+<meta property="article:tag" content="AIO">
+<meta property="article:tag" content="io_uring">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part8-direct-aio/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part8-direct-aio/","path":"2026/04/12/2026-04-12-linux-storage-part8-direct-aio/","title":"Linux 存储与文件系统深度剖析（八）：直接 IO 与异步 IO 实现"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 存储与文件系统深度剖析（八）：直接 IO 与异步 IO 实现 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81IO-%E6%A8%A1%E5%9E%8B%E5%AF%B9%E6%AF%94"><span class="nav-number">1.</span> <span class="nav-text">一、IO 模型对比</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E5%9B%9B%E7%A7%8D%E7%BB%8F%E5%85%B8-IO-%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 四种经典 IO 模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-Linux-%E4%BF%A1%E5%8F%B7%E9%A9%B1%E5%8A%A8-IO"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 Linux 信号驱动 IO</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E7%9B%B4%E6%8E%A5-IO%EF%BC%88O-DIRECT%EF%BC%89%E5%AE%9E%E7%8E%B0"><span class="nav-number">2.</span> <span class="nav-text">二、直接 IO（O_DIRECT）实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E6%95%B0%E6%8D%AE%E5%BA%93%E9%9C%80%E8%A6%81-Direct-IO"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 为什么数据库需要 Direct IO</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%AF%B9%E9%BD%90%E8%A6%81%E6%B1%82"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 对齐要求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-struct-dio-%E7%BB%93%E6%9E%84%E4%BD%93%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%87%BD%E6%95%B0"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 struct dio 结构体与核心函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-dio-bio-submit-%E4%B8%8E-DMA-%E4%BC%A0%E8%BE%93"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 dio_bio_submit 与 DMA 传输</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81Linux-%E5%86%85%E6%A0%B8-AIO%EF%BC%88fs-aio-c%EF%BC%89"><span class="nav-number">3.</span> <span class="nav-text">三、Linux 内核 AIO（fs&#x2F;aio.c）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-struct-kiocb-%E5%AD%97%E6%AE%B5%E8%A7%A3%E6%9E%90"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 struct kiocb 字段解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-io-submit-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%E5%AE%9E%E7%8E%B0"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 io_submit() 系统调用实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-io-getevents-%E8%BD%AE%E8%AF%A2%E6%9C%BA%E5%88%B6"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 io_getevents() 轮询机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-Linux-AIO-%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 Linux AIO 的局限性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81io-uring%EF%BC%9A%E7%8E%B0%E4%BB%A3%E5%BC%82%E6%AD%A5-IO-%E6%A1%86%E6%9E%B6"><span class="nav-number">4.</span> <span class="nav-text">四、io_uring：现代异步 IO 框架</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-struct-io-ring-ctx-%E6%A0%B8%E5%BF%83%E4%B8%8A%E4%B8%8B%E6%96%87"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 struct io_ring_ctx 核心上下文</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-SQE-%E4%B8%8E-CQE-%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98%E8%AE%BE%E8%AE%A1"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 SQE 与 CQE 共享内存设计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-io-uring-setup-%E4%B8%8E%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 io_uring_setup() 与初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-IORING-SETUP-SQPOLL-%E5%86%85%E6%A0%B8%E8%BD%AE%E8%AF%A2%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%BC%8F"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 IORING_SETUP_SQPOLL 内核轮询线程模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E5%9B%BA%E5%AE%9A%E7%BC%93%E5%86%B2%E5%8C%BA%E4%B8%8E%E5%9B%BA%E5%AE%9A%E6%96%87%E4%BB%B6"><span class="nav-number">4.5.</span> <span class="nav-text">4.5 固定缓冲区与固定文件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-%E9%93%BE%E5%BC%8F%E8%AF%B7%E6%B1%82%EF%BC%88IOSQE-IO-LINK%EF%BC%89"><span class="nav-number">4.6.</span> <span class="nav-text">4.6 链式请求（IOSQE_IO_LINK）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-7-%E7%94%A8%E6%88%B7%E6%80%81%E4%BD%BF%E7%94%A8%E7%A4%BA%E4%BE%8B%EF%BC%88liburing%EF%BC%89"><span class="nav-number">4.7.</span> <span class="nav-text">4.7 用户态使用示例（liburing）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E6%80%A7%E8%83%BD%E5%AF%B9%E6%AF%94%E4%B8%8E%E8%B0%83%E4%BC%98"><span class="nav-number">5.</span> <span class="nav-text">五、性能对比与调优</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-Direct-IO-vs-Buffered-IO-%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 Direct IO vs Buffered IO 适用场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-AIO-vs-io-uring-%E6%80%A7%E8%83%BD%E5%AF%B9%E6%AF%94"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 AIO vs io_uring 性能对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-fio-%E6%B5%8B%E8%AF%95%E5%91%BD%E4%BB%A4%E7%A4%BA%E4%BE%8B"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 fio 测试命令示例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E8%B0%83%E4%BC%98%E5%BB%BA%E8%AE%AE"><span class="nav-number">5.4.</span> <span class="nav-text">5.4 调优建议</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">6.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">72</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">164</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part8-direct-aio/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 存储与文件系统深度剖析（八）：直接 IO 与异步 IO 实现 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 存储与文件系统深度剖析（八）：直接 IO 与异步 IO 实现
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2026-04-12 11:10:00" itemprop="dateCreated datePublished" datetime="2026-04-12T11:10:00+08:00">2026-04-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-04-13 21:32:19" itemprop="dateModified" datetime="2026-04-13T21:32:19+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h2 id="一、IO-模型对比"><a href="#一、IO-模型对比" class="headerlink" title="一、IO 模型对比"></a>一、IO 模型对比</h2><p>在深入探讨 Direct IO 与异步 IO 实现之前，有必要先厘清 Linux 下各种 IO 模型的本质差异。POSIX 标准定义了同步与异步两大类 IO，而 Linux 在此之上提供了更丰富的变体。</p>
+<h3 id="1-1-四种经典-IO-模型"><a href="#1-1-四种经典-IO-模型" class="headerlink" title="1.1 四种经典 IO 模型"></a>1.1 四种经典 IO 模型</h3><p><strong>同步阻塞 IO（Blocking IO）</strong>是最直观的模型。<code>read()</code> 系统调用发出后，进程进入睡眠，内核等待数据就绪并完成内存拷贝，随后唤醒进程。整个过程中用户进程挂起，无法做其他事情。这是绝大多数传统应用的默认行为。</p>
+<p><strong>同步非阻塞 IO（Non-blocking IO）</strong>通过设置 <code>O_NONBLOCK</code> 标志，让 <code>read()</code> 在数据未就绪时立即返回 <code>EAGAIN</code>，而不是阻塞。应用程序需要循环轮询，CPU 利用率高但响应延迟低。这种模型适合极少数对延迟极度敏感的场景，但大多数情况下会造成 CPU 空转。</p>
+<p><strong>IO 多路复用（IO Multiplexing）</strong>通过 <code>select</code>&#x2F;<code>poll</code>&#x2F;<code>epoll</code> 等机制，让单线程同时监听多个文件描述符。<code>epoll</code> 采用事件驱动模型，内核通过红黑树管理监听集合，通过双向链表维护就绪队列，时间复杂度为 O(1)。当 fd 就绪时，<code>epoll_wait</code> 返回，应用再调用 <code>read()</code>&#x2F;<code>write()</code>，此时数据已就绪，IO 操作本身不再阻塞。<strong>注意：IO 多路复用仍属于同步 IO</strong>，因为真正的数据拷贝（内核空间到用户空间）依然由调用 <code>read()</code> 的进程同步完成。</p>
+<p><strong>异步 IO（Asynchronous IO）</strong>是真正的异步模型。应用提交 IO 请求后立即返回，内核在后台完成数据读写和内存拷贝，完成后通过信号、回调或完成队列通知应用。Linux AIO（<code>io_submit</code>&#x2F;<code>io_getevents</code>）和 io_uring 都属于此类，但实现机制和能力有本质区别。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────────────────────┐</span><br><span class="line">│          IO 模型对比图                                           │</span><br><span class="line">│                                                                  │</span><br><span class="line">│  同步阻塞       同步非阻塞      IO多路复用      异步IO           │</span><br><span class="line">│                                                                  │</span><br><span class="line">│  进程            进程            进程           进程             │</span><br><span class="line">│   │               │               │              │              │</span><br><span class="line">│   │ read()        │ read()        │ epoll_wait   │ io_submit()  │</span><br><span class="line">│   │               │ EAGAIN ←      │              │ ←── 立即返回 │</span><br><span class="line">│   │ 阻塞等待      │ 轮询...       │ 阻塞等待     │              │</span><br><span class="line">│   │               │ read()        │ 数据就绪↓    │ 内核处理中   │</span><br><span class="line">│   │ 数据就绪      │ 数据就绪      │ read()       │              │</span><br><span class="line">│   │ ←── 返回      │ ←── 返回      │ ←── 返回     │ 完成通知 ←   │</span><br><span class="line">└─────────────────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>两个关键维度区分这些模型：<strong>等待数据就绪</strong>的过程是否阻塞；<strong>数据拷贝</strong>（内核→用户）的过程是否阻塞。只有真正的异步 IO 在两个维度上都不阻塞调用者。</p>
+<h3 id="1-2-Linux-信号驱动-IO"><a href="#1-2-Linux-信号驱动-IO" class="headerlink" title="1.2 Linux 信号驱动 IO"></a>1.2 Linux 信号驱动 IO</h3><p>Linux 还支持信号驱动 IO（<code>SIGIO</code>&#x2F;<code>O_ASYNC</code>），通过 <code>fcntl(fd, F_SETOWN, pid)</code> 注册信号接收者。当 fd 就绪时内核发送 <code>SIGIO</code> 信号。但这种模式在实践中很少使用，因为信号处理函数受到很多限制，且无法区分多个 fd 的就绪事件。</p>
+<hr>
+<h2 id="二、直接-IO（O-DIRECT）实现"><a href="#二、直接-IO（O-DIRECT）实现" class="headerlink" title="二、直接 IO（O_DIRECT）实现"></a>二、直接 IO（O_DIRECT）实现</h2><h3 id="2-1-为什么数据库需要-Direct-IO"><a href="#2-1-为什么数据库需要-Direct-IO" class="headerlink" title="2.1 为什么数据库需要 Direct IO"></a>2.1 为什么数据库需要 Direct IO</h3><p>Linux 的页缓存（Page Cache）是提升 IO 性能的核心机制：读操作的数据被缓存在内存中供后续复用，写操作先写入内存中的脏页（dirty page），由内核的 <code>pdflush</code>&#x2F;<code>writeback</code> 线程异步刷盘。对于大多数应用，这种双重缓冲能显著提升吞吐量。</p>
+<p>然而，对于数据库系统（PostgreSQL、MySQL InnoDB、Oracle 等），页缓存是一个障碍：</p>
+<ol>
+<li><strong>双重缓冲浪费内存</strong>：数据库有自己的 Buffer Pool，页缓存与之重叠，同样的数据在内存中存两份。</li>
+<li><strong>缓存污染</strong>：大规模全表扫描会把热数据从页缓存中驱逐，破坏缓存效果。</li>
+<li><strong>fsync 语义复杂</strong>：数据库需要精确控制数据落盘时机（WAL 机制），通过页缓存的异步写入会引入不确定性。</li>
+<li><strong>O_DIRECT 绕过页缓存</strong>，数据直接在用户缓冲区与磁盘之间传输（通过 DMA），数据库可以自主管理缓存，实现更精确的持久化控制。</li>
+</ol>
+<h3 id="2-2-对齐要求"><a href="#2-2-对齐要求" class="headerlink" title="2.2 对齐要求"></a>2.2 对齐要求</h3><p>Direct IO 有严格的内存和偏移对齐要求，违反会得到 <code>EINVAL</code>：</p>
+<ul>
+<li><strong>内存缓冲区地址</strong>：必须按扇区大小（通常 512 字节）或文件系统块大小（通常 4096 字节）对齐</li>
+<li><strong>文件偏移量</strong>：同样须对齐</li>
+<li><strong>传输长度</strong>：须为扇区&#x2F;块大小的整数倍</li>
+</ul>
+<p>内核在 <code>do_blockdev_direct_IO</code> 入口检查这些约束：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* fs/direct-io.c */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">int</span> <span class="title function_">dio_bio_reap</span><span class="params">(<span class="keyword">struct</span> dio *dio, <span class="keyword">struct</span> dio_submit *sdio)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> ret = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (sdio-&gt;reap_counter++ &gt;= <span class="number">64</span>) &#123;</span><br><span class="line">        <span class="keyword">while</span> (dio-&gt;bio_list) &#123;</span><br><span class="line">            <span class="type">unsigned</span> <span class="type">long</span> flags;</span><br><span class="line">            <span class="class"><span class="keyword">struct</span> <span class="title">bio</span> *<span class="title">bio</span>;</span></span><br><span class="line">            <span class="type">int</span> ret2;</span><br><span class="line"></span><br><span class="line">            spin_lock_irqsave(&amp;dio-&gt;bio_lock, flags);</span><br><span class="line">            bio = dio-&gt;bio_list;</span><br><span class="line">            dio-&gt;bio_list = bio-&gt;bi_private;</span><br><span class="line">            spin_unlock_irqrestore(&amp;dio-&gt;bio_lock, flags);</span><br><span class="line">            ret2 = blkdev_issue_flush(bio-&gt;bi_bdev);</span><br><span class="line">            <span class="keyword">if</span> (ret == <span class="number">0</span>)</span><br><span class="line">                ret = ret2;</span><br><span class="line">            bio_put(bio);</span><br><span class="line">        &#125;</span><br><span class="line">        sdio-&gt;reap_counter = <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-struct-dio-结构体与核心函数"><a href="#2-3-struct-dio-结构体与核心函数" class="headerlink" title="2.3 struct dio 结构体与核心函数"></a>2.3 <code>struct dio</code> 结构体与核心函数</h3><p><code>struct dio</code> 是 Direct IO 操作的核心控制块，定义在 <code>fs/direct-io.c</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* fs/direct-io.c */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">dio</span> &#123;</span></span><br><span class="line">    <span class="type">int</span>             flags;          <span class="comment">/* flags from file open */</span></span><br><span class="line">    <span class="type">blk_opf_t</span>       opf;            <span class="comment">/* request operation type and flags */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">gendisk</span>  *<span class="title">bio_disk</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">inode</span>    *<span class="title">inode</span>;</span></span><br><span class="line">    <span class="type">loff_t</span>          i_size;         <span class="comment">/* i_size when submitted */</span></span><br><span class="line">    <span class="type">dio_iodone_t</span>    *end_io;        <span class="comment">/* IO completion function */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">void</span>            *private;       <span class="comment">/* copy from map_bh.b_private */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* BIO completion state */</span></span><br><span class="line">    <span class="type">spinlock_t</span>      bio_lock;       <span class="comment">/* protects BIO fields below */</span></span><br><span class="line">    <span class="type">int</span>             page_errors;    <span class="comment">/* errno from get_user_pages() */</span></span><br><span class="line">    <span class="type">int</span>             is_async;       <span class="comment">/* non-zero if this is async DIO */</span></span><br><span class="line">    <span class="type">bool</span>            defer_completion; <span class="comment">/* defer AIO completion to workqueue? */</span></span><br><span class="line">    <span class="type">bool</span>            should_dirty;   <span class="comment">/* if pages should be dirtied */</span></span><br><span class="line">    <span class="type">int</span>             io_error;       <span class="comment">/* IO error in completion path */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>   refcount;       <span class="comment">/* direct_io_worker() and bios */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>      *<span class="title">bio_list</span>;</span>      <span class="comment">/* singly linked via bi_private */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">task_struct</span> *<span class="title">waiter</span>;</span>     <span class="comment">/* waiting task (NULL if none) */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* AIO related stuff */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kiocb</span>    *<span class="title">iocb</span>;</span>          <span class="comment">/* kiocb */</span></span><br><span class="line">    <span class="type">ssize_t</span>         result;         <span class="comment">/* IO result */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * pages[] (and any fields after it) are not zeroed out at</span></span><br><span class="line"><span class="comment">     * allocation time. Don&#x27;t add new fields after pages[] unless</span></span><br><span class="line"><span class="comment">     * you handle that.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">page</span> *<span class="title">pages</span>[<span class="title">DIO_PAGES</span>];</span> <span class="comment">/* page buffer */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">work_struct</span> <span class="title">complete_work</span>;</span> <span class="comment">/* deferred AIO completion */</span></span><br><span class="line">    &#125;;</span><br><span class="line">&#125; ____cacheline_aligned_in_smp;</span><br></pre></td></tr></table></figure>
+
+<p><code>do_blockdev_direct_IO</code> 是发起 Direct IO 的核心入口，它协调用户空间缓冲区的 pin（通过 <code>get_user_pages</code>）、构建 bio 链并提交到块层：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">ssize_t</span> __blockdev_direct_IO(<span class="keyword">struct</span> kiocb *iocb, <span class="keyword">struct</span> inode *inode,</span><br><span class="line">                              <span class="keyword">struct</span> block_device *bdev,</span><br><span class="line">                              <span class="keyword">struct</span> iov_iter *iter,</span><br><span class="line">                              <span class="type">get_block_t</span> get_block,</span><br><span class="line">                              <span class="type">dio_iodone_t</span> end_io,</span><br><span class="line">                              <span class="type">int</span> flags)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">unsigned</span> i_blkbits = READ_ONCE(inode-&gt;i_blkbits);</span><br><span class="line">    <span class="type">unsigned</span> blkbits = i_blkbits;</span><br><span class="line">    <span class="type">unsigned</span> blocksize_mask = (<span class="number">1</span> &lt;&lt; blkbits) - <span class="number">1</span>;</span><br><span class="line">    <span class="type">ssize_t</span> retval = -EINVAL;</span><br><span class="line">    <span class="type">const</span> <span class="type">size_t</span> count = iov_iter_count(iter);</span><br><span class="line">    <span class="type">loff_t</span> offset = iocb-&gt;ki_pos;</span><br><span class="line">    <span class="type">const</span> <span class="type">loff_t</span> end = offset + count;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dio</span> *<span class="title">dio</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dio_submit</span> <span class="title">sdio</span> =</span> &#123; <span class="number">0</span>, &#125;;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">buffer_head</span> <span class="title">map_bh</span> =</span> &#123; <span class="number">0</span>, &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* ... 对齐检查 ... */</span></span><br><span class="line">    <span class="keyword">if</span> ((offset &amp; blocksize_mask) || (count &amp; blocksize_mask)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (bdev) &#123;</span><br><span class="line">            blkbits = blksize_bits(bdev_logical_block_size(bdev));</span><br><span class="line">            blocksize_mask = (<span class="number">1</span> &lt;&lt; blkbits) - <span class="number">1</span>;</span><br><span class="line">            <span class="keyword">if</span> ((offset &amp; blocksize_mask) || (count &amp; blocksize_mask))</span><br><span class="line">                <span class="keyword">goto</span> out;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">goto</span> out;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    dio = kmem_cache_alloc(dio_cache, GFP_KERNEL);</span><br><span class="line">    <span class="comment">/* ... 初始化 dio，提交 bio，等待完成 ... */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-dio-bio-submit-与-DMA-传输"><a href="#2-4-dio-bio-submit-与-DMA-传输" class="headerlink" title="2.4 dio_bio_submit 与 DMA 传输"></a>2.4 <code>dio_bio_submit</code> 与 DMA 传输</h3><p><code>dio_bio_submit</code> 将构建好的 bio 提交到通用块层（Generic Block Layer），最终由设备驱动程序通过 DMA 完成数据传输：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">dio_bio_submit</span><span class="params">(<span class="keyword">struct</span> dio *dio, <span class="keyword">struct</span> dio_submit *sdio)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span> *<span class="title">bio</span> =</span> sdio-&gt;bio;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> flags;</span><br><span class="line"></span><br><span class="line">    bio-&gt;bi_private = dio;</span><br><span class="line"></span><br><span class="line">    spin_lock_irqsave(&amp;dio-&gt;bio_lock, flags);</span><br><span class="line">    dio-&gt;refcount++;</span><br><span class="line">    spin_unlock_irqrestore(&amp;dio-&gt;bio_lock, flags);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (dio-&gt;is_async &amp;&amp; dio-&gt;opf == REQ_OP_READ &amp;&amp; dio-&gt;should_dirty)</span><br><span class="line">        bio_set_pages_dirty(bio);</span><br><span class="line"></span><br><span class="line">    dio-&gt;bio_disk = bio-&gt;bi_bdev-&gt;bd_disk;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (sdio-&gt;submit_io) &#123;</span><br><span class="line">        sdio-&gt;submit_io(bio, dio-&gt;inode, sdio-&gt;logical_offset_in_bio);</span><br><span class="line">        sdio-&gt;bio = <span class="literal">NULL</span>;</span><br><span class="line">        sdio-&gt;boundary = <span class="number">0</span>;</span><br><span class="line">        sdio-&gt;logical_offset_in_bio = <span class="number">0</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        submit_bio(bio);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    sdio-&gt;bio = <span class="literal">NULL</span>;</span><br><span class="line">    sdio-&gt;boundary = <span class="number">0</span>;</span><br><span class="line">    sdio-&gt;logical_offset_in_bio = <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>DMA（Direct Memory Access）传输的原理：控制器从 bio 中取出物理内存页地址（<code>bio_vec</code> 数组），通过总线直接在磁盘控制器与主存之间搬运数据，CPU 全程不参与数据拷贝，完成后通过中断通知内核。这是 Direct IO 高效的根本原因——减少了一次内核缓冲区到用户缓冲区的 <code>memcpy</code>。</p>
+<hr>
+<h2 id="三、Linux-内核-AIO（fs-aio-c）"><a href="#三、Linux-内核-AIO（fs-aio-c）" class="headerlink" title="三、Linux 内核 AIO（fs/aio.c）"></a>三、Linux 内核 AIO（<code>fs/aio.c</code>）</h2><h3 id="3-1-struct-kiocb-字段解析"><a href="#3-1-struct-kiocb-字段解析" class="headerlink" title="3.1 struct kiocb 字段解析"></a>3.1 <code>struct kiocb</code> 字段解析</h3><p><code>struct kiocb</code>（Kernel IO Control Block）是内核异步 IO 的基本请求描述符，定义在 <code>include/linux/fs.h</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">kiocb</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">file</span>         *<span class="title">ki_filp</span>;</span>       <span class="comment">/* 目标文件 */</span></span><br><span class="line">    <span class="type">loff_t</span>              ki_pos;         <span class="comment">/* 当前 IO 偏移量 */</span></span><br><span class="line">    <span class="type">void</span> (*ki_complete)(<span class="keyword">struct</span> kiocb *iocb, <span class="type">long</span> ret); <span class="comment">/* 完成回调 */</span></span><br><span class="line">    <span class="type">void</span>                *private;</span><br><span class="line">    <span class="type">int</span>                 ki_flags;       <span class="comment">/* IOCB_* 标志位 */</span></span><br><span class="line">    u16                 ki_ioprio;      <span class="comment">/* 请求优先级 (IOPRIO_PRIO_VALUE) */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="comment">/* AIO 完成事件关联 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">wait_page_queue</span>  *<span class="title">ki_waitq</span>;</span></span><br><span class="line">        <span class="comment">/* 用于 poll 路径 */</span></span><br><span class="line">        <span class="type">__poll_t</span> (*ki_poll)(<span class="keyword">struct</span> file *, <span class="keyword">struct</span> poll_table_struct *);</span><br><span class="line">    &#125;;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>ki_flags</code> 中的关键标志：</p>
+<ul>
+<li><code>IOCB_EVENTFD</code>：完成时通过 eventfd 通知</li>
+<li><code>IOCB_DIRECT</code>：使用 Direct IO 路径</li>
+<li><code>IOCB_NOWAIT</code>：如果操作需要等待则立即返回 <code>EAGAIN</code></li>
+<li><code>IOCB_NOIO</code>：不允许发起新 IO（用于预读路径）</li>
+</ul>
+<h3 id="3-2-io-submit-系统调用实现"><a href="#3-2-io-submit-系统调用实现" class="headerlink" title="3.2 io_submit() 系统调用实现"></a>3.2 <code>io_submit()</code> 系统调用实现</h3><p>Linux AIO 的提交入口是 <code>io_submit()</code> 系统调用，对应内核函数 <code>__io_submit_one</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* fs/aio.c */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> __io_submit_one(<span class="keyword">struct</span> kioctx *ctx, <span class="type">const</span> <span class="keyword">struct</span> iocb *iocb,</span><br><span class="line">                           <span class="keyword">struct</span> iocb __user *user_iocb, <span class="keyword">struct</span> aio_kiocb *req,</span><br><span class="line">                           <span class="type">bool</span> compat)</span><br><span class="line">&#123;</span><br><span class="line">    req-&gt;ki_filp = fget(iocb-&gt;aio_fildes);</span><br><span class="line">    <span class="keyword">if</span> (unlikely(!req-&gt;ki_filp))</span><br><span class="line">        <span class="keyword">return</span> -EBADF;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (iocb-&gt;aio_flags &amp; IOCB_FLAG_RESFD) &#123;</span><br><span class="line">        <span class="comment">/*</span></span><br><span class="line"><span class="comment">         * eventfd 通知模式：完成时写入 eventfd</span></span><br><span class="line"><span class="comment">         */</span></span><br><span class="line">        req-&gt;ki_eventfd = eventfd_ctx_fdget(iocb-&gt;aio_resfd);</span><br><span class="line">        <span class="keyword">if</span> (IS_ERR(req-&gt;ki_eventfd)) &#123;</span><br><span class="line">            <span class="type">int</span> ret = PTR_ERR(req-&gt;ki_eventfd);</span><br><span class="line">            req-&gt;ki_eventfd = <span class="literal">NULL</span>;</span><br><span class="line">            <span class="keyword">return</span> ret;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    ret = put_user(KIOCB_KEY, &amp;user_iocb-&gt;aio_key);</span><br><span class="line">    <span class="keyword">if</span> (unlikely(ret))</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">    req-&gt;ki_res.obj = (u64)(<span class="type">unsigned</span> <span class="type">long</span>)user_iocb;</span><br><span class="line">    req-&gt;ki_res.data = iocb-&gt;aio_data;</span><br><span class="line">    req-&gt;ki_res.res = <span class="number">0</span>;</span><br><span class="line">    req-&gt;ki_res.res2 = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">switch</span> (iocb-&gt;aio_lio_opcode) &#123;</span><br><span class="line">    <span class="keyword">case</span> IOCB_CMD_PREAD:</span><br><span class="line">        <span class="keyword">return</span> aio_read(&amp;req-&gt;rw, iocb, <span class="literal">false</span>, compat);</span><br><span class="line">    <span class="keyword">case</span> IOCB_CMD_PWRITE:</span><br><span class="line">        <span class="keyword">return</span> aio_write(&amp;req-&gt;rw, iocb, <span class="literal">false</span>, compat);</span><br><span class="line">    <span class="keyword">case</span> IOCB_CMD_PREADV:</span><br><span class="line">        <span class="keyword">return</span> aio_read(&amp;req-&gt;rw, iocb, <span class="literal">true</span>, compat);</span><br><span class="line">    <span class="keyword">case</span> IOCB_CMD_PWRITEV:</span><br><span class="line">        <span class="keyword">return</span> aio_write(&amp;req-&gt;rw, iocb, <span class="literal">true</span>, compat);</span><br><span class="line">    <span class="keyword">case</span> IOCB_CMD_FSYNC:</span><br><span class="line">        <span class="keyword">return</span> aio_fsync(&amp;req-&gt;fsync, iocb, <span class="literal">false</span>);</span><br><span class="line">    <span class="keyword">case</span> IOCB_CMD_FDSYNC:</span><br><span class="line">        <span class="keyword">return</span> aio_fsync(&amp;req-&gt;fsync, iocb, <span class="literal">true</span>);</span><br><span class="line">    <span class="keyword">case</span> IOCB_CMD_POLL:</span><br><span class="line">        <span class="keyword">return</span> aio_poll(req, iocb);</span><br><span class="line">    <span class="keyword">default</span>:</span><br><span class="line">        pr_debug(<span class="string">&quot;EINVAL: no operation provided\n&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> -EINVAL;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>io_submit()</code> 每次调用可以批量提交多个 <code>iocb</code> 请求，内部对每个请求调用 <code>__io_submit_one</code>，分配 <code>aio_kiocb</code>，填充后提交到相应的文件操作实现。</p>
+<h3 id="3-3-io-getevents-轮询机制"><a href="#3-3-io-getevents-轮询机制" class="headerlink" title="3.3 io_getevents() 轮询机制"></a>3.3 <code>io_getevents()</code> 轮询机制</h3><p>提交后，应用通过 <code>io_getevents()</code> 收割完成事件：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* fs/aio.c */</span></span><br><span class="line"><span class="type">static</span> <span class="type">long</span> <span class="title function_">read_events</span><span class="params">(<span class="keyword">struct</span> kioctx *ctx, <span class="type">long</span> min_nr, <span class="type">long</span> nr,</span></span><br><span class="line"><span class="params">                        <span class="keyword">struct</span> io_event __user *event,</span></span><br><span class="line"><span class="params">                        <span class="type">ktime_t</span> until)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">long</span> ret = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * Note that aio_read_events() is being called as the conditional</span></span><br><span class="line"><span class="comment">     * in a wait_event() loop. When the conditional is satisfied,</span></span><br><span class="line"><span class="comment">     * the loop exits; otherwise we wait until an event is reaped.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">if</span> (!wait_event_interruptible_hrtimeout(ctx-&gt;wait,</span><br><span class="line">            aio_read_events(ctx, min_nr, nr, event, &amp;ret), until))</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!ret &amp;&amp; !time_after(jiffies, ctx-&gt;mmap_base))</span><br><span class="line">        ret = -EINTR;</span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>完成事件写入 <code>io_event</code> 结构：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">io_event</span> &#123;</span></span><br><span class="line">    __u64   data;    <span class="comment">/* 用户设置的 aio_data，用于关联请求 */</span></span><br><span class="line">    __u64   obj;     <span class="comment">/* 指向原始 iocb 的指针 */</span></span><br><span class="line">    __s64   res;     <span class="comment">/* 操作结果（&gt;=0 成功，&lt;0 errno）*/</span></span><br><span class="line">    __s64   res2;    <span class="comment">/* 二级结果（如 preadv2 flags） */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-4-Linux-AIO-的局限性"><a href="#3-4-Linux-AIO-的局限性" class="headerlink" title="3.4 Linux AIO 的局限性"></a>3.4 Linux AIO 的局限性</h3><p>Linux 内核 AIO 存在若干根本性限制，这也是 io_uring 诞生的主要动因：</p>
+<ol>
+<li><strong>只支持 O_DIRECT</strong>：对 Buffered IO 的 <code>aio_read</code>&#x2F;<code>aio_write</code> 实际上并不是真正异步的——当页缓存缺页时会同步阻塞在工作队列线程里，只是把阻塞转移到了内核线程，并未消除。</li>
+<li><strong>每次 syscall 开销大</strong>：<code>io_submit</code> 每次需要从用户空间拷贝 <code>iocb</code> 结构（每个 64 字节），无法利用共享内存避免拷贝。</li>
+<li><strong><code>io_getevents</code> 轮询开销</strong>：需要进入内核态才能获取完成事件。</li>
+<li><strong>不支持网络 IO</strong>：Linux AIO 仅适用于文件描述符，不支持 socket。</li>
+<li><strong>不支持 <code>fsync</code>（早期版本）</strong>：无法异步地刷盘。</li>
+</ol>
+<hr>
+<h2 id="四、io-uring：现代异步-IO-框架"><a href="#四、io-uring：现代异步-IO-框架" class="headerlink" title="四、io_uring：现代异步 IO 框架"></a>四、io_uring：现代异步 IO 框架</h2><p>io_uring 由 Jens Axboe 在 2019 年引入（Linux 5.1），彻底解决了 Linux AIO 的局限性。其核心思路是通过<strong>共享内存环形队列</strong>实现用户态与内核态的零拷贝通信。</p>
+<h3 id="4-1-struct-io-ring-ctx-核心上下文"><a href="#4-1-struct-io-ring-ctx-核心上下文" class="headerlink" title="4.1 struct io_ring_ctx 核心上下文"></a>4.1 <code>struct io_ring_ctx</code> 核心上下文</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* io_uring/io_uring.c（简化） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">io_ring_ctx</span> &#123;</span></span><br><span class="line">    <span class="comment">/* 不可变字段（初始化后不再修改） */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">int</span>            flags;</span><br><span class="line">        <span class="type">unsigned</span> <span class="type">int</span>            compat   : <span class="number">1</span>;</span><br><span class="line">        <span class="type">unsigned</span> <span class="type">int</span>            drain_next : <span class="number">1</span>;</span><br><span class="line">        <span class="type">unsigned</span> <span class="type">int</span>            restricted : <span class="number">1</span>;</span><br><span class="line">        <span class="type">unsigned</span> <span class="type">int</span>            off_timeout_used : <span class="number">1</span>;</span><br><span class="line">        <span class="type">unsigned</span> <span class="type">int</span>            drain_active : <span class="number">1</span>;</span><br><span class="line">    &#125; ____cacheline_aligned_in_smp;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 提交队列（SQ）相关 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">mutex</span>            <span class="title">uring_lock</span>;</span></span><br><span class="line">        u32                     *sq_array;      <span class="comment">/* SQ 索引数组（共享内存） */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">io_uring_sqe</span>     *<span class="title">sq_sqes</span>;</span>       <span class="comment">/* SQE 环（共享内存） */</span></span><br><span class="line">        <span class="type">unsigned</span>                cached_sq_head;</span><br><span class="line">        <span class="type">unsigned</span>                sq_entries;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">io_wq_work_list</span>  <span class="title">defer_list</span>;</span></span><br><span class="line">    &#125; ____cacheline_aligned_in_smp;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 完成队列（CQ）相关 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">        <span class="type">unsigned</span>                cached_cq_tail;</span><br><span class="line">        <span class="type">unsigned</span>                cq_entries;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">io_ev_fd</span> __<span class="title">rcu</span>   *<span class="title">io_ev_fd</span>;</span>      <span class="comment">/* eventfd 通知 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">wait_queue_head</span>  <span class="title">cq_wait</span>;</span></span><br><span class="line">        <span class="type">unsigned</span>                cq_extra;</span><br><span class="line">    &#125; ____cacheline_aligned_in_smp;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_rings</span>             *<span class="title">rings</span>;</span>         <span class="comment">/* 指向共享内存中的环头 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 注册资源 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_rsrc_data</span>         *<span class="title">file_data</span>;</span>     <span class="comment">/* 注册文件表 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_rsrc_data</span>         *<span class="title">buf_data</span>;</span>      <span class="comment">/* 注册缓冲区表 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* SQPOLL 内核线程 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_sq_data</span>           *<span class="title">sq_data</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 工作队列 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_wq</span>                *<span class="title">io_wq</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 其他字段... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>io_ring_ctx</code> 按缓存行对齐拆分，SQ 和 CQ 各占独立缓存行，避免多核并发时的伪共享（false sharing）。</p>
+<h3 id="4-2-SQE-与-CQE-共享内存设计"><a href="#4-2-SQE-与-CQE-共享内存设计" class="headerlink" title="4.2 SQE 与 CQE 共享内存设计"></a>4.2 SQE 与 CQE 共享内存设计</h3><p>io_uring 的精髓在于：内核与用户空间<strong>共享同一块物理内存</strong>，通过生产者-消费者模型通信，无需系统调用即可提交和收割大量 IO。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">用户空间                          内核空间</span><br><span class="line">┌──────────────────────────────────────────────┐</span><br><span class="line">│              共享内存（mmap）                 │</span><br><span class="line">│                                              │</span><br><span class="line">│  SQ Ring                    CQ Ring          │</span><br><span class="line">│  ┌─────────────┐            ┌─────────────┐  │</span><br><span class="line">│  │ head (R:内核)│            │ head (R:用户)│  │</span><br><span class="line">│  │ tail (W:用户)│            │ tail (W:内核)│  │</span><br><span class="line">│  │ sq_array[]  │            │ cqes[]      │  │</span><br><span class="line">│  └─────────────┘            └─────────────┘  │</span><br><span class="line">│                                              │</span><br><span class="line">│  SQE Array（独立 mmap）                      │</span><br><span class="line">│  ┌────┬────┬────┬────┐                       │</span><br><span class="line">│  │SQE0│SQE1│SQE2│SQE3│ ← 用户填写           │</span><br><span class="line">│  └────┴────┴────┴────┘                       │</span><br><span class="line">└──────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>SQE（Submission Queue Entry）结构，每个 64 字节：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">io_uring_sqe</span> &#123;</span></span><br><span class="line">    __u8    opcode;         <span class="comment">/* IORING_OP_READ/WRITE/... */</span></span><br><span class="line">    __u8    flags;          <span class="comment">/* IOSQE_* 标志 */</span></span><br><span class="line">    __u16   ioprio;</span><br><span class="line">    __s32   fd;             <span class="comment">/* 目标文件描述符（或注册文件索引） */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        __u64   off;        <span class="comment">/* 偏移量（pread/pwrite 用） */</span></span><br><span class="line">        __u64   addr2;</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        __u64   addr;       <span class="comment">/* 缓冲区地址（或注册缓冲区索引） */</span></span><br><span class="line">        __u64   splice_off_in;</span><br><span class="line">    &#125;;</span><br><span class="line">    __u32   len;            <span class="comment">/* 缓冲区长度 */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="type">__kernel_rwf_t</span>  rw_flags;</span><br><span class="line">        __u32           fsync_flags;</span><br><span class="line">        __u16           poll_events;</span><br><span class="line">        __u32           poll32_events;</span><br><span class="line">        __u32           sync_range_flags;</span><br><span class="line">        __u32           msg_flags;</span><br><span class="line">        __u32           timeout_flags;</span><br><span class="line">        __u32           accept_flags;</span><br><span class="line">        __u32           cancel_flags;</span><br><span class="line">        __u32           open_flags;</span><br><span class="line">        __u32           statx_flags;</span><br><span class="line">        __u32           fadvise_advice;</span><br><span class="line">        __u32           splice_flags;</span><br><span class="line">        __u32           rename_flags;</span><br><span class="line">        __u32           unlink_flags;</span><br><span class="line">        __u32           hardlink_flags;</span><br><span class="line">        __u32           xattr_flags;</span><br><span class="line">        __u32           msg_ring_flags;</span><br><span class="line">        __u32           uring_cmd_flags;</span><br><span class="line">    &#125;;</span><br><span class="line">    __u64   user_data;      <span class="comment">/* 用户自定义标识，原样返回 CQE */</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        __u16   buf_index;  <span class="comment">/* 注册缓冲区索引 */</span></span><br><span class="line">        __u16   buf_group;</span><br><span class="line">    &#125; __attribute__((packed));</span><br><span class="line">    __u16   personality;</span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        __s32   splice_fd_in;</span><br><span class="line">        __u32   file_index;</span><br><span class="line">        __u32   optlen;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">            __u16 addr_len;</span><br><span class="line">            __u16 __pad3[<span class="number">1</span>];</span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>CQE（Completion Queue Entry）结构，每个 16 字节：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">io_uring_cqe</span> &#123;</span></span><br><span class="line">    __u64   user_data;  <span class="comment">/* 对应 SQE 的 user_data */</span></span><br><span class="line">    __s32   res;        <span class="comment">/* 操作结果 */</span></span><br><span class="line">    __u32   flags;      <span class="comment">/* IORING_CQE_F_* */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-io-uring-setup-与初始化"><a href="#4-3-io-uring-setup-与初始化" class="headerlink" title="4.3 io_uring_setup() 与初始化"></a>4.3 <code>io_uring_setup()</code> 与初始化</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* io_uring/io_uring.c */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">struct</span> io_ring_ctx *<span class="title function_">io_ring_ctx_alloc</span><span class="params">(<span class="keyword">struct</span> io_uring_params *p)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_ring_ctx</span> *<span class="title">ctx</span>;</span></span><br><span class="line">    <span class="type">int</span> hash_bits;</span><br><span class="line"></span><br><span class="line">    ctx = kzalloc(<span class="keyword">sizeof</span>(*ctx), GFP_KERNEL);</span><br><span class="line">    <span class="keyword">if</span> (!ctx)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    xa_init(&amp;ctx-&gt;io_bl_xa);</span><br><span class="line"></span><br><span class="line">    hash_bits = ilog2(p-&gt;cq_entries);</span><br><span class="line">    hash_bits = clamp(hash_bits, <span class="number">1</span>, <span class="number">8</span>);</span><br><span class="line">    ctx-&gt;cancel_table.hbs = hash_bits;</span><br><span class="line">    ctx-&gt;cancel_table.hash = kcalloc(<span class="number">1U</span> &lt;&lt; hash_bits,</span><br><span class="line">                    <span class="keyword">sizeof</span>(<span class="keyword">struct</span> hlist_head), GFP_KERNEL);</span><br><span class="line">    <span class="keyword">if</span> (!ctx-&gt;cancel_table.hash)</span><br><span class="line">        <span class="keyword">goto</span> err;</span><br><span class="line"></span><br><span class="line">    ctx-&gt;cancel_table_locked.hbs = hash_bits;</span><br><span class="line">    ctx-&gt;cancel_table_locked.hash = kcalloc(<span class="number">1U</span> &lt;&lt; hash_bits,</span><br><span class="line">                    <span class="keyword">sizeof</span>(<span class="keyword">struct</span> hlist_head), GFP_KERNEL);</span><br><span class="line">    <span class="keyword">if</span> (!ctx-&gt;cancel_table_locked.hash)</span><br><span class="line">        <span class="keyword">goto</span> err;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (percpu_ref_init(&amp;ctx-&gt;refs, io_ring_ctx_ref_free,</span><br><span class="line">                        <span class="number">0</span>, GFP_KERNEL))</span><br><span class="line">        <span class="keyword">goto</span> err;</span><br><span class="line"></span><br><span class="line">    ctx-&gt;flags = p-&gt;flags;</span><br><span class="line">    init_waitqueue_head(&amp;ctx-&gt;sqo_sq_wait);</span><br><span class="line">    INIT_LIST_HEAD(&amp;ctx-&gt;sqd_list);</span><br><span class="line">    init_waitqueue_head(&amp;ctx-&gt;poll_wait);</span><br><span class="line">    INIT_LIST_HEAD(&amp;ctx-&gt;cq_overflow_list);</span><br><span class="line">    <span class="comment">/* ... 更多初始化 ... */</span></span><br><span class="line">    <span class="keyword">return</span> ctx;</span><br><span class="line">err:</span><br><span class="line">    io_ring_ctx_free(ctx);</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-IORING-SETUP-SQPOLL-内核轮询线程模式"><a href="#4-4-IORING-SETUP-SQPOLL-内核轮询线程模式" class="headerlink" title="4.4 IORING_SETUP_SQPOLL 内核轮询线程模式"></a>4.4 <code>IORING_SETUP_SQPOLL</code> 内核轮询线程模式</h3><p>开启 <code>IORING_SETUP_SQPOLL</code> 后，内核创建一个内核线程（<code>io_sq_thread</code>）持续轮询 SQ 环：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* io_uring/sqpoll.c（简化） */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">io_sq_thread</span><span class="params">(<span class="type">void</span> *data)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_sq_data</span> *<span class="title">sqd</span> =</span> data;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_ring_ctx</span> *<span class="title">ctx</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> timeout = <span class="number">0</span>;</span><br><span class="line">    <span class="type">char</span> buf[TASK_COMM_LEN];</span><br><span class="line">    DEFINE_WAIT(wait);</span><br><span class="line"></span><br><span class="line">    <span class="built_in">snprintf</span>(buf, <span class="keyword">sizeof</span>(buf), <span class="string">&quot;iou-sqp-%d&quot;</span>, sqd-&gt;task_pid);</span><br><span class="line">    set_task_comm(current, buf);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (!test_bit(IO_SQ_THREAD_SHOULD_STOP, &amp;sqd-&gt;state)) &#123;</span><br><span class="line">        <span class="type">int</span> ret;</span><br><span class="line">        <span class="type">bool</span> cap_entries, sqt_spin = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* 轮询所有关联的 ring ctx */</span></span><br><span class="line">        list_for_each_entry(ctx, &amp;sqd-&gt;ctx_list, sqd_list) &#123;</span><br><span class="line">            <span class="keyword">if</span> (io_sq_have_work(ctx))</span><br><span class="line">                sqt_spin |= io_sq_thread_handle_c(ctx, &amp;cap_entries);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (sqt_spin || !time_after(jiffies, timeout)) &#123;</span><br><span class="line">            io_run_task_work();</span><br><span class="line">            cond_resched();</span><br><span class="line">            <span class="keyword">if</span> (sqt_spin)</span><br><span class="line">                timeout = jiffies + sqd-&gt;sq_thread_idle;</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* 超过 idle 时间，进入睡眠等待新任务 */</span></span><br><span class="line">        prepare_to_wait(&amp;sqd-&gt;wait, &amp;wait, TASK_INTERRUPTIBLE);</span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>SQPOLL 模式下，应用提交 SQE 只需写共享内存，内核线程自动发现并处理，<strong>完全零系统调用</strong>。这对高 IOPS 场景（NVMe SSD，百万级 IOPS）效果显著，系统调用开销本身可能成为瓶颈。</p>
+<h3 id="4-5-固定缓冲区与固定文件"><a href="#4-5-固定缓冲区与固定文件" class="headerlink" title="4.5 固定缓冲区与固定文件"></a>4.5 固定缓冲区与固定文件</h3><p>注册固定资源可以避免每次 IO 时重复的 <code>get_user_pages</code>（锁定内存页）和 <code>fget</code>（引用计数）开销：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 注册固定缓冲区 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">iovec</span> <span class="title">iov</span>[2];</span></span><br><span class="line">iov[<span class="number">0</span>].iov_base = buf0;</span><br><span class="line">iov[<span class="number">0</span>].iov_len  = BUF_SIZE;</span><br><span class="line">iov[<span class="number">1</span>].iov_base = buf1;</span><br><span class="line">iov[<span class="number">1</span>].iov_len  = BUF_SIZE;</span><br><span class="line">io_uring_register(ring_fd, IORING_REGISTER_BUFFERS, iov, <span class="number">2</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 使用固定缓冲区时，SQE 中用 buf_index 代替地址 */</span></span><br><span class="line">sqe-&gt;opcode    = IORING_OP_READ_FIXED;</span><br><span class="line">sqe-&gt;buf_index = <span class="number">0</span>;  <span class="comment">/* 使用第 0 个注册缓冲区 */</span></span><br></pre></td></tr></table></figure>
+
+<p>注册文件（<code>IORING_REGISTER_FILES</code>）类似，将 fd 数组预先注册，SQE 中 <code>flags |= IOSQE_FIXED_FILE</code>，<code>fd</code> 字段为数组索引而非真实 fd，绕过每次 <code>fget</code>&#x2F;<code>fput</code> 的引用计数操作。</p>
+<h3 id="4-6-链式请求（IOSQE-IO-LINK）"><a href="#4-6-链式请求（IOSQE-IO-LINK）" class="headerlink" title="4.6 链式请求（IOSQE_IO_LINK）"></a>4.6 链式请求（IOSQE_IO_LINK）</h3><p>io_uring 支持将多个 SQE 链接为有序序列，前一个完成后才提交下一个：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 读取文件 → 处理 → 写入另一个文件，串行执行 */</span></span><br><span class="line">sqe = io_uring_get_sqe(&amp;ring);</span><br><span class="line">io_uring_prep_read(sqe, src_fd, buf, len, <span class="number">0</span>);</span><br><span class="line">sqe-&gt;flags |= IOSQE_IO_LINK;   <span class="comment">/* 链接到下一个 SQE */</span></span><br><span class="line">sqe-&gt;user_data = <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">sqe = io_uring_get_sqe(&amp;ring);</span><br><span class="line">io_uring_prep_write(sqe, dst_fd, buf, len, <span class="number">0</span>);</span><br><span class="line">sqe-&gt;user_data = <span class="number">2</span>;             <span class="comment">/* 最后一个不设 IOSQE_IO_LINK */</span></span><br><span class="line"></span><br><span class="line">io_uring_submit(&amp;ring);</span><br><span class="line"><span class="comment">/* 内核保证先执行 read，read 完成后才执行 write */</span></span><br></pre></td></tr></table></figure>
+
+<p>链式请求中任意一步失败，后续步骤会以 <code>-ECANCELED</code> 取消，类似事务语义。</p>
+<h3 id="4-7-用户态使用示例（liburing）"><a href="#4-7-用户态使用示例（liburing）" class="headerlink" title="4.7 用户态使用示例（liburing）"></a>4.7 用户态使用示例（liburing）</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;liburing.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;fcntl.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;string.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> QUEUE_DEPTH 64</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> BLOCK_SZ    4096</span></span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_uring</span> <span class="title">ring</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_uring_sqe</span> *<span class="title">sqe</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_uring_cqe</span> *<span class="title">cqe</span>;</span></span><br><span class="line">    <span class="type">char</span> buf[BLOCK_SZ];</span><br><span class="line">    <span class="type">int</span> fd, ret;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 初始化 io_uring，深度为 64 */</span></span><br><span class="line">    io_uring_queue_init(QUEUE_DEPTH, &amp;ring, <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">    fd = open(<span class="string">&quot;/tmp/testfile&quot;</span>, O_RDONLY | O_DIRECT);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 获取 SQE 并填写读请求 */</span></span><br><span class="line">    sqe = io_uring_get_sqe(&amp;ring);</span><br><span class="line">    io_uring_prep_read(sqe, fd, buf, BLOCK_SZ, <span class="number">0</span>);</span><br><span class="line">    sqe-&gt;user_data = <span class="number">42</span>;  <span class="comment">/* 自定义标识 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 提交（写 SQ tail，触发内核处理） */</span></span><br><span class="line">    io_uring_submit(&amp;ring);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 等待完成事件 */</span></span><br><span class="line">    ret = io_uring_wait_cqe(&amp;ring, &amp;cqe);</span><br><span class="line">    <span class="keyword">if</span> (ret == <span class="number">0</span> &amp;&amp; cqe-&gt;res &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;读取 %d 字节，user_data=%llu\n&quot;</span>,</span><br><span class="line">               cqe-&gt;res, (<span class="type">unsigned</span> <span class="type">long</span> <span class="type">long</span>)cqe-&gt;user_data);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 标记 CQE 已消费（推进 CQ head） */</span></span><br><span class="line">    io_uring_cqe_seen(&amp;ring, cqe);</span><br><span class="line"></span><br><span class="line">    io_uring_queue_exit(&amp;ring);</span><br><span class="line">    close(fd);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、性能对比与调优"><a href="#五、性能对比与调优" class="headerlink" title="五、性能对比与调优"></a>五、性能对比与调优</h2><h3 id="5-1-Direct-IO-vs-Buffered-IO-适用场景"><a href="#5-1-Direct-IO-vs-Buffered-IO-适用场景" class="headerlink" title="5.1 Direct IO vs Buffered IO 适用场景"></a>5.1 Direct IO vs Buffered IO 适用场景</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>Buffered IO</th>
+<th>Direct IO</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>缓存效果</td>
+<td>热数据命中后接近内存速度</td>
+<td>无缓存，每次都落盘</td>
+</tr>
+<tr>
+<td>内存占用</td>
+<td>页缓存占用物理内存</td>
+<td>仅用户缓冲区</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>随机小读写、反复访问相同数据</td>
+<td>数据库 Buffer Pool、流式大文件读写</td>
+</tr>
+<tr>
+<td>对齐要求</td>
+<td>无</td>
+<td>严格（512B 或 4096B）</td>
+</tr>
+<tr>
+<td>写安全性</td>
+<td>需 <code>fsync</code> 保证持久化</td>
+<td>数据直达磁盘（仍需考虑磁盘缓存）</td>
+</tr>
+<tr>
+<td>顺序读写吞吐</td>
+<td>接近（预读机制补偿）</td>
+<td>略低（无预读，需自行管理）</td>
+</tr>
+</tbody></table>
+<p><strong>推荐使用 Direct IO 的典型场景</strong>：</p>
+<ul>
+<li>数据库引擎（PostgreSQL 的 <code>effective_io_concurrency</code>，MySQL InnoDB 的 <code>innodb_flush_method=O_DIRECT</code>）</li>
+<li>视频转码、备份等大文件单次流式读写，防止污染页缓存</li>
+<li>实时数据采集，对时延有精确要求</li>
+</ul>
+<h3 id="5-2-AIO-vs-io-uring-性能对比"><a href="#5-2-AIO-vs-io-uring-性能对比" class="headerlink" title="5.2 AIO vs io_uring 性能对比"></a>5.2 AIO vs io_uring 性能对比</h3><p>Linux AIO 和 io_uring 在不同场景下的典型性能差异（参考 Jens Axboe 的 benchmark 数据）：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>Linux AIO</th>
+<th>io_uring（默认）</th>
+<th>io_uring（SQPOLL）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>最大 IOPS（4K 随机读，NVMe）</td>
+<td>~600K</td>
+<td>~800K</td>
+<td>~1200K+</td>
+</tr>
+<tr>
+<td>每 IO 系统调用次数</td>
+<td>2（submit+getevents）</td>
+<td>1（submit，collect 可批量）</td>
+<td>0（SQPOLL 模式）</td>
+</tr>
+<tr>
+<td>支持 Buffered IO</td>
+<td>伪异步</td>
+<td>真异步</td>
+<td>真异步</td>
+</tr>
+<tr>
+<td>支持网络 IO</td>
+<td>否</td>
+<td>是（recv&#x2F;send&#x2F;accept）</td>
+<td>是</td>
+</tr>
+<tr>
+<td>支持 <code>fsync</code></td>
+<td>否（早期）</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>固定缓冲区</td>
+<td>否</td>
+<td>是</td>
+<td>是</td>
+</tr>
+</tbody></table>
+<h3 id="5-3-fio-测试命令示例"><a href="#5-3-fio-测试命令示例" class="headerlink" title="5.3 fio 测试命令示例"></a>5.3 fio 测试命令示例</h3><p><strong>测试 Buffered IO 顺序写吞吐量</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">fio --name=buffered-seq-write \</span><br><span class="line">    --rw=write --bs=1M --size=4G \</span><br><span class="line">    --numjobs=4 --iodepth=1 \</span><br><span class="line">    --ioengine=<span class="built_in">sync</span> \</span><br><span class="line">    --filename=/data/testfile \</span><br><span class="line">    --group_reporting</span><br></pre></td></tr></table></figure>
+
+<p><strong>测试 Direct IO 随机读 IOPS</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">fio --name=direct-rand-read \</span><br><span class="line">    --rw=randread --bs=4k --size=4G \</span><br><span class="line">    --numjobs=4 --iodepth=32 \</span><br><span class="line">    --ioengine=libaio --direct=1 \</span><br><span class="line">    --filename=/data/testfile \</span><br><span class="line">    --group_reporting</span><br></pre></td></tr></table></figure>
+
+<p><strong>测试 io_uring 随机读写（混合 70&#x2F;30）</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">fio --name=io-uring-mixed \</span><br><span class="line">    --rw=randrw --rwmixread=70 \</span><br><span class="line">    --bs=4k --size=4G \</span><br><span class="line">    --numjobs=4 --iodepth=128 \</span><br><span class="line">    --ioengine=io_uring \</span><br><span class="line">    --hipri=1 \                    <span class="comment"># 使用 polling 模式</span></span><br><span class="line">    --sqthread_poll=1 \            <span class="comment"># 开启 SQPOLL</span></span><br><span class="line">    --registerfiles=1 \            <span class="comment"># 注册文件</span></span><br><span class="line">    --fixedbufs=1 \                <span class="comment"># 注册缓冲区</span></span><br><span class="line">    --filename=/dev/nvme0n1 \      <span class="comment"># 直接测试裸设备</span></span><br><span class="line">    --group_reporting</span><br></pre></td></tr></table></figure>
+
+<p><strong>解读关键指标</strong>：</p>
+<ul>
+<li><code>IOPS</code>：每秒完成的 IO 操作次数，评估随机 IO 能力</li>
+<li><code>BW</code>：带宽（MB&#x2F;s），评估顺序 IO 吞吐</li>
+<li><code>lat (usec)</code>：延迟，<code>avg</code> 是平均值，<code>99.00th</code> 是 P99 尾延迟——对数据库场景尤为重要</li>
+<li><code>clat</code>：完成延迟（Completion Latency），从 IO 提交到完成的时间</li>
+</ul>
+<h3 id="5-4-调优建议"><a href="#5-4-调优建议" class="headerlink" title="5.4 调优建议"></a>5.4 调优建议</h3><p><strong>内核参数</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 提升 AIO 最大并发请求数（默认 65536）</span></span><br><span class="line"><span class="built_in">echo</span> 1048576 &gt; /proc/sys/fs/aio-max-nr</span><br><span class="line"></span><br><span class="line"><span class="comment"># 调整调度器为 none（NVMe SSD 不需要 IO 调度器）</span></span><br><span class="line"><span class="built_in">echo</span> none &gt; /sys/block/nvme0n1/queue/scheduler</span><br><span class="line"></span><br><span class="line"><span class="comment"># 增大设备队列深度</span></span><br><span class="line"><span class="built_in">echo</span> 256 &gt; /sys/block/nvme0n1/queue/nr_requests</span><br></pre></td></tr></table></figure>
+
+<p><strong>io_uring SQPOLL 注意事项</strong>：SQPOLL 内核线程会绑定在特定 CPU 上持续运行，适合专用 IO 服务器。混合负载场景下应通过 <code>IORING_SETUP_SQ_AFF</code> 绑定隔离的 CPU core，避免争抢业务线程的 CPU。</p>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文系统梳理了 Linux IO 模型的演进脉络：从传统的同步阻塞 IO，到 Linux AIO 尝试异步化（但受制于 O_DIRECT 限制），再到 io_uring 通过共享内存环形队列实现真正的高性能零开销异步 IO 框架。</p>
+<p>Direct IO 解决了数据库等场景的双重缓冲问题，而 io_uring 则从根本上消除了异步 IO 的系统调用开销，并将异步能力从文件扩展到网络、定时器、进程管理等几乎所有内核操作。理解这些机制的实现细节，是构建高性能存储系统的必要基础。</p>
+<p>下一篇将深入探讨 Linux 文件系统的 VFS 层设计，以及 ext4、XFS 等具体文件系统的日志机制（Journaling）实现。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Direct-IO/" rel="tag"># Direct IO</a>
+              <a href="/tags/AIO/" rel="tag"># AIO</a>
+              <a href="/tags/io-uring/" rel="tag"># io_uring</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part7-io-scheduler/" rel="prev" title="Linux 存储与文件系统深度剖析（七）：IO 调度器深度剖析">
+                  <i class="fa fa-angle-left"></i> Linux 存储与文件系统深度剖析（七）：IO 调度器深度剖析
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part9-performance-tuning/" rel="next" title="Linux 存储与文件系统深度剖析（九）：性能优化与调试实战">
+                  Linux 存储与文件系统深度剖析（九）：性能优化与调试实战 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

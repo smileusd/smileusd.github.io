@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="IO 调度器（I&#x2F;O Scheduler）是 Linux 块层中承上启下的核心组件：它介于文件系统&#x2F;虚拟内存子系统发出的 bio 请求与底层硬件驱动之间，负责对请求进行排序、合并、仲裁，以求在吞吐量、延迟、公平性三个维度上达到系统预期的平衡点。本文基于 Linux 6.4-rc1 内核源码，深入剖析 mq-deadline、BFQ 和 Kyber 三个现代调度器的设计思想与核心">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 存储与文件系统深度剖析（七）：IO 调度器深度剖析">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part7-io-scheduler/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="IO 调度器（I&#x2F;O Scheduler）是 Linux 块层中承上启下的核心组件：它介于文件系统&#x2F;虚拟内存子系统发出的 bio 请求与底层硬件驱动之间，负责对请求进行排序、合并、仲裁，以求在吞吐量、延迟、公平性三个维度上达到系统预期的平衡点。本文基于 Linux 6.4-rc1 内核源码，深入剖析 mq-deadline、BFQ 和 Kyber 三个现代调度器的设计思想与核心">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-12T03:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-13T13:27:22.109Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="blk-mq">
+<meta property="article:tag" content="IO Scheduler">
+<meta property="article:tag" content="BFQ">
+<meta property="article:tag" content="Deadline">
+<meta property="article:tag" content="Kyber">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part7-io-scheduler/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part7-io-scheduler/","path":"2026/04/12/2026-04-12-linux-storage-part7-io-scheduler/","title":"Linux 存储与文件系统深度剖析（七）：IO 调度器深度剖析"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Linux 存储与文件系统深度剖析（七）：IO 调度器深度剖析 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%8E%86%E5%8F%B2%E6%BC%94%E8%BF%9B%EF%BC%9A%E4%BB%8E%E5%8D%95%E9%98%9F%E5%88%97%E5%88%B0%E5%A4%9A%E9%98%9F%E5%88%97"><span class="nav-number">1.</span> <span class="nav-text">1. 历史演进：从单队列到多队列</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-legacy-%E6%97%B6%E4%BB%A3%EF%BC%88%E5%8D%95%E9%98%9F%E5%88%97%E8%B0%83%E5%BA%A6%E5%99%A8%EF%BC%89"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 legacy 时代（单队列调度器）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-blk-mq-%E6%97%B6%E4%BB%A3%EF%BC%88%E5%A4%9A%E9%98%9F%E5%88%97%E8%B0%83%E5%BA%A6%E5%99%A8%EF%BC%89"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 blk-mq 时代（多队列调度器）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-IO-%E8%B0%83%E5%BA%A6%E5%99%A8%E6%A1%86%E6%9E%B6%EF%BC%9Aelevator-c-%E4%B8%8E-blk-mq-%E7%9A%84%E9%9B%86%E6%88%90"><span class="nav-number">2.</span> <span class="nav-text">2. IO 调度器框架：elevator.c 与 blk-mq 的集成</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 核心数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E8%AF%B7%E6%B1%82%E5%90%88%E5%B9%B6%E6%9C%BA%E5%88%B6"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 请求合并机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E8%B0%83%E5%BA%A6%E5%99%A8%E6%B3%A8%E5%86%8C%E4%B8%8E%E5%88%87%E6%8D%A2"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 调度器注册与切换</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-mq-deadline-%E8%B0%83%E5%BA%A6%E5%99%A8%E6%B7%B1%E5%BA%A6%E5%89%96%E6%9E%90"><span class="nav-number">3.</span> <span class="nav-text">3. mq-deadline 调度器深度剖析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 核心数据结构设计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%8F%8C%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%EF%BC%9A%E7%BA%A2%E9%BB%91%E6%A0%91-FIFO-%E9%93%BE%E8%A1%A8"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 双数据结构：红黑树 + FIFO 链表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-FIFO-%E8%B6%85%E6%97%B6%E6%A3%80%E6%B5%8B"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 FIFO 超时检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E6%A0%B8%E5%BF%83%E8%B0%83%E5%BA%A6%E5%86%B3%E7%AD%96%EF%BC%9A-dd-dispatch-request"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 核心调度决策：__dd_dispatch_request()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E4%BC%98%E5%85%88%E7%BA%A7%E6%84%9F%E7%9F%A5%E8%B0%83%E5%BA%A6%EF%BC%9Add-dispatch-request"><span class="nav-number">3.5.</span> <span class="nav-text">3.5 优先级感知调度：dd_dispatch_request()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-6-%E5%BC%82%E6%AD%A5-IO-%E6%B7%B1%E5%BA%A6%E9%99%90%E5%88%B6"><span class="nav-number">3.6.</span> <span class="nav-text">3.6 异步 IO 深度限制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-BFQ-%E8%B0%83%E5%BA%A6%E5%99%A8%E6%B7%B1%E5%BA%A6%E5%89%96%E6%9E%90"><span class="nav-number">4.</span> <span class="nav-text">4. BFQ 调度器深度剖析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%AE%BE%E8%AE%A1%E5%93%B2%E5%AD%A6%EF%BC%9A%E4%BB%8E%E6%97%B6%E9%97%B4%E5%88%87%E7%89%87%E5%88%B0%E9%A2%84%E7%AE%97%E5%88%87%E7%89%87"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 设计哲学：从时间切片到预算切片</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 核心数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#bfq-queue%EF%BC%9A%E8%BF%9B%E7%A8%8B-IO-%E9%98%9F%E5%88%97"><span class="nav-number">4.2.1.</span> <span class="nav-text">bfq_queue：进程 IO 队列</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#bfq-entity%EF%BC%9AB-WF2Q-%E7%9A%84%E8%B0%83%E5%BA%A6%E5%AE%9E%E4%BD%93"><span class="nav-number">4.2.2.</span> <span class="nav-text">bfq_entity：B-WF2Q+ 的调度实体</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#bfq-service-tree%EF%BC%9AB-WF2Q-%E6%9C%8D%E5%8A%A1%E6%A0%91"><span class="nav-number">4.2.3.</span> <span class="nav-text">bfq_service_tree：B-WF2Q+ 服务树</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-B-WF2Q-%E7%AE%97%E6%B3%95"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 B-WF2Q+ 算法</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%99%9A%E6%8B%9F%E6%97%B6%E9%97%B4%E6%88%B3%E7%9A%84%E8%AE%A1%E7%AE%97"><span class="nav-number">4.3.1.</span> <span class="nav-text">虚拟时间戳的计算</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%97%B6%E9%97%B4%E6%88%B3%E6%AF%94%E8%BE%83"><span class="nav-number">4.3.2.</span> <span class="nav-text">时间戳比较</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#next-in-service-%E7%9A%84%E6%9B%B4%E6%96%B0"><span class="nav-number">4.3.3.</span> <span class="nav-text">next_in_service 的更新</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-Idle-%E6%9C%BA%E5%88%B6%E4%B8%8E%E9%A2%84%E6%9C%9F%E5%BC%8F%E8%B0%83%E5%BA%A6"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 Idle 机制与预期式调度</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E5%85%B3%E9%94%AE%E5%B8%B8%E9%87%8F%E4%B8%8E-thinktime"><span class="nav-number">4.5.</span> <span class="nav-text">4.5 关键常量与 thinktime</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-%E5%B1%82%E6%AC%A1%E5%8C%96-cgroup-%E8%B0%83%E5%BA%A6"><span class="nav-number">4.6.</span> <span class="nav-text">4.6 层次化 cgroup 调度</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Kyber-%E8%B0%83%E5%BA%A6%E5%99%A8%E6%B7%B1%E5%BA%A6%E5%89%96%E6%9E%90"><span class="nav-number">5.</span> <span class="nav-text">5. Kyber 调度器深度剖析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E8%AE%BE%E8%AE%A1%E7%90%86%E5%BF%B5%EF%BC%9A%E5%BB%B6%E8%BF%9F%E7%9B%AE%E6%A0%87%E9%A9%B1%E5%8A%A8%E7%9A%84%E4%BB%A4%E7%89%8C%E6%A1%B6"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 设计理念：延迟目标驱动的令牌桶</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E4%BB%A4%E7%89%8C%E6%A1%B6%E5%AE%9E%E7%8E%B0%EF%BC%9Asbitmap-queue"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 令牌桶实现：sbitmap_queue</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E9%9A%94%E7%A6%BB"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 异步请求隔离</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E5%BB%B6%E8%BF%9F%E7%9B%B4%E6%96%B9%E5%9B%BE%E4%B8%8E%E8%87%AA%E9%80%82%E5%BA%94%E8%B0%83%E8%8A%82"><span class="nav-number">5.4.</span> <span class="nav-text">5.4 延迟直方图与自适应调节</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%A6%82%E4%BD%95%E9%80%89%E6%8B%A9-IO-%E8%B0%83%E5%BA%A6%E5%99%A8"><span class="nav-number">6.</span> <span class="nav-text">6. 如何选择 IO 调度器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E8%AE%BE%E5%A4%87%E7%B1%BB%E5%9E%8B%E4%B8%8E%E8%B0%83%E5%BA%A6%E5%99%A8%E7%9A%84%E5%8C%B9%E9%85%8D%E5%85%B3%E7%B3%BB"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 设备类型与调度器的匹配关系</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E8%B0%83%E5%BA%A6%E5%99%A8%E9%80%89%E6%8B%A9%E7%9A%84%E6%A0%B8%E5%BF%83%E6%8C%87%E6%A0%87"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 调度器选择的核心指标</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%AE%9E%E9%99%85%E8%B0%83%E4%BC%98%E7%A4%BA%E4%BE%8B"><span class="nav-number">7.</span> <span class="nav-text">7. 实际调优示例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E6%9F%A5%E7%9C%8B%E5%92%8C%E4%BF%AE%E6%94%B9%E8%B0%83%E5%BA%A6%E5%99%A8"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 查看和修改调度器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-mq-deadline-%E8%B0%83%E4%BC%98%E5%8F%82%E6%95%B0"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 mq-deadline 调优参数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-BFQ-%E8%B0%83%E4%BC%98%E5%8F%82%E6%95%B0"><span class="nav-number">7.3.</span> <span class="nav-text">7.3 BFQ 调优参数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-Kyber-%E8%B0%83%E4%BC%98%E5%8F%82%E6%95%B0"><span class="nav-number">7.4.</span> <span class="nav-text">7.4 Kyber 调优参数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-%E9%80%9A%E7%94%A8%E9%98%9F%E5%88%97%E5%8F%82%E6%95%B0"><span class="nav-number">7.5.</span> <span class="nav-text">7.5 通用队列参数</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%96%B9%E6%B3%95%EF%BC%88fio-%E6%B5%8B%E8%AF%95%E6%96%B9%E6%A1%88%EF%BC%89"><span class="nav-number">8.</span> <span class="nav-text">8. 性能测试方法（fio 测试方案）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%9F%BA%E7%A1%80%E5%90%9E%E5%90%90%E9%87%8F%E6%B5%8B%E8%AF%95"><span class="nav-number">8.1.</span> <span class="nav-text">8.1 基础吞吐量测试</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-%E6%B7%B7%E5%90%88%E8%AF%BB%E5%86%99%E5%85%AC%E5%B9%B3%E6%80%A7%E6%B5%8B%E8%AF%95"><span class="nav-number">8.2.</span> <span class="nav-text">8.2 混合读写公平性测试</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-%E5%BB%B6%E8%BF%9F%E5%B0%BE%E9%83%A8%E6%B5%8B%E8%AF%95%EF%BC%88latency-percentiles%EF%BC%89"><span class="nav-number">8.3.</span> <span class="nav-text">8.3 延迟尾部测试（latency percentiles）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-4-%E5%A4%9A%E8%BF%9B%E7%A8%8B%E5%85%AC%E5%B9%B3%E6%80%A7%E6%B5%8B%E8%AF%95%EF%BC%88%E9%AA%8C%E8%AF%81-BFQ%EF%BC%89"><span class="nav-number">8.4.</span> <span class="nav-text">8.4 多进程公平性测试（验证 BFQ）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-5-%E4%B8%8D%E5%90%8C%E8%B0%83%E5%BA%A6%E5%99%A8%E7%9A%84%E5%AF%B9%E6%AF%94%E6%B5%8B%E8%AF%95%E8%84%9A%E6%9C%AC"><span class="nav-number">8.5.</span> <span class="nav-text">8.5 不同调度器的对比测试脚本</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-6-blktrace-%E8%BF%BD%E8%B8%AA%E8%B0%83%E5%BA%A6%E8%A1%8C%E4%B8%BA"><span class="nav-number">8.6.</span> <span class="nav-text">8.6 blktrace 追踪调度行为</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E6%80%BB%E7%BB%93"><span class="nav-number">9.</span> <span class="nav-text">9. 总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">72</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">28</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">164</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part7-io-scheduler/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Linux 存储与文件系统深度剖析（七）：IO 调度器深度剖析 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 存储与文件系统深度剖析（七）：IO 调度器深度剖析
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2026-04-12 11:00:00" itemprop="dateCreated datePublished" datetime="2026-04-12T11:00:00+08:00">2026-04-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-04-13 21:27:22" itemprop="dateModified" datetime="2026-04-13T21:27:22+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>IO 调度器（I&#x2F;O Scheduler）是 Linux 块层中承上启下的核心组件：它介于文件系统&#x2F;虚拟内存子系统发出的 bio 请求与底层硬件驱动之间，负责对请求进行排序、合并、仲裁，以求在吞吐量、延迟、公平性三个维度上达到系统预期的平衡点。本文基于 Linux 6.4-rc1 内核源码，深入剖析 mq-deadline、BFQ 和 Kyber 三个现代调度器的设计思想与核心实现。</p>
+<span id="more"></span>
+
+<h2 id="1-历史演进：从单队列到多队列"><a href="#1-历史演进：从单队列到多队列" class="headerlink" title="1. 历史演进：从单队列到多队列"></a>1. 历史演进：从单队列到多队列</h2><h3 id="1-1-legacy-时代（单队列调度器）"><a href="#1-1-legacy-时代（单队列调度器）" class="headerlink" title="1.1 legacy 时代（单队列调度器）"></a>1.1 legacy 时代（单队列调度器）</h3><p>早期 Linux 块层基于<strong>单一请求队列（single-queue）</strong>模型，所有 CPU 核心的 IO 请求汇聚到一把全局自旋锁保护的队列中。这一时代的调度器包括：</p>
+<table>
+<thead>
+<tr>
+<th>调度器</th>
+<th>全称</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>noop</td>
+<td>No Operation</td>
+<td>几乎不做排序，适合 SSD&#x2F;NVMe</td>
+</tr>
+<tr>
+<td>deadline</td>
+<td>Deadline</td>
+<td>读写分离 + FIFO 防饥饿</td>
+</tr>
+<tr>
+<td>CFQ</td>
+<td>Completely Fair Queuing</td>
+<td>进程级公平，为每个进程维护独立队列</td>
+</tr>
+<tr>
+<td>AS</td>
+<td>Anticipatory Scheduler</td>
+<td>预测式调度，已于 2.6.33 移除</td>
+</tr>
+</tbody></table>
+<p>单队列模型的瓶颈在于：随着 NVMe SSD IOPS 突破百万级，全局锁成为严重的性能瓶颈。在 16 核系统上，单队列调度器的锁争用开销甚至会抵消掉高速存储设备的优势。</p>
+<h3 id="1-2-blk-mq-时代（多队列调度器）"><a href="#1-2-blk-mq-时代（多队列调度器）" class="headerlink" title="1.2 blk-mq 时代（多队列调度器）"></a>1.2 blk-mq 时代（多队列调度器）</h3><p>Linux 3.13 引入了 <strong>blk-mq（Multi-Queue Block IO Queueing Mechanism）</strong>，彻底重构了块层架构：</p>
+<ul>
+<li><strong>Software Queues（per-CPU）</strong>：每个 CPU 有独立的软件队列，消除了热点锁争用。</li>
+<li><strong>Hardware Dispatch Queues</strong>：与硬件 queue pair 数量对应，NVMe 可以有多达数十个。</li>
+<li><strong>调度器插件化</strong>：调度器通过 <code>elevator_mq_ops</code> 回调挂入 blk-mq 框架。</li>
+</ul>
+<p>随之，传统调度器也被重写为 mq 版本：</p>
+<table>
+<thead>
+<tr>
+<th>legacy 调度器</th>
+<th>blk-mq 对应版本</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>noop</td>
+<td>none</td>
+<td>无调度器，直接 passthrough</td>
+</tr>
+<tr>
+<td>deadline</td>
+<td>mq-deadline</td>
+<td>适配 blk-mq 的 deadline</td>
+</tr>
+<tr>
+<td>CFQ</td>
+<td>BFQ</td>
+<td>从 CFQ 演进而来的预算公平队列</td>
+</tr>
+<tr>
+<td>-</td>
+<td>Kyber</td>
+<td>全新设计，基于延迟目标的令牌桶</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="2-IO-调度器框架：elevator-c-与-blk-mq-的集成"><a href="#2-IO-调度器框架：elevator-c-与-blk-mq-的集成" class="headerlink" title="2. IO 调度器框架：elevator.c 与 blk-mq 的集成"></a>2. IO 调度器框架：elevator.c 与 blk-mq 的集成</h2><h3 id="2-1-核心数据结构"><a href="#2-1-核心数据结构" class="headerlink" title="2.1 核心数据结构"></a>2.1 核心数据结构</h3><p>调度器框架定义在 <code>block/elevator.h</code> 中。每个调度器实现必须提供一个 <code>elevator_type</code> 结构：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/elevator.h</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">elevator_type</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="comment">/* managed by elevator core */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kmem_cache</span> *<span class="title">icq_cache</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* fields provided by elevator implementation */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">elevator_mq_ops</span> <span class="title">ops</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="type">size_t</span> icq_size;    <span class="comment">/* see iocontext.h */</span></span><br><span class="line">    <span class="type">size_t</span> icq_align;   <span class="comment">/* ditto */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">elv_fs_entry</span> *<span class="title">elevator_attrs</span>;</span></span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *elevator_name;</span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *elevator_alias;</span><br><span class="line">    <span class="type">const</span> <span class="type">unsigned</span> <span class="type">int</span> elevator_features;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">module</span> *<span class="title">elevator_owner</span>;</span></span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">    <span class="type">char</span> icq_cache_name[ELV_NAME_MAX + <span class="number">6</span>]; <span class="comment">/* elvname + &quot;_io_cq&quot; */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">list</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>elevator_mq_ops</code> 是调度器与 blk-mq 框架之间的操作接口，定义了完整的生命周期回调：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/elevator.h</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">elevator_mq_ops</span> &#123;</span></span><br><span class="line">    <span class="type">int</span> (*init_sched)(<span class="keyword">struct</span> request_queue *, <span class="keyword">struct</span> elevator_type *);</span><br><span class="line">    <span class="type">void</span> (*exit_sched)(<span class="keyword">struct</span> elevator_queue *);</span><br><span class="line">    <span class="type">int</span> (*init_hctx)(<span class="keyword">struct</span> blk_mq_hw_ctx *, <span class="type">unsigned</span> <span class="type">int</span>);</span><br><span class="line">    <span class="type">void</span> (*exit_hctx)(<span class="keyword">struct</span> blk_mq_hw_ctx *, <span class="type">unsigned</span> <span class="type">int</span>);</span><br><span class="line">    <span class="type">void</span> (*depth_updated)(<span class="keyword">struct</span> blk_mq_hw_ctx *);</span><br><span class="line"></span><br><span class="line">    <span class="type">bool</span> (*allow_merge)(<span class="keyword">struct</span> request_queue *, <span class="keyword">struct</span> request *, <span class="keyword">struct</span> bio *);</span><br><span class="line">    <span class="type">bool</span> (*bio_merge)(<span class="keyword">struct</span> request_queue *, <span class="keyword">struct</span> bio *, <span class="type">unsigned</span> <span class="type">int</span>);</span><br><span class="line">    <span class="type">int</span> (*request_merge)(<span class="keyword">struct</span> request_queue *q, <span class="keyword">struct</span> request **, <span class="keyword">struct</span> bio *);</span><br><span class="line">    <span class="type">void</span> (*request_merged)(<span class="keyword">struct</span> request_queue *, <span class="keyword">struct</span> request *, <span class="keyword">enum</span> elv_merge);</span><br><span class="line">    <span class="type">void</span> (*requests_merged)(<span class="keyword">struct</span> request_queue *, <span class="keyword">struct</span> request *, <span class="keyword">struct</span> request *);</span><br><span class="line">    <span class="type">void</span> (*limit_depth)(<span class="type">blk_opf_t</span>, <span class="keyword">struct</span> blk_mq_alloc_data *);</span><br><span class="line">    <span class="type">void</span> (*prepare_request)(<span class="keyword">struct</span> request *);</span><br><span class="line">    <span class="type">void</span> (*finish_request)(<span class="keyword">struct</span> request *);</span><br><span class="line">    <span class="type">void</span> (*insert_requests)(<span class="keyword">struct</span> blk_mq_hw_ctx *hctx, <span class="keyword">struct</span> list_head *<span class="built_in">list</span>,</span><br><span class="line">            <span class="type">blk_insert_t</span> flags);</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *(*<span class="title">dispatch_request</span>)(<span class="keyword">struct</span> <span class="title">blk_mq_hw_ctx</span> *);</span></span><br><span class="line">    <span class="type">bool</span> (*has_work)(<span class="keyword">struct</span> blk_mq_hw_ctx *);</span><br><span class="line">    <span class="type">void</span> (*completed_request)(<span class="keyword">struct</span> request *, u64);</span><br><span class="line">    <span class="type">void</span> (*requeue_request)(<span class="keyword">struct</span> request *);</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *(*<span class="title">former_request</span>)(<span class="keyword">struct</span> <span class="title">request_queue</span> *, <span class="keyword">struct</span> <span class="title">request</span> *);</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *(*<span class="title">next_request</span>)(<span class="keyword">struct</span> <span class="title">request_queue</span> *, <span class="keyword">struct</span> <span class="title">request</span> *);</span></span><br><span class="line">    <span class="type">void</span> (*init_icq)(<span class="keyword">struct</span> io_cq *);</span><br><span class="line">    <span class="type">void</span> (*exit_icq)(<span class="keyword">struct</span> io_cq *);</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>elevator_queue</code> 是每个请求队列（<code>request_queue</code>）对应的调度器实例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/elevator.h</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">elevator_queue</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">elevator_type</span> *<span class="title">type</span>;</span></span><br><span class="line">    <span class="type">void</span> *elevator_data;       <span class="comment">/* 调度器私有数据，如 deadline_data / bfq_data */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kobject</span> <span class="title">kobj</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mutex</span> <span class="title">sysfs_lock</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> flags;</span><br><span class="line">    DECLARE_HASHTABLE(hash, ELV_HASH_BITS);  <span class="comment">/* 用于加速 back-merge 查找 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-请求合并机制"><a href="#2-2-请求合并机制" class="headerlink" title="2.2 请求合并机制"></a>2.2 请求合并机制</h3><p>合并是提升吞吐量的重要手段。<code>elevator.c</code> 中的 <code>elv_merge()</code> 实现了三级合并策略：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/elevator.c</span></span><br><span class="line"><span class="keyword">enum</span> elv_merge <span class="title function_">elv_merge</span><span class="params">(<span class="keyword">struct</span> request_queue *q, <span class="keyword">struct</span> request **req,</span></span><br><span class="line"><span class="params">        <span class="keyword">struct</span> bio *bio)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">elevator_queue</span> *<span class="title">e</span> =</span> q-&gt;elevator;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *__<span class="title">rq</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * Levels of merges:</span></span><br><span class="line"><span class="comment">     *   nomerges:  No merges at all attempted</span></span><br><span class="line"><span class="comment">     *   noxmerges: Only simple one-hit cache try</span></span><br><span class="line"><span class="comment">     *   merges:    All merge tries attempted</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">if</span> (blk_queue_nomerges(q) || !bio_mergeable(bio))</span><br><span class="line">        <span class="keyword">return</span> ELEVATOR_NO_MERGE;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * First try one-hit cache.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">if</span> (q-&gt;last_merge &amp;&amp; elv_bio_merge_ok(q-&gt;last_merge, bio)) &#123;</span><br><span class="line">        <span class="class"><span class="keyword">enum</span> <span class="title">elv_merge</span> <span class="title">ret</span> =</span> blk_try_merge(q-&gt;last_merge, bio);</span><br><span class="line">        <span class="keyword">if</span> (ret != ELEVATOR_NO_MERGE) &#123;</span><br><span class="line">            *req = q-&gt;last_merge;</span><br><span class="line">            <span class="keyword">return</span> ret;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (blk_queue_noxmerges(q))</span><br><span class="line">        <span class="keyword">return</span> ELEVATOR_NO_MERGE;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * See if our hash lookup can find a potential backmerge.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    __rq = elv_rqhash_find(q, bio-&gt;bi_iter.bi_sector);</span><br><span class="line">    <span class="keyword">if</span> (__rq &amp;&amp; elv_bio_merge_ok(__rq, bio)) &#123;</span><br><span class="line">        *req = __rq;</span><br><span class="line">        <span class="keyword">if</span> (blk_discard_mergable(__rq))</span><br><span class="line">            <span class="keyword">return</span> ELEVATOR_DISCARD_MERGE;</span><br><span class="line">        <span class="keyword">return</span> ELEVATOR_BACK_MERGE;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (e-&gt;type-&gt;ops.request_merge)</span><br><span class="line">        <span class="keyword">return</span> e-&gt;type-&gt;ops.request_merge(q, req, bio);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ELEVATOR_NO_MERGE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>合并分为三个级别：</p>
+<ol>
+<li><strong>last_merge 缓存</strong>：O(1) 检查上一个被合并的请求，命中率极高。</li>
+<li><strong>hash 表查找</strong>：以 <code>rq_hash_key = pos + sectors</code> 为键，快速定位可 back-merge 的请求。</li>
+<li><strong>调度器自定义</strong>：调用 <code>ops.request_merge</code>，如 mq-deadline 利用红黑树做 front-merge。</li>
+</ol>
+<h3 id="2-3-调度器注册与切换"><a href="#2-3-调度器注册与切换" class="headerlink" title="2.3 调度器注册与切换"></a>2.3 调度器注册与切换</h3><p>所有已注册的调度器保存在全局链表 <code>elv_list</code> 中，通过 <code>elv_register()</code> &#x2F; <code>elv_unregister()</code> 进行注册和注销。运行时切换调度器通过 sysfs 接口 <code>/sys/block/&lt;dev&gt;/queue/scheduler</code> 触发，内核执行 <code>elevator_switch()</code> 完成切换。</p>
+<hr>
+<h2 id="3-mq-deadline-调度器深度剖析"><a href="#3-mq-deadline-调度器深度剖析" class="headerlink" title="3. mq-deadline 调度器深度剖析"></a>3. mq-deadline 调度器深度剖析</h2><p>mq-deadline 是 legacy deadline 调度器针对 blk-mq 框架的重写版本，来自 <code>block/mq-deadline.c</code>。它在保留 deadline 防饥饿核心机制的基础上，引入了<strong>优先级感知</strong>和<strong>批量分发</strong>优化。</p>
+<h3 id="3-1-核心数据结构设计"><a href="#3-1-核心数据结构设计" class="headerlink" title="3.1 核心数据结构设计"></a>3.1 核心数据结构设计</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/mq-deadline.c</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">dd_prio</span> &#123;</span></span><br><span class="line">    DD_RT_PRIO   = <span class="number">0</span>,   <span class="comment">/* 实时优先级 */</span></span><br><span class="line">    DD_BE_PRIO   = <span class="number">1</span>,   <span class="comment">/* 尽力而为（Best Effort，默认） */</span></span><br><span class="line">    DD_IDLE_PRIO = <span class="number">2</span>,   <span class="comment">/* 空闲优先级 */</span></span><br><span class="line">    DD_PRIO_MAX  = <span class="number">2</span>,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 每个优先级维护独立的读写队列 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">dd_per_prio</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">dispatch</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_root</span> <span class="title">sort_list</span>[<span class="title">DD_DIR_COUNT</span>];</span>   <span class="comment">/* 按扇区地址排序的红黑树 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">fifo_list</span>[<span class="title">DD_DIR_COUNT</span>];</span> <span class="comment">/* 按到期时间排序的 FIFO 链表 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *<span class="title">next_rq</span>[<span class="title">DD_DIR_COUNT</span>];</span>   <span class="comment">/* 红黑树中的&quot;当前指针&quot; */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">io_stats_per_prio</span> <span class="title">stats</span>;</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">deadline_data</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dd_per_prio</span> <span class="title">per_prio</span>[<span class="title">DD_PRIO_COUNT</span>];</span> <span class="comment">/* RT/BE/IDLE 三套队列 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">dd_data_dir</span> <span class="title">last_dir</span>;</span>  <span class="comment">/* 上一次调度的方向（读/写） */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> batching;      <span class="comment">/* 当前 batch 中已调度的请求数 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> starved;       <span class="comment">/* 写请求被饥饿的次数 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> fifo_expire[DD_DIR_COUNT]; <span class="comment">/* 读/写超时时间 */</span></span><br><span class="line">    <span class="type">int</span> fifo_batch;           <span class="comment">/* 每批次最大请求数 */</span></span><br><span class="line">    <span class="type">int</span> writes_starved;       <span class="comment">/* 写饥饿阈值 */</span></span><br><span class="line">    <span class="type">int</span> front_merges;</span><br><span class="line">    u32 async_depth;</span><br><span class="line">    <span class="type">int</span> prio_aging_expire;</span><br><span class="line"></span><br><span class="line">    <span class="type">spinlock_t</span> lock;</span><br><span class="line">    <span class="type">spinlock_t</span> zone_lock;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>关键参数默认值（在文件顶部定义）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/mq-deadline.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">int</span> read_expire  = HZ / <span class="number">2</span>;  <span class="comment">/* 读请求最大等待时间：500ms */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">int</span> write_expire = <span class="number">5</span> * HZ;  <span class="comment">/* 写请求最大等待时间：5s（软限制） */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">int</span> prio_aging_expire = <span class="number">10</span> * HZ; <span class="comment">/* 低优先级老化时间：10s */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">int</span> writes_starved = <span class="number">2</span>;     <span class="comment">/* 读调度连续 2 次后才调度写 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">int</span> fifo_batch = <span class="number">16</span>;        <span class="comment">/* 单次批量调度最多 16 个请求 */</span></span><br></pre></td></tr></table></figure>
+
+<p>ioprio 类别到 dd_prio 的映射：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/mq-deadline.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">enum</span> <span class="title">dd_prio</span> <span class="title">ioprio_class_to_prio</span>[] =</span> &#123;</span><br><span class="line">    [IOPRIO_CLASS_NONE] = DD_BE_PRIO,</span><br><span class="line">    [IOPRIO_CLASS_RT]   = DD_RT_PRIO,</span><br><span class="line">    [IOPRIO_CLASS_BE]   = DD_BE_PRIO,</span><br><span class="line">    [IOPRIO_CLASS_IDLE] = DD_IDLE_PRIO,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-双数据结构：红黑树-FIFO-链表"><a href="#3-2-双数据结构：红黑树-FIFO-链表" class="headerlink" title="3.2 双数据结构：红黑树 + FIFO 链表"></a>3.2 双数据结构：红黑树 + FIFO 链表</h3><p>每个方向（读&#x2F;写）的请求<strong>同时</strong>存在于两个数据结构中：</p>
+<ul>
+<li><strong>红黑树（<code>sort_list</code>）</strong>：按扇区地址（LBA）排序，用于<strong>顺序扫描</strong>，最大化吞吐量（类似电梯算法中的磁头移动方向）。</li>
+<li><strong>FIFO 链表（<code>fifo_list</code>）</strong>：按请求到期时间排序，用于<strong>防止饥饿</strong>，确保老请求不会无限等待。</li>
+</ul>
+<p>这种双结构设计是 deadline 调度器的精髓：正常情况下按红黑树顺序调度以获得高吞吐，一旦有请求即将超时，立即切换到 FIFO 顺序调度。</p>
+<h3 id="3-3-FIFO-超时检测"><a href="#3-3-FIFO-超时检测" class="headerlink" title="3.3 FIFO 超时检测"></a>3.3 FIFO 超时检测</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/mq-deadline.c</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">int</span> <span class="title function_">deadline_check_fifo</span><span class="params">(<span class="keyword">struct</span> dd_per_prio *per_prio,</span></span><br><span class="line"><span class="params">                                      <span class="keyword">enum</span> dd_data_dir data_dir)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *<span class="title">rq</span> =</span> rq_entry_fifo(per_prio-&gt;fifo_list[data_dir].next);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * rq is expired!</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">if</span> (time_after_eq(jiffies, (<span class="type">unsigned</span> <span class="type">long</span>)rq-&gt;fifo_time))</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>rq-&gt;fifo_time</code> 在请求插入时设置为 <code>jiffies + fifo_expire[data_dir]</code>。</p>
+<h3 id="3-4-核心调度决策：-dd-dispatch-request"><a href="#3-4-核心调度决策：-dd-dispatch-request" class="headerlink" title="3.4 核心调度决策：__dd_dispatch_request()"></a>3.4 核心调度决策：<code>__dd_dispatch_request()</code></h3><p>这是 mq-deadline 最关键的函数，完整呈现其调度逻辑：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/mq-deadline.c（精简版）</span></span><br><span class="line"><span class="type">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *__<span class="title">dd_dispatch_request</span>(<span class="keyword">struct</span> <span class="title">deadline_data</span> *<span class="title">dd</span>,</span></span><br><span class="line"><span class="class">                                             <span class="keyword">struct</span> <span class="title">dd_per_prio</span> *<span class="title">per_prio</span>,</span></span><br><span class="line"><span class="class">                                             <span class="title">unsigned</span> <span class="title">long</span> <span class="title">latest_start</span>)</span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *<span class="title">rq</span>, *<span class="title">next_rq</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">dd_data_dir</span> <span class="title">data_dir</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 1. 优先从 dispatch 队列取（已准备好分发的请求） */</span></span><br><span class="line">    <span class="keyword">if</span> (!list_empty(&amp;per_prio-&gt;dispatch)) &#123;</span><br><span class="line">        rq = list_first_entry(&amp;per_prio-&gt;dispatch, <span class="keyword">struct</span> request, queuelist);</span><br><span class="line">        <span class="keyword">if</span> (started_after(dd, rq, latest_start))</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">        list_del_init(&amp;rq-&gt;queuelist);</span><br><span class="line">        <span class="keyword">goto</span> done;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 2. 如果当前方向还有请求且 batch 未满，继续同方向调度 */</span></span><br><span class="line">    rq = deadline_next_request(dd, per_prio, dd-&gt;last_dir);</span><br><span class="line">    <span class="keyword">if</span> (rq &amp;&amp; dd-&gt;batching &lt; dd-&gt;fifo_batch)</span><br><span class="line">        <span class="keyword">goto</span> dispatch_request;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 3. batch 已满或当前方向无请求，重新选择方向 */</span></span><br><span class="line">    <span class="keyword">if</span> (!list_empty(&amp;per_prio-&gt;fifo_list[DD_READ])) &#123;</span><br><span class="line">        <span class="comment">/* 读队列非空：检查写队列是否需要防饥饿 */</span></span><br><span class="line">        <span class="keyword">if</span> (deadline_fifo_request(dd, per_prio, DD_WRITE) &amp;&amp;</span><br><span class="line">            (dd-&gt;starved++ &gt;= dd-&gt;writes_starved))</span><br><span class="line">            <span class="keyword">goto</span> dispatch_writes;  <span class="comment">/* 写请求已饥饿，强制调度写 */</span></span><br><span class="line"></span><br><span class="line">        data_dir = DD_READ;</span><br><span class="line">        <span class="keyword">goto</span> dispatch_find_request;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!list_empty(&amp;per_prio-&gt;fifo_list[DD_WRITE])) &#123;</span><br><span class="line">dispatch_writes:</span><br><span class="line">        dd-&gt;starved = <span class="number">0</span>;</span><br><span class="line">        data_dir = DD_WRITE;</span><br><span class="line">        <span class="keyword">goto</span> dispatch_find_request;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">dispatch_find_request:</span><br><span class="line">    next_rq = deadline_next_request(dd, per_prio, data_dir);</span><br><span class="line">    <span class="keyword">if</span> (deadline_check_fifo(per_prio, data_dir) || !next_rq) &#123;</span><br><span class="line">        <span class="comment">/* FIFO 中有超时请求，或者红黑树已到末尾：从 FIFO 头部重新开始 */</span></span><br><span class="line">        rq = deadline_fifo_request(dd, per_prio, data_dir);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">/* 无超时，继续红黑树顺序调度 */</span></span><br><span class="line">        rq = next_rq;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!rq)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    dd-&gt;last_dir = data_dir;</span><br><span class="line">    dd-&gt;batching = <span class="number">0</span>;   <span class="comment">/* 重置批次计数 */</span></span><br><span class="line"></span><br><span class="line">dispatch_request:</span><br><span class="line">    <span class="keyword">if</span> (started_after(dd, rq, latest_start))</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    dd-&gt;batching++;</span><br><span class="line">    deadline_move_request(dd, per_prio, rq);</span><br><span class="line">done:</span><br><span class="line">    dd-&gt;per_prio[prio].stats.dispatched++;</span><br><span class="line">    blk_req_zone_write_lock(rq);</span><br><span class="line">    rq-&gt;rq_flags |= RQF_STARTED;</span><br><span class="line">    <span class="keyword">return</span> rq;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-5-优先级感知调度：dd-dispatch-request"><a href="#3-5-优先级感知调度：dd-dispatch-request" class="headerlink" title="3.5 优先级感知调度：dd_dispatch_request()"></a>3.5 优先级感知调度：<code>dd_dispatch_request()</code></h3><p>顶层 dispatch 函数在三个优先级之间进行仲裁：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/mq-deadline.c</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">struct</span> request *<span class="title function_">dd_dispatch_request</span><span class="params">(<span class="keyword">struct</span> blk_mq_hw_ctx *hctx)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">deadline_data</span> *<span class="title">dd</span> =</span> hctx-&gt;<span class="built_in">queue</span>-&gt;elevator-&gt;elevator_data;</span><br><span class="line">    <span class="type">const</span> <span class="type">unsigned</span> <span class="type">long</span> now = jiffies;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *<span class="title">rq</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">dd_prio</span> <span class="title">prio</span>;</span></span><br><span class="line"></span><br><span class="line">    spin_lock(&amp;dd-&gt;lock);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 首先检查低优先级请求是否已老化（等待超过 prio_aging_expire） */</span></span><br><span class="line">    rq = dd_dispatch_prio_aged_requests(dd, now);</span><br><span class="line">    <span class="keyword">if</span> (rq)</span><br><span class="line">        <span class="keyword">goto</span> unlock;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 按优先级顺序调度：RT &gt; BE &gt; IDLE */</span></span><br><span class="line">    <span class="keyword">for</span> (prio = <span class="number">0</span>; prio &lt;= DD_PRIO_MAX; prio++) &#123;</span><br><span class="line">        rq = __dd_dispatch_request(dd, &amp;dd-&gt;per_prio[prio], now);</span><br><span class="line">        <span class="keyword">if</span> (rq || dd_queued(dd, prio))</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">unlock:</span><br><span class="line">    spin_unlock(&amp;dd-&gt;lock);</span><br><span class="line">    <span class="keyword">return</span> rq;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里有一个重要的防饥饿机制：<code>dd_dispatch_prio_aged_requests()</code> 会在低优先级请求等待超过 <code>prio_aging_expire</code>（默认 10 秒）后，强制将其提升调度，避免低优先级请求永久饥饿。</p>
+<h3 id="3-6-异步-IO-深度限制"><a href="#3-6-异步-IO-深度限制" class="headerlink" title="3.6 异步 IO 深度限制"></a>3.6 异步 IO 深度限制</h3><p>为防止异步写请求耗尽所有 tag，mq-deadline 通过 <code>dd_limit_depth()</code> 限制异步请求的 tag 使用量：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/mq-deadline.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">dd_limit_depth</span><span class="params">(<span class="type">blk_opf_t</span> opf, <span class="keyword">struct</span> blk_mq_alloc_data *data)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">deadline_data</span> *<span class="title">dd</span> =</span> data-&gt;q-&gt;elevator-&gt;elevator_data;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 同步读不限制 */</span></span><br><span class="line">    <span class="keyword">if</span> (op_is_sync(opf) &amp;&amp; !op_is_write(opf))</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 异步请求和写请求限制为 async_depth（默认为 3/4 × nr_requests） */</span></span><br><span class="line">    data-&gt;shallow_depth = dd-&gt;async_depth;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="4-BFQ-调度器深度剖析"><a href="#4-BFQ-调度器深度剖析" class="headerlink" title="4. BFQ 调度器深度剖析"></a>4. BFQ 调度器深度剖析</h2><p>BFQ（Budget Fair Queueing）是目前 Linux 中最复杂的 IO 调度器，来自 <code>block/bfq-iosched.c</code>，其核心算法实现在 <code>block/bfq-wf2q.c</code>。它的设计目标是：在保证高吞吐量的同时，为交互式应用和软实时应用提供极低延迟。</p>
+<h3 id="4-1-设计哲学：从时间切片到预算切片"><a href="#4-1-设计哲学：从时间切片到预算切片" class="headerlink" title="4.1 设计哲学：从时间切片到预算切片"></a>4.1 设计哲学：从时间切片到预算切片</h3><p>CFQ 为每个进程分配<strong>时间切片</strong>（time slice），设备在切片内归该进程使用。BFQ 的关键改进是将分配单位从时间切片改为<strong>扇区预算（budget）</strong>：</p>
+<ul>
+<li>CFQ 时间切片：进程在固定时间内尽可能多发 IO → 吞吐率波动大，依赖设备内部队列深度。</li>
+<li>BFQ 扇区预算：进程发完固定扇区数后才轮换 → 调度粒度直接与设备吞吐量挂钩，不受设备延迟影响。</li>
+</ul>
+<p>以扇区为单位的好处在于：慢速 HDD 和快速 NVMe 使用相同调度参数，都能获得理论上正确的带宽比例保证。</p>
+<h3 id="4-2-核心数据结构"><a href="#4-2-核心数据结构" class="headerlink" title="4.2 核心数据结构"></a>4.2 核心数据结构</h3><h4 id="bfq-queue：进程-IO-队列"><a href="#bfq-queue：进程-IO-队列" class="headerlink" title="bfq_queue：进程 IO 队列"></a>bfq_queue：进程 IO 队列</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/bfq-iosched.h</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bfq_queue</span> &#123;</span></span><br><span class="line">    <span class="type">int</span> ref;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_data</span> *<span class="title">bfqd</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span> ioprio, ioprio_class;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 协作队列合并支持 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_queue</span> *<span class="title">new_bfqq</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_node</span> <span class="title">pos_node</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_root</span> *<span class="title">pos_root</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 按扇区地址排序的请求红黑树 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_root</span> <span class="title">sort_list</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *<span class="title">next_rq</span>;</span></span><br><span class="line">    <span class="type">int</span> queued[<span class="number">2</span>];      <span class="comment">/* sync/async 请求数 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">fifo</span>;</span>  <span class="comment">/* FIFO 过期链表 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* B-WF2Q+ 调度实体 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_entity</span> <span class="title">entity</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_weight_counter</span> *<span class="title">weight_counter</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> max_budget;           <span class="comment">/* 最大预算（扇区数） */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> budget_timeout;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> dispatched;           <span class="comment">/* 已发往驱动的请求数 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> flags;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* thinktime 统计（用于检测交互式应用） */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_ttime</span> <span class="title">ttime</span>;</span></span><br><span class="line">    u32 seek_history;         <span class="comment">/* 寻道历史位图，用于随机/顺序检测 */</span></span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h4 id="bfq-entity：B-WF2Q-的调度实体"><a href="#bfq-entity：B-WF2Q-的调度实体" class="headerlink" title="bfq_entity：B-WF2Q+ 的调度实体"></a>bfq_entity：B-WF2Q+ 的调度实体</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/bfq-iosched.h</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bfq_entity</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_node</span> <span class="title">rb_node</span>;</span>   <span class="comment">/* 在服务树（active/idle）中的节点 */</span></span><br><span class="line">    <span class="type">bool</span> on_st_or_in_serv;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* B-WF2Q+ 虚拟时间戳 [扇区/权重] */</span></span><br><span class="line">    u64 start, finish;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_root</span> *<span class="title">tree</span>;</span></span><br><span class="line">    u64 min_start;            <span class="comment">/* 子树最小 start，支持 O(log N) 查找 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> service;  <span class="comment">/* 本次服务槽中已消耗的扇区数 */</span></span><br><span class="line">    <span class="type">int</span> budget;   <span class="comment">/* 预算：F_i = S_i + budget / weight */</span></span><br><span class="line">    <span class="type">int</span> allocated;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> weight;       <span class="comment">/* 当前权重 */</span></span><br><span class="line">    <span class="type">int</span> new_weight;</span><br><span class="line">    <span class="type">int</span> orig_weight;  <span class="comment">/* 原始权重（weight boosting 前） */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 层次化调度支持 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_entity</span> *<span class="title">parent</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_sched_data</span> *<span class="title">my_sched_data</span>;</span> <span class="comment">/* 非叶节点：自身的调度数据 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_sched_data</span> *<span class="title">sched_data</span>;</span>    <span class="comment">/* 所属的调度数据 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> prio_changed;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h4 id="bfq-service-tree：B-WF2Q-服务树"><a href="#bfq-service-tree：B-WF2Q-服务树" class="headerlink" title="bfq_service_tree：B-WF2Q+ 服务树"></a>bfq_service_tree：B-WF2Q+ 服务树</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/bfq-iosched.h</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bfq_service_tree</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_root</span> <span class="title">active</span>;</span>   <span class="comment">/* 活跃实体（有请求待调度） */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rb_root</span> <span class="title">idle</span>;</span>     <span class="comment">/* 空闲实体（预算耗尽但虚拟时间未达到） */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_entity</span> *<span class="title">first_idle</span>;</span>  <span class="comment">/* idle 树中 F_i 最小的实体 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_entity</span> *<span class="title">last_idle</span>;</span>   <span class="comment">/* idle 树中 F_i 最大的实体 */</span></span><br><span class="line"></span><br><span class="line">    u64 vtime;         <span class="comment">/* 调度器虚拟时间 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> wsum; <span class="comment">/* 活跃+空闲实体的权重之和 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个 ioprio_class（RT&#x2F;BE&#x2F;IDLE）对应一棵独立的服务树，由 <code>bfq_sched_data</code> 管理：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/bfq-iosched.h</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bfq_sched_data</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_entity</span> *<span class="title">in_service_entity</span>;</span>   <span class="comment">/* 当前服务中的实体 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_entity</span> *<span class="title">next_in_service</span>;</span>     <span class="comment">/* 下一个候选实体（预选优化） */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_service_tree</span> <span class="title">service_tree</span>[<span class="title">BFQ_IOPRIO_CLASSES</span>];</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> bfq_class_idle_last_service;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-B-WF2Q-算法"><a href="#4-3-B-WF2Q-算法" class="headerlink" title="4.3 B-WF2Q+ 算法"></a>4.3 B-WF2Q+ 算法</h3><p>B-WF2Q+（Budgeted Worst-case Fair Weighted Fair Queueing plus）是 BFQ 的核心调度算法，定义在 <code>block/bfq-wf2q.c</code>。</p>
+<h4 id="虚拟时间戳的计算"><a href="#虚拟时间戳的计算" class="headerlink" title="虚拟时间戳的计算"></a>虚拟时间戳的计算</h4><p>每个实体的虚拟完成时间（virtual finish time）计算为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">F_i = S_i + budget_i / weight_i</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>S_i</code> 是该实体开始服务时调度器的虚拟时间，<code>budget_i</code> 是分配的扇区预算，<code>weight_i</code> 是该实体的权重。</p>
+<p>这个公式保证了：权重为 w 的实体，相比权重为 1 的实体，能获得 w 倍的带宽分配。</p>
+<h4 id="时间戳比较"><a href="#时间戳比较" class="headerlink" title="时间戳比较"></a>时间戳比较</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/bfq-wf2q.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">bfq_gt</span><span class="params">(u64 a, u64 b)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> (s64)(a - b) &gt; <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用有符号比较处理 64 位虚拟时间的回绕问题。</p>
+<h4 id="next-in-service-的更新"><a href="#next-in-service-的更新" class="headerlink" title="next_in_service 的更新"></a>next_in_service 的更新</h4><p><code>bfq_update_next_in_service()</code> 在实体激活、重入队列或位置调整时被调用，维护 <code>sd-&gt;next_in_service</code> 指针，实现 O(1) 的下一调度实体预测：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/bfq-wf2q.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">bool</span> <span class="title function_">bfq_update_next_in_service</span><span class="params">(<span class="keyword">struct</span> bfq_sched_data *sd,</span></span><br><span class="line"><span class="params">                                       <span class="keyword">struct</span> bfq_entity *new_entity,</span></span><br><span class="line"><span class="params">                                       <span class="type">bool</span> expiration)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bfq_entity</span> *<span class="title">next_in_service</span> =</span> sd-&gt;next_in_service;</span><br><span class="line">    <span class="type">bool</span> parent_sched_may_change = <span class="literal">false</span>;</span><br><span class="line">    <span class="type">bool</span> change_without_lookup = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (new_entity &amp;&amp; new_entity != sd-&gt;next_in_service) &#123;</span><br><span class="line">        change_without_lookup = <span class="literal">true</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (next_in_service) &#123;</span><br><span class="line">            <span class="type">unsigned</span> <span class="type">int</span> new_entity_class_idx = bfq_class_idx(new_entity);</span><br><span class="line">            <span class="class"><span class="keyword">struct</span> <span class="title">bfq_service_tree</span> *<span class="title">st</span> =</span></span><br><span class="line">                sd-&gt;service_tree + new_entity_class_idx;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* 如果优先级相同、新实体已eligible且 finish 更小，则替换 */</span></span><br><span class="line">            change_without_lookup =</span><br><span class="line">                (new_entity_class_idx == bfq_class_idx(next_in_service)</span><br><span class="line">                 &amp;&amp; !bfq_gt(new_entity-&gt;start, st-&gt;vtime)</span><br><span class="line">                 &amp;&amp; bfq_gt(next_in_service-&gt;finish, new_entity-&gt;finish));</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-Idle-机制与预期式调度"><a href="#4-4-Idle-机制与预期式调度" class="headerlink" title="4.4 Idle 机制与预期式调度"></a>4.4 Idle 机制与预期式调度</h3><p>BFQ 的 idle 机制是其实现低延迟的关键。当一个进程的队列变空时，BFQ 不会立即切换到其他进程，而是<strong>短暂等待</strong>（默认 <code>bfq_slice_idle = NSEC_PER_SEC / 125 = 8ms</code>），预期该进程会继续发出 IO。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/bfq-iosched.c</span></span><br><span class="line"><span class="comment">/* Idling period duration, in ns. */</span></span><br><span class="line"><span class="type">static</span> u64 bfq_slice_idle = NSEC_PER_SEC / <span class="number">125</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Idle 的触发条件</strong>（<code>idling_needed_for_service_guarantees()</code> 中判断）：</p>
+<ol>
+<li>调度是<strong>非对称的</strong>（不同进程有不同权重，或存在 weight-raising 进程）</li>
+<li>设备不支持深度队列（<code>!bfqd-&gt;hw_tag</code>），防止进程切换导致 NCQ 效率下降</li>
+<li>进程是<strong>交互式</strong>或<strong>软实时</strong>应用（BFQ 通过 thinktime 统计识别）</li>
+</ol>
+<p><strong>Weight Raising 机制</strong>：BFQ 会识别交互式应用（频繁短暂活跃）和软实时应用（有周期性 IO pattern），通过临时提升权重（最高 <code>BFQ_SOFTRT_WEIGHT_FACTOR = 100</code> 倍）来保证其低延迟响应。</p>
+<h3 id="4-5-关键常量与-thinktime"><a href="#4-5-关键常量与-thinktime" class="headerlink" title="4.5 关键常量与 thinktime"></a>4.5 关键常量与 thinktime</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/bfq-iosched.c</span></span><br><span class="line"><span class="comment">/* 低于此阈值（2ms）的 thinktime 视为&quot;即时&quot;，不触发 idle */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> BFQ_MIN_TT     (2 * NSEC_PER_MSEC)</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 异步请求的带宽权重惩罚因子（异步写消耗 3 倍预算） */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">int</span> bfq_async_charge_factor = <span class="number">3</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 超时时间：约 125ms，对应 CFQ 默认值 */</span></span><br><span class="line"><span class="type">const</span> <span class="type">int</span> bfq_timeout = HZ / <span class="number">8</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 默认最大预算：16 * 1024 扇区 = 8 MB */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">int</span> bfq_default_max_budget = <span class="number">16</span> * <span class="number">1024</span>;</span><br></pre></td></tr></table></figure>
+
+<p>异步写的 3 倍预算惩罚（<code>bfq_async_charge_factor = 3</code>）是防止异步写饥饿同步读的关键设计：同样权重的进程，其同步 IO 消耗的预算是异步 IO 的 1&#x2F;3，因此同步 IO 能得到 3 倍的调度机会。</p>
+<h3 id="4-6-层次化-cgroup-调度"><a href="#4-6-层次化-cgroup-调度" class="headerlink" title="4.6 层次化 cgroup 调度"></a>4.6 层次化 cgroup 调度</h3><p>BFQ 支持完整的 cgroup IO 控制，通过 <code>bfq_group</code> 将 cgroup 层次映射为调度树层次。每个 <code>bfq_group</code> 包含一个 <code>bfq_sched_data</code>，形成树状调度结构。B-WF2Q+ 的层次化扩展（H-WF2Q+）保证了跨 cgroup 的带宽分配能够反映 cgroup 权重。</p>
+<hr>
+<h2 id="5-Kyber-调度器深度剖析"><a href="#5-Kyber-调度器深度剖析" class="headerlink" title="5. Kyber 调度器深度剖析"></a>5. Kyber 调度器深度剖析</h2><p>Kyber 由 Facebook（现 Meta）于 Linux 4.12 引入，来自 <code>block/kyber-iosched.c</code>。它专为高速 NVMe SSD 设计，核心思路是通过<strong>令牌桶限制并发深度</strong>来控制设备延迟，而不是对请求排序。</p>
+<h3 id="5-1-设计理念：延迟目标驱动的令牌桶"><a href="#5-1-设计理念：延迟目标驱动的令牌桶" class="headerlink" title="5.1 设计理念：延迟目标驱动的令牌桶"></a>5.1 设计理念：延迟目标驱动的令牌桶</h3><p>Kyber 的核心观察是：对于高性能 SSD，吞吐量通常不是瓶颈，延迟控制才是关键。Kyber 将设备分为四个<strong>调度域</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/kyber-iosched.c</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">    KYBER_READ,</span><br><span class="line">    KYBER_WRITE,</span><br><span class="line">    KYBER_DISCARD,</span><br><span class="line">    KYBER_OTHER,</span><br><span class="line">    KYBER_NUM_DOMAINS,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个域有独立的最大并发深度和默认延迟目标：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/kyber-iosched.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">unsigned</span> <span class="type">int</span> kyber_depth[] = &#123;</span><br><span class="line">    [KYBER_READ]    = <span class="number">256</span>,</span><br><span class="line">    [KYBER_WRITE]   = <span class="number">128</span>,</span><br><span class="line">    [KYBER_DISCARD] = <span class="number">64</span>,</span><br><span class="line">    [KYBER_OTHER]   = <span class="number">16</span>,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> u64 kyber_latency_targets[] = &#123;</span><br><span class="line">    [KYBER_READ]    = <span class="number">2ULL</span> * NSEC_PER_MSEC,  <span class="comment">/* 2ms */</span></span><br><span class="line">    [KYBER_WRITE]   = <span class="number">10ULL</span> * NSEC_PER_MSEC, <span class="comment">/* 10ms */</span></span><br><span class="line">    [KYBER_DISCARD] = <span class="number">5ULL</span> * NSEC_PER_SEC,   <span class="comment">/* 5s */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>批次调度大小：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/kyber-iosched.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">unsigned</span> <span class="type">int</span> kyber_batch_size[] = &#123;</span><br><span class="line">    [KYBER_READ]    = <span class="number">16</span>,</span><br><span class="line">    [KYBER_WRITE]   = <span class="number">8</span>,</span><br><span class="line">    [KYBER_DISCARD] = <span class="number">1</span>,</span><br><span class="line">    [KYBER_OTHER]   = <span class="number">1</span>,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-令牌桶实现：sbitmap-queue"><a href="#5-2-令牌桶实现：sbitmap-queue" class="headerlink" title="5.2 令牌桶实现：sbitmap_queue"></a>5.2 令牌桶实现：sbitmap_queue</h3><p>Kyber 使用 <code>sbitmap_queue</code>（可扩展位图队列）实现令牌桶，每个调度域的令牌数（depth）即为该域允许的最大飞行中请求数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/kyber-iosched.c</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">kyber_queue_data</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> *<span class="title">q</span>;</span></span><br><span class="line">    <span class="type">dev_t</span> dev;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 每个域的令牌桶 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sbitmap_queue</span> <span class="title">domain_tokens</span>[<span class="title">KYBER_NUM_DOMAINS</span>];</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 异步请求比例限制（KYBER_ASYNC_PERCENT = 75%） */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> async_depth;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kyber_cpu_latency</span> __<span class="title">percpu</span> *<span class="title">cpu_latency</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 定时器：聚合延迟统计并调整令牌深度 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">timer_list</span> <span class="title">timer</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> latency_buckets[KYBER_OTHER][<span class="number">2</span>][KYBER_LATENCY_BUCKETS];</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> latency_timeout[KYBER_OTHER];</span><br><span class="line">    <span class="type">int</span> domain_p99[KYBER_OTHER];</span><br><span class="line"></span><br><span class="line">    u64 latency_targets[KYBER_OTHER]; <span class="comment">/* 目标延迟（可通过 sysfs 调整） */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个 hw queue 对应一个 <code>kyber_hctx_data</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/kyber-iosched.c</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">kyber_hctx_data</span> &#123;</span></span><br><span class="line">    <span class="type">spinlock_t</span> lock;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">rqs</span>[<span class="title">KYBER_NUM_DOMAINS</span>];</span> <span class="comment">/* 各域的请求链表 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> cur_domain;   <span class="comment">/* 当前正在调度的域 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> batching;     <span class="comment">/* 当前批次已调度数 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kyber_ctx_queue</span> *<span class="title">kcqs</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sbitmap</span> <span class="title">kcq_map</span>[<span class="title">KYBER_NUM_DOMAINS</span>];</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sbq_wait</span> <span class="title">domain_wait</span>[<span class="title">KYBER_NUM_DOMAINS</span>];</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sbq_wait_state</span> *<span class="title">domain_ws</span>[<span class="title">KYBER_NUM_DOMAINS</span>];</span></span><br><span class="line">    <span class="type">atomic_t</span> wait_index[KYBER_NUM_DOMAINS];</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-异步请求隔离"><a href="#5-3-异步请求隔离" class="headerlink" title="5.3 异步请求隔离"></a>5.3 异步请求隔离</h3><p>为防止异步请求洪水阻塞同步请求，Kyber 预留 25% 的令牌给同步操作：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/kyber-iosched.c</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * In order to prevent starvation of synchronous requests by a flood of</span></span><br><span class="line"><span class="comment">     * asynchronous requests, we reserve 25% of requests for synchronous</span></span><br><span class="line"><span class="comment">     * operations.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    KYBER_ASYNC_PERCENT = <span class="number">75</span>,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-4-延迟直方图与自适应调节"><a href="#5-4-延迟直方图与自适应调节" class="headerlink" title="5.4 延迟直方图与自适应调节"></a>5.4 延迟直方图与自适应调节</h3><p>Kyber 在 per-CPU 上记录延迟直方图，延迟桶相对于目标延迟按比例划分：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/kyber-iosched.c</span></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Requests latencies are recorded in a histogram with buckets defined</span></span><br><span class="line"><span class="comment"> * relative to the target latency:</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * &lt;= 1/4 * target latency</span></span><br><span class="line"><span class="comment"> * &lt;= 1/2 * target latency</span></span><br><span class="line"><span class="comment"> * &lt;= 3/4 * target latency</span></span><br><span class="line"><span class="comment"> * &lt;= target latency</span></span><br><span class="line"><span class="comment"> * &lt;= 1 1/4 * target latency</span></span><br><span class="line"><span class="comment"> * &lt;= 1 1/2 * target latency</span></span><br><span class="line"><span class="comment"> * &lt;= 1 3/4 * target latency</span></span><br><span class="line"><span class="comment"> * &gt; 1 3/4 * target latency</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">    KYBER_LATENCY_SHIFT = <span class="number">2</span>,</span><br><span class="line">    KYBER_GOOD_BUCKETS = <span class="number">1</span> &lt;&lt; KYBER_LATENCY_SHIFT,       <span class="comment">/* 4 个&quot;好&quot;桶 */</span></span><br><span class="line">    KYBER_LATENCY_BUCKETS = <span class="number">2</span> &lt;&lt; KYBER_LATENCY_SHIFT,    <span class="comment">/* 共 8 个桶 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每完成一个请求，调用 <code>kyber_completed_request()</code> 记录延迟样本：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/kyber-iosched.c</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">kyber_completed_request</span><span class="params">(<span class="keyword">struct</span> request *rq, u64 now)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kyber_queue_data</span> *<span class="title">kqd</span> =</span> rq-&gt;q-&gt;elevator-&gt;elevator_data;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kyber_cpu_latency</span> *<span class="title">cpu_latency</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> sched_domain;</span><br><span class="line">    u64 target;</span><br><span class="line"></span><br><span class="line">    sched_domain = kyber_sched_domain(rq-&gt;cmd_flags);</span><br><span class="line">    <span class="keyword">if</span> (sched_domain == KYBER_OTHER)</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    cpu_latency = get_cpu_ptr(kqd-&gt;cpu_latency);</span><br><span class="line">    target = kqd-&gt;latency_targets[sched_domain];</span><br><span class="line">    add_latency_sample(cpu_latency, sched_domain, KYBER_TOTAL_LATENCY,</span><br><span class="line">                       target, now - rq-&gt;start_time_ns);</span><br><span class="line">    add_latency_sample(cpu_latency, sched_domain, KYBER_IO_LATENCY, target,</span><br><span class="line">                       now - rq-&gt;io_start_time_ns);</span><br><span class="line">    put_cpu_ptr(kqd-&gt;cpu_latency);</span><br><span class="line"></span><br><span class="line">    timer_reduce(&amp;kqd-&gt;timer, jiffies + HZ / <span class="number">10</span>); <span class="comment">/* 100ms 后聚合统计 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>kyber_timer_fn()</code> 每 100ms 运行一次，聚合 per-CPU 延迟数据，计算 p90&#x2F;p99，并动态调整各域的令牌深度：</p>
+<ul>
+<li>如果设备 IO 延迟的 p90 超过目标（<code>bad = true</code>）：压缩延迟满足（p99 &lt; KYBER_GOOD_BUCKETS）的域的令牌深度。</li>
+<li>无论是否 <code>bad</code>，都会基于 p99 线性缩放令牌深度：</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// block/kyber-iosched.c（kyber_timer_fn 内）</span></span><br><span class="line"><span class="keyword">if</span> (bad || p99 &gt;= KYBER_GOOD_BUCKETS) &#123;</span><br><span class="line">    orig_depth = kqd-&gt;domain_tokens[sched_domain].sb.depth;</span><br><span class="line">    depth = (orig_depth * (p99 + <span class="number">1</span>)) &gt;&gt; KYBER_LATENCY_SHIFT;</span><br><span class="line">    kyber_resize_domain(kqd, sched_domain, depth);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="6-如何选择-IO-调度器"><a href="#6-如何选择-IO-调度器" class="headerlink" title="6. 如何选择 IO 调度器"></a>6. 如何选择 IO 调度器</h2><h3 id="6-1-设备类型与调度器的匹配关系"><a href="#6-1-设备类型与调度器的匹配关系" class="headerlink" title="6.1 设备类型与调度器的匹配关系"></a>6.1 设备类型与调度器的匹配关系</h3><table>
+<thead>
+<tr>
+<th>设备类型</th>
+<th>推荐调度器</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>HDD（机械硬盘）</td>
+<td>mq-deadline 或 BFQ</td>
+<td>HDD 随机寻道代价极高，需要 elevator 排序来最小化磁头移动；BFQ 能给交互式应用保证延迟</td>
+</tr>
+<tr>
+<td>SATA SSD</td>
+<td>mq-deadline 或 BFQ</td>
+<td>SSD 无寻道开销，但对于混合读写工作负载，deadline 的防饥饿机制仍有价值</td>
+</tr>
+<tr>
+<td>NVMe SSD</td>
+<td>none 或 Kyber</td>
+<td>NVMe 具备原生多队列和极低延迟，调度器开销可能得不偿失；Kyber 在需要延迟保证时适用</td>
+</tr>
+<tr>
+<td>数据库服务器（顺序 IO 为主）</td>
+<td>none 或 mq-deadline</td>
+<td>数据库通常自己管理 IO 顺序，调度器介入收益有限</td>
+</tr>
+<tr>
+<td>桌面&#x2F;多媒体工作站</td>
+<td>BFQ</td>
+<td>BFQ 的 weight-raising 机制能保证桌面交互和音视频的低延迟响应</td>
+</tr>
+<tr>
+<td>虚拟机磁盘（virtio）</td>
+<td>none</td>
+<td>虚拟机的 IO 已在宿主机层面调度，客户机无需再做调度</td>
+</tr>
+</tbody></table>
+<h3 id="6-2-调度器选择的核心指标"><a href="#6-2-调度器选择的核心指标" class="headerlink" title="6.2 调度器选择的核心指标"></a>6.2 调度器选择的核心指标</h3><p><strong>使用 mq-deadline 的场景：</strong></p>
+<ul>
+<li>需要严格的读写公平性防止饥饿</li>
+<li>混合随机&#x2F;顺序工作负载</li>
+<li>需要 ioprio 优先级支持（RT&#x2F;BE&#x2F;IDLE 三档）</li>
+<li>Zoned Block Device（SMR 硬盘）</li>
+</ul>
+<p><strong>使用 BFQ 的场景：</strong></p>
+<ul>
+<li>桌面系统，需要保证前台应用响应</li>
+<li>多租户服务器，需要 cgroup 级别的 IO 带宽隔离</li>
+<li>同时运行交互式任务和批处理任务的混合负载</li>
+<li>关注绝对公平性（每个进程按权重获得带宽）</li>
+</ul>
+<p><strong>使用 Kyber 的场景：</strong></p>
+<ul>
+<li>高性能 NVMe 设备，IOPS &gt; 100K</li>
+<li>延迟敏感型服务（要求 P99 读延迟 &lt; 2ms）</li>
+<li>负载已知，需要可调的延迟目标</li>
+</ul>
+<p><strong>使用 none 的场景：</strong></p>
+<ul>
+<li>NVMe SSD，追求最大吞吐量</li>
+<li>应用层已做 IO 合并和调度（如数据库 WAL）</li>
+<li>虚拟化环境</li>
+</ul>
+<hr>
+<h2 id="7-实际调优示例"><a href="#7-实际调优示例" class="headerlink" title="7. 实际调优示例"></a>7. 实际调优示例</h2><h3 id="7-1-查看和修改调度器"><a href="#7-1-查看和修改调度器" class="headerlink" title="7.1 查看和修改调度器"></a>7.1 查看和修改调度器</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前调度器（方括号内为当前激活的）</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/nvme0n1/queue/scheduler</span><br><span class="line"><span class="comment"># 输出示例：[none] mq-deadline kyber bfq</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 切换到 bfq</span></span><br><span class="line"><span class="built_in">echo</span> bfq &gt; /sys/block/sda/queue/scheduler</span><br><span class="line"></span><br><span class="line"><span class="comment"># 持久化（通过 udev 规则）</span></span><br><span class="line"><span class="comment"># /etc/udev/rules.d/60-iosched.rules</span></span><br><span class="line">ACTION==<span class="string">&quot;add|change&quot;</span>, KERNEL==<span class="string">&quot;sd[a-z]*&quot;</span>, \</span><br><span class="line">    ATTR&#123;queue/scheduler&#125;=<span class="string">&quot;bfq&quot;</span></span><br><span class="line">ACTION==<span class="string">&quot;add|change&quot;</span>, KERNEL==<span class="string">&quot;nvme*&quot;</span>, \</span><br><span class="line">    ATTR&#123;queue/scheduler&#125;=<span class="string">&quot;none&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-mq-deadline-调优参数"><a href="#7-2-mq-deadline-调优参数" class="headerlink" title="7.2 mq-deadline 调优参数"></a>7.2 mq-deadline 调优参数</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 读请求超时时间（ms），默认 500ms</span></span><br><span class="line"><span class="built_in">echo</span> 200 &gt; /sys/block/sda/queue/iosched/read_expire</span><br><span class="line"></span><br><span class="line"><span class="comment"># 写请求超时时间（ms），默认 5000ms</span></span><br><span class="line"><span class="built_in">echo</span> 2000 &gt; /sys/block/sda/queue/iosched/write_expire</span><br><span class="line"></span><br><span class="line"><span class="comment"># 写饥饿阈值（读调度多少次后必须调度写），默认 2</span></span><br><span class="line"><span class="built_in">echo</span> 4 &gt; /sys/block/sda/queue/iosched/writes_starved</span><br><span class="line"></span><br><span class="line"><span class="comment"># 批次大小，默认 16</span></span><br><span class="line"><span class="built_in">echo</span> 32 &gt; /sys/block/sda/queue/iosched/fifo_batch</span><br><span class="line"></span><br><span class="line"><span class="comment"># 是否允许前向合并（1=允许）</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; /sys/block/sda/queue/iosched/front_merges</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-3-BFQ-调优参数"><a href="#7-3-BFQ-调优参数" class="headerlink" title="7.3 BFQ 调优参数"></a>7.3 BFQ 调优参数</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 低延迟模式（对交互式/软实时应用进行 weight-raising），默认开启</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; /sys/block/sda/queue/iosched/low_latency</span><br><span class="line"></span><br><span class="line"><span class="comment"># idle 等待时间（us），默认 8000us = 8ms</span></span><br><span class="line"><span class="built_in">echo</span> 4000 &gt; /sys/block/sda/queue/iosched/slice_idle_us</span><br><span class="line"></span><br><span class="line"><span class="comment"># 严格的 IO 带宽隔离（牺牲部分吞吐，保证精确的带宽比例）</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; /sys/block/sda/queue/iosched/strict_guarantees</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 BFQ 统计（debugfs）</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/block/sda/bfq/stats</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-4-Kyber-调优参数"><a href="#7-4-Kyber-调优参数" class="headerlink" title="7.4 Kyber 调优参数"></a>7.4 Kyber 调优参数</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 调整读延迟目标（ns），默认 2ms</span></span><br><span class="line"><span class="built_in">echo</span> 1000000 &gt; /sys/block/nvme0n1/queue/iosched/read_lat_nsec</span><br><span class="line"></span><br><span class="line"><span class="comment"># 调整写延迟目标（ns），默认 10ms</span></span><br><span class="line"><span class="built_in">echo</span> 5000000 &gt; /sys/block/nvme0n1/queue/iosched/write_lat_nsec</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-5-通用队列参数"><a href="#7-5-通用队列参数" class="headerlink" title="7.5 通用队列参数"></a>7.5 通用队列参数</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 队列深度（影响并发请求数）</span></span><br><span class="line"><span class="built_in">echo</span> 64 &gt; /sys/block/nvme0n1/queue/nr_requests</span><br><span class="line"></span><br><span class="line"><span class="comment"># 合并策略：0=禁止，1=仅相邻合并，2=完全合并</span></span><br><span class="line"><span class="built_in">echo</span> 2 &gt; /sys/block/sda/queue/nomerges</span><br><span class="line"></span><br><span class="line"><span class="comment"># 读前/写后的预读大小（KB）</span></span><br><span class="line"><span class="built_in">echo</span> 2048 &gt; /sys/block/sda/queue/read_ahead_kb</span><br><span class="line"></span><br><span class="line"><span class="comment"># 禁用写回缓存（适用于需要强持久化的场景）</span></span><br><span class="line"><span class="built_in">echo</span> write through &gt; /sys/block/sda/queue/write_cache</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="8-性能测试方法（fio-测试方案）"><a href="#8-性能测试方法（fio-测试方案）" class="headerlink" title="8. 性能测试方法（fio 测试方案）"></a>8. 性能测试方法（fio 测试方案）</h2><h3 id="8-1-基础吞吐量测试"><a href="#8-1-基础吞吐量测试" class="headerlink" title="8.1 基础吞吐量测试"></a>8.1 基础吞吐量测试</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 顺序读吞吐量</span></span><br><span class="line">fio --name=seq-read --ioengine=libaio --iodepth=32 \</span><br><span class="line">    --rw=<span class="built_in">read</span> --bs=128k --direct=1 --size=4g \</span><br><span class="line">    --filename=/dev/sda --group_reporting</span><br><span class="line"></span><br><span class="line"><span class="comment"># 顺序写吞吐量</span></span><br><span class="line">fio --name=seq-write --ioengine=libaio --iodepth=32 \</span><br><span class="line">    --rw=write --bs=128k --direct=1 --size=4g \</span><br><span class="line">    --filename=/dev/sda --group_reporting</span><br><span class="line"></span><br><span class="line"><span class="comment"># 随机 4K 读 IOPS（典型数据库随机读）</span></span><br><span class="line">fio --name=rand-read --ioengine=libaio --iodepth=64 \</span><br><span class="line">    --rw=randread --bs=4k --direct=1 --size=4g \</span><br><span class="line">    --filename=/dev/nvme0n1 --group_reporting</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-2-混合读写公平性测试"><a href="#8-2-混合读写公平性测试" class="headerlink" title="8.2 混合读写公平性测试"></a>8.2 混合读写公平性测试</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 模拟混合负载：75% 读 + 25% 写，测试调度器公平性</span></span><br><span class="line">fio --name=mixed --ioengine=libaio --iodepth=32 \</span><br><span class="line">    --rw=randrw --rwmixread=75 --bs=4k --direct=1 \</span><br><span class="line">    --size=4g --filename=/dev/sda --group_reporting \</span><br><span class="line">    --runtime=60 --time_based</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-3-延迟尾部测试（latency-percentiles）"><a href="#8-3-延迟尾部测试（latency-percentiles）" class="headerlink" title="8.3 延迟尾部测试（latency percentiles）"></a>8.3 延迟尾部测试（latency percentiles）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 测试不同调度器的 P99 延迟</span></span><br><span class="line">fio --name=lat-test --ioengine=libaio --iodepth=8 \</span><br><span class="line">    --rw=randread --bs=4k --direct=1 --size=4g \</span><br><span class="line">    --filename=/dev/nvme0n1 --group_reporting \</span><br><span class="line">    --runtime=60 --time_based \</span><br><span class="line">    --percentile_list=50,90,95,99,99.9 \</span><br><span class="line">    --lat_percentiles=1</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-4-多进程公平性测试（验证-BFQ）"><a href="#8-4-多进程公平性测试（验证-BFQ）" class="headerlink" title="8.4 多进程公平性测试（验证 BFQ）"></a>8.4 多进程公平性测试（验证 BFQ）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 两个进程同时运行：一个大块顺序写，一个小块随机读</span></span><br><span class="line"><span class="comment"># 测试调度器能否保证随机读不被顺序写饿死</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 进程 1：后台顺序写</span></span><br><span class="line">fio --name=bg-write --ioengine=libaio --iodepth=32 \</span><br><span class="line">    --rw=write --bs=1m --direct=1 --size=4g \</span><br><span class="line">    --filename=/dev/sda --ioscheduler=bfq &amp;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 进程 2：前台随机读，观察延迟</span></span><br><span class="line">fio --name=fg-read --ioengine=libaio --iodepth=4 \</span><br><span class="line">    --rw=randread --bs=4k --direct=1 --size=4g \</span><br><span class="line">    --filename=/dev/sda --ioscheduler=bfq \</span><br><span class="line">    --runtime=30 --time_based --lat_percentiles=1</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-5-不同调度器的对比测试脚本"><a href="#8-5-不同调度器的对比测试脚本" class="headerlink" title="8.5 不同调度器的对比测试脚本"></a>8.5 不同调度器的对比测试脚本</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># 对比 none / mq-deadline / bfq / kyber 的随机读延迟</span></span><br><span class="line"></span><br><span class="line">DEVICE=/dev/nvme0n1</span><br><span class="line">SCHEDULERS=<span class="string">&quot;none mq-deadline bfq kyber&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> <span class="built_in">sched</span> <span class="keyword">in</span> <span class="variable">$SCHEDULERS</span>; <span class="keyword">do</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;Testing scheduler: <span class="variable">$sched</span>&quot;</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="variable">$sched</span> &gt; /sys/block/$(<span class="built_in">basename</span> <span class="variable">$DEVICE</span>)/queue/scheduler</span><br><span class="line">    <span class="built_in">sleep</span> 1</span><br><span class="line"></span><br><span class="line">    fio --name=<span class="variable">$&#123;sched&#125;</span>-<span class="built_in">test</span> \</span><br><span class="line">        --ioengine=libaio --iodepth=16 \</span><br><span class="line">        --rw=randread --bs=4k --direct=1 \</span><br><span class="line">        --filename=<span class="variable">$DEVICE</span> --size=4g \</span><br><span class="line">        --runtime=30 --time_based \</span><br><span class="line">        --output-format=json \</span><br><span class="line">        --output=<span class="variable">$&#123;sched&#125;</span>-result.json \</span><br><span class="line">        --group_reporting</span><br><span class="line"></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;Scheduler <span class="variable">$sched</span>: done&quot;</span></span><br><span class="line"><span class="keyword">done</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 提取 P99 延迟</span></span><br><span class="line"><span class="keyword">for</span> <span class="built_in">sched</span> <span class="keyword">in</span> <span class="variable">$SCHEDULERS</span>; <span class="keyword">do</span></span><br><span class="line">    <span class="built_in">echo</span> -n <span class="string">&quot;<span class="variable">$sched</span> P99: &quot;</span></span><br><span class="line">    python3 -c <span class="string">&quot;</span></span><br><span class="line"><span class="string">import json</span></span><br><span class="line"><span class="string">with open(&#x27;<span class="variable">$&#123;sched&#125;</span>-result.json&#x27;) as f:</span></span><br><span class="line"><span class="string">    d = json.load(f)</span></span><br><span class="line"><span class="string">lat = d[&#x27;jobs&#x27;][0][&#x27;read&#x27;][&#x27;lat_ns&#x27;]</span></span><br><span class="line"><span class="string">print(f\&quot;&#123;lat.get(&#x27;percentile&#x27;, &#123;&#125;).get(&#x27;99.000000&#x27;, &#x27;N/A&#x27;)&#125; ns\&quot;)</span></span><br><span class="line"><span class="string">&quot;</span></span><br><span class="line"><span class="keyword">done</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="8-6-blktrace-追踪调度行为"><a href="#8-6-blktrace-追踪调度行为" class="headerlink" title="8.6 blktrace 追踪调度行为"></a>8.6 blktrace 追踪调度行为</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 采集 IO 事件追踪</span></span><br><span class="line">blktrace -d /dev/sda -o sda_trace &amp;</span><br><span class="line">BTRACE_PID=$!</span><br><span class="line"></span><br><span class="line"><span class="comment"># 运行工作负载</span></span><br><span class="line">fio --name=<span class="built_in">test</span> --ioengine=libaio --iodepth=16 \</span><br><span class="line">    --rw=randrw --bs=4k --direct=1 --size=1g \</span><br><span class="line">    --filename=/dev/sda --runtime=10 --time_based</span><br><span class="line"></span><br><span class="line"><span class="built_in">kill</span> <span class="variable">$BTRACE_PID</span></span><br><span class="line">blkparse sda_trace &gt; sda_trace.txt</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看队列、合并、调度延迟统计</span></span><br><span class="line">btt -i sda_trace.blktrace.0 | <span class="built_in">head</span> -50</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="9-总结"><a href="#9-总结" class="headerlink" title="9. 总结"></a>9. 总结</h2><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>mq-deadline</th>
+<th>BFQ</th>
+<th>Kyber</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>设计目标</td>
+<td>防饥饿 + 顺序调度</td>
+<td>公平带宽 + 低延迟</td>
+<td>延迟目标控制</td>
+</tr>
+<tr>
+<td>核心机制</td>
+<td>红黑树 + FIFO 双结构</td>
+<td>B-WF2Q+ 虚拟时间戳</td>
+<td>令牌桶 + 延迟直方图</td>
+</tr>
+<tr>
+<td>适用设备</td>
+<td>HDD &#x2F; SATA SSD</td>
+<td>HDD &#x2F; SATA SSD</td>
+<td>NVMe SSD</td>
+</tr>
+<tr>
+<td>cgroup 支持</td>
+<td>通过 ioprio 类别</td>
+<td>完整层次化 cgroup</td>
+<td>基础支持</td>
+</tr>
+<tr>
+<td>代码复杂度</td>
+<td>中等（~1500 行）</td>
+<td>极高（~8000 行）</td>
+<td>较低（~1000 行）</td>
+</tr>
+<tr>
+<td>延迟保证</td>
+<td>软 deadline</td>
+<td>权重比例保证</td>
+<td>目标延迟保证</td>
+</tr>
+<tr>
+<td>吞吐量</td>
+<td>高（批量顺序调度）</td>
+<td>中等（idle 有开销）</td>
+<td>高（令牌桶无排序开销）</td>
+</tr>
+</tbody></table>
+<p>从架构层面看，Linux IO 调度器体现了<strong>策略与机制分离</strong>的设计哲学：blk-mq 框架提供了统一的请求分配、标签管理、硬件队列路由机制，调度器插件只需实现特定的策略（如何排序、何时分发、如何公平分配）。三个现代调度器各自针对不同的硬件特性和应用场景做了精细的优化，理解其源码级实现，是进行系统性 IO 调优和内核存储子系统开发的必备基础。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/blk-mq/" rel="tag"># blk-mq</a>
+              <a href="/tags/IO-Scheduler/" rel="tag"># IO Scheduler</a>
+              <a href="/tags/BFQ/" rel="tag"># BFQ</a>
+              <a href="/tags/Deadline/" rel="tag"># Deadline</a>
+              <a href="/tags/Kyber/" rel="tag"># Kyber</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part6b-xfs/" rel="prev" title="Linux 存储与文件系统深度剖析：XFS 文件系统实现细节">
+                  <i class="fa fa-angle-left"></i> Linux 存储与文件系统深度剖析：XFS 文件系统实现细节
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/12/2026-04-12-linux-storage-part8-direct-aio/" rel="next" title="Linux 存储与文件系统深度剖析（八）：直接 IO 与异步 IO 实现">
+                  Linux 存储与文件系统深度剖析（八）：直接 IO 与异步 IO 实现 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
