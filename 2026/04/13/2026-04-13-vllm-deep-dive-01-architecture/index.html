@@ -27,7 +27,7 @@
 <meta property="og:description" content="第一部分：vLLM 架构概览简介在深入研究具体组件之前，我们需要先了解 vLLM 的整体架构。本文梳理了各主要组件及其交互方式，为后续各部分的深入探讨奠定基础。 全局视角vLLM 的设计围绕以下几个核心原则：  关注点分离：不同职责（调度、执行、服务）由各自独立的组件负责处理 进程隔离：V1 架构采用多进程设计，以提升健壮性和 CPU 利用率 异步处理：请求在流水线中流转，不会产生阻塞 默认分布式">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-04-13T06:00:00.000Z">
-<meta property="article:modified_time" content="2026-04-14T02:58:10.885Z">
+<meta property="article:modified_time" content="2026-04-14T10:24:59.496Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="vLLM">
 <meta property="article:tag" content="LLM">
@@ -195,7 +195,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-04-14 10:58:10" itemprop="dateModified" datetime="2026-04-14T10:58:10+08:00">2026-04-14</time>
+      <time title="Modified: 2026-04-14 18:24:59" itemprop="dateModified" datetime="2026-04-14T18:24:59+08:00">2026-04-14</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -257,8 +257,8 @@
 <li>处理请求抢占与换出</li>
 </ul>
 <p><strong>核心实现</strong>：<code>vllm/v1/engine/core.py</code></p>
-<p>engine core 运行一个紧凑的循环：</p>
-<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">    <span class="comment"># 1. Receive new requests from API servers</span></span><br><span class="line">    new_requests = receive_requests()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 2. Schedule which requests to process</span></span><br><span class="line">    scheduler_output = scheduler.schedule()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 3. Dispatch work to GPU workers</span></span><br><span class="line">    dispatch_to_workers(scheduler_output)</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 4. Collect outputs and send back to API servers</span></span><br><span class="line">    outputs = collect_outputs()</span><br><span class="line">    send_outputs(outputs)</span><br></pre></td></tr></table></figure>
+<p>engine core 运行一个紧凑的循环（<code>run_busy_loop</code>，<code>core.py:1138</code>）：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">run_busy_loop</span>(<span class="params">self</span>):</span><br><span class="line">    <span class="keyword">while</span> self._handle_shutdown():</span><br><span class="line">        <span class="comment"># 1. 从 input_queue 拉取新请求（add_request / abort_requests）</span></span><br><span class="line">        self._process_input_queue()</span><br><span class="line">        <span class="comment"># 2. 调度 + 执行一次模型 step，将输出推入 output_queue</span></span><br><span class="line">        self._process_engine_step()</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">_process_engine_step</span>(<span class="params">self</span>):</span><br><span class="line">    <span class="comment"># step() 内部：scheduler.schedule() -&gt; model_executor.execute_model()</span></span><br><span class="line">    outputs, model_executed = self.step_fn()</span><br><span class="line">    <span class="keyword">for</span> output <span class="keyword">in</span> outputs.items() <span class="keyword">if</span> outputs <span class="keyword">else</span> ():</span><br><span class="line">        self.output_queue.put_nowait(output)</span><br><span class="line">    self.post_step(model_executed)</span><br></pre></td></tr></table></figure>
 
 <p><strong>进程数量</strong>：每个 data parallel rank 对应一个。设置 <code>--data-parallel-size 4</code> 时，将启动 4 个 engine core。</p>
 <p><strong>CPU 用量</strong>：运行忙循环以实现低延迟的调度决策。</p>
