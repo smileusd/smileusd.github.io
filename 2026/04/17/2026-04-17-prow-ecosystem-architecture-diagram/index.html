@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Prow 生态系统架构全景本文深入解析 eBay Tess CI&#x2F;CD 系统的四个核心项目：test-infra、prow-configs、prow-images、cimaster，通过架构图和流程图展示它们之间的依赖关系与协作方式。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Prow 生态系统架构全景：test-infra、prow-configs、prow-images、cimaster 四大项目关系深度解析">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/17/2026-04-17-prow-ecosystem-architecture-diagram/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Prow 生态系统架构全景本文深入解析 eBay Tess CI&#x2F;CD 系统的四个核心项目：test-infra、prow-configs、prow-images、cimaster，通过架构图和流程图展示它们之间的依赖关系与协作方式。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-17T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-17T06:19:25.488Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Prow">
+<meta property="article:tag" content="CI&#x2F;CD">
+<meta property="article:tag" content="DevOps">
+<meta property="article:tag" content="架构">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/17/2026-04-17-prow-ecosystem-architecture-diagram/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/17/2026-04-17-prow-ecosystem-architecture-diagram/","path":"2026/04/17/2026-04-17-prow-ecosystem-architecture-diagram/","title":"Prow 生态系统架构全景：test-infra、prow-configs、prow-images、cimaster 四大项目关系深度解析"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Prow 生态系统架构全景：test-infra、prow-configs、prow-images、cimaster 四大项目关系深度解析 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Prow-%E7%94%9F%E6%80%81%E7%B3%BB%E7%BB%9F%E6%9E%B6%E6%9E%84%E5%85%A8%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">Prow 生态系统架构全景</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%9B%9B%E5%A4%A7%E9%A1%B9%E7%9B%AE%E6%A6%82%E8%A7%88"><span class="nav-number">1.1.</span> <span class="nav-text">一、四大项目概览</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E9%A1%B9%E7%9B%AE%E5%85%B3%E7%B3%BB%E6%80%BB%E5%9B%BE"><span class="nav-number">1.2.</span> <span class="nav-text">二、项目关系总图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E9%9D%99%E6%80%81%E4%BE%9D%E8%B5%96%E5%85%B3%E7%B3%BB%E5%9B%BE"><span class="nav-number">1.3.</span> <span class="nav-text">三、静态依赖关系图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E7%AB%AF%E5%88%B0%E7%AB%AF%E6%B5%81%E7%A8%8B%EF%BC%9A%E4%B8%80%E6%AC%A1-E2E-%E6%B5%8B%E8%AF%95%E7%9A%84%E5%AE%8C%E6%95%B4%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-number">1.4.</span> <span class="nav-text">四、端到端流程：一次 E2E 测试的完整生命周期</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E6%B5%81%E7%A8%8B%E6%80%BB%E5%9B%BE"><span class="nav-number">1.4.1.</span> <span class="nav-text">4.1 流程总图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%89%8B%E5%8A%A8%E8%A7%A6%E5%8F%91-%E9%9B%86%E7%BE%A4%E5%88%9B%E5%BB%BA%E6%B5%81%E7%A8%8B"><span class="nav-number">1.4.2.</span> <span class="nav-text">4.2 手动触发 + 集群创建流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E5%90%84%E9%A1%B9%E7%9B%AE%E5%86%85%E9%83%A8%E7%BB%93%E6%9E%84%E8%AF%A6%E8%A7%A3"><span class="nav-number">1.5.</span> <span class="nav-text">五、各项目内部结构详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-test-infra-%E9%A1%B9%E7%9B%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.5.1.</span> <span class="nav-text">5.1 test-infra 项目结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-prow-configs-%E9%A1%B9%E7%9B%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.5.2.</span> <span class="nav-text">5.2 prow-configs 项目结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-prow-images-%E9%A1%B9%E7%9B%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.5.3.</span> <span class="nav-text">5.3 prow-images 项目结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-cimaster-%E9%A1%B9%E7%9B%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.5.4.</span> <span class="nav-text">5.4 cimaster 项目结构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E9%85%8D%E7%BD%AE%E6%B5%81%E5%90%91%E5%9B%BE"><span class="nav-number">1.6.</span> <span class="nav-text">六、配置流向图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E9%95%9C%E5%83%8F%E5%BC%95%E7%94%A8%E5%85%B3%E7%B3%BB%E5%9B%BE"><span class="nav-number">1.7.</span> <span class="nav-text">七、镜像引用关系图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81cimaster-%E9%9B%86%E7%BE%A4%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-number">1.8.</span> <span class="nav-text">八、cimaster 集群状态机</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%9D%E3%80%81%E5%AE%8C%E6%95%B4-CI-%E4%BB%BB%E5%8A%A1%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="nav-number">1.9.</span> <span class="nav-text">九、完整 CI 任务数据流</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%81%E3%80%81%E9%A1%B9%E7%9B%AE%E5%8D%8F%E4%BD%9C%E7%9F%A9%E9%98%B5"><span class="nav-number">1.10.</span> <span class="nav-text">十、项目协作矩阵</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%81%E4%B8%80%E3%80%81%E5%85%B3%E9%94%AE%E6%8E%A5%E5%8F%A3%E6%B1%87%E6%80%BB"><span class="nav-number">1.11.</span> <span class="nav-text">十一、关键接口汇总</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#test-infra-%E2%86%94-prow-configs"><span class="nav-number">1.11.1.</span> <span class="nav-text">test-infra ↔ prow-configs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#test-infra-%E2%86%94-prow-images"><span class="nav-number">1.11.2.</span> <span class="nav-text">test-infra ↔ prow-images</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#cimaster-%E2%86%94-test-infra-manual-trigger"><span class="nav-number">1.11.3.</span> <span class="nav-text">cimaster ↔ test-infra (manual-trigger)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#prow-images-e2e-%E2%86%94-cimaster"><span class="nav-number">1.11.4.</span> <span class="nav-text">prow-images&#x2F;e2e ↔ cimaster</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#cimaster-%E2%86%94-Kubernetes-ConfigMap"><span class="nav-number">1.11.5.</span> <span class="nav-text">cimaster ↔ Kubernetes ConfigMap</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%81%E4%BA%8C%E3%80%81%E6%80%BB%E7%BB%93"><span class="nav-number">1.12.</span> <span class="nav-text">十二、总结</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">99</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">247</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/17/2026-04-17-prow-ecosystem-architecture-diagram/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Prow 生态系统架构全景：test-infra、prow-configs、prow-images、cimaster 四大项目关系深度解析 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Prow 生态系统架构全景：test-infra、prow-configs、prow-images、cimaster 四大项目关系深度解析
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-17 10:00:00 / Modified: 14:19:25" itemprop="dateCreated datePublished" datetime="2026-04-17T10:00:00+08:00">2026-04-17</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%8A%80%E6%9C%AF%E6%B7%B1%E5%BA%A6/" itemprop="url" rel="index"><span itemprop="name">技术深度</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%8A%80%E6%9C%AF%E6%B7%B1%E5%BA%A6/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="Prow-生态系统架构全景"><a href="#Prow-生态系统架构全景" class="headerlink" title="Prow 生态系统架构全景"></a>Prow 生态系统架构全景</h1><p>本文深入解析 eBay Tess CI&#x2F;CD 系统的四个核心项目：<strong>test-infra</strong>、<strong>prow-configs</strong>、<strong>prow-images</strong>、<strong>cimaster</strong>，通过架构图和流程图展示它们之间的依赖关系与协作方式。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="一、四大项目概览"><a href="#一、四大项目概览" class="headerlink" title="一、四大项目概览"></a>一、四大项目概览</h2><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>仓库</th>
+<th>定位</th>
+<th>核心产物</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>test-infra</strong></td>
+<td><code>tess/test-infra</code></td>
+<td>Prow 框架源码（fork 自 kubernetes&#x2F;test-infra）</td>
+<td>Prow 组件二进制：hook、plank、deck、manual-trigger 等</td>
+</tr>
+<tr>
+<td><strong>prow-configs</strong></td>
+<td><code>tessops/prow-configs</code></td>
+<td>Prow 运行时配置 + Job 定义</td>
+<td><code>config.yaml</code>、<code>plugins.yaml</code>、所有 ProwJob YAML</td>
+</tr>
+<tr>
+<td><strong>prow-images</strong></td>
+<td><code>tess-contrib/prow-images</code></td>
+<td>CI 任务用的工具镜像集合</td>
+<td><code>kaniko</code>、<code>e2e</code>、<code>golang</code>、<code>tess-build</code> 等镜像</td>
+</tr>
+<tr>
+<td><strong>cimaster</strong></td>
+<td><code>tess-contrib/cimaster</code></td>
+<td>E2E 测试集群资源管理器</td>
+<td>cimaster HTTP 服务，管理测试集群的分配与回收</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="二、项目关系总图"><a href="#二、项目关系总图" class="headerlink" title="二、项目关系总图"></a>二、项目关系总图</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">┌──────────────────────────────────────────────────────────────────────────────────────┐</span><br><span class="line">│                              eBay Tess CI/CD 生态系统                                 │</span><br><span class="line">│                                                                                      │</span><br><span class="line">│  ┌─────────────────────────────────────────────────────────────────────────────────┐ │</span><br><span class="line">│  │                         test-infra（Prow 框架）                                  │ │</span><br><span class="line">│  │                                                                                 │ │</span><br><span class="line">│  │   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────┐  │ │</span><br><span class="line">│  │   │  hook    │  │  plank   │  │  deck    │  │  tide    │  │ manual-trigger │  │ │</span><br><span class="line">│  │   │(webhook) │  │(调度器)  │  │(Web UI)  │  │(自动合并)│  │(手动触发API)   │  │ │</span><br><span class="line">│  │   └──────────┘  └──────────┘  └──────────┘  └──────────┘  └────────────────┘  │ │</span><br><span class="line">│  └─────────────────────────────────────────────────────────────────────────────────┘ │</span><br><span class="line">│           ▲ 读取配置                           ▲ 镜像被 ProwJob 使用                   │</span><br><span class="line">│           │                                   │                                      │</span><br><span class="line">│  ┌────────┴──────────┐             ┌──────────┴──────────┐                          │</span><br><span class="line">│  │   prow-configs    │             │    prow-images       │                          │</span><br><span class="line">│  │                   │             │                      │                          │</span><br><span class="line">│  │ • config.yaml     │             │ • kaniko             │                          │</span><br><span class="line">│  │ • plugins.yaml    │             │ • e2e                │                          │</span><br><span class="line">│  │ • Job YAML 定义   │             │ • golang             │                          │</span><br><span class="line">│  │   (presubmit/     │             │ • tess-build         │                          │</span><br><span class="line">│  │    postsubmit/    │             │ • create-release     │                          │</span><br><span class="line">│  │    periodic)      │             │ • auto-validation    │                          │</span><br><span class="line">│  │                   │             │ • ci-generator       │                          │</span><br><span class="line">│  └───────────────────┘             └──────────────────────┘                          │</span><br><span class="line">│                                                                                      │</span><br><span class="line">│  ┌───────────────────────────────────────────────────────────────────────────────┐   │</span><br><span class="line">│  │                              cimaster                                          │   │</span><br><span class="line">│  │                                                                               │   │</span><br><span class="line">│  │   集群池 ConfigMap  ←→  ClusterManager  ←→  manual-trigger API               │   │</span><br><span class="line">│  │   (K8s namespace:ci)    (分配/回收/创建)     (触发集群创建 ProwJob)            │   │</span><br><span class="line">│  └───────────────────────────────────────────────────────────────────────────────┘   │</span><br><span class="line">└──────────────────────────────────────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="三、静态依赖关系图"><a href="#三、静态依赖关系图" class="headerlink" title="三、静态依赖关系图"></a>三、静态依赖关系图</h2><pre class="mermaid">graph TB
+    subgraph test-infra["test-infra（Prow 框架源码）"]
+        hook["hook<br/>处理 GitHub 事件"]
+        plank["plank<br/>ProwJob 调度器"]
+        deck["deck<br/>Web UI"]
+        manual["manual-trigger<br/>手动触发 HTTP API"]
+        clonerefs["pod-utils<br/>clonerefs/sidecar 等"]
+    end
+
+    subgraph prow-configs["prow-configs（运行时配置）"]
+        config["config.yaml<br/>全局 Prow 配置"]
+        plugins["plugins.yaml<br/>插件配置"]
+        jobs["jobs/**/*.yaml<br/>所有 Job 定义"]
+        presets["config.presets.yaml<br/>通用 Preset"]
+    end
+
+    subgraph prow-images["prow-images（工具镜像）"]
+        kaniko["kaniko<br/>构建/推送镜像"]
+        e2e["e2e<br/>E2E 测试框架"]
+        golang["golang<br/>Go 编译环境"]
+        tessbuild["tess-build<br/>Tess 构建工具"]
+        release["create-release<br/>自动打 Tag/发布"]
+        validator["prow-config-validator<br/>配置校验"]
+        cigen["ci-generator<br/>Job 自动生成"]
+    end
+
+    subgraph cimaster["cimaster（集群资源管理）"]
+        api["HTTP API<br/>:8080"]
+        mgr["ClusterManager<br/>分配/回收/持有"]
+        configmap["K8s ConfigMap<br/>集群状态池"]
+    end
+
+    %% prow-configs 被 test-infra 读取
+    config -->|"ConfigAgent 加载"| hook
+    config -->|"ConfigAgent 加载"| plank
+    config -->|"ConfigAgent 加载"| deck
+    config -->|"ConfigAgent 加载"| manual
+    plugins -->|"PluginAgent 加载"| hook
+    jobs -->|"Job 定义"| plank
+
+    %% prow-images 被 Job 使用
+    kaniko -.->|"ProwJob spec.containers.image"| jobs
+    e2e -.->|"ProwJob spec.containers.image"| jobs
+    tessbuild -.->|"ProwJob spec.containers.image"| jobs
+    release -.->|"ProwJob spec.containers.image"| jobs
+
+    %% cimaster 使用 manual-trigger 创建集群
+    api -->|"POST /manual-trigger"| manual
+    mgr --> api
+    configmap --> mgr
+
+    %% e2e 镜像与 cimaster 交互
+    e2e -->|"GET /getvacant 申请集群"| api
+    e2e -->|"GET /finishtest 释放集群"| api
+
+    %% prow-configs validator 使用 test-infra 逻辑
+    validator -.->|"引用 prow/config 包"| test-infra
+
+    style test-infra fill:#dbeafe,stroke:#3b82f6
+    style prow-configs fill:#dcfce7,stroke:#22c55e
+    style prow-images fill:#fef9c3,stroke:#eab308
+    style cimaster fill:#fce7f3,stroke:#ec4899</pre>
+
+<hr>
+<h2 id="四、端到端流程：一次-E2E-测试的完整生命周期"><a href="#四、端到端流程：一次-E2E-测试的完整生命周期" class="headerlink" title="四、端到端流程：一次 E2E 测试的完整生命周期"></a>四、端到端流程：一次 E2E 测试的完整生命周期</h2><h3 id="4-1-流程总图"><a href="#4-1-流程总图" class="headerlink" title="4.1 流程总图"></a>4.1 流程总图</h3><pre class="mermaid">sequenceDiagram
+    participant Dev as 开发者
+    participant GH as GitHub
+    participant Hook as hook<br/>(test-infra)
+    participant Plank as plank<br/>(test-infra)
+    participant Pod as E2E Pod<br/>(prow-images/e2e)
+    participant CI as cimaster
+    participant CM as K8s ConfigMap<br/>(集群池)
+    participant Manual as manual-trigger<br/>(test-infra)
+
+    Dev->>GH: 提交 PR
+
+    GH->>Hook: GitHub Webhook<br/>(pull_request event)
+    Hook->>Hook: 查找 prow-configs/jobs 中的 presubmit jobs
+
+    Hook->>Plank: 创建 ProwJob CRD<br/>(e2e-test)
+
+    Plank->>Pod: 启动 Pod<br/>image: hub.tess.io/prowimages/e2e:latest
+
+    Note over Pod: InitContainers 运行<br/>clonerefs 克隆代码
+
+    Pod->>CI: GET /getvacant?build=123&job=e2e-test
+    CI->>CM: 查询空闲集群
+    CM-->>CI: 返回 cluster-01
+    CI->>CM: 标记 cluster-01 为 testing
+    CI-->>Pod: 返回 "cluster-01"
+
+    Note over Pod: 在 cluster-01 上运行 E2E 测试
+
+    Pod->>CI: GET /finishtest?cluster=cluster-01
+    CI->>CM: 标记 cluster-01 为 finished
+    Pod-->>Plank: 任务完成 (exit 0)
+
+    Plank->>GH: 上报 CI 结果 ✅
+    GH-->>Dev: PR Check 通过</pre>
+
+<h3 id="4-2-手动触发-集群创建流程"><a href="#4-2-手动触发-集群创建流程" class="headerlink" title="4.2 手动触发 + 集群创建流程"></a>4.2 手动触发 + 集群创建流程</h3><pre class="mermaid">sequenceDiagram
+    participant User as 用户/运维
+    participant CI as cimaster
+    participant Manual as manual-trigger<br/>(test-infra)
+    participant Plank as plank<br/>(test-infra)
+    participant Pod as 集群创建 Pod<br/>(prow-images/tess-build)
+    participant CM as K8s ConfigMap
+
+    User->>CI: GET /createcluster?user=john&branch=master
+
+    CI->>Manual: POST /manual-trigger<br/>{"org":"tess","repo":"tessops","prowjob":"sddz-e2e-k8s-1.32","user":"john"}
+
+    Manual->>Manual: 在 prow-configs 中查找<br/>"sddz-e2e-k8s-1.32" 任务定义
+    Manual->>Plank: 创建 ProwJob CRD
+
+    Plank->>Pod: 启动集群创建 Pod<br/>image: hub.tess.io/prowimages/tess-build:latest
+
+    Note over Pod: 执行集群创建脚本<br/>创建新的 Tess 集群
+
+    Pod-->>Plank: 完成 (exit 0)
+
+    User->>CI: GET /addcluster?cluster=new-cluster&region=us-west&name=admin
+    CI->>CM: 将新集群加入集群池
+    CM-->>CI: 写入成功
+    CI-->>User: "cluster new-cluster is added successfully"</pre>
+
+<hr>
+<h2 id="五、各项目内部结构详解"><a href="#五、各项目内部结构详解" class="headerlink" title="五、各项目内部结构详解"></a>五、各项目内部结构详解</h2><h3 id="5-1-test-infra-项目结构"><a href="#5-1-test-infra-项目结构" class="headerlink" title="5.1 test-infra 项目结构"></a>5.1 test-infra 项目结构</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">test-infra/</span><br><span class="line">├── prow/</span><br><span class="line">│   ├── cmd/                    ← Prow 组件入口</span><br><span class="line">│   │   ├── hook/               ← GitHub webhook 处理器</span><br><span class="line">│   │   ├── plank/              ← ProwJob 调度器</span><br><span class="line">│   │   ├── deck/               ← Web UI 服务</span><br><span class="line">│   │   ├── tide/               ← 自动合并服务</span><br><span class="line">│   │   ├── crier/              ← 结果上报服务</span><br><span class="line">│   │   └── manual-trigger/     ← 手动触发 HTTP API ⭐</span><br><span class="line">│   ├── config/                 ← Prow 配置解析库</span><br><span class="line">│   │   └── jobs.go             ← JobBase/Presubmit/Postsubmit 定义</span><br><span class="line">│   ├── apis/prowjobs/v1/       ← ProwJob CRD 类型定义</span><br><span class="line">│   │   └── types.go            ← ProwJob/ProwJobSpec/Refs 等</span><br><span class="line">│   ├── pjutil/                 ← ProwJob 工具库</span><br><span class="line">│   │   └── pjutil.go           ← PresubmitSpec/specFromJobBase</span><br><span class="line">│   └── pod-utils/</span><br><span class="line">│       ├── decorate/           ← Decoration 机制（注入 clonerefs 等）</span><br><span class="line">│       ├── clone/              ← 代码克隆逻辑</span><br><span class="line">│       └── downwardapi/        ← 环境变量注入</span><br><span class="line">└── config/jobs/                ← 上游 k8s 项目的 Job 定义</span><br></pre></td></tr></table></figure>
+
+<p><strong>核心职责</strong>: 提供 Prow 框架的所有<strong>运行时二进制</strong>和<strong>Go 库</strong>。</p>
+<h3 id="5-2-prow-configs-项目结构"><a href="#5-2-prow-configs-项目结构" class="headerlink" title="5.2 prow-configs 项目结构"></a>5.2 prow-configs 项目结构</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">prow-configs/</span><br><span class="line">├── prow-configs/</span><br><span class="line">│   ├── config.yaml             ← Prow 全局配置（plank/tide/deck 行为）</span><br><span class="line">│   ├── config.presets.yaml     ← 通用 Preset（preset-builder/preset-kaniko 等）</span><br><span class="line">│   └── plugins.yaml            ← Hook 插件配置（trigger/lgtm/approve 等）</span><br><span class="line">├── jobs/</span><br><span class="line">│   ├── ebaytess/               ← ebaytess org 下各仓库的 Job</span><br><span class="line">│   │   ├── tess-ovn/</span><br><span class="line">│   │   ├── apiserver/</span><br><span class="line">│   │   └── controllers/</span><br><span class="line">│   ├── tessops/                ← tessops org 下各仓库的 Job</span><br><span class="line">│   │   ├── test-infra/</span><br><span class="line">│   │   └── prow-configs/</span><br><span class="line">│   ├── tess-contrib/</span><br><span class="line">│   │   ├── cimaster/           ← cimaster 自身的 CI Job</span><br><span class="line">│   │   └── prow-images/</span><br><span class="line">│   └── CloudSRE/</span><br><span class="line">├── hack/</span><br><span class="line">│   └── gen-jobs.sh             ← Job 自动生成脚本</span><br><span class="line">└── docs/</span><br><span class="line">    └── add-job.md              ← 添加 Job 的文档</span><br></pre></td></tr></table></figure>
+
+<p><strong>核心职责</strong>: 定义<strong>什么任务在什么时机运行</strong>（Job 配置）以及 Prow <strong>如何行为</strong>（全局配置）。</p>
+<h3 id="5-3-prow-images-项目结构"><a href="#5-3-prow-images-项目结构" class="headerlink" title="5.3 prow-images 项目结构"></a>5.3 prow-images 项目结构</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">prow-images/</span><br><span class="line">├── e2e/                        ← E2E 测试框架镜像 ⭐</span><br><span class="line">│   ├── Dockerfile              ← 基于 golang，含 tessci 工具</span><br><span class="line">│   ├── entrypoint/main.go      ← 申请集群 → 跑测试 → 释放集群</span><br><span class="line">│   ├── e2e.sh                  ← E2E 测试脚本</span><br><span class="line">│   └── tools/tessci/           ← 与 cimaster 交互的 CLI 工具</span><br><span class="line">├── golang/                     ← Go 编译环境镜像（多版本）</span><br><span class="line">│   ├── Dockerfile</span><br><span class="line">│   ├── 1.21.argfile</span><br><span class="line">│   └── 1.24.argfile</span><br><span class="line">├── kaniko/                     ← 镜像构建/推送工具</span><br><span class="line">├── tess-build/                 ← Tess 构建工具（含 git-crypt）</span><br><span class="line">│   ├── Dockerfile</span><br><span class="line">│   └── entrypoint/             ← 构建脚本封装</span><br><span class="line">├── create-release/             ← 自动创建 Git Tag/Release</span><br><span class="line">├── auto-validation/            ← 自动化验证</span><br><span class="line">├── prow-config-validator/      ← 校验 prow-configs 配置合法性</span><br><span class="line">├── ci-generator/               ← 从 manifest 自动生成 Job YAML</span><br><span class="line">└── clone-and-do/               ← 通用克隆+执行工具（其他镜像的基础）</span><br></pre></td></tr></table></figure>
+
+<p><strong>核心职责</strong>: 提供 ProwJob Pod 中运行的<strong>工具镜像</strong>，每个镜像对应一种 CI 能力。</p>
+<h3 id="5-4-cimaster-项目结构"><a href="#5-4-cimaster-项目结构" class="headerlink" title="5.4 cimaster 项目结构"></a>5.4 cimaster 项目结构</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">cimaster/</span><br><span class="line">├── cmd/cimaster/main.go        ← 服务入口，注册 HTTP 路由</span><br><span class="line">├── cluster/</span><br><span class="line">│   ├── cluster-manager.go      ← 核心逻辑：分配/持有/释放/创建集群</span><br><span class="line">│   ├── cluster-ops.go          ← 单个集群操作（状态变更）</span><br><span class="line">│   └── botadmin.go             ← 管理员用户鉴权</span><br><span class="line">├── pkg/types/types.go          ← Cluster 数据结构定义</span><br><span class="line">├── api-definition/</span><br><span class="line">│   └── cimaster-clustermanager.yaml ← API 文档</span><br><span class="line">└── spec/</span><br><span class="line">    ├── cimaster.yaml           ← K8s Deployment 部署清单</span><br><span class="line">    └── cimaster-service.yaml   ← K8s Service 清单</span><br></pre></td></tr></table></figure>
+
+<p><strong>核心职责</strong>: 维护一个<strong>共享 E2E 测试集群资源池</strong>，通过 HTTP API 提供集群的申请、释放、持有、创建能力。</p>
+<hr>
+<h2 id="六、配置流向图"><a href="#六、配置流向图" class="headerlink" title="六、配置流向图"></a>六、配置流向图</h2><p><strong>prow-configs 如何影响各个 Prow 组件</strong>：</p>
+<pre class="mermaid">graph LR
+    subgraph prow-configs
+        C[config.yaml]
+        P[plugins.yaml]
+        J[jobs/**/*.yaml]
+        PR[config.presets.yaml]
+    end
+
+    subgraph test-infra 运行时
+        Hook["hook<br/>(处理 Webhook)"]
+        Plank["plank<br/>(调度 Job)"]
+        Deck["deck<br/>(展示 UI)"]
+        Tide["tide<br/>(合并 PR)"]
+        MT["manual-trigger<br/>(手动触发)"]
+    end
+
+    C -->|"plank/tide/deck 行为配置"| Plank
+    C -->|"tide 合并策略"| Tide
+    C -->|"deck 展示配置"| Deck
+    C -->|"job 查询"| MT
+    P -->|"trigger/lgtm/approve 插件"| Hook
+    J -->|"presubmit/postsubmit 定义"| Hook
+    J -->|"PowJob spec.PodSpec 来源"| Plank
+    PR -->|"Preset env/volumes 注入"| Plank
+
+    style prow-configs fill:#dcfce7
+    style test-infra 运行时 fill:#dbeafe</pre>
+
+<hr>
+<h2 id="七、镜像引用关系图"><a href="#七、镜像引用关系图" class="headerlink" title="七、镜像引用关系图"></a>七、镜像引用关系图</h2><p><strong>prow-images 中各镜像的依赖层级</strong>：</p>
+<pre class="mermaid">graph BT
+    Base["hub.tess.io/tess/ubuntu-22.04:hardened<br/>(基础系统镜像)"]
+
+    CloneAndDo["clone-and-do<br/>通用克隆+执行"]
+    Golang["golang:1.21~1.24<br/>Go 编译环境"]
+    TessBuild["tess-build<br/>含 git-crypt"]
+    E2E["e2e<br/>含 tessci + e2e.sh"]
+    Kaniko["kaniko<br/>镜像构建工具"]
+    Release["create-release<br/>Git Release 工具"]
+    Validator["prow-config-validator<br/>配置校验"]
+    CIGen["ci-generator<br/>Job 生成器"]
+
+    Base --> CloneAndDo
+    CloneAndDo --> Golang
+    Golang --> TessBuild
+    Golang --> E2E
+    Golang --> Kaniko
+    Golang --> Release
+    Golang --> Validator
+    Golang --> CIGen
+
+    style Base fill:#f3f4f6
+    style CloneAndDo fill:#fef9c3
+    style Golang fill:#fef9c3
+    style TessBuild fill:#fef3c7
+    style E2E fill:#fde68a
+    style Kaniko fill:#fde68a
+    style Release fill:#fde68a</pre>
+
+<hr>
+<h2 id="八、cimaster-集群状态机"><a href="#八、cimaster-集群状态机" class="headerlink" title="八、cimaster 集群状态机"></a>八、cimaster 集群状态机</h2><pre class="mermaid">stateDiagram-v2
+    [*] --> finished: addcluster (管理员添加)
+
+    finished --> testing: getvacant (测试任务申请)
+
+    testing --> finished: finishtest (测试完成)
+    testing --> held: holdcluster (暂时持有)
+
+    held --> finished: releasecluster (释放持有)
+    held --> finished: 自动过期 (6小时后)
+
+    finished --> disabled: disablecluster (管理员禁用)
+    disabled --> finished: enablecluster (管理员启用)
+
+    finished --> [*]: deletecluster (管理员删除)</pre>
+
+<hr>
+<h2 id="九、完整-CI-任务数据流"><a href="#九、完整-CI-任务数据流" class="headerlink" title="九、完整 CI 任务数据流"></a>九、完整 CI 任务数据流</h2><p>从代码提交到 CI 结果的完整数据链路：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line">┌──────────────────────────────────────────────────────────────────────────────┐</span><br><span class="line">│                           完整 CI 数据流                                       │</span><br><span class="line">└──────────────────────────────────────────────────────────────────────────────┘</span><br><span class="line"></span><br><span class="line">1. 【代码变更】</span><br><span class="line">   开发者提交 PR</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">2. 【事件接收】test-infra/hook</span><br><span class="line">   GitHub Webhook → hook 服务</span><br><span class="line">   hook 读取 prow-configs/plugins.yaml</span><br><span class="line">   识别需要触发的 Job（trigger 插件）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">3. 【Job 查找】test-infra/hook</span><br><span class="line">   读取 prow-configs/jobs/**/*.yaml</span><br><span class="line">   找到匹配的 presubmit Job 定义</span><br><span class="line">   Job 定义中包含：</span><br><span class="line">     spec.containers[].image → prow-images 中的镜像</span><br><span class="line">     spec.containers[].command → 执行的命令</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">4. 【ProwJob 创建】test-infra/hook → Kubernetes API</span><br><span class="line">   创建 ProwJob CRD</span><br><span class="line">   spec.PodSpec 直接复制自 Job 配置</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">5. 【Pod 调度】test-infra/plank</span><br><span class="line">   监听 ProwJob CRD</span><br><span class="line">   读取 prow-configs/config.yaml（namespace、超时等）</span><br><span class="line">   应用 prow-configs/config.presets.yaml（preset-builder 等注入 env/volume）</span><br><span class="line">   执行 Decoration（注入 clonerefs/initupload/sidecar）</span><br><span class="line">   创建 Kubernetes Pod</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">6. 【Pod 执行】prow-images/e2e 容器</span><br><span class="line">   InitContainer: clonerefs 克隆代码</span><br><span class="line">   InitContainer: initupload 初始化 GCS 上传</span><br><span class="line">   Main Container: /entrypoint 包装用户脚本：</span><br><span class="line">     ┌─────────────────────────────────────────┐</span><br><span class="line">     │  e2e/entrypoint:                        │</span><br><span class="line">     │  1. GET cimaster/getvacant → 申请集群   │</span><br><span class="line">     │  2. 运行 e2e.sh（测试脚本）              │</span><br><span class="line">     │  3. GET cimaster/finishtest → 释放集群  │</span><br><span class="line">     └─────────────────────────────────────────┘</span><br><span class="line">   Sidecar: 上传日志到 GCS</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">7. 【结果上报】test-infra/crier</span><br><span class="line">   读取 ProwJob 状态</span><br><span class="line">   上报 CI Check 结果到 GitHub PR</span><br><span class="line"></span><br><span class="line">8. 【结果展示】test-infra/deck</span><br><span class="line">   读取 ProwJob/GCS 日志</span><br><span class="line">   在 https://prow.tess.io 展示</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十、项目协作矩阵"><a href="#十、项目协作矩阵" class="headerlink" title="十、项目协作矩阵"></a>十、项目协作矩阵</h2><table>
+<thead>
+<tr>
+<th>动作</th>
+<th>test-infra</th>
+<th>prow-configs</th>
+<th>prow-images</th>
+<th>cimaster</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>定义 Prow 框架组件</td>
+<td>✅ 实现</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td>定义 Job 触发规则</td>
+<td>-</td>
+<td>✅ 定义</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td>提供 Job 运行镜像</td>
+<td>-</td>
+<td>引用镜像 URL</td>
+<td>✅ 构建</td>
+<td>-</td>
+</tr>
+<tr>
+<td>管理 E2E 测试集群</td>
+<td>-</td>
+<td>-</td>
+<td>调用 API</td>
+<td>✅ 实现</td>
+</tr>
+<tr>
+<td>触发集群创建 Job</td>
+<td>提供 API</td>
+<td>定义 Job</td>
+<td>执行构建</td>
+<td>调用 API</td>
+</tr>
+<tr>
+<td>校验 prow-configs</td>
+<td>提供 Go 库</td>
+<td>✅ 被校验</td>
+<td>校验工具镜像</td>
+<td>-</td>
+</tr>
+<tr>
+<td>自动生成 Job YAML</td>
+<td>-</td>
+<td>✅ 存储</td>
+<td>生成器镜像</td>
+<td>-</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="十一、关键接口汇总"><a href="#十一、关键接口汇总" class="headerlink" title="十一、关键接口汇总"></a>十一、关键接口汇总</h2><h3 id="test-infra-↔-prow-configs"><a href="#test-infra-↔-prow-configs" class="headerlink" title="test-infra ↔ prow-configs"></a>test-infra ↔ prow-configs</h3><ul>
+<li><strong>接口</strong>: 文件系统 &#x2F; Kubernetes ConfigMap</li>
+<li><strong>方向</strong>: prow-configs → test-infra</li>
+<li><strong>内容</strong>: <code>config.yaml</code>（ConfigAgent）、<code>plugins.yaml</code>（PluginAgent）、Job YAML（PresubmitsStatic&#x2F;PostsubmitsStatic）</li>
+</ul>
+<h3 id="test-infra-↔-prow-images"><a href="#test-infra-↔-prow-images" class="headerlink" title="test-infra ↔ prow-images"></a>test-infra ↔ prow-images</h3><ul>
+<li><strong>接口</strong>: Docker 镜像引用（字符串）</li>
+<li><strong>方向</strong>: prow-images → ProwJob spec → plank</li>
+<li><strong>内容</strong>: <code>hub.tess.io/prowimages/&lt;name&gt;:latest</code></li>
+</ul>
+<h3 id="cimaster-↔-test-infra-manual-trigger"><a href="#cimaster-↔-test-infra-manual-trigger" class="headerlink" title="cimaster ↔ test-infra (manual-trigger)"></a>cimaster ↔ test-infra (manual-trigger)</h3><ul>
+<li><strong>接口</strong>: HTTP REST API</li>
+<li><strong>方向</strong>: cimaster → manual-trigger</li>
+<li><strong>内容</strong>:<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">POST https://prow.tess.io/manual-trigger</span><br><span class="line">&#123;</span><br><span class="line">  <span class="string">&quot;org&quot;</span>: <span class="string">&quot;tess&quot;</span>,</span><br><span class="line">  <span class="string">&quot;repo&quot;</span>: <span class="string">&quot;tessops&quot;</span>,</span><br><span class="line">  <span class="string">&quot;base_ref&quot;</span>: <span class="string">&quot;master&quot;</span>,</span><br><span class="line">  <span class="string">&quot;prowtype&quot;</span>: <span class="string">&quot;postsubmit&quot;</span>,</span><br><span class="line">  <span class="string">&quot;prowjob&quot;</span>: <span class="string">&quot;sddz-e2e-k8s-1.32&quot;</span>,</span><br><span class="line">  <span class="string">&quot;user&quot;</span>: <span class="string">&quot;john&quot;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h3 id="prow-images-e2e-↔-cimaster"><a href="#prow-images-e2e-↔-cimaster" class="headerlink" title="prow-images&#x2F;e2e ↔ cimaster"></a>prow-images&#x2F;e2e ↔ cimaster</h3><ul>
+<li><strong>接口</strong>: HTTP REST API</li>
+<li><strong>方向</strong>: e2e Pod → cimaster</li>
+<li><strong>内容</strong>:<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">GET http://cimaster.tess.io/getvacant?build=123&amp;job=e2e-test</span><br><span class="line">GET http://cimaster.tess.io/finishtest?cluster=cluster-01</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h3 id="cimaster-↔-Kubernetes-ConfigMap"><a href="#cimaster-↔-Kubernetes-ConfigMap" class="headerlink" title="cimaster ↔ Kubernetes ConfigMap"></a>cimaster ↔ Kubernetes ConfigMap</h3><ul>
+<li><strong>接口</strong>: Kubernetes API</li>
+<li><strong>方向</strong>: 双向读写</li>
+<li><strong>内容</strong>: <code>ci/clusters</code> ConfigMap，存储集群池状态 JSON</li>
+</ul>
+<hr>
+<h2 id="十二、总结"><a href="#十二、总结" class="headerlink" title="十二、总结"></a>十二、总结</h2><p>这四个项目构成了一个完整的 CI&#x2F;CD 闭环：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">prow-configs ──定义Job──→ test-infra ──调度──→ Pod (prow-images镜像)</span><br><span class="line">     │                        │                      │</span><br><span class="line">     │                        │                 申请/释放集群</span><br><span class="line">     │                     手动触发                   │</span><br><span class="line">     │                        ↓                      ↓</span><br><span class="line">校验工具 ←──────────── prow-images         cimaster ←→ K8s ConfigMap</span><br><span class="line">                                               集群池管理</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>test-infra</strong>: 系统的<strong>大脑</strong>——框架、调度、编排</li>
+<li><strong>prow-configs</strong>: 系统的<strong>配置中枢</strong>——Job 定义、行为规则</li>
+<li><strong>prow-images</strong>: 系统的<strong>工具箱</strong>——各种 CI 能力封装为镜像</li>
+<li><strong>cimaster</strong>: 系统的<strong>资源管家</strong>——E2E 集群资源的统一调度</li>
+</ul>
+<hr>
+<p><strong>作者</strong>: Tashen<br><strong>日期</strong>: 2026-04-17<br><strong>标签</strong>: #Kubernetes #Prow #CI&#x2F;CD #DevOps #架构</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Prow/" rel="tag"># Prow</a>
+              <a href="/tags/CI-CD/" rel="tag"># CI/CD</a>
+              <a href="/tags/DevOps/" rel="tag"># DevOps</a>
+              <a href="/tags/%E6%9E%B6%E6%9E%84/" rel="tag"># 架构</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/14/2026-04-14-virtlet-learning/" rel="prev" title="Virtlet 深度学习笔记：Kubernetes VM 运行时架构与代码分析">
+                  <i class="fa fa-angle-left"></i> Virtlet 深度学习笔记：Kubernetes VM 运行时架构与代码分析
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

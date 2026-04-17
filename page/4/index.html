@@ -112,7 +112,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">98</span>
+          <span class="site-state-item-count">99</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
@@ -123,7 +123,7 @@
       </div>
       <div class="site-state-item site-state-tags">
           <a href="/tags/">
-        <span class="site-state-item-count">246</span>
+        <span class="site-state-item-count">247</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -140,6 +140,414 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/13/2026-04-13-vllm-deep-dive-01-architecture/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/04/13/2026-04-13-vllm-deep-dive-01-architecture/" class="post-title-link" itemprop="url">vLLM Deep Dive Part 1: Architecture Overview</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2026-04-13 14:00:00" itemprop="dateCreated datePublished" datetime="2026-04-13T14:00:00+08:00">2026-04-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-04-14 18:24:59" itemprop="dateModified" datetime="2026-04-14T18:24:59+08:00">2026-04-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/AI-ML/" itemprop="url" rel="index"><span itemprop="name">AI/ML</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="第一部分：vLLM-架构概览"><a href="#第一部分：vLLM-架构概览" class="headerlink" title="第一部分：vLLM 架构概览"></a>第一部分：vLLM 架构概览</h1><h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>在深入研究具体组件之前，我们需要先了解 vLLM 的整体架构。本文梳理了各主要组件及其交互方式，为后续各部分的深入探讨奠定基础。</p>
+<h2 id="全局视角"><a href="#全局视角" class="headerlink" title="全局视角"></a>全局视角</h2><p>vLLM 的设计围绕以下几个核心原则：</p>
+<ol>
+<li><strong>关注点分离</strong>：不同职责（调度、执行、服务）由各自独立的组件负责处理</li>
+<li><strong>进程隔离</strong>：V1 架构采用多进程设计，以提升健壮性和 CPU 利用率</li>
+<li><strong>异步处理</strong>：请求在流水线中流转，不会产生阻塞</li>
+<li><strong>默认分布式</strong>：从底层设计上即支持多 GPU 执行</li>
+</ol>
+<h2 id="高层数据流"><a href="#高层数据流" class="headerlink" title="高层数据流"></a>高层数据流</h2><p>当你向 vLLM 发送一个请求时，整个流程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">User Request (HTTP/gRPC)</span><br><span class="line">    ↓</span><br><span class="line">API Server Process</span><br><span class="line">    ↓ (ZMQ Socket)</span><br><span class="line">Engine Core Process</span><br><span class="line">    ↓</span><br><span class="line">Scheduler</span><br><span class="line">    ↓</span><br><span class="line">GPU Worker Processes</span><br><span class="line">    ↓ (NCCL/Collective Ops)</span><br><span class="line">Model Execution</span><br><span class="line">    ↓</span><br><span class="line">Output Processing</span><br><span class="line">    ↓ (ZMQ Socket)</span><br><span class="line">API Server Process</span><br><span class="line">    ↓</span><br><span class="line">Streaming Response to User</span><br></pre></td></tr></table></figure>
+
+<h2 id="V1-多进程架构"><a href="#V1-多进程架构" class="headerlink" title="V1 多进程架构"></a>V1 多进程架构</h2><p>V1 架构（于 2024 年底引入）采用多进程设计，以实现更好的 CPU 利用率和进程隔离。下面逐一介绍各进程类型：</p>
+<h3 id="1-API-Server-进程"><a href="#1-API-Server-进程" class="headerlink" title="1. API Server 进程"></a>1. API Server 进程</h3><p><strong>职责</strong>：处理 HTTP&#x2F;gRPC 请求及 I&#x2F;O 操作</p>
+<p><strong>主要任务</strong>：</p>
+<ul>
+<li>接收并校验 HTTP 请求</li>
+<li>对输入文本进行 tokenize</li>
+<li>加载多模态数据（图像、音频）</li>
+<li>将输出以流式方式返回给客户端</li>
+<li>处理 API 鉴权与限流</li>
+</ul>
+<p><strong>核心实现</strong>：<code>vllm/entrypoints/openai/api_server.py</code></p>
+<p>API server 对于模型执行而言是无状态的。它不了解 GPU 内存、KV cache 或模型权重，只负责：</p>
+<ol>
+<li>将用户请求转换为 <code>EngineCoreRequest</code> 对象</li>
+<li>通过 ZMQ 将其发送给 engine core</li>
+<li>接收返回的 <code>EngineCoreOutput</code> 对象</li>
+<li>将其转换为 API 响应</li>
+</ol>
+<p><strong>进程数量</strong>：默认为 1 个 API server。启用 data parallelism（<code>--data-parallel-size N</code>）后，自动扩展至 N 个 API server。</p>
+<p><strong>CPU 线程</strong>：使用 <code>VLLM_MEDIA_LOADING_THREAD_COUNT</code> 个线程（默认 8）并行加载媒体文件。</p>
+<h3 id="2-Engine-Core-进程"><a href="#2-Engine-Core-进程" class="headerlink" title="2. Engine Core 进程"></a>2. Engine Core 进程</h3><p><strong>职责</strong>：调度请求并协调模型执行</p>
+<p><strong>主要任务</strong>：</p>
+<ul>
+<li>维护请求队列</li>
+<li>运行 scheduler 以决定计算内容</li>
+<li>管理 KV cache 分配</li>
+<li>协调 GPU worker</li>
+<li>处理请求抢占与换出</li>
+</ul>
+<p><strong>核心实现</strong>：<code>vllm/v1/engine/core.py</code></p>
+<p>engine core 运行一个紧凑的循环（<code>run_busy_loop</code>，<code>core.py:1138</code>）：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">run_busy_loop</span>(<span class="params">self</span>):</span><br><span class="line">    <span class="keyword">while</span> self._handle_shutdown():</span><br><span class="line">        <span class="comment"># 1. 从 input_queue 拉取新请求（add_request / abort_requests）</span></span><br><span class="line">        self._process_input_queue()</span><br><span class="line">        <span class="comment"># 2. 调度 + 执行一次模型 step，将输出推入 output_queue</span></span><br><span class="line">        self._process_engine_step()</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">_process_engine_step</span>(<span class="params">self</span>):</span><br><span class="line">    <span class="comment"># step() 内部：scheduler.schedule() -&gt; model_executor.execute_model()</span></span><br><span class="line">    outputs, model_executed = self.step_fn()</span><br><span class="line">    <span class="keyword">for</span> output <span class="keyword">in</span> outputs.items() <span class="keyword">if</span> outputs <span class="keyword">else</span> ():</span><br><span class="line">        self.output_queue.put_nowait(output)</span><br><span class="line">    self.post_step(model_executed)</span><br></pre></td></tr></table></figure>
+
+<p><strong>进程数量</strong>：每个 data parallel rank 对应一个。设置 <code>--data-parallel-size 4</code> 时，将启动 4 个 engine core。</p>
+<p><strong>CPU 用量</strong>：运行忙循环以实现低延迟的调度决策。</p>
+<h3 id="3-GPU-Worker-进程"><a href="#3-GPU-Worker-进程" class="headerlink" title="3. GPU Worker 进程"></a>3. GPU Worker 进程</h3><p><strong>职责</strong>：在 GPU 上执行模型前向传播</p>
+<p><strong>主要任务</strong>：</p>
+<ul>
+<li>将模型权重加载到 GPU</li>
+<li>执行前向传播</li>
+<li>管理 GPU 内存</li>
+<li>运行 CUDA kernel（attention、FFN 等）</li>
+<li>参与集合通信操作（用于 tensor parallelism &#x2F; pipeline parallelism）</li>
+</ul>
+<p><strong>核心实现</strong>：<code>vllm/v1/worker/gpu_worker.py</code></p>
+<p>每个 GPU 都有其专属的 worker 进程。worker 负责：</p>
+<ol>
+<li>加载其对应分片的模型权重</li>
+<li>从对应的 engine core 接收执行请求</li>
+<li>运行模型前向传播</li>
+<li>返回输出结果（logits、KV cache 更新）</li>
+</ol>
+<p><strong>进程数量</strong>：每个 GPU 一个。对于 8 个 GPU，设置 <code>--tensor-parallel-size 4 --data-parallel-size 2</code> 时：</p>
+<ul>
+<li>共 8 个 GPU worker</li>
+<li>分为 2 组，每组 4 个（tensor parallel 分组）</li>
+<li>2 个 engine core（每个 data parallel rank 各一个）</li>
+</ul>
+<h3 id="4-DP-Coordinator-进程（按需启动）"><a href="#4-DP-Coordinator-进程（按需启动）" class="headerlink" title="4. DP Coordinator 进程（按需启动）"></a>4. DP Coordinator 进程（按需启动）</h3><p><strong>职责</strong>：协调 data parallel 引擎</p>
+<p><strong>主要任务</strong>：</p>
+<ul>
+<li>在 data parallel rank 之间进行负载均衡</li>
+<li>同步 MoE 模型执行</li>
+<li>将请求路由至负载最低的引擎</li>
+</ul>
+<p><strong>核心实现</strong>：<code>vllm/v1/engine/coordinator.py</code></p>
+<p><strong>进程数量</strong>：当 <code>--data-parallel-size &gt; 1</code> 时启动 1 个，否则不启动。</p>
+<h2 id="进程数量示例"><a href="#进程数量示例" class="headerlink" title="进程数量示例"></a>进程数量示例</h2><p>下面来看几个具体示例：</p>
+<h3 id="示例-1：单-GPU"><a href="#示例-1：单-GPU" class="headerlink" title="示例 1：单 GPU"></a>示例 1：单 GPU</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-8B</span><br></pre></td></tr></table></figure>
+
+<p>进程：</p>
+<ul>
+<li>1 个 API Server</li>
+<li>1 个 Engine Core</li>
+<li>1 个 GPU Worker</li>
+<li><strong>共计：3 个进程</strong></li>
+</ul>
+<h3 id="示例-2：Tensor-Parallelism（4-个-GPU）"><a href="#示例-2：Tensor-Parallelism（4-个-GPU）" class="headerlink" title="示例 2：Tensor Parallelism（4 个 GPU）"></a>示例 2：Tensor Parallelism（4 个 GPU）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-70B --tensor-parallel-size 4</span><br></pre></td></tr></table></figure>
+
+<p>进程：</p>
+<ul>
+<li>1 个 API Server</li>
+<li>1 个 Engine Core</li>
+<li>4 个 GPU Worker（每个 GPU 各一个）</li>
+<li><strong>共计：6 个进程</strong></li>
+</ul>
+<h3 id="示例-3：Data-Parallelism（4-个-GPU）"><a href="#示例-3：Data-Parallelism（4-个-GPU）" class="headerlink" title="示例 3：Data Parallelism（4 个 GPU）"></a>示例 3：Data Parallelism（4 个 GPU）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-8B --data-parallel-size 4</span><br></pre></td></tr></table></figure>
+
+<p>进程：</p>
+<ul>
+<li>4 个 API Server（随 data parallelism 扩展）</li>
+<li>4 个 Engine Core（每个 DP rank 各一个）</li>
+<li>4 个 GPU Worker（每个 GPU 各一个）</li>
+<li>1 个 DP Coordinator</li>
+<li><strong>共计：13 个进程</strong></li>
+</ul>
+<h3 id="示例-4：混合并行（8-个-GPU）"><a href="#示例-4：混合并行（8-个-GPU）" class="headerlink" title="示例 4：混合并行（8 个 GPU）"></a>示例 4：混合并行（8 个 GPU）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-70B --tensor-parallel-size 2 --data-parallel-size 4</span><br></pre></td></tr></table></figure>
+
+<p>进程：</p>
+<ul>
+<li>4 个 API Server</li>
+<li>4 个 Engine Core（每个 DP rank 各一个）</li>
+<li>8 个 GPU Worker（每个 DP rank 2 个，每个 GPU 各一个）</li>
+<li>1 个 DP Coordinator</li>
+<li><strong>共计：17 个进程</strong></li>
+</ul>
+<h2 id="核心组件详解"><a href="#核心组件详解" class="headerlink" title="核心组件详解"></a>核心组件详解</h2><h3 id="LLMEngine"><a href="#LLMEngine" class="headerlink" title="LLMEngine"></a>LLMEngine</h3><p><code>LLMEngine</code> 类是离线推理（直接使用 Python API）的主要入口点。</p>
+<p><strong>位置</strong>：<code>vllm/v1/engine/llm_engine.py</code></p>
+<p>主要职责：</p>
+<ul>
+<li>创建并管理 engine core</li>
+<li>通过 <code>InputProcessor</code> 处理输入</li>
+<li>通过 <code>OutputProcessor</code> 转换输出</li>
+<li>管理请求生命周期</li>
+</ul>
+<p><strong>使用示例</strong>：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> vllm <span class="keyword">import</span> LLM, SamplingParams</span><br><span class="line"></span><br><span class="line"><span class="comment"># Initialize engine</span></span><br><span class="line">llm = LLM(model=<span class="string">&quot;meta-llama/Llama-3-8B&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Generate</span></span><br><span class="line">outputs = llm.generate(</span><br><span class="line">    [<span class="string">&quot;Hello, my name is&quot;</span>],</span><br><span class="line">    SamplingParams(temperature=<span class="number">0.8</span>, top_p=<span class="number">0.95</span>)</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p>在底层，<code>LLM</code> 创建 <code>LLMEngine</code>，<code>LLMEngine</code> 再创建 <code>EngineCore</code>，由其协调各 worker。</p>
+<h3 id="Scheduler"><a href="#Scheduler" class="headerlink" title="Scheduler"></a>Scheduler</h3><p>Scheduler 是 vLLM 的核心大脑，负责决策：</p>
+<ul>
+<li>每次迭代处理哪些请求</li>
+<li>每个请求计算多少 token</li>
+<li>何时以及对哪些请求进行抢占</li>
+<li>如何分配 KV cache 块</li>
+</ul>
+<p><strong>位置</strong>：<code>vllm/v1/core/sched/scheduler.py</code></p>
+<p>Scheduler 维护三个队列：</p>
+<ol>
+<li><strong>等待队列（Waiting）</strong>：等待开始处理的新请求</li>
+<li><strong>运行队列（Running）</strong>：正在被处理的请求</li>
+<li><strong>暂跳队列（Skipped Waiting）</strong>：因依赖关系而被临时跳过的请求</li>
+</ol>
+<p><strong>调度算法</strong>（简化版）：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">schedule</span>(<span class="params">self</span>) -&gt; SchedulerOutput:</span><br><span class="line">    scheduled_requests = []</span><br><span class="line">    token_budget = max_num_scheduled_tokens</span><br><span class="line"></span><br><span class="line">    <span class="comment"># First, schedule running requests (priority)</span></span><br><span class="line">    <span class="keyword">for</span> req <span class="keyword">in</span> running:</span><br><span class="line">        <span class="keyword">if</span> token_budget &gt; <span class="number">0</span>:</span><br><span class="line">            num_tokens = <span class="built_in">min</span>(req.remaining_tokens, token_budget)</span><br><span class="line">            scheduled_requests.append((req, num_tokens))</span><br><span class="line">            token_budget -= num_tokens</span><br><span class="line"></span><br><span class="line">    <span class="comment"># Then, schedule waiting requests</span></span><br><span class="line">    <span class="keyword">for</span> req <span class="keyword">in</span> waiting:</span><br><span class="line">        <span class="keyword">if</span> token_budget &gt;= req.num_prompt_tokens:</span><br><span class="line">            scheduled_requests.append((req, req.num_prompt_tokens))</span><br><span class="line">            token_budget -= req.num_prompt_tokens</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="keyword">break</span>  <span class="comment"># Not enough budget</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> SchedulerOutput(scheduled_requests)</span><br></pre></td></tr></table></figure>
+
+<p>我们将在第三部分深入探讨 scheduler。</p>
+<h3 id="KV-Cache-Manager"><a href="#KV-Cache-Manager" class="headerlink" title="KV Cache Manager"></a>KV Cache Manager</h3><p>使用 PagedAttention 管理 attention key-value cache 的内存。</p>
+<p><strong>位置</strong>：<code>vllm/v1/core/kv_cache_manager.py</code></p>
+<p>核心概念：</p>
+<ul>
+<li><strong>Block（块）</strong>：固定大小的 KV cache 单元（例如 16 个 token）</li>
+<li><strong>Block Pool（块池）</strong>：预分配的块集合</li>
+<li><strong>Block Table（块表）</strong>：逻辑位置到物理块的映射</li>
+<li><strong>Prefix Cache（前缀缓存）</strong>：用于共享公共 prompt 前缀的块</li>
+</ul>
+<p><strong>示例</strong>：若块大小为 16，共有 1000 个块，则可以服务于：</p>
+<ul>
+<li>1 个拥有 16,000 个 token 的请求，或</li>
+<li>16 个各有 1,000 个 token 的请求，或</li>
+<li>任何能放入 1000 个块的组合</li>
+</ul>
+<p>我们将在第二部分深入剖析 PagedAttention。</p>
+<h3 id="Worker-与-ModelRunner"><a href="#Worker-与-ModelRunner" class="headerlink" title="Worker 与 ModelRunner"></a>Worker 与 ModelRunner</h3><p>worker 进程负责加载模型并执行前向传播。</p>
+<p><strong>Worker</strong>（<code>vllm/v1/worker/gpu_worker.py</code>）：</p>
+<ul>
+<li>管理 GPU 设备</li>
+<li>初始化模型权重</li>
+<li>与其他 worker 协调（用于 tensor parallelism &#x2F; pipeline parallelism）</li>
+</ul>
+<p><strong>ModelRunner</strong>（因后端而异）：</p>
+<ul>
+<li>准备输入 tensor</li>
+<li>执行模型前向传播</li>
+<li>应用 CUDA graph 优化</li>
+<li>返回输出 logits</li>
+</ul>
+<h2 id="请求生命周期"><a href="#请求生命周期" class="headerlink" title="请求生命周期"></a>请求生命周期</h2><p>让我们跟踪一个完整请求在系统中的流转过程：</p>
+<h3 id="1-请求到达"><a href="#1-请求到达" class="headerlink" title="1. 请求到达"></a>1. 请求到达</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">POST /v1/completions</span><br><span class="line">&#123;</span><br><span class="line">  <span class="string">&quot;model&quot;</span>: <span class="string">&quot;meta-llama/Llama-3-8B&quot;</span>,</span><br><span class="line">  <span class="string">&quot;prompt&quot;</span>: <span class="string">&quot;The capital of France is&quot;</span>,</span><br><span class="line">  <span class="string">&quot;max_tokens&quot;</span>: <span class="number">50</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-API-Server-处理"><a href="#2-API-Server-处理" class="headerlink" title="2. API Server 处理"></a>2. API Server 处理</h3><ul>
+<li>校验请求</li>
+<li>对 prompt 进行 tokenize：<code>[791, 3139, 315, 9822, 374]</code></li>
+<li>创建 <code>EngineCoreRequest</code> 对象</li>
+<li>通过 ZMQ 发送至 engine core</li>
+</ul>
+<h3 id="3-Engine-Core-接收"><a href="#3-Engine-Core-接收" class="headerlink" title="3. Engine Core 接收"></a>3. Engine Core 接收</h3><ul>
+<li>将请求加入 scheduler 的等待队列</li>
+<li>分配请求 ID：<code>&quot;req_abc123&quot;</code></li>
+<li>初始化请求状态</li>
+</ul>
+<h3 id="4-首次调度迭代"><a href="#4-首次调度迭代" class="headerlink" title="4. 首次调度迭代"></a>4. 首次调度迭代</h3><ul>
+<li>Scheduler 发现等待队列中的新请求</li>
+<li>检查 KV cache：5 个 token 需要计算</li>
+<li>分配 KV cache 块（块大小为 16 token 时，分配 1 个块）</li>
+<li>调度 prefill：计算全部 5 个 token</li>
+</ul>
+<h3 id="5-Worker-执行"><a href="#5-Worker-执行" class="headerlink" title="5. Worker 执行"></a>5. Worker 执行</h3><ul>
+<li>从 engine core 接收调度指令</li>
+<li>准备输入 tensor</li>
+<li>运行模型前向传播</li>
+<li>生成第一个 token（例如，token ID 330 &#x3D; “Paris”）</li>
+<li>将 logits 返回给 engine core</li>
+</ul>
+<h3 id="6-输出处理"><a href="#6-输出处理" class="headerlink" title="6. 输出处理"></a>6. 输出处理</h3><ul>
+<li>Engine core 接收 logits</li>
+<li>采样下一个 token：330（”Paris”）</li>
+<li>更新请求状态：将 token 追加到输出中</li>
+<li>通过 ZMQ 将输出发送给 API server</li>
+</ul>
+<h3 id="7-API-Server-流式输出"><a href="#7-API-Server-流式输出" class="headerlink" title="7. API Server 流式输出"></a>7. API Server 流式输出</h3><ul>
+<li>从 engine core 接收 token</li>
+<li>Detokenize：”Paris”</li>
+<li>流式返回给客户端：<code>data: &#123;&quot;text&quot;: &quot;Paris&quot;, &quot;finish_reason&quot;: null&#125;</code></li>
+</ul>
+<h3 id="8-后续迭代"><a href="#8-后续迭代" class="headerlink" title="8. 后续迭代"></a>8. 后续迭代</h3><ul>
+<li>请求移入运行队列</li>
+<li>Scheduler 持续分配 token</li>
+<li>每次迭代：计算 1 个新 token（decode 阶段）</li>
+<li>将每个 token 流式发送给客户端</li>
+</ul>
+<h3 id="9-请求完成"><a href="#9-请求完成" class="headerlink" title="9. 请求完成"></a>9. 请求完成</h3><ul>
+<li>达到 max_tokens 上限或生成 EOS</li>
+<li>释放 KV cache 块（或保留在 prefix cache 中）</li>
+<li>向客户端发送最终完成结果</li>
+<li>从 scheduler 中移除请求</li>
+</ul>
+<h2 id="配置与初始化"><a href="#配置与初始化" class="headerlink" title="配置与初始化"></a>配置与初始化</h2><p>vLLM 的配置统一集中在 <code>VllmConfig</code> 中：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> vllm.config <span class="keyword">import</span> VllmConfig</span><br><span class="line"></span><br><span class="line">vllm_config = VllmConfig(</span><br><span class="line">    model_config=ModelConfig(...),</span><br><span class="line">    cache_config=CacheConfig(...),</span><br><span class="line">    scheduler_config=SchedulerConfig(...),</span><br><span class="line">    parallel_config=ParallelConfig(...),</span><br><span class="line">    <span class="comment"># ... more configs</span></span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p>所有组件共享同一个 <code>VllmConfig</code> 对象，以确保一致性。</p>
+<p><strong>主要配置项</strong>：</p>
+<ul>
+<li><strong>ModelConfig</strong>：模型名称、dtype、tokenizer</li>
+<li><strong>CacheConfig</strong>：KV cache 大小、块大小、prefix caching</li>
+<li><strong>SchedulerConfig</strong>：最大批量大小、调度策略</li>
+<li><strong>ParallelConfig</strong>：TP&#x2F;PP&#x2F;DP 规模、分布式后端</li>
+</ul>
+<h2 id="类层次结构"><a href="#类层次结构" class="headerlink" title="类层次结构"></a>类层次结构</h2><p>类层次结构遵循一致的模式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">LLMEngine</span><br><span class="line">  ├── InputProcessor (tokenization, preprocessing)</span><br><span class="line">  ├── EngineCore</span><br><span class="line">  │   ├── Scheduler</span><br><span class="line">  │   │   ├── KVCacheManager</span><br><span class="line">  │   │   ├── EncoderCacheManager</span><br><span class="line">  │   │   └── StructuredOutputManager</span><br><span class="line">  │   └── Executor</span><br><span class="line">  │       └── Workers (one per GPU)</span><br><span class="line">  │           └── ModelRunner</span><br><span class="line">  │               └── Model (nn.Module)</span><br><span class="line">  └── OutputProcessor (detokenization, streaming)</span><br></pre></td></tr></table></figure>
+
+<p>每个类在其构造函数中均接受 <code>VllmConfig</code>，从而可以访问所有配置选项。</p>
+<h2 id="进程间通信"><a href="#进程间通信" class="headerlink" title="进程间通信"></a>进程间通信</h2><h3 id="ZMQ-Sockets"><a href="#ZMQ-Sockets" class="headerlink" title="ZMQ Sockets"></a>ZMQ Sockets</h3><p>API server 与 engine core 通过 ZMQ 进行通信：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># API Server side</span></span><br><span class="line">zmq_socket.send(pickle.dumps(request))</span><br><span class="line"></span><br><span class="line"><span class="comment"># Engine Core side</span></span><br><span class="line">request = pickle.loads(zmq_socket.recv())</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么选择 ZMQ？</strong></p>
+<ul>
+<li>高性能（微秒级延迟）</li>
+<li>灵活的通信模式（req-rep、pub-sub、push-pull）</li>
+<li>内置队列管理</li>
+<li>语言无关</li>
+</ul>
+<h3 id="NCCL-用于-GPU-通信"><a href="#NCCL-用于-GPU-通信" class="headerlink" title="NCCL 用于 GPU 通信"></a>NCCL 用于 GPU 通信</h3><p>GPU worker 使用 NCCL 进行集合通信操作：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Tensor parallelism: all-reduce across GPUs</span></span><br><span class="line">torch.distributed.all_reduce(</span><br><span class="line">    tensor,</span><br><span class="line">    op=torch.distributed.ReduceOp.SUM,</span><br><span class="line">    group=tensor_parallel_group</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p><strong>通信模式</strong>：</p>
+<ul>
+<li><strong>Tensor Parallel</strong>：在 attention&#x2F;FFN 之后执行 All-reduce</li>
+<li><strong>Pipeline Parallel</strong>：各阶段之间执行发送&#x2F;接收操作</li>
+<li><strong>Data Parallel</strong>：前向传播期间无需通信</li>
+</ul>
+<h2 id="内存布局"><a href="#内存布局" class="headerlink" title="内存布局"></a>内存布局</h2><p>理解内存布局对于 vLLM 至关重要：</p>
+<h3 id="GPU-内存分布"><a href="#GPU-内存分布" class="headerlink" title="GPU 内存分布"></a>GPU 内存分布</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Total GPU Memory: 80GB (H100)</span><br><span class="line">├── Model Weights: 16GB (Llama-3-8B in FP16)</span><br><span class="line">├── KV Cache: 60GB (dynamically allocated blocks)</span><br><span class="line">├── Activation Memory: 2GB (for batch processing)</span><br><span class="line">└── Framework Overhead: 2GB (PyTorch, CUDA)</span><br></pre></td></tr></table></figure>
+
+<h3 id="KV-Cache-内存"><a href="#KV-Cache-内存" class="headerlink" title="KV Cache 内存"></a>KV Cache 内存</h3><p>对于块大小为 16 token 的 8B 模型：</p>
+<ul>
+<li>每个块存储 32 个 attention 层的 K 和 V</li>
+<li>每块大小：16 token × 32 层 × 2（K,V）× 4096 维 × 2 字节 &#x3D; 8.4 MB</li>
+<li>若 KV cache 分配 60GB：约 7,100 个块</li>
+<li>总容量：跨所有请求约 113,600 个 token</li>
+</ul>
+<h2 id="性能特征"><a href="#性能特征" class="headerlink" title="性能特征"></a>性能特征</h2><p>H100 GPU 上的典型性能表现：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>吞吐量（Throughput）</td>
+<td>~8,000 tokens&#x2F;sec（Llama-3-8B）</td>
+</tr>
+<tr>
+<td>延迟（TTFT）</td>
+<td>~20-50ms</td>
+</tr>
+<tr>
+<td>延迟（TPOT）</td>
+<td>~10-15ms</td>
+</tr>
+<tr>
+<td>最大批量大小（Max Batch Size）</td>
+<td>~256 并发请求</td>
+</tr>
+<tr>
+<td>内存效率（Memory Efficiency）</td>
+<td>~95%（相比不使用 PagedAttention 时的 ~60%）</td>
+</tr>
+</tbody></table>
+<h2 id="下一步"><a href="#下一步" class="headerlink" title="下一步"></a>下一步</h2><p>现在我们已经了解了整体架构，接下来可以深入探讨各具体组件：</p>
+<ul>
+<li><strong>第二部分</strong>：PagedAttention 与 KV cache 管理</li>
+<li><strong>第三部分</strong>：Scheduler 的决策过程</li>
+<li><strong>第四部分</strong>：请求处理与状态管理</li>
+<li><strong>第五部分</strong>：分布式执行与并行策略</li>
+</ul>
+<h2 id="关键要点"><a href="#关键要点" class="headerlink" title="关键要点"></a>关键要点</h2><ol>
+<li><strong>V1 采用多进程架构</strong>，以提升 CPU 利用率和故障隔离能力</li>
+<li><strong>Scheduler 是核心协调者</strong>，负责决策每次迭代的计算内容</li>
+<li><strong>KV cache 管理</strong>（PagedAttention）是内存效率的关键所在</li>
+<li><strong>进程数量随并行度扩展</strong>：通常为 <code>API server 数 + Engine core 数 + GPU worker 数 +（可选的 DP Coordinator）</code></li>
+<li><strong>ZMQ 实现了高效的</strong>进程间通信</li>
+<li><strong>所有组件共享</strong>统一的 <code>VllmConfig</code>，确保一致性</li>
+</ol>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://docs.vllm.ai/en/latest/design/arch_overview.html">vLLM 架构文档</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core.py">Engine Core 实现</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/sched/scheduler.py">Scheduler 实现</a></li>
+<li><a target="_blank" rel="noopener" href="https://arxiv.org/abs/2309.06180">PagedAttention 论文</a></li>
+</ul>
+<hr>
+<p>在下一篇文章中，我们将详细探讨 PagedAttention，了解 vLLM 如何通过精巧的内存管理实现近乎零浪费的内存利用。</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -2180,404 +2588,6 @@
             </div>
           <!--/noindex-->
         
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/12/2026-04-12-linux-storage-part3-block-layer/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/04/12/2026-04-12-linux-storage-part3-block-layer/" class="post-title-link" itemprop="url">Linux 存储与文件系统深度剖析（三）：块设备层详解</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2026-04-12 10:20:00" itemprop="dateCreated datePublished" datetime="2026-04-12T10:20:00+08:00">2026-04-12</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar-check"></i>
-      </span>
-      <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-04-13 21:29:56" itemprop="dateModified" datetime="2026-04-13T21:29:56+08:00">2026-04-13</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
-        </span>
-          , 
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>在 Linux I&#x2F;O 栈中，块设备层（Block Layer）是连接文件系统与底层硬件驱动的关键枢纽。无论是 ext4 的 <code>writepage</code>、XFS 的 journal 写入，还是数据库的 Direct I&#x2F;O，最终都会落到这一层，转化为标准的 I&#x2F;O 请求发送给设备驱动。</p>
-<p>本文基于 Linux 6.4-rc1（<code>ac9a78681b92</code>）内核源码，从数据结构到代码执行路径，深度解析块设备层的工作原理。理解这一层，是做存储性能分析、I&#x2F;O 调度调优乃至驱动开发的必要基础。</p>
-<hr>
-<h2 id="一、块设备层架构概述"><a href="#一、块设备层架构概述" class="headerlink" title="一、块设备层架构概述"></a>一、块设备层架构概述</h2><h3 id="1-1-传统单队列架构（legacy-single-queue）"><a href="#1-1-传统单队列架构（legacy-single-queue）" class="headerlink" title="1.1 传统单队列架构（legacy single-queue）"></a>1.1 传统单队列架构（legacy single-queue）</h3><p>在 Linux 3.13 以前，块设备层采用单一请求队列（<code>request_queue</code>）设计。所有 CPU 的 I&#x2F;O 请求都需要竞争同一把 <code>queue_lock</code> 自旋锁，然后将请求插入电梯调度器（如 CFQ、Deadline）。这一设计在 HDD 时代游刃有余——机械盘的 seek time 比锁竞争开销高出几个数量级，调度器对 I&#x2F;O 的合并与排序能显著提升吞吐量。</p>
-<p>然而，随着 NVMe SSD 的普及，设备延迟已经降至微秒级，单队列的软件开销反而成了瓶颈：</p>
-<ul>
-<li>全局锁竞争：在 NUMA 多核系统上，锁争用带来严重的 cache-line bouncing</li>
-<li>单队列深度不足：高端 NVMe 设备支持 64K+ 的队列深度，单队列无法利用</li>
-<li>调度器开销：为慢速设备设计的调度算法在快速 NVMe 上反而增加了延迟</li>
-</ul>
-<h3 id="1-2-blk-mq-多队列架构"><a href="#1-2-blk-mq-多队列架构" class="headerlink" title="1.2 blk-mq 多队列架构"></a>1.2 blk-mq 多队列架构</h3><p>为此，Jens Axboe 在 2013-2014 年引入了 <strong>blk-mq</strong>（block multi-queue）架构（<code>block/blk-mq.c</code>，版权归 Jens Axboe 和 Christoph Hellwig 所有），从根本上重构了块设备层：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">Application (read/write syscall)</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">VFS / Page Cache</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">File System (ext4/xfs/btrfs)</span><br><span class="line">       │ submit_bio()</span><br><span class="line">       ▼</span><br><span class="line">┌─────────────────────────────────────────┐</span><br><span class="line">│           Block Layer (blk-mq)          │</span><br><span class="line">│                                         │</span><br><span class="line">│  Per-CPU Software Queue (blk_mq_ctx)    │</span><br><span class="line">│    CPU0 │ CPU1 │ CPU2 │ ... │ CPUn      │</span><br><span class="line">│      ↘    ↓    ↙                        │</span><br><span class="line">│   Hardware Queue (blk_mq_hw_ctx)        │</span><br><span class="line">│    HQ0   HQ1   HQ2   ...   HQm          │</span><br><span class="line">└─────────────────────────────────────────┘</span><br><span class="line">       │ queue_rq()</span><br><span class="line">       ▼</span><br><span class="line">Block Driver (nvme/scsi/virtio-blk)</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">Physical Device</span><br></pre></td></tr></table></figure>
-
-<p>核心设计思想是<strong>两级队列</strong>：</p>
-<ol>
-<li><strong>软件队列（Software Queue，<code>blk_mq_ctx</code>）</strong>：每个 CPU 绑定一个，用于接收该 CPU 提交的 I&#x2F;O 请求，无需全局加锁。</li>
-<li><strong>硬件队列（Hardware Queue，<code>blk_mq_hw_ctx</code>）</strong>：对应设备的实际硬件队列（如 NVMe 的 Submission Queue），一个或多个软件队列映射到一个硬件队列。</li>
-</ol>
-<p>blk-mq 同样支持 I&#x2F;O 调度器（mq-deadline、bfq、kyber），但调度粒度从全局变为了硬件队列级别，大幅减少了锁竞争。</p>
-<hr>
-<h2 id="二、核心数据结构深度分析"><a href="#二、核心数据结构深度分析" class="headerlink" title="二、核心数据结构深度分析"></a>二、核心数据结构深度分析</h2><h3 id="2-1-struct-bio-——-I-O-操作的基本单元"><a href="#2-1-struct-bio-——-I-O-操作的基本单元" class="headerlink" title="2.1 struct bio —— I&#x2F;O 操作的基本单元"></a>2.1 <code>struct bio</code> —— I&#x2F;O 操作的基本单元</h3><p><code>bio</code>（Block I&#x2F;O）是块设备层最核心的数据结构，定义在 <code>include/linux/blk_types.h</code> 中。它描述了一次 I&#x2F;O 操作的所有信息：目标设备、起始扇区、数据缓冲区列表、操作类型及完成回调。</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/blk_types.h */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">bio</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>          *<span class="title">bi_next</span>;</span>     <span class="comment">/* request queue link */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">block_device</span> *<span class="title">bi_bdev</span>;</span></span><br><span class="line">    <span class="type">blk_opf_t</span>            bi_opf;     <span class="comment">/* bottom bits REQ_OP, top bits req_flags */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>       bi_flags;   <span class="comment">/* BIO_* below */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>       bi_ioprio;</span><br><span class="line">    <span class="type">blk_status_t</span>         bi_status;</span><br><span class="line">    <span class="type">atomic_t</span>             __bi_remaining;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bvec_iter</span>     <span class="title">bi_iter</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="type">blk_qc_t</span>             bi_cookie;</span><br><span class="line">    <span class="type">bio_end_io_t</span>        *bi_end_io;</span><br><span class="line">    <span class="type">void</span>                *bi_private;</span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_BLK_CGROUP</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blkcg_gq</span>     *<span class="title">bi_blkg</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio_issue</span>     <span class="title">bi_issue</span>;</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_BLK_CGROUP_IOCOST</span></span><br><span class="line">    u64                  bi_iocost_cost;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    <span class="comment">/* ... integrity, encryption ... */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>       bi_vcnt;      <span class="comment">/* how many bio_vec&#x27;s */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>       bi_max_vecs;  <span class="comment">/* max bvl_vecs we can hold */</span></span><br><span class="line">    <span class="type">atomic_t</span>             __bi_cnt;     <span class="comment">/* pin count */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span>      *<span class="title">bi_io_vec</span>;</span>    <span class="comment">/* the actual vec list */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio_set</span>      *<span class="title">bi_pool</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span>       <span class="title">bi_inline_vecs</span>[];</span> <span class="comment">/* inline vecs for small I/O */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p><strong>关键字段逐一解析：</strong></p>
-<table>
-<thead>
-<tr>
-<th>字段</th>
-<th>类型</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody><tr>
-<td><code>bi_next</code></td>
-<td><code>struct bio *</code></td>
-<td>当多个 bio 被合并到一个 request 时，通过此指针形成链表</td>
-</tr>
-<tr>
-<td><code>bi_bdev</code></td>
-<td><code>struct block_device *</code></td>
-<td>目标块设备（含分区信息），通过 <code>bi_bdev-&gt;bd_disk</code> 可得 <code>gendisk</code></td>
-</tr>
-<tr>
-<td><code>bi_opf</code></td>
-<td><code>blk_opf_t</code>（u32）</td>
-<td>低 8 位为操作类型（<code>enum req_op</code>），高 24 位为标志位（<code>REQ_SYNC</code>、<code>REQ_FUA</code> 等）</td>
-</tr>
-<tr>
-<td><code>bi_flags</code></td>
-<td><code>unsigned short</code></td>
-<td>BIO 状态标志，如 <code>BIO_CLONED</code>（克隆 bio）、<code>BIO_CHAIN</code>（链式 bio）等</td>
-</tr>
-<tr>
-<td><code>bi_status</code></td>
-<td><code>blk_status_t</code></td>
-<td>I&#x2F;O 完成状态，<code>BLK_STS_OK</code>（0）表示成功，其余为各类错误码</td>
-</tr>
-<tr>
-<td><code>__bi_remaining</code></td>
-<td><code>atomic_t</code></td>
-<td>引用计数，链式 bio 时最后一个完成才触发 <code>bi_end_io</code></td>
-</tr>
-<tr>
-<td><code>bi_iter</code></td>
-<td><code>struct bvec_iter</code></td>
-<td>I&#x2F;O 迭代器，记录当前扇区位置（<code>bi_sector</code>）、已处理字节数（<code>bi_done</code>）等</td>
-</tr>
-<tr>
-<td><code>bi_cookie</code></td>
-<td><code>blk_qc_t</code></td>
-<td>提交后返回的 cookie，用于 polling 模式（<code>REQ_POLLED</code>）查询完成状态</td>
-</tr>
-<tr>
-<td><code>bi_end_io</code></td>
-<td>函数指针</td>
-<td>I&#x2F;O 完成回调，驱动完成后调用，用于通知上层（page cache、文件系统等）</td>
-</tr>
-<tr>
-<td><code>bi_private</code></td>
-<td><code>void *</code></td>
-<td>供调用者保存私有上下文，内核不使用</td>
-</tr>
-<tr>
-<td><code>bi_vcnt</code></td>
-<td><code>unsigned short</code></td>
-<td><code>bi_io_vec</code> 数组中有效的 <code>bio_vec</code> 数量</td>
-</tr>
-<tr>
-<td><code>bi_io_vec</code></td>
-<td><code>struct bio_vec *</code></td>
-<td>数据段列表，每个 <code>bio_vec</code> 描述一个物理页面片段（page, offset, len）</td>
-</tr>
-<tr>
-<td><code>bi_inline_vecs[]</code></td>
-<td>flexible array</td>
-<td>尾部内联的 vec 空间，避免小 I&#x2F;O 的二次内存分配</td>
-</tr>
-</tbody></table>
-<p><strong>操作类型（<code>enum req_op</code>）</strong> 是理解 bio 语义的关键：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/blk_types.h */</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">req_op</span> &#123;</span></span><br><span class="line">    REQ_OP_READ          = <span class="number">0</span>,   <span class="comment">/* 从设备读扇区 */</span></span><br><span class="line">    REQ_OP_WRITE         = <span class="number">1</span>,   <span class="comment">/* 向设备写扇区 */</span></span><br><span class="line">    REQ_OP_FLUSH         = <span class="number">2</span>,   <span class="comment">/* 刷新写缓存 */</span></span><br><span class="line">    REQ_OP_DISCARD       = <span class="number">3</span>,   <span class="comment">/* 丢弃扇区（TRIM/UNMAP） */</span></span><br><span class="line">    REQ_OP_SECURE_ERASE  = <span class="number">5</span>,   <span class="comment">/* 安全擦除 */</span></span><br><span class="line">    REQ_OP_WRITE_ZEROES  = <span class="number">9</span>,   <span class="comment">/* 写零 */</span></span><br><span class="line">    REQ_OP_ZONE_APPEND   = <span class="number">13</span>,  <span class="comment">/* 追加写（ZNS 设备） */</span></span><br><span class="line">    <span class="comment">/* ... zone management ops ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>注意操作号的奇偶性有意义：<strong>奇数为写方向（TO device），偶数为读方向（FROM device）</strong>，这由 <code>op_is_write()</code> 内联函数利用 <code>op &amp; 1</code> 快速判断。</p>
-<h3 id="2-2-struct-request-——-调度器视角的-I-O-请求"><a href="#2-2-struct-request-——-调度器视角的-I-O-请求" class="headerlink" title="2.2 struct request —— 调度器视角的 I&#x2F;O 请求"></a>2.2 <code>struct request</code> —— 调度器视角的 I&#x2F;O 请求</h3><p><code>bio</code> 是文件系统&#x2F;VFS 层与块设备层的接口，而 <code>struct request</code> 是块设备层内部的调度单元。一个 <code>request</code> 可能包含多个连续地址的 <code>bio</code>（经过合并后）。它定义在 <code>include/linux/blk-mq.h</code>：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/blk-mq.h */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">request</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span>    *<span class="title">q</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ctx</span>       *<span class="title">mq_ctx</span>;</span>    <span class="comment">/* 提交 request 的软件队列 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_hw_ctx</span>    *<span class="title">mq_hctx</span>;</span>  <span class="comment">/* 分发到的硬件队列 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">blk_opf_t</span>    cmd_flags;    <span class="comment">/* op and common flags */</span></span><br><span class="line">    <span class="type">req_flags_t</span>  rq_flags;     <span class="comment">/* RQF_* 内部状态标志 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span>          tag;           <span class="comment">/* 硬件队列 tag（分配时赋值） */</span></span><br><span class="line">    <span class="type">int</span>          internal_tag;  <span class="comment">/* 调度器内部 tag */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> timeout;</span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> __data_len;   <span class="comment">/* 总数据长度（字节） */</span></span><br><span class="line">    <span class="type">sector_t</span>     __sector;     <span class="comment">/* 当前扇区游标 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>  *<span class="title">bio</span>;</span>          <span class="comment">/* bio 链表头 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span>  *<span class="title">biotail</span>;</span>      <span class="comment">/* bio 链表尾 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>  <span class="title">queuelist</span>;</span> <span class="comment">/* 在调度器队列中的链表节点 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">request</span>   *<span class="title">rq_next</span>;</span>   <span class="comment">/* 在 plug list 中的下一个 */</span></span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">block_device</span> *<span class="title">part</span>;</span>      <span class="comment">/* 目标分区 */</span></span><br><span class="line">    u64  start_time_ns;             <span class="comment">/* 请求分配时间（用于延迟统计） */</span></span><br><span class="line">    u64  io_start_time_ns;          <span class="comment">/* I/O 下发到设备的时间 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>  nr_phys_segments; <span class="comment">/* DMA scatter-gather 段数 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>  ioprio;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">mq_rq_state</span>  <span class="title">state</span>;</span>   <span class="comment">/* MQ_RQ_IDLE / IN_FLIGHT / COMPLETE */</span></span><br><span class="line">    <span class="type">atomic_t</span>          ref;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">hlist_node</span>  <span class="title">hash</span>;</span>     <span class="comment">/* 调度器合并哈希表节点 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">llist_node</span>  <span class="title">ipi_list</span>;</span> <span class="comment">/* 跨 CPU 完成通知 */</span></span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">rb_node</span>     <span class="title">rb_node</span>;</span>       <span class="comment">/* 调度器红黑树节点 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span>     <span class="title">special_vec</span>;</span>   <span class="comment">/* WRITE SAME 等特殊 payload */</span></span><br><span class="line">        <span class="type">void</span>              *completion_data;</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="class"><span class="keyword">struct</span> <span class="title">io_cq</span> *<span class="title">icq</span>;</span> <span class="type">void</span> *priv[<span class="number">2</span>]; &#125; elv; <span class="comment">/* 调度器私有 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="type">unsigned</span> <span class="type">int</span> seq; <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">list</span>;</span></span><br><span class="line">                 rq_end_io_fn *saved_end_io; &#125; flush;       <span class="comment">/* flush 序列 */</span></span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    rq_end_io_fn  *end_io;      <span class="comment">/* 完成回调 */</span></span><br><span class="line">    <span class="type">void</span>          *end_io_data;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p><strong>几个关键设计细节：</strong></p>
-<ul>
-<li><code>tag</code> 与 <code>internal_tag</code> 的区别：<code>tag</code> 是真正下发给硬件的编号（从 <code>blk_mq_tags</code> 的 sbitmap 分配），<code>internal_tag</code> 是在使用调度器时由调度器分配的”预分配”编号。只有请求真正下发时才分配硬件 tag。</li>
-<li><code>state</code> 的三个取值（<code>MQ_RQ_IDLE → MQ_RQ_IN_FLIGHT → MQ_RQ_COMPLETE</code>）用原子读写保护，驱动通过 <code>blk_mq_start_request()</code> 将状态置为 <code>IN_FLIGHT</code>，完成时置为 <code>COMPLETE</code>。</li>
-<li><code>start_time_ns</code> 和 <code>io_start_time_ns</code> 的差值就是在软件层（调度器）排队等待的时间，这正是 <code>iostat -x</code> 中 <code>await</code> 减去 <code>svctm</code> 的部分。</li>
-</ul>
-<p><strong><code>req_flags_t</code>（RQF_*）</strong> 描述请求的内部生命周期状态：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> RQF_STARTED       (1 &lt;&lt; 1)   <span class="comment">/* 驱动已开始处理 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> RQF_FLUSH_SEQ     (1 &lt;&lt; 4)   <span class="comment">/* 属于 flush 序列 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> RQF_MQ_INFLIGHT   (1 &lt;&lt; 6)   <span class="comment">/* 计入 inflight 统计 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> RQF_IO_STAT       (1 &lt;&lt; 13)  <span class="comment">/* 计入磁盘 I/O 统计 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> RQF_ELV           (1 &lt;&lt; 22)  <span class="comment">/* 队列上挂有电梯调度器 */</span></span></span><br></pre></td></tr></table></figure>
-
-<h3 id="2-3-struct-request-queue-——-块设备的全局控制中心"><a href="#2-3-struct-request-queue-——-块设备的全局控制中心" class="headerlink" title="2.3 struct request_queue —— 块设备的全局控制中心"></a>2.3 <code>struct request_queue</code> —— 块设备的全局控制中心</h3><p><code>request_queue</code> 是每个块设备（或分区组）的核心管理结构，定义在 <code>include/linux/blkdev.h</code>：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/blkdev.h (节选) */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span>          *<span class="title">last_merge</span>;</span>   <span class="comment">/* 最近一次合并的 request，加速后续合并查找 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">elevator_queue</span>   *<span class="title">elevator</span>;</span>     <span class="comment">/* 绑定的 I/O 调度器实例 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">percpu_ref</span>        <span class="title">q_usage_counter</span>;</span> <span class="comment">/* 引用计数，freeze 时变为 0 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_queue_stats</span>  *<span class="title">stats</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rq_qos</span>           *<span class="title">rq_qos</span>;</span>       <span class="comment">/* QoS 控制链（throttle、wbt 等） */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ops</span> *<span class="title">mq_ops</span>;</span>       <span class="comment">/* 驱动操作函数表 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 软件队列：每个 CPU 一个 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ctx</span> __<span class="title">percpu</span> *<span class="title">queue_ctx</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>             queue_depth;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 硬件队列：通过 XArray 索引 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xarray</span>            <span class="title">hctx_table</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>             nr_hw_queues;</span><br><span class="line"></span><br><span class="line">    <span class="type">void</span>                    *queuedata;    <span class="comment">/* 驱动私有数据 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>            queue_flags;  <span class="comment">/* QUEUE_FLAG_* */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span>                      id;</span><br><span class="line">    <span class="type">spinlock_t</span>               queue_lock;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">gendisk</span>          *<span class="title">disk</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>            nr_requests;  <span class="comment">/* 最大请求数 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>             rq_timeout;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">timer_list</span>        <span class="title">timeout</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">work_struct</span>       <span class="title">timeout_work</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">queue_limits</span>      <span class="title">limits</span>;</span>       <span class="comment">/* 设备限制（max_sectors, seg_size 等） */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* flush 机制 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_flush_queue</span>  *<span class="title">fq</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* requeue 队列：无法立即下发时暂存 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>         <span class="title">requeue_list</span>;</span></span><br><span class="line">    <span class="type">spinlock_t</span>               requeue_lock;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">delayed_work</span>      <span class="title">requeue_work</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span>                      mq_freeze_depth; <span class="comment">/* 冻结深度计数 */</span></span><br><span class="line">    <span class="type">wait_queue_head_t</span>        mq_freeze_wq;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mutex</span>             <span class="title">mq_freeze_lock</span>;</span></span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p><code>request_queue</code> 中的 <code>struct queue_limits limits</code> 非常重要，它记录了设备的物理约束，直接影响 I&#x2F;O 分割和合并的策略：</p>
-<ul>
-<li><code>max_sectors</code>：单次 I&#x2F;O 最大扇区数</li>
-<li><code>max_segments</code>：最大 scatter-gather 段数</li>
-<li><code>max_segment_size</code>：单个 DMA 段的最大字节数</li>
-<li><code>logical_block_size</code>：逻辑块大小（通常 512B 或 4096B）</li>
-<li><code>physical_block_size</code>：物理块大小（影响合并对齐）</li>
-<li><code>discard_granularity</code>：TRIM&#x2F;DISCARD 的粒度</li>
-</ul>
-<p><code>nr_hw_queues</code> 决定了多队列的并行度。对于 NVMe SSD，这个值通常等于 CPU 核心数（每个 CPU 一个硬件队列）；对于虚拟设备（如 virtio-blk）通常是 1。</p>
-<h3 id="2-4-struct-blk-mq-hw-ctx-——-硬件队列状态机"><a href="#2-4-struct-blk-mq-hw-ctx-——-硬件队列状态机" class="headerlink" title="2.4 struct blk_mq_hw_ctx —— 硬件队列状态机"></a>2.4 <code>struct blk_mq_hw_ctx</code> —— 硬件队列状态机</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* include/linux/blk-mq.h (节选) */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_hw_ctx</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">        <span class="type">spinlock_t</span>       lock;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">dispatch</span>;</span>  <span class="comment">/* 待下发但资源不足时暂存的请求 */</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span>    state;     <span class="comment">/* BLK_MQ_S_STOPPED / TAG_ACTIVE / SCHED_RESTART */</span></span><br><span class="line">    &#125; ____cacheline_aligned_in_smp;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">delayed_work</span>  <span class="title">run_work</span>;</span>  <span class="comment">/* 延迟运行硬件队列的 work */</span></span><br><span class="line">    <span class="type">cpumask_var_t</span>        cpumask;   <span class="comment">/* 该 hctx 对应的 CPU 集合 */</span></span><br><span class="line">    <span class="type">int</span>                  next_cpu;</span><br><span class="line">    <span class="type">int</span>                  next_cpu_batch;</span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>        flags;     <span class="comment">/* BLK_MQ_F_* */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">void</span>                *sched_data; <span class="comment">/* I/O 调度器私有数据 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> *<span class="title">queue</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_flush_queue</span> *<span class="title">fq</span>;</span></span><br><span class="line">    <span class="type">void</span>                *driver_data;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sbitmap</span>       <span class="title">ctx_map</span>;</span>   <span class="comment">/* 标记哪些软件队列有待处理请求 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ctx</span>   *<span class="title">dispatch_from</span>;</span> <span class="comment">/* 无调度器时的分发起点（轮转） */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>         dispatch_busy; <span class="comment">/* 硬件繁忙度（EWMA 估算） */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>       type;      <span class="comment">/* HCTX_TYPE_DEFAULT/READ/POLL */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>       nr_ctx;    <span class="comment">/* 关联的软件队列数量 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ctx</span>  **<span class="title">ctxs</span>;</span>      <span class="comment">/* 软件队列数组 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_tags</span>  *<span class="title">tags</span>;</span>      <span class="comment">/* 硬件 tag 集合 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_tags</span>  *<span class="title">sched_tags</span>;</span> <span class="comment">/* 调度器 tag 集合 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>        queued;    <span class="comment">/* 累计入队请求数（调试统计） */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span>        run;       <span class="comment">/* 累计下发请求数 */</span></span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>         numa_node;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>         queue_num; <span class="comment">/* hctx 编号 */</span></span><br><span class="line">    <span class="type">atomic_t</span>             nr_active; <span class="comment">/* tag set 共享时的活跃请求数 */</span></span><br><span class="line">    <span class="comment">/* ... debugfs, cpuhp ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p><code>ctx_map</code> 是一个 sbitmap，每个 bit 对应一个软件队列（<code>blk_mq_ctx</code>）。当某个软件队列有新请求时，对应 bit 被置位（<code>blk_mq_hctx_mark_pending()</code>）；硬件队列运行时遍历所有置位的软件队列取出请求。这个设计避免了逐个遍历所有 CPU 队列的开销。</p>
-<h3 id="2-5-struct-blk-mq-ctx-——-软件队列（Per-CPU）"><a href="#2-5-struct-blk-mq-ctx-——-软件队列（Per-CPU）" class="headerlink" title="2.5 struct blk_mq_ctx —— 软件队列（Per-CPU）"></a>2.5 <code>struct blk_mq_ctx</code> —— 软件队列（Per-CPU）</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* block/blk-mq.h */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ctx</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">        <span class="type">spinlock_t</span>       lock;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">rq_lists</span>[<span class="title">HCTX_MAX_TYPES</span>];</span> <span class="comment">/* DEFAULT/READ/POLL 三种类型 */</span></span><br><span class="line">    &#125; ____cacheline_aligned_in_smp;</span><br><span class="line"></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>         cpu;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span>       index_hw[HCTX_MAX_TYPES]; <span class="comment">/* 该 ctx 在 hctx-&gt;ctx_map 中的 bit 位 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_hw_ctx</span> *<span class="title">hctxs</span>[<span class="title">HCTX_MAX_TYPES</span>];</span>   <span class="comment">/* 关联的硬件队列 */</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> *<span class="title">queue</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_ctxs</span>   *<span class="title">ctxs</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kobject</span>        <span class="title">kobj</span>;</span></span><br><span class="line">&#125; ____cacheline_aligned_in_smp;</span><br></pre></td></tr></table></figure>
-
-<p><code>____cacheline_aligned_in_smp</code> 确保每个 CPU 的软件队列数据独占一条 cache line，消除 false sharing。<code>rq_lists</code> 按请求类型分三个链表，允许驱动（通过 <code>enum hctx_type</code>）针对不同操作类型（如 READ vs POLL）映射到不同的硬件队列。</p>
-<hr>
-<h2 id="三、bio-的完整生命周期"><a href="#三、bio-的完整生命周期" class="headerlink" title="三、bio 的完整生命周期"></a>三、bio 的完整生命周期</h2><h3 id="3-1-bio-分配：bio-alloc-bioset"><a href="#3-1-bio-分配：bio-alloc-bioset" class="headerlink" title="3.1 bio 分配：bio_alloc_bioset()"></a>3.1 bio 分配：<code>bio_alloc_bioset()</code></h3><p>bio 通常通过 <code>bio_alloc_bioset()</code> 从内存池（mempool）分配，而不是直接用 <code>kmalloc</code>。这是为了保证在内存紧张时，I&#x2F;O 路径仍能前进而不死锁。核心逻辑在 <code>block/bio.c</code>：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* block/bio.c */</span></span><br><span class="line"><span class="keyword">struct</span> bio *<span class="title function_">bio_alloc_bioset</span><span class="params">(<span class="keyword">struct</span> block_device *bdev, <span class="type">unsigned</span> <span class="type">short</span> nr_vecs,</span></span><br><span class="line"><span class="params">                             <span class="type">blk_opf_t</span> opf, <span class="type">gfp_t</span> gfp_mask,</span></span><br><span class="line"><span class="params">                             <span class="keyword">struct</span> bio_set *bs)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">gfp_t</span> saved_gfp = gfp_mask;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio</span> *<span class="title">bio</span>;</span></span><br><span class="line">    <span class="type">void</span> *p;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Per-CPU 缓存快速路径：REQ_ALLOC_CACHE 标志 + 小 bio */</span></span><br><span class="line">    <span class="keyword">if</span> (opf &amp; REQ_ALLOC_CACHE) &#123;</span><br><span class="line">        <span class="keyword">if</span> (bs-&gt;cache &amp;&amp; nr_vecs &lt;= BIO_INLINE_VECS) &#123;</span><br><span class="line">            bio = bio_alloc_percpu_cache(bdev, nr_vecs, opf, gfp_mask, bs);</span><br><span class="line">            <span class="keyword">if</span> (bio)</span><br><span class="line">                <span class="keyword">return</span> bio;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            opf &amp;= ~REQ_ALLOC_CACHE;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * 防死锁：当运行在 submit_bio_noacct() 上下文（即任何块驱动内部）时，</span></span><br><span class="line"><span class="comment">     * 已有 bio 在当前任务的 bio_list 中待提交。若此时内存紧张并触发直接回收，</span></span><br><span class="line"><span class="comment">     * 可能导致死锁。因此先尝试不阻塞分配，失败时将待提交 bio 转发给救援线程。</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">if</span> (current-&gt;bio_list &amp;&amp;</span><br><span class="line">        (!bio_list_empty(&amp;current-&gt;bio_list[<span class="number">0</span>]) ||</span><br><span class="line">         !bio_list_empty(&amp;current-&gt;bio_list[<span class="number">1</span>])) &amp;&amp;</span><br><span class="line">        bs-&gt;rescue_workqueue)</span><br><span class="line">        gfp_mask &amp;= ~__GFP_DIRECT_RECLAIM;</span><br><span class="line"></span><br><span class="line">    p = mempool_alloc(&amp;bs-&gt;bio_pool, gfp_mask);</span><br><span class="line">    <span class="keyword">if</span> (!p &amp;&amp; gfp_mask != saved_gfp) &#123;</span><br><span class="line">        punt_bios_to_rescuer(bs);  <span class="comment">/* 将阻塞的 bio 交给 rescuer workqueue */</span></span><br><span class="line">        gfp_mask = saved_gfp;</span><br><span class="line">        p = mempool_alloc(&amp;bs-&gt;bio_pool, gfp_mask);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (unlikely(!p))</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    bio = p + bs-&gt;front_pad;  <span class="comment">/* front_pad 供上层（如 md、dm）存放私有数据 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 根据 nr_vecs 决定是否需要从 bvec_pool 额外分配 bvec 数组 */</span></span><br><span class="line">    <span class="keyword">if</span> (nr_vecs &gt; BIO_INLINE_VECS) &#123;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span> *<span class="title">bvl</span> =</span> bvec_alloc(&amp;bs-&gt;bvec_pool, &amp;nr_vecs, gfp_mask);</span><br><span class="line">        <span class="comment">/* ... */</span></span><br><span class="line">        bio_init(bio, bdev, bvl, nr_vecs, opf);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (nr_vecs) &#123;</span><br><span class="line">        bio_init(bio, bdev, bio-&gt;bi_inline_vecs, BIO_INLINE_VECS, opf);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        bio_init(bio, bdev, <span class="literal">NULL</span>, <span class="number">0</span>, opf);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    bio-&gt;bi_pool = bs;</span><br><span class="line">    <span class="keyword">return</span> bio;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(bio_alloc_bioset);</span><br></pre></td></tr></table></figure>
-
-<p><strong>bvec_slabs 的分级设计</strong> 值得关注——bio.c 定义了四种规格的 bvec slab：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">biovec_slab</span> <span class="title">bvec_slabs</span>[] __<span class="title">read_mostly</span> =</span> &#123;</span><br><span class="line">    &#123; .nr_vecs = <span class="number">16</span>,            .name = <span class="string">&quot;biovec-16&quot;</span>  &#125;,</span><br><span class="line">    &#123; .nr_vecs = <span class="number">64</span>,            .name = <span class="string">&quot;biovec-64&quot;</span>  &#125;,</span><br><span class="line">    &#123; .nr_vecs = <span class="number">128</span>,           .name = <span class="string">&quot;biovec-128&quot;</span> &#125;,</span><br><span class="line">    &#123; .nr_vecs = BIO_MAX_VECS,  .name = <span class="string">&quot;biovec-max&quot;</span> &#125;,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>小于等于 4 个 vec 的 bio 使用 <code>bi_inline_vecs</code>（内联在 bio 结构体尾部），无需额外分配。这对于大量小 I&#x2F;O（如 4K 随机读写）的场景非常重要。</p>
-<h3 id="3-2-bio-提交：submit-bio-→-submit-bio-noacct"><a href="#3-2-bio-提交：submit-bio-→-submit-bio-noacct" class="headerlink" title="3.2 bio 提交：submit_bio() → submit_bio_noacct()"></a>3.2 bio 提交：<code>submit_bio()</code> → <code>submit_bio_noacct()</code></h3><p>上层（文件系统、Direct I&#x2F;O）调用 <code>submit_bio()</code> 将 bio 送入块设备层：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* block/blk-core.c */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">submit_bio</span><span class="params">(<span class="keyword">struct</span> bio *bio)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (bio_op(bio) == REQ_OP_READ) &#123;</span><br><span class="line">        task_io_account_read(bio-&gt;bi_iter.bi_size);</span><br><span class="line">        count_vm_events(PGPGIN, bio_sectors(bio));</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (bio_op(bio) == REQ_OP_WRITE) &#123;</span><br><span class="line">        count_vm_events(PGPGOUT, bio_sectors(bio));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    submit_bio_noacct(bio);</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(submit_bio);</span><br></pre></td></tr></table></figure>
-
-<p><code>submit_bio()</code> 做的事很简单：更新任务 I&#x2F;O 统计（<code>/proc/&lt;pid&gt;/io</code>）和全局 VM 事件计数器，然后调用 <code>submit_bio_noacct()</code>。</p>
-<p><code>submit_bio_noacct()</code> 是真正的入口，它会进行 block cgroup 检查、throttling、wbt（writeback throttling）等 QoS 处理。对于 blk-mq 设备，最终调用 <code>blk_mq_submit_bio()</code>。</p>
-<h3 id="3-3-blk-mq-submit-bio-——-blk-mq-提交路径"><a href="#3-3-blk-mq-submit-bio-——-blk-mq-提交路径" class="headerlink" title="3.3 blk_mq_submit_bio() —— blk-mq 提交路径"></a>3.3 <code>blk_mq_submit_bio()</code> —— blk-mq 提交路径</h3><p>这是 blk-mq 架构的提交核心，位于 <code>block/blk-mq.c</code>：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* block/blk-mq.c */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">blk_mq_submit_bio</span><span class="params">(<span class="keyword">struct</span> bio *bio)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> *<span class="title">q</span> =</span> bdev_get_queue(bio-&gt;bi_bdev);</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_plug</span> *<span class="title">plug</span> =</span> blk_mq_plug(bio);</span><br><span class="line">    <span class="type">const</span> <span class="type">int</span> is_sync = op_is_sync(bio-&gt;bi_opf);</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_hw_ctx</span> *<span class="title">hctx</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *<span class="title">rq</span>;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> nr_segs = <span class="number">1</span>;</span><br><span class="line">    <span class="type">blk_status_t</span> ret;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 1. bounce buffer 处理（高端内存设备的 DMA 限制） */</span></span><br><span class="line">    bio = blk_queue_bounce(bio, q);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 2. 按设备限制分割 bio（超过 max_sectors 或 max_segments 则拆分） */</span></span><br><span class="line">    <span class="keyword">if</span> (bio_may_exceed_limits(bio, &amp;q-&gt;limits)) &#123;</span><br><span class="line">        bio = __bio_split_to_limits(bio, &amp;q-&gt;limits, &amp;nr_segs);</span><br><span class="line">        <span class="keyword">if</span> (!bio)</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 3. 数据完整性预处理（T10 PI/DIX） */</span></span><br><span class="line">    <span class="keyword">if</span> (!bio_integrity_prep(bio))</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    bio_set_ioprio(bio);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 4. 尝试合并到 plug list 中已有的 request（plug 合并，最快路径） */</span></span><br><span class="line">    rq = blk_mq_get_cached_request(q, plug, &amp;bio, nr_segs);</span><br><span class="line">    <span class="keyword">if</span> (!rq) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!bio)</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        <span class="comment">/* 5. 分配新的 request */</span></span><br><span class="line">        rq = blk_mq_get_new_requests(q, plug, bio, nr_segs);</span><br><span class="line">        <span class="keyword">if</span> (unlikely(!rq))</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    trace_block_getrq(bio);</span><br><span class="line">    rq_qos_track(q, rq, bio);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 6. 将 bio 关联到 request */</span></span><br><span class="line">    blk_mq_bio_to_request(rq, bio, nr_segs);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 7. 内联加密 keyslot 获取 */</span></span><br><span class="line">    ret = blk_crypto_rq_get_keyslot(rq);</span><br><span class="line">    <span class="keyword">if</span> (ret != BLK_STS_OK) &#123;</span><br><span class="line">        bio-&gt;bi_status = ret;</span><br><span class="line">        bio_endio(bio);</span><br><span class="line">        blk_mq_free_request(rq);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 8. flush 操作特殊处理 */</span></span><br><span class="line">    <span class="keyword">if</span> (op_is_flush(bio-&gt;bi_opf)) &#123;</span><br><span class="line">        blk_insert_flush(rq);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 9. plug 路径：请求暂存在 plug list，unplug 时批量下发 */</span></span><br><span class="line">    <span class="keyword">if</span> (plug) &#123;</span><br><span class="line">        blk_add_rq_to_plug(plug, rq);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 10. 直接下发路径 */</span></span><br><span class="line">    hctx = rq-&gt;mq_hctx;</span><br><span class="line">    <span class="keyword">if</span> ((rq-&gt;rq_flags &amp; RQF_ELV) ||</span><br><span class="line">        (hctx-&gt;dispatch_busy &amp;&amp; (q-&gt;nr_hw_queues == <span class="number">1</span> || !is_sync))) &#123;</span><br><span class="line">        blk_mq_insert_request(rq, <span class="number">0</span>);</span><br><span class="line">        blk_mq_run_hw_queue(hctx, <span class="literal">true</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        blk_mq_run_dispatch_ops(q, blk_mq_try_issue_directly(hctx, rq));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><strong>plug 机制</strong>是性能优化的关键：调用者在一批 I&#x2F;O 开始前调用 <code>blk_start_plug()</code>，所有 bio 被暂存在 per-task 的 plug 链表中（不加任何锁），I&#x2F;O 结束后调用 <code>blk_finish_plug()</code> 触发 unplug，此时进行合并和批量下发。这本质上是将调度从内核侧延迟到应用侧，减少了加锁次数和 context switch。</p>
-<h3 id="3-4-bio-完成：bio-endio"><a href="#3-4-bio-完成：bio-endio" class="headerlink" title="3.4 bio 完成：bio_endio()"></a>3.4 bio 完成：<code>bio_endio()</code></h3><p>当设备驱动完成 I&#x2F;O 后，会调用 <code>blk_mq_end_request()</code>，最终触发 <code>bio_endio()</code>：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* block/bio.c */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">bio_endio</span><span class="params">(<span class="keyword">struct</span> bio *bio)</span></span><br><span class="line">&#123;</span><br><span class="line">again:</span><br><span class="line">    <span class="comment">/* 链式 bio：只有所有子 bio 都完成才触发父 bio 的回调 */</span></span><br><span class="line">    <span class="keyword">if</span> (!bio_remaining_done(bio))</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 数据完整性验证 */</span></span><br><span class="line">    <span class="keyword">if</span> (!bio_integrity_endio(bio))</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    rq_qos_done_bio(bio);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* blktrace 追踪点 */</span></span><br><span class="line">    <span class="keyword">if</span> (bio-&gt;bi_bdev &amp;&amp; bio_flagged(bio, BIO_TRACE_COMPLETION)) &#123;</span><br><span class="line">        trace_block_bio_complete(bdev_get_queue(bio-&gt;bi_bdev), bio);</span><br><span class="line">        bio_clear_flag(bio, BIO_TRACE_COMPLETION);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 尾递归优化：避免链式 bio 栈溢出 */</span></span><br><span class="line">    <span class="keyword">if</span> (bio-&gt;bi_end_io == bio_chain_endio) &#123;</span><br><span class="line">        bio = __bio_chain_endio(bio);</span><br><span class="line">        <span class="keyword">goto</span> again;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    blk_throtl_bio_endio(bio);  <span class="comment">/* throttle 记账 */</span></span><br><span class="line">    bio_uninit(bio);            <span class="comment">/* 释放 cgroup 引用等 */</span></span><br><span class="line">    <span class="keyword">if</span> (bio-&gt;bi_end_io)</span><br><span class="line">        bio-&gt;bi_end_io(bio);    <span class="comment">/* 调用上层回调（如 page cache 的 end_bio_read） */</span></span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(bio_endio);</span><br></pre></td></tr></table></figure>
-
-<p>注意 <code>bio_chain_endio</code> 分支的尾递归优化：当多个 bio 通过 <code>bio_chain()</code> 串联时，如果用普通递归处理，深度链可能导致栈溢出。<code>goto again</code> 将递归转为循环，同时 <code>__bio_chain_endio</code> 返回父 bio 让循环继续处理，这是内核中防止栈溢出的经典技巧。</p>
-<hr>
-<h2 id="四、blk-mq-多队列架构详解"><a href="#四、blk-mq-多队列架构详解" class="headerlink" title="四、blk-mq 多队列架构详解"></a>四、blk-mq 多队列架构详解</h2><h3 id="4-1-队列映射：CPU-→-软件队列-→-硬件队列"><a href="#4-1-队列映射：CPU-→-软件队列-→-硬件队列" class="headerlink" title="4.1 队列映射：CPU → 软件队列 → 硬件队列"></a>4.1 队列映射：CPU → 软件队列 → 硬件队列</h3><p>blk-mq 使用两级映射：</p>
-<ol>
-<li><strong>CPU → 软件队列（<code>blk_mq_ctx</code>）</strong>：通过 <code>per_cpu</code> 机制，每个 CPU 直接访问自己的 <code>queue_ctx</code>。</li>
-<li><strong>软件队列 → 硬件队列（<code>blk_mq_hw_ctx</code>）</strong>：通过 <code>ctx-&gt;hctxs[type]</code>，不同类型（DEFAULT&#x2F;READ&#x2F;POLL）的请求可以路由到不同硬件队列。</li>
-</ol>
-<p>映射关系由 <code>struct blk_mq_queue_map</code> 描述：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_queue_map</span> &#123;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> *mq_map;       <span class="comment">/* CPU ID → 硬件队列索引 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>  nr_queues;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>  queue_offset;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>默认映射算法（<code>blk_mq_map_queues()</code>）将 CPU 均匀分散到硬件队列，NUMA 感知版本会优先将 CPU 映射到本 NUMA 节点的硬件队列，减少跨 NUMA 内存访问。</p>
-<h3 id="4-2-请求分发：blk-mq-dispatch-rq-list"><a href="#4-2-请求分发：blk-mq-dispatch-rq-list" class="headerlink" title="4.2 请求分发：blk_mq_dispatch_rq_list()"></a>4.2 请求分发：<code>blk_mq_dispatch_rq_list()</code></h3><p>当硬件队列需要处理请求时，<code>blk_mq_dispatch_rq_list()</code> 负责将请求下发给驱动：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* block/blk-mq.c */</span></span><br><span class="line"><span class="type">bool</span> <span class="title function_">blk_mq_dispatch_rq_list</span><span class="params">(<span class="keyword">struct</span> blk_mq_hw_ctx *hctx, <span class="keyword">struct</span> list_head *<span class="built_in">list</span>,</span></span><br><span class="line"><span class="params">                              <span class="type">unsigned</span> <span class="type">int</span> nr_budgets)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request_queue</span> *<span class="title">q</span> =</span> hctx-&gt;<span class="built_in">queue</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">request</span> *<span class="title">rq</span>;</span></span><br><span class="line">    <span class="type">int</span> queued = <span class="number">0</span>;</span><br><span class="line">    <span class="type">blk_status_t</span> ret = BLK_STS_OK;</span><br><span class="line">    LIST_HEAD(zone_list);</span><br><span class="line">    <span class="type">bool</span> needs_resource = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (list_empty(<span class="built_in">list</span>))</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">    queued = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">blk_mq_queue_data</span> <span class="title">bd</span>;</span></span><br><span class="line"></span><br><span class="line">        rq = list_first_entry(<span class="built_in">list</span>, <span class="keyword">struct</span> request, queuelist);</span><br><span class="line">        <span class="comment">/* 准备分发（预算检查、tag 分配等） */</span></span><br><span class="line">        prep = blk_mq_prep_dispatch_rq(rq, !nr_budgets);</span><br><span class="line">        <span class="keyword">if</span> (prep != PREP_DISPATCH_OK)</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        list_del_init(&amp;rq-&gt;queuelist);</span><br><span class="line">        bd.rq   = rq;</span><br><span class="line">        bd.last = list_empty(<span class="built_in">list</span>);  <span class="comment">/* 告知驱动是否是最后一个请求 */</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (nr_budgets)</span><br><span class="line">            nr_budgets--;</span><br><span class="line"></span><br><span class="line">        <span class="comment">/* 调用驱动的 queue_rq 回调，真正下发给硬件 */</span></span><br><span class="line">        ret = q-&gt;mq_ops-&gt;queue_rq(hctx, &amp;bd);</span><br><span class="line">        <span class="keyword">switch</span> (ret) &#123;</span><br><span class="line">        <span class="keyword">case</span> BLK_STS_OK:</span><br><span class="line">            queued++;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> BLK_STS_RESOURCE:</span><br><span class="line">            needs_resource = <span class="literal">true</span>;</span><br><span class="line">            fallthrough;</span><br><span class="line">        <span class="keyword">case</span> BLK_STS_DEV_RESOURCE:</span><br><span class="line">            <span class="comment">/* 设备资源不足，暂停并将未下发请求回放到 dispatch 链表 */</span></span><br><span class="line">            blk_mq_handle_dev_resource(rq, <span class="built_in">list</span>);</span><br><span class="line">            <span class="keyword">goto</span> out;</span><br><span class="line">        <span class="keyword">case</span> BLK_STS_ZONE_RESOURCE:</span><br><span class="line">            <span class="comment">/* ZNS 设备 zone 资源不足，移到 zone_list 继续处理其他 zone */</span></span><br><span class="line">            blk_mq_handle_zone_resource(rq, &amp;zone_list);</span><br><span class="line">            needs_resource = <span class="literal">true</span>;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">default</span>:</span><br><span class="line">            blk_mq_end_request(rq, ret);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">while</span> (!list_empty(<span class="built_in">list</span>));</span><br><span class="line">out:</span><br><span class="line">    <span class="comment">/* 将 zone_list 中的请求合并回 list */</span></span><br><span class="line">    <span class="keyword">if</span> (!list_empty(&amp;zone_list))</span><br><span class="line">        list_splice_tail_init(&amp;zone_list, <span class="built_in">list</span>);</span><br><span class="line">    <span class="comment">/* ...处理未下发的请求，考虑是否需要 restart... */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><code>bd.last</code> 字段很有趣——它允许驱动实现”批量提交”优化。NVMe 驱动利用此标志决定何时真正 ring doorbell（更新提交队列尾指针），当 <code>last=false</code> 时只填写 SQ Entry 但暂不通知设备，<code>last=true</code> 时才一次性通知，大幅减少 MMIO 写操作次数（每次 MMIO 写耗时数百纳秒）。</p>
-<h3 id="4-3-请求完成：跨-CPU-的-IPI-机制"><a href="#4-3-请求完成：跨-CPU-的-IPI-机制" class="headerlink" title="4.3 请求完成：跨 CPU 的 IPI 机制"></a>4.3 请求完成：跨 CPU 的 IPI 机制</h3><p>在 NUMA 系统或中断亲和性配置不当时，I&#x2F;O 完成中断可能在与提交请求不同的 CPU 上触发。blk-mq 有两种完成路径：</p>
-<ol>
-<li><strong>本地完成</strong>：<code>blk_mq_complete_request()</code> → 直接调用 <code>rq-&gt;q-&gt;mq_ops-&gt;complete(rq)</code></li>
-<li><strong>跨 CPU 完成（IPI）</strong>：通过 <code>llist</code> 和 <code>RAISE_SOFTIRQ(BLOCK_SOFTIRQ)</code> 将完成通知发送到请求所在 CPU，再在 softirq 上下文处理</li>
-</ol>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="title function_">DEFINE_PER_CPU</span><span class="params">(<span class="keyword">struct</span> llist_head, blk_cpu_done)</span>;</span><br></pre></td></tr></table></figure>
-
-<p><code>blk_cpu_done</code> 是 per-CPU 的无锁链表，跨 CPU 完成时将 request 通过 <code>llist_add()</code> 挂到目标 CPU 的链表上，然后发送 IPI 唤醒 softirq 处理。</p>
-<hr>
-<h2 id="五、请求合并机制深度分析"><a href="#五、请求合并机制深度分析" class="headerlink" title="五、请求合并机制深度分析"></a>五、请求合并机制深度分析</h2><h3 id="5-1-合并的类型"><a href="#5-1-合并的类型" class="headerlink" title="5.1 合并的类型"></a>5.1 合并的类型</h3><p>I&#x2F;O 合并是块设备层的重要优化，将多个 bio&#x2F;request 合并为一个大请求，减少 I&#x2F;O 操作次数。blk-merge.c 实现了三种合并：</p>
-<table>
-<thead>
-<tr>
-<th>类型</th>
-<th>说明</th>
-<th>条件</th>
-</tr>
-</thead>
-<tbody><tr>
-<td><strong>后向合并（Back Merge）</strong></td>
-<td>新 bio 追加到 request 末尾</td>
-<td><code>req_end_sector == bio_start_sector</code></td>
-</tr>
-<tr>
-<td><strong>前向合并（Front Merge）</strong></td>
-<td>新 bio 插入到 request 头部</td>
-<td><code>bio_end_sector == req_start_sector</code></td>
-</tr>
-<tr>
-<td><strong>request 间合并（Elevator Merge）</strong></td>
-<td>两个 request 合并为一个</td>
-<td>调度器负责，检查相邻性</td>
-</tr>
-</tbody></table>
-<h3 id="5-2-合并判断：blk-try-merge"><a href="#5-2-合并判断：blk-try-merge" class="headerlink" title="5.2 合并判断：blk_try_merge()"></a>5.2 合并判断：<code>blk_try_merge()</code></h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* block/blk-merge.c */</span></span><br><span class="line"><span class="keyword">enum</span> elv_merge <span class="title function_">blk_try_merge</span><span class="params">(<span class="keyword">struct</span> request *rq, <span class="keyword">struct</span> bio *bio)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (blk_discard_mergable(rq))</span><br><span class="line">        <span class="keyword">return</span> ELEVATOR_DISCARD_MERGE;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (blk_rq_pos(rq) + blk_rq_sectors(rq) == bio-&gt;bi_iter.bi_sector)</span><br><span class="line">        <span class="keyword">return</span> ELEVATOR_BACK_MERGE;    <span class="comment">/* request 末尾扇区 == bio 起始扇区 */</span></span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (blk_rq_pos(rq) - bio_sectors(bio) == bio-&gt;bi_iter.bi_sector)</span><br><span class="line">        <span class="keyword">return</span> ELEVATOR_FRONT_MERGE;   <span class="comment">/* bio 末尾扇区 == request 起始扇区 */</span></span><br><span class="line">    <span class="keyword">return</span> ELEVATOR_NO_MERGE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="5-3-后向合并的完整检查：ll-back-merge-fn"><a href="#5-3-后向合并的完整检查：ll-back-merge-fn" class="headerlink" title="5.3 后向合并的完整检查：ll_back_merge_fn()"></a>5.3 后向合并的完整检查：<code>ll_back_merge_fn()</code></h3><p>仅扇区相邻还不够，还需要通过硬件限制检查：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* block/blk-merge.c */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">ll_back_merge_fn</span><span class="params">(<span class="keyword">struct</span> request *req, <span class="keyword">struct</span> bio *bio, <span class="type">unsigned</span> <span class="type">int</span> nr_segs)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">/* 检查是否会产生 DMA gap（虚拟边界约束） */</span></span><br><span class="line">    <span class="keyword">if</span> (req_gap_back_merge(req, bio))</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 数据完整性 gap 检查（PI/DIF 数据） */</span></span><br><span class="line">    <span class="keyword">if</span> (blk_integrity_rq(req) &amp;&amp;</span><br><span class="line">        integrity_req_gap_back_merge(req, bio))</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 内联加密：key context 必须匹配 */</span></span><br><span class="line">    <span class="keyword">if</span> (!bio_crypt_ctx_back_mergeable(req, bio))</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 合并后不能超过设备最大 sectors 限制 */</span></span><br><span class="line">    <span class="keyword">if</span> (blk_rq_sectors(req) + bio_sectors(bio) &gt;</span><br><span class="line">        blk_rq_get_max_sectors(req, blk_rq_pos(req))) &#123;</span><br><span class="line">        req_set_nomerge(req-&gt;q, req);  <span class="comment">/* 标记该 req 不可再合并，避免重复检查 */</span></span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ll_new_hw_segment(req, bio, nr_segs); <span class="comment">/* 检查 segments 数量限制 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="5-4-调度器的哈希加速"><a href="#5-4-调度器的哈希加速" class="headerlink" title="5.4 调度器的哈希加速"></a>5.4 调度器的哈希加速</h3><p>为了快速找到可合并的 request，调度器维护一个以扇区号为键的哈希表（<code>RQF_HASHED</code> 标志表示请求在哈希表中）。每次 bio 提交时，通过 <code>elv_merge()</code> 在哈希表中 O(1) 查找末尾扇区匹配的 request，而不是遍历全部请求。</p>
-<p><code>request_queue</code> 的 <code>last_merge</code> 字段更进一步——它缓存了上一次合并的 request 指针，因为 I&#x2F;O 模式往往具有时间局部性，顺序写入时后续 bio 极可能与同一个 request 合并。</p>
-<hr>
-<h2 id="六、块设备-I-O-统计：-proc-diskstats-的数据来源"><a href="#六、块设备-I-O-统计：-proc-diskstats-的数据来源" class="headerlink" title="六、块设备 I&#x2F;O 统计：/proc/diskstats 的数据来源"></a>六、块设备 I&#x2F;O 统计：<code>/proc/diskstats</code> 的数据来源</h2><p><code>iostat</code> 的数据全部来自 <code>/proc/diskstats</code>，而 diskstats 的数据由块设备层在请求生命周期的关键节点记录。核心结构是 <code>struct disk_stats</code>（per-CPU）和 <code>part_stat_*</code> 系列宏。</p>
-<p><strong>diskstats 的字段与内核计数器映射：</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">/proc/diskstats 字段:</span><br><span class="line">  reads_completed    → part_stat_add(part, ios[STAT_READ], 1)</span><br><span class="line">  sectors_read       → part_stat_add(part, sectors[STAT_READ], ...)</span><br><span class="line">  time_reading_ms    → part_stat_add(part, nsecs[STAT_READ], nsecs) / NSEC_PER_MSEC</span><br><span class="line">  reads_merged       → part_stat_inc(part, merges[STAT_READ])</span><br><span class="line">  writes_completed   → part_stat_add(part, ios[STAT_WRITE], 1)</span><br><span class="line">  ...</span><br><span class="line">  io_in_progress     → part_in_flight()  ← 实时值，非累计</span><br><span class="line">  time_io_ms         → part_stat_add(part, io_ticks, ...)</span><br></pre></td></tr></table></figure>
-
-<p><strong>记录时机：</strong></p>
-<ul>
-<li><code>blk_account_io_start(rq)</code>：request 下发到设备时，递增 <code>in_flight</code> 计数，记录 <code>start_time_ns</code></li>
-<li><code>blk_account_io_done(rq, now)</code>：request 完成时，更新 <code>ios</code>、<code>sectors</code>、<code>nsecs</code>，递减 <code>in_flight</code></li>
-</ul>
-<p><code>await</code>（平均 I&#x2F;O 等待时间）&#x3D; <code>nsecs[READ] / ios[READ]</code>，包含排队时间和设备服务时间。<code>svctm</code>（已被 iostat 废弃，不再可靠）原本估算纯设备服务时间。</p>
-<p><strong><code>io_ticks</code></strong> 是设备繁忙时间的累计，当 <code>in_flight &gt; 0</code> 时每个 tick 递增，对应 iostat 的 <code>%util</code>。</p>
-<hr>
-<h2 id="七、实际调试技巧"><a href="#七、实际调试技巧" class="headerlink" title="七、实际调试技巧"></a>七、实际调试技巧</h2><h3 id="7-1-blktrace：内核级-I-O-追踪"><a href="#7-1-blktrace：内核级-I-O-追踪" class="headerlink" title="7.1 blktrace：内核级 I&#x2F;O 追踪"></a>7.1 blktrace：内核级 I&#x2F;O 追踪</h3><p>blktrace 利用内核 tracefs&#x2F;relay 机制，可以捕获 bio&#x2F;request 在块设备层每个阶段的事件（队列、合并、下发、完成等）：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪 nvme0n1 设备 10 秒</span></span><br><span class="line">blktrace -d /dev/nvme0n1 -w 10 -o /tmp/nvme_trace</span><br><span class="line"></span><br><span class="line"><span class="comment"># 分析追踪结果</span></span><br><span class="line">blkparse /tmp/nvme_trace.blktrace.* | <span class="built_in">head</span> -50</span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成 I/O 模式可视化（需要 seekwatcher）</span></span><br><span class="line">btt -i /tmp/nvme_trace.blktrace.0</span><br></pre></td></tr></table></figure>
-
-<p><strong>blktrace 事件字母含义：</strong></p>
-<table>
-<thead>
-<tr>
-<th>字母</th>
-<th>阶段</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Q</td>
-<td>Queued</td>
-<td>bio 进入块设备层</td>
-</tr>
-<tr>
-<td>G</td>
-<td>Get request</td>
-<td>分配 request 结构</td>
-</tr>
-<tr>
-<td>M</td>
-<td>Merge</td>
-<td>bio 被合并到已有 request</td>
-</tr>
-<tr>
-<td>I</td>
-<td>Insert</td>
-<td>request 插入 I&#x2F;O 调度器</td>
-</tr>
-<tr>
-<td>D</td>
-<td>Issue</td>
-<td>request 下发给驱动</td>
-</tr>
-<tr>
-<td>C</td>
-<td>Complete</td>
-<td>request 完成</td>
-</tr>
-<tr>
-<td>P</td>
-<td>Plug</td>
-<td>设备被 plugged</td>
-</tr>
-<tr>
-<td>U</td>
-<td>Unplug</td>
-<td>设备被 unplugged，触发批量下发</td>
-</tr>
-</tbody></table>
-<p>从 Q 到 D 的时间是软件栈延迟，D 到 C 是设备服务时间。</p>
-<h3 id="7-2-BPF-工具：biolatency-和-biosnoop"><a href="#7-2-BPF-工具：biolatency-和-biosnoop" class="headerlink" title="7.2 BPF 工具：biolatency 和 biosnoop"></a>7.2 BPF 工具：biolatency 和 biosnoop</h3><p>BCC（BPF Compiler Collection）提供了更灵活的 I&#x2F;O 分析工具：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 统计 I/O 延迟分布（直方图）</span></span><br><span class="line">biolatency -d nvme0n1 10</span><br><span class="line"></span><br><span class="line"><span class="comment"># 实时追踪每个 I/O 操作</span></span><br><span class="line">biosnoop -d nvme0n1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 跟踪 blk-mq 请求队列深度</span></span><br><span class="line">blkqueue  <span class="comment"># 需要 bpftrace</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用 bpftrace 自定义：统计 submit_bio 调用栈</span></span><br><span class="line">bpftrace -e <span class="string">&#x27;kprobe:submit_bio &#123; @[kstack] = count(); &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
-
-<h3 id="7-3-系统调优参数"><a href="#7-3-系统调优参数" class="headerlink" title="7.3 系统调优参数"></a>7.3 系统调优参数</h3><p>调优块设备层的关键 sysfs 参数（以 nvme0n1 为例）：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看/设置 I/O 调度器</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/nvme0n1/queue/scheduler</span><br><span class="line"><span class="built_in">echo</span> mq-deadline &gt; /sys/block/nvme0n1/queue/scheduler</span><br><span class="line"></span><br><span class="line"><span class="comment"># 队列深度（request_queue.nr_requests）</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/nvme0n1/queue/nr_requests</span><br><span class="line"><span class="built_in">echo</span> 256 &gt; /sys/block/nvme0n1/queue/nr_requests</span><br><span class="line"></span><br><span class="line"><span class="comment"># 最大 I/O 大小（对应 queue_limits.max_sectors_kb）</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/nvme0n1/queue/max_sectors_kb</span><br><span class="line"></span><br><span class="line"><span class="comment"># read-ahead 大小</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/nvme0n1/queue/read_ahead_kb</span><br><span class="line"><span class="built_in">echo</span> 128 &gt; /sys/block/nvme0n1/queue/read_ahead_kb</span><br><span class="line"></span><br><span class="line"><span class="comment"># 硬件队列数量（只读）</span></span><br><span class="line"><span class="built_in">cat</span> /sys/block/nvme0n1/mq/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看各硬件队列的请求统计</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/block/nvme0n1/hctx0/run</span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/block/nvme0n1/hctx0/queued</span><br></pre></td></tr></table></figure>
-
-<h3 id="7-4-使用-debugfs-分析-blk-mq-状态"><a href="#7-4-使用-debugfs-分析-blk-mq-状态" class="headerlink" title="7.4 使用 debugfs 分析 blk-mq 状态"></a>7.4 使用 debugfs 分析 blk-mq 状态</h3><p>Linux 提供了详细的 blk-mq debugfs 接口（需要 <code>CONFIG_BLK_DEBUG_FS=y</code>）：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看 request_queue 整体状态</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/block/nvme0n1/state</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看硬件队列状态</span></span><br><span class="line"><span class="built_in">ls</span> /sys/kernel/debug/block/nvme0n1/</span><br><span class="line"><span class="comment"># 输出: hctx0  hctx1  ...  hctxN</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看特定硬件队列的 dispatch 队列中的请求</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/block/nvme0n1/hctx0/dispatch</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看软件队列</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/block/nvme0n1/hctx0/ctx0/rq_list</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看 tag 使用情况</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/block/nvme0n1/hctx0/tags</span><br></pre></td></tr></table></figure>
-
-<hr>
-<h2 id="八、blk-mq-性能调优实战"><a href="#八、blk-mq-性能调优实战" class="headerlink" title="八、blk-mq 性能调优实战"></a>八、blk-mq 性能调优实战</h2><h3 id="8-1-选择合适的-I-O-调度器"><a href="#8-1-选择合适的-I-O-调度器" class="headerlink" title="8.1 选择合适的 I&#x2F;O 调度器"></a>8.1 选择合适的 I&#x2F;O 调度器</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">none      → 无调度器，适合 NVMe 等极低延迟设备（高并发随机 I/O）</span><br><span class="line">mq-deadline → deadline 的 blk-mq 版，适合混合负载，防止写饥饿</span><br><span class="line">kyber     → 基于 token 的轻量级调度器，适合低延迟 SSD（latency target）</span><br><span class="line">bfq       → 基于比例带宽分配，适合桌面/混合负载（公平性好但开销大）</span><br></pre></td></tr></table></figure>
-
-<p>对于 NVMe SSD 数据库服务器，通常推荐 <code>none</code> 或 <code>mq-deadline</code>（设置合理的 <code>write_expire</code> 以控制写入延迟）。</p>
-<h3 id="8-2-NUMA-感知调优"><a href="#8-2-NUMA-感知调优" class="headerlink" title="8.2 NUMA 感知调优"></a>8.2 NUMA 感知调优</h3><p>在多 NUMA 节点系统上，确保设备中断亲和性和进程调度在同一 NUMA 节点：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看 nvme0n1 中断的 CPU 亲和性</span></span><br><span class="line"><span class="built_in">cat</span> /proc/irq/$(<span class="built_in">ls</span> /sys/block/nvme0n1/device/msi_irqs/ | <span class="built_in">head</span> -1)/smp_affinity_list</span><br><span class="line"></span><br><span class="line"><span class="comment"># 将 I/O 密集进程绑定到 NVMe 控制器所在 NUMA 节点</span></span><br><span class="line">numactl --cpunodebind=0 --membind=0 fio --name=<span class="built_in">test</span> ...</span><br></pre></td></tr></table></figure>
-
-<hr>
-<h2 id="九、小结"><a href="#九、小结" class="headerlink" title="九、小结"></a>九、小结</h2><p>本文从源码层面系统梳理了 Linux 块设备层的核心机制：</p>
-<ol>
-<li><strong>架构演进</strong>：从单队列到 blk-mq 多队列，解决了 NVMe 时代的扩展性问题</li>
-<li><strong>核心数据结构</strong>：<code>bio</code> 描述单次 I&#x2F;O，<code>request</code> 是调度器视角的单元，<code>request_queue</code> 是设备的控制中枢，<code>blk_mq_hw_ctx</code>&#x2F;<code>blk_mq_ctx</code> 实现了两级队列的无锁化设计</li>
-<li><strong>bio 生命周期</strong>：从 <code>bio_alloc_bioset()</code> 的内存池设计，到 <code>blk_mq_submit_bio()</code> 的 plug&#x2F;unplug 批处理优化，再到 <code>bio_endio()</code> 的链式 bio 尾递归处理</li>
-<li><strong>请求合并</strong>：通过哈希加速和 <code>last_merge</code> 缓存，在满足 DMA 约束的前提下最大化合并效果</li>
-<li><strong>统计与调试</strong>：<code>/proc/diskstats</code> 的数据来源，以及 blktrace、BPF 工具链的使用</li>
-</ol>
-<p>下一篇将聚焦 <strong>I&#x2F;O 调度器（mq-deadline、bfq、kyber）</strong>的实现原理，深入分析请求排序、带宽公平分配和延迟控制算法。</p>
-<hr>
-<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
-<li>Linux 6.4-rc1 源码：<code>block/bio.c</code>、<code>block/blk-mq.c</code>、<code>block/blk-merge.c</code>、<code>block/blk-core.c</code></li>
-<li>头文件：<code>include/linux/blk_types.h</code>、<code>include/linux/blkdev.h</code>、<code>include/linux/blk-mq.h</code></li>
-<li><a target="_blank" rel="noopener" href="https://lwn.net/Articles/552904/">Jens Axboe: blk-mq design (2013)</a></li>
-<li><a target="_blank" rel="noopener" href="https://kernel.dk/blk-mq.pdf">Linux Block I&#x2F;O: Introducing Multi-queue SSD Access on Multi-core Systems</a></li>
-<li>Brendan Gregg: <em>Systems Performance: Enterprise and the Cloud</em>, Chapter 9</li>
-</ul>
-
       
     </div>
 
