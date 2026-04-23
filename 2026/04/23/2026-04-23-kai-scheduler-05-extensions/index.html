@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="前几篇文章里，我一直在强调一件事：KAI Scheduler 的价值不只是“今天已经实现了哪些特性”，更重要的是 它为什么可以持续装下更多特性。 这一篇就专门看这个问题。 如果只看表层功能，KAI 已经足够复杂：  hierarchical queues reclaim &#x2F; preempt topology-aware scheduling hierarchical podgroups">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KAI Scheduler 深入拆解（五）：插件、分片、拓扑感知与时间公平性">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-05-extensions/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="前几篇文章里，我一直在强调一件事：KAI Scheduler 的价值不只是“今天已经实现了哪些特性”，更重要的是 它为什么可以持续装下更多特性。 这一篇就专门看这个问题。 如果只看表层功能，KAI 已经足够复杂：  hierarchical queues reclaim &#x2F; preempt topology-aware scheduling hierarchical podgroups">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-23T03:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-23T01:21:15.299Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="kubernetes">
+<meta property="article:tag" content="scheduler">
+<meta property="article:tag" content="gpu">
+<meta property="article:tag" content="kai-scheduler">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-05-extensions/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-05-extensions/","path":"2026/04/23/2026-04-23-kai-scheduler-05-extensions/","title":"KAI Scheduler 深入拆解（五）：插件、分片、拓扑感知与时间公平性"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>KAI Scheduler 深入拆解（五）：插件、分片、拓扑感知与时间公平性 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%88%E7%9C%8B%E6%9C%80%E5%85%B3%E9%94%AE%E7%9A%84%E4%B8%80%E7%82%B9%EF%BC%9Aplugin-%E4%B8%8D%E6%98%AF%E8%A3%85%E9%A5%B0%E5%93%81%EF%BC%8C%E8%80%8C%E6%98%AF%E8%B0%83%E5%BA%A6%E7%AD%96%E7%95%A5%E7%9A%84%E4%B8%BB%E5%85%A5%E5%8F%A3"><span class="nav-number">1.</span> <span class="nav-text">先看最关键的一点：plugin 不是装饰品，而是调度策略的主入口</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Session-%E6%9A%B4%E9%9C%B2%E7%9A%84%E6%89%A9%E5%B1%95%E7%82%B9%EF%BC%8C%E5%9F%BA%E6%9C%AC%E7%AD%89%E4%BA%8E-KAI-%E7%9A%84%E8%83%BD%E5%8A%9B%E8%BE%B9%E7%95%8C"><span class="nav-number">2.</span> <span class="nav-text">Session 暴露的扩展点，基本等于 KAI 的能力边界</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SchedulingShard%EF%BC%9AKAI-%E7%9C%9F%E6%AD%A3%E7%9A%84%E5%B9%B3%E5%8F%B0%E9%85%8D%E7%BD%AE%E9%9D%A2"><span class="nav-number">3.</span> <span class="nav-text">SchedulingShard：KAI 真正的平台配置面</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E5%B1%82%E8%AE%BE%E8%AE%A1%E9%9D%9E%E5%B8%B8%E5%BC%BA"><span class="nav-number">3.1.</span> <span class="nav-text">为什么这层设计非常强</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E7%89%87%E4%B8%8D%E6%98%AF%E9%83%A8%E7%BD%B2%E6%8A%80%E5%B7%A7%EF%BC%8C%E8%80%8C%E6%98%AF%E8%AF%AD%E4%B9%89%E9%9A%94%E7%A6%BB%E8%83%BD%E5%8A%9B"><span class="nav-number">4.</span> <span class="nav-text">分片不是部署技巧，而是语义隔离能力</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8B%93%E6%89%91%E6%84%9F%E7%9F%A5%EF%BC%9AKAI-%E7%9A%84-topology-%E4%B8%8D%E6%98%AF%E9%99%84%E5%B1%9E-feature%EF%BC%8C%E8%80%8C%E6%98%AF%E4%B8%BB%E6%A1%86%E6%9E%B6%E9%87%8C%E7%9A%84%E8%87%AA%E7%84%B6%E5%BB%B6%E4%BC%B8"><span class="nav-number">5.</span> <span class="nav-text">拓扑感知：KAI 的 topology 不是附属 feature，而是主框架里的自然延伸</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E5%B1%82%EF%BC%9Adomain-selection"><span class="nav-number">5.1.</span> <span class="nav-text">第一层：domain selection</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AC%AC%E4%BA%8C%E5%B1%82%EF%BC%9Anode-ordering-within-domain"><span class="nav-number">5.2.</span> <span class="nav-text">第二层：node ordering within domain</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AC%E5%B9%B3%E6%80%A7%EF%BC%9AKAI-%E7%9A%84-fairshare-%E4%B8%8D%E6%98%AF%E5%8D%95%E4%B8%80%E6%8E%92%E5%BA%8F%E5%87%BD%E6%95%B0%EF%BC%8C%E8%80%8C%E6%98%AF-queue-%E7%B3%BB%E7%BB%9F%E7%9A%84%E4%B8%80%E9%83%A8%E5%88%86"><span class="nav-number">6.</span> <span class="nav-text">公平性：KAI 的 fairshare 不是单一排序函数，而是 queue 系统的一部分</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%99%E4%BB%B6%E4%BA%8B%E4%B8%BA%E4%BB%80%E4%B9%88%E7%A6%BB%E4%B8%8D%E5%BC%80%E6%A1%86%E6%9E%B6%E6%8A%BD%E8%B1%A1"><span class="nav-number">6.1.</span> <span class="nav-text">这件事为什么离不开框架抽象</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Time-based-fairshare%EF%BC%9AKAI-%E5%BC%80%E5%A7%8B%E6%8A%8A%E2%80%9C%E5%8E%86%E5%8F%B2%E8%A1%8C%E4%B8%BA%E2%80%9D%E6%94%BE%E8%BF%9B%E8%B0%83%E5%BA%A6%E5%86%B3%E7%AD%96"><span class="nav-number">7.</span> <span class="nav-text">Time-based fairshare：KAI 开始把“历史行为”放进调度决策</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E4%BB%B6%E4%BA%8B%E8%83%BD%E8%87%AA%E7%84%B6%E6%8E%A5%E8%BF%9B%E5%8E%BB"><span class="nav-number">7.1.</span> <span class="nav-text">为什么这件事能自然接进去</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Config-SchedulingShard-%E7%9A%84%E7%BB%84%E5%90%88%EF%BC%8C%E8%AE%A9-operator-%E4%B9%9F%E5%8F%98%E6%88%90%E6%9E%B6%E6%9E%84%E7%9A%84%E4%B8%80%E9%83%A8%E5%88%86"><span class="nav-number">8.</span> <span class="nav-text">Config + SchedulingShard 的组合，让 operator 也变成架构的一部分</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E6%88%91%E8%AE%A4%E4%B8%BA-KAI-%E7%9A%84%E6%89%A9%E5%B1%95%E8%B7%AF%E5%BE%84%E6%98%AF%E5%81%A5%E5%BA%B7%E7%9A%84"><span class="nav-number">9.</span> <span class="nav-text">为什么我认为 KAI 的扩展路径是健康的</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-workload-%E8%AF%AD%E4%B9%89%E8%90%BD%E5%9C%A8-PodGroup"><span class="nav-number">9.1.</span> <span class="nav-text">1. workload 语义落在 PodGroup</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%85%AC%E5%B9%B3%E6%80%A7%E4%B8%8E%E8%B5%84%E6%BA%90%E6%B2%BB%E7%90%86%E8%90%BD%E5%9C%A8-Queue"><span class="nav-number">9.2.</span> <span class="nav-text">2. 公平性与资源治理落在 Queue</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%89%A7%E8%A1%8C%E6%B5%81%E7%A8%8B%E8%90%BD%E5%9C%A8-action"><span class="nav-number">9.3.</span> <span class="nav-text">3. 执行流程落在 action</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E5%B1%80%E9%83%A8%E7%AD%96%E7%95%A5%E8%90%BD%E5%9C%A8-plugin"><span class="nav-number">9.4.</span> <span class="nav-text">4. 局部策略落在 plugin</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-%E4%B8%AD%E9%97%B4%E6%80%81%E6%89%A7%E8%A1%8C%E8%90%BD%E5%9C%A8-BindRequest-binder"><span class="nav-number">9.5.</span> <span class="nav-text">5. 中间态执行落在 BindRequest + binder</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-%E5%B9%B3%E5%8F%B0%E8%B0%83%E4%BC%98%E8%90%BD%E5%9C%A8-SchedulingShard"><span class="nav-number">9.6.</span> <span class="nav-text">6. 平台调优落在 SchedulingShard</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A6%82%E6%9E%9C%E6%83%B3%E6%89%A9%E5%B1%95-KAI%EF%BC%8C%E6%9C%80%E5%80%BC%E5%BE%97%E7%9C%8B%E5%93%AA%E5%87%A0%E7%B1%BB%E7%82%B9"><span class="nav-number">10.</span> <span class="nav-text">如果想扩展 KAI，最值得看哪几类点</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%83%B3%E5%8A%A0-workload-%E8%AF%AD%E4%B9%89"><span class="nav-number">10.1.</span> <span class="nav-text">1. 想加 workload 语义</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%83%B3%E6%94%B9%E8%B0%83%E5%BA%A6%E7%AD%96%E7%95%A5"><span class="nav-number">10.2.</span> <span class="nav-text">2. 想改调度策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%83%B3%E6%94%B9%E8%B0%83%E5%BA%A6%E6%B5%81%E7%A8%8B"><span class="nav-number">10.3.</span> <span class="nav-text">3. 想改调度流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E6%83%B3%E5%81%9A%E5%B9%B3%E5%8F%B0%E7%BA%A7%E5%A4%9A%E7%A7%9F%E6%88%B7-%E5%A4%9A%E5%9C%BA%E6%99%AF%E9%9A%94%E7%A6%BB"><span class="nav-number">10.4.</span> <span class="nav-text">4. 想做平台级多租户 &#x2F; 多场景隔离</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%88%91%E5%AF%B9-KAI-%E6%89%A9%E5%B1%95%E8%83%BD%E5%8A%9B%E7%9A%84%E4%B8%80%E4%B8%AA%E6%80%BB%E7%BB%93"><span class="nav-number">11.</span> <span class="nav-text">我对 KAI 扩展能力的一个总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%B3%BB%E5%88%97%E6%94%B6%E6%9D%9F%EF%BC%9A%E6%80%8E%E4%B9%88%E7%BB%A7%E7%BB%AD%E8%AF%BB%E8%BF%99%E4%B8%AA%E4%BB%93%E5%BA%93"><span class="nav-number">12.</span> <span class="nav-text">系列收束：怎么继续读这个仓库</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">104</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">249</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-05-extensions/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="KAI Scheduler 深入拆解（五）：插件、分片、拓扑感知与时间公平性 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          KAI Scheduler 深入拆解（五）：插件、分片、拓扑感知与时间公平性
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-23 11:00:00 / Modified: 09:21:15" itemprop="dateCreated datePublished" datetime="2026-04-23T11:00:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>前几篇文章里，我一直在强调一件事：KAI Scheduler 的价值不只是“今天已经实现了哪些特性”，更重要的是 <strong>它为什么可以持续装下更多特性</strong>。</p>
+<p>这一篇就专门看这个问题。</p>
+<p>如果只看表层功能，KAI 已经足够复杂：</p>
+<ul>
+<li>hierarchical queues</li>
+<li>reclaim &#x2F; preempt</li>
+<li>topology-aware scheduling</li>
+<li>hierarchical podgroups</li>
+<li>DRA</li>
+<li>GPU sharing</li>
+<li>time-based fairshare</li>
+<li>scheduling shards</li>
+</ul>
+<p>但真正有意思的地方在于，这些能力并不是一堆互不相干的特判，而是大多能在同一套框架下自然落位：</p>
+<ul>
+<li>流程由 action 管</li>
+<li>策略由 plugin 管</li>
+<li>运行边界由 session &#x2F; statement 管</li>
+<li>平台级定制由 <code>SchedulingShard</code> 管</li>
+<li>工作负载语义由 <code>PodGroup</code> 管</li>
+<li>历史反馈由 queue controller + Prometheus + usage DB 管</li>
+</ul>
+<p>换句话说，KAI 的扩展性不是“多写几个 if”，而是 <strong>架构层面为扩展预留了空间</strong>。</p>
+<h2 id="先看最关键的一点：plugin-不是装饰品，而是调度策略的主入口"><a href="#先看最关键的一点：plugin-不是装饰品，而是调度策略的主入口" class="headerlink" title="先看最关键的一点：plugin 不是装饰品，而是调度策略的主入口"></a>先看最关键的一点：plugin 不是装饰品，而是调度策略的主入口</h2><p><code>pkg/scheduler/plugins/factory.go</code> 把默认插件注册得非常完整：</p>
+<ul>
+<li><code>predicates</code></li>
+<li><code>priority</code></li>
+<li><code>nodeplacement</code></li>
+<li><code>nominatednode</code></li>
+<li><code>nodeavailability</code></li>
+<li><code>gpusharingorder</code></li>
+<li><code>gpupack</code></li>
+<li><code>gpuspread</code></li>
+<li><code>resourcetype</code></li>
+<li><code>podaffinity</code></li>
+<li><code>elastic</code></li>
+<li><code>kubeflow</code></li>
+<li><code>ray</code></li>
+<li><code>taskorder</code></li>
+<li><code>subgrouporder</code></li>
+<li><code>dynamicresources</code></li>
+<li><code>topology</code></li>
+<li><code>proportion</code></li>
+<li><code>minruntime</code></li>
+<li><code>snapshot</code></li>
+<li><code>reflectjoborder</code></li>
+</ul>
+<p>这张表最重要的意义不是“插件很多”，而是它说明 KAI 把以下问题都视作 <strong>策略问题</strong>，而不是写死在主循环里的逻辑：</p>
+<ul>
+<li>节点排序</li>
+<li>GPU 排序</li>
+<li>queue fairness</li>
+<li>reclaim &#x2F; preempt 判断</li>
+<li>workload integration</li>
+<li>subgroup 顺序</li>
+<li>topology 约束</li>
+<li>dynamic resources</li>
+<li>bind request mutation</li>
+</ul>
+<p>这就是为什么 KAI 的高级特性能持续叠加，而不会轻易把主调度流程搞乱。</p>
+<h2 id="Session-暴露的扩展点，基本等于-KAI-的能力边界"><a href="#Session-暴露的扩展点，基本等于-KAI-的能力边界" class="headerlink" title="Session 暴露的扩展点，基本等于 KAI 的能力边界"></a>Session 暴露的扩展点，基本等于 KAI 的能力边界</h2><p>在 <code>pkg/scheduler/framework/session.go</code> 里，<code>Session</code> 暴露的函数槽位非常多，最有代表性的包括：</p>
+<ul>
+<li><code>JobOrderFns</code></li>
+<li><code>TaskOrderFns</code></li>
+<li><code>SubGroupOrderFns</code></li>
+<li><code>QueueOrderFns</code></li>
+<li><code>NodeOrderFns</code></li>
+<li><code>GpuOrderFns</code></li>
+<li><code>PrePredicateFns</code></li>
+<li><code>PredicateFns</code></li>
+<li><code>CanReclaimResourcesFns</code></li>
+<li><code>ReclaimVictimFilterFns</code></li>
+<li><code>PreemptVictimFilterFns</code></li>
+<li><code>GetQueueAllocatedResourcesFns</code></li>
+<li><code>GetQueueDeservedResourcesFns</code></li>
+<li><code>GetQueueFairShareFns</code></li>
+<li><code>BindRequestMutateFns</code></li>
+<li>event handlers</li>
+</ul>
+<p>只要看见这些接口，就能立刻理解 KAI 的插件思想：</p>
+<blockquote>
+<p>它不是只开放一个 score 钩子，而是把“调度过程中可能需要定制的所有局部决策”尽量显式化。</p>
+</blockquote>
+<p>这带来了两个直接好处：</p>
+<ol>
+<li>新能力可以落在明确的扩展点上，而不是侵入主流程。</li>
+<li>现有能力可以通过配置和优先级组合，而不是硬编码互斥。</li>
+</ol>
+<h2 id="SchedulingShard：KAI-真正的平台配置面"><a href="#SchedulingShard：KAI-真正的平台配置面" class="headerlink" title="SchedulingShard：KAI 真正的平台配置面"></a><code>SchedulingShard</code>：KAI 真正的平台配置面</h2><p>如果说 plugin 是“代码级扩展点”，那 <code>SchedulingShard</code> 就是“平台级策略面”。</p>
+<p>我认为这是 KAI 最值得单独夸的一层设计。</p>
+<p>在 <code>pkg/apis/kai/v1/schedulingshard_types.go</code> 里，<code>SchedulingShardSpec</code> 暴露的内容包括：</p>
+<ul>
+<li><code>Args</code></li>
+<li><code>PlacementStrategy</code></li>
+<li><code>PartitionLabelValue</code></li>
+<li><code>QueueDepthPerAction</code></li>
+<li><code>MinRuntime</code></li>
+<li><code>KValue</code></li>
+<li><code>UsageDBConfig</code></li>
+<li><code>Plugins</code></li>
+<li><code>Actions</code></li>
+</ul>
+<p>这意味着什么？</p>
+<p>这意味着 KAI 把很多原本应该藏在源码、flag 或者某个配置文件里的策略选择，提升成了 <strong>可声明、可演化、可分片实例化的 Kubernetes API</strong>。</p>
+<h3 id="为什么这层设计非常强"><a href="#为什么这层设计非常强" class="headerlink" title="为什么这层设计非常强"></a>为什么这层设计非常强</h3><p>因为它让“调度器实例”不再是同质的。</p>
+<p>你可以想象这样几种 shard：</p>
+<ul>
+<li>一个 shard 专门服务 GPU 训练任务，偏向 binpack</li>
+<li>一个 shard 服务在线推理，偏向 spread &#x2F; 更保守 preempt</li>
+<li>一个 shard 打开更积极的 time-based fairshare</li>
+<li>一个 shard 限制特定 action 的 queue depth</li>
+<li>一个 shard 针对某类 workload 打开或关闭特定 plugin</li>
+</ul>
+<p>这就把 KAI 从“一个调度器程序”推进成了“一个可按业务场景切片的调度平台”。</p>
+<h2 id="分片不是部署技巧，而是语义隔离能力"><a href="#分片不是部署技巧，而是语义隔离能力" class="headerlink" title="分片不是部署技巧，而是语义隔离能力"></a>分片不是部署技巧，而是语义隔离能力</h2><p><code>scheduling-shards.md</code> 里说得很清楚：每个 shard 实际上围绕同一个 partition label key&#x2F;value 工作。也就是说，scheduler 只会考虑带有同一组分片标签的：</p>
+<ul>
+<li>Nodes</li>
+<li>Queues</li>
+<li>PodGroups</li>
+</ul>
+<p>这是一种非常典型的 Kubernetes 风格：</p>
+<ul>
+<li>用 label 做资源归属</li>
+<li>用独立 scheduler deployment 做计算隔离</li>
+<li>用 CRD 做配置入口</li>
+</ul>
+<p>这样带来的好处不只是扩容，更重要的是 <strong>策略与资源空间同时分片</strong>。</p>
+<p>也就是说，不同 shard 不只是“不同副本数的 scheduler”，而是：</p>
+<ul>
+<li>看到的资源集合不同</li>
+<li>使用的策略可以不同</li>
+<li>action&#x2F;plugin 组合可以不同</li>
+<li>fairness &#x2F; minRuntime &#x2F; placement 参数可以不同</li>
+</ul>
+<h2 id="拓扑感知：KAI-的-topology-不是附属-feature，而是主框架里的自然延伸"><a href="#拓扑感知：KAI-的-topology-不是附属-feature，而是主框架里的自然延伸" class="headerlink" title="拓扑感知：KAI 的 topology 不是附属 feature，而是主框架里的自然延伸"></a>拓扑感知：KAI 的 topology 不是附属 feature，而是主框架里的自然延伸</h2><p>很多调度器支持 topology，最终只是把它当作额外 affinity。</p>
+<p>KAI 的 topology 明显不是这个级别。</p>
+<p><code>docs/topology/README.md</code> 描述得很清楚，它依赖两个东西：</p>
+<ol>
+<li><code>Topology</code> CRD 定义层级拓扑</li>
+<li><code>PodGroup</code> &#x2F; workload 声明 required &#x2F; preferred placement</li>
+</ol>
+<p>然后调度时做两层决策：</p>
+<h3 id="第一层：domain-selection"><a href="#第一层：domain-selection" class="headerlink" title="第一层：domain selection"></a>第一层：domain selection</h3><p>先选择应该把 workload 放进哪个 topology domain。</p>
+<p>这里的策略偏向 <strong>bin-packing</strong>：优先选择“相对更满但仍能容纳该 workload”的 domain，以减少碎片。</p>
+<h3 id="第二层：node-ordering-within-domain"><a href="#第二层：node-ordering-within-domain" class="headerlink" title="第二层：node ordering within domain"></a>第二层：node ordering within domain</h3><p>在选中的 domain 内，再按 preferred placement 做节点排序，让 Pod 尽量聚拢到更合适的子域。</p>
+<p>这套设计为什么自然？</p>
+<p>因为 KAI 的框架本身就已经有：</p>
+<ul>
+<li>workload-level abstraction（<code>PodGroup</code>）</li>
+<li>node &#x2F; GPU ordering 扩展点</li>
+<li>scenario &#x2F; statement 模拟能力</li>
+<li>多级 subgroup 结构</li>
+</ul>
+<p>所以 topology 不需要硬插一条特别路径，而是能顺着既有框架表达出来。</p>
+<h2 id="公平性：KAI-的-fairshare-不是单一排序函数，而是-queue-系统的一部分"><a href="#公平性：KAI-的-fairshare-不是单一排序函数，而是-queue-系统的一部分" class="headerlink" title="公平性：KAI 的 fairshare 不是单一排序函数，而是 queue 系统的一部分"></a>公平性：KAI 的 fairshare 不是单一排序函数，而是 queue 系统的一部分</h2><p><code>docs/fairness/README.md</code> 里最重要的一句话是：</p>
+<ul>
+<li>deserved quota 一定优先满足</li>
+<li>剩余资源再按 priority &#x2F; weight 分 over-quota share</li>
+</ul>
+<p>这意味着 KAI 的公平性不是简单“谁资源少谁先跑”，而是建立在 queue hierarchy 上的：</p>
+<ol>
+<li>先分配 deserved quota</li>
+<li>再按 over-quota weight&#x2F;priority 分多出来的资源</li>
+<li>如果当前实际占用和 fair share 偏离太多，就通过 reclaim 收敛</li>
+</ol>
+<h3 id="这件事为什么离不开框架抽象"><a href="#这件事为什么离不开框架抽象" class="headerlink" title="这件事为什么离不开框架抽象"></a>这件事为什么离不开框架抽象</h3><p>因为 fairshare 不只是 queue 排序，还会影响：</p>
+<ul>
+<li>queue ordering</li>
+<li>reclaim eligibility</li>
+<li>victim filtering</li>
+<li>资源记账</li>
+<li>action 执行顺序</li>
+</ul>
+<p>如果没有 session 里的 queue callback、action 框架和 statement 模型，fairshare 很容易变成一堆局部规则拼接。KAI 的实现方式则更像把它作为一个正式的一等公民。</p>
+<h2 id="Time-based-fairshare：KAI-开始把“历史行为”放进调度决策"><a href="#Time-based-fairshare：KAI-开始把“历史行为”放进调度决策" class="headerlink" title="Time-based fairshare：KAI 开始把“历史行为”放进调度决策"></a>Time-based fairshare：KAI 开始把“历史行为”放进调度决策</h2><p>我觉得 time-based fairshare 是 KAI 很有代表性的一个能力，因为它显示出这套架构并不只看“这一刻的资源状态”，而是开始纳入时间维度。</p>
+<p><code>docs/time-based-fairshare/README.md</code> 给出的主线是：</p>
+<ol>
+<li>PodGroup Controller 发布 podgroup 资源状态</li>
+<li>Queue Controller 聚合 queue usage</li>
+<li>Prometheus 存储历史数据</li>
+<li>scheduler 通过 usage DB client 拉取 usage</li>
+<li><code>proportion</code> 等 fairness 相关逻辑把历史 usage 纳入 over-quota 资源分配</li>
+</ol>
+<p>这个闭环很说明问题：</p>
+<blockquote>
+<p>KAI 不只是个实时调度器，它正在演化成一个“结合当前状态与历史行为”的资源治理系统。</p>
+</blockquote>
+<h3 id="为什么这件事能自然接进去"><a href="#为什么这件事能自然接进去" class="headerlink" title="为什么这件事能自然接进去"></a>为什么这件事能自然接进去</h3><p>因为 KAI 之前已经有了：</p>
+<ul>
+<li>Queue 作为公平性主语</li>
+<li>Queue Controller 作为聚合器</li>
+<li>SchedulerCache &#x2F; usage DB 作为数据接入点</li>
+<li><code>KValue</code>、<code>UsageDBConfig</code> 等策略面配置</li>
+<li><code>GetQueueFairShareFns</code> 这类 session 级扩展点</li>
+</ul>
+<p>所以历史 usage 的接入，不需要推翻已有架构，只需要在已有资源分配框架上把输入变得更丰富。</p>
+<h2 id="Config-SchedulingShard-的组合，让-operator-也变成架构的一部分"><a href="#Config-SchedulingShard-的组合，让-operator-也变成架构的一部分" class="headerlink" title="Config + SchedulingShard 的组合，让 operator 也变成架构的一部分"></a><code>Config</code> + <code>SchedulingShard</code> 的组合，让 operator 也变成架构的一部分</h2><p>前面聊得多的是 scheduler 内核，但 KAI 的平台味道其实还来自 operator 层。</p>
+<p>在 <code>pkg/apis/kai/v1/config_types.go</code> 里，<code>ConfigSpec</code> 直接声明了整套控制面的组件：</p>
+<ul>
+<li><code>PodGrouper</code></li>
+<li><code>Binder</code></li>
+<li><code>Admission</code></li>
+<li><code>Scheduler</code></li>
+<li><code>QueueController</code></li>
+<li><code>PodGroupController</code></li>
+<li><code>NodeScaleAdjuster</code></li>
+<li><code>Prometheus</code></li>
+</ul>
+<p>也就是说，KAI 不是把 operator 当“安装器”，而是把它做成了这套架构的一部分：</p>
+<ul>
+<li><code>Config</code> 负责描述整个平台的全局组件组合</li>
+<li><code>SchedulingShard</code> 负责描述单个调度分片的策略配置</li>
+</ul>
+<p>这两个 CRD 组合起来，基本就是 KAI 的控制面 API。</p>
+<h2 id="为什么我认为-KAI-的扩展路径是健康的"><a href="#为什么我认为-KAI-的扩展路径是健康的" class="headerlink" title="为什么我认为 KAI 的扩展路径是健康的"></a>为什么我认为 KAI 的扩展路径是健康的</h2><p>很多系统在功能越来越多以后，会出现一种典型问题：</p>
+<ul>
+<li>新特性只能往旧代码里塞特判</li>
+<li>不同能力互相穿透</li>
+<li>配置开始变得不可推理</li>
+<li>主循环越来越重</li>
+<li>某个高级功能一加，全局行为就变得不可预测</li>
+</ul>
+<p>KAI 目前给我的感受恰好相反。它的高级能力大多还能找到一个比较自然的落点：</p>
+<h3 id="1-workload-语义落在-PodGroup"><a href="#1-workload-语义落在-PodGroup" class="headerlink" title="1. workload 语义落在 PodGroup"></a>1. workload 语义落在 <code>PodGroup</code></h3><p>而不是散落在所有 plugin 里。</p>
+<h3 id="2-公平性与资源治理落在-Queue"><a href="#2-公平性与资源治理落在-Queue" class="headerlink" title="2. 公平性与资源治理落在 Queue"></a>2. 公平性与资源治理落在 <code>Queue</code></h3><p>而不是偷偷写在 node score 里。</p>
+<h3 id="3-执行流程落在-action"><a href="#3-执行流程落在-action" class="headerlink" title="3. 执行流程落在 action"></a>3. 执行流程落在 action</h3><p>而不是被 plugin 任意控制。</p>
+<h3 id="4-局部策略落在-plugin"><a href="#4-局部策略落在-plugin" class="headerlink" title="4. 局部策略落在 plugin"></a>4. 局部策略落在 plugin</h3><p>而不是让 action 变成巨无霸。</p>
+<h3 id="5-中间态执行落在-BindRequest-binder"><a href="#5-中间态执行落在-BindRequest-binder" class="headerlink" title="5. 中间态执行落在 BindRequest + binder"></a>5. 中间态执行落在 <code>BindRequest</code> + binder</h3><p>而不是让 scheduler 同步做完所有副作用。</p>
+<h3 id="6-平台调优落在-SchedulingShard"><a href="#6-平台调优落在-SchedulingShard" class="headerlink" title="6. 平台调优落在 SchedulingShard"></a>6. 平台调优落在 <code>SchedulingShard</code></h3><p>而不是只能改源码或启动参数。</p>
+<p>这就是为什么我觉得 KAI 的架构不仅功能多，而且有继续长下去的空间。</p>
+<h2 id="如果想扩展-KAI，最值得看哪几类点"><a href="#如果想扩展-KAI，最值得看哪几类点" class="headerlink" title="如果想扩展 KAI，最值得看哪几类点"></a>如果想扩展 KAI，最值得看哪几类点</h2><p>从阅读体验上，我会把 KAI 的扩展入口分成四类。</p>
+<h3 id="1-想加-workload-语义"><a href="#1-想加-workload-语义" class="headerlink" title="1. 想加 workload 语义"></a>1. 想加 workload 语义</h3><p>先看：</p>
+<ul>
+<li><code>PodGroup</code> API</li>
+<li>pod-grouper 的 supported types &#x2F; grouping plugins</li>
+<li>subgroup &#x2F; topology 相关设计文档</li>
+</ul>
+<h3 id="2-想改调度策略"><a href="#2-想改调度策略" class="headerlink" title="2. 想改调度策略"></a>2. 想改调度策略</h3><p>先看：</p>
+<ul>
+<li><code>Session</code> 暴露的 callback 槽位</li>
+<li><code>plugins/factory.go</code></li>
+<li>现有 plugin 的 <code>OnSessionOpen</code></li>
+</ul>
+<h3 id="3-想改调度流程"><a href="#3-想改调度流程" class="headerlink" title="3. 想改调度流程"></a>3. 想改调度流程</h3><p>先看：</p>
+<ul>
+<li>action framework</li>
+<li><code>actions/factory.go</code></li>
+<li>action 优先级和 <code>SchedulingShard.Actions</code></li>
+</ul>
+<h3 id="4-想做平台级多租户-多场景隔离"><a href="#4-想做平台级多租户-多场景隔离" class="headerlink" title="4. 想做平台级多租户 &#x2F; 多场景隔离"></a>4. 想做平台级多租户 &#x2F; 多场景隔离</h3><p>先看：</p>
+<ul>
+<li><code>SchedulingShard</code></li>
+<li>partition label 机制</li>
+<li>operator 相关 reconciliation</li>
+</ul>
+<h2 id="我对-KAI-扩展能力的一个总结"><a href="#我对-KAI-扩展能力的一个总结" class="headerlink" title="我对 KAI 扩展能力的一个总结"></a>我对 KAI 扩展能力的一个总结</h2><p>如果只用一句话概括，我会写成：</p>
+<blockquote>
+<p><strong>KAI 把“调度平台”的关键维度分开了：工作负载语义、资源公平性、调度流程、局部策略、执行落地、平台配置，各自都有明确落点，因此高级能力能以组合的方式生长出来。</strong></p>
+</blockquote>
+<p>这跟很多“功能越多越难维护”的 scheduler 最大的不同在于：</p>
+<ul>
+<li>它不是靠主循环越来越聪明来进化</li>
+<li>而是靠边界越来越清楚来进化</li>
+</ul>
+<h2 id="系列收束：怎么继续读这个仓库"><a href="#系列收束：怎么继续读这个仓库" class="headerlink" title="系列收束：怎么继续读这个仓库"></a>系列收束：怎么继续读这个仓库</h2><p>如果你是第一次接触 KAI，我会建议按照这条线继续深入：</p>
+<ol>
+<li>先读 <code>docs/developer/scheduler-concepts.md</code></li>
+<li>再读 <code>docs/developer/action-framework.md</code></li>
+<li>看 <code>docs/developer/plugin-framework.md</code></li>
+<li>看 <code>docs/developer/pod-grouper.md</code> 和 <code>docs/operator/scheduling-shards.md</code></li>
+<li>进入 <code>pkg/scheduler/</code> 的 session &#x2F; action &#x2F; cache 主链路</li>
+<li>最后再去看 topology、fairness、time-based fairshare 等高级能力</li>
+</ol>
+<p>因为 KAI 最值得学习的地方，真的不只是某一个调度算法，而是：</p>
+<blockquote>
+<p>它如何把复杂的 AI workload 调度，拆成一套仍然能持续演化的 Kubernetes 控制面架构。</p>
+</blockquote>
+<p>对我来说，这就是这个仓库最有价值的部分。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kubernetes/" rel="tag"># kubernetes</a>
+              <a href="/tags/scheduler/" rel="tag"># scheduler</a>
+              <a href="/tags/gpu/" rel="tag"># gpu</a>
+              <a href="/tags/kai-scheduler/" rel="tag"># kai-scheduler</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/23/2026-04-23-kai-scheduler-04-core-code/" rel="prev" title="KAI Scheduler 深入拆解（四）：从源码走读一次调度周期">
+                  <i class="fa fa-angle-left"></i> KAI Scheduler 深入拆解（四）：从源码走读一次调度周期
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

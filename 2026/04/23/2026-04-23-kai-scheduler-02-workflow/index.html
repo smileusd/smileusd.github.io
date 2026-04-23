@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="上一篇我把 KAI Scheduler 当成一个平台来读：它不是单个 scheduler 进程，而是一串围绕 CRD、controller 和 scheduling session 组织起来的控制面。 这一篇开始看它真正的“主干路径”：一个 workload 进入集群后，到底是怎么一步步变成调度决策，再变成真实节点绑定的？ 如果要先给结论，我会这样概括：  在 KAI 里，提交 workload">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KAI Scheduler 深入拆解（二）：从 Pod 到 BindRequest 的控制面工作流">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-02-workflow/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="上一篇我把 KAI Scheduler 当成一个平台来读：它不是单个 scheduler 进程，而是一串围绕 CRD、controller 和 scheduling session 组织起来的控制面。 这一篇开始看它真正的“主干路径”：一个 workload 进入集群后，到底是怎么一步步变成调度决策，再变成真实节点绑定的？ 如果要先给结论，我会这样概括：  在 KAI 里，提交 workload">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-23T02:15:00.000Z">
+<meta property="article:modified_time" content="2026-04-23T01:20:54.583Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="kubernetes">
+<meta property="article:tag" content="scheduler">
+<meta property="article:tag" content="gpu">
+<meta property="article:tag" content="kai-scheduler">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-02-workflow/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-02-workflow/","path":"2026/04/23/2026-04-23-kai-scheduler-02-workflow/","title":"KAI Scheduler 深入拆解（二）：从 Pod 到 BindRequest 的控制面工作流"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>KAI Scheduler 深入拆解（二）：从 Pod 到 BindRequest 的控制面工作流 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%88%E7%9C%8B%E6%95%B4%E6%9D%A1%E9%93%BE%E8%B7%AF"><span class="nav-number">1.</span> <span class="nav-text">先看整条链路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9Aworkload-%E8%BF%9B%E5%85%A5%E9%9B%86%E7%BE%A4%EF%BC%8C%E4%BD%86-scheduler-%E8%BF%98%E4%B8%8D%E4%BC%9A%E7%AB%8B%E5%88%BB%E7%9B%B4%E6%8E%A5%E5%A4%84%E7%90%86%E5%AE%83"><span class="nav-number">2.</span> <span class="nav-text">第一步：workload 进入集群，但 scheduler 还不会立刻直接处理它</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9Apod-grouper-%E6%8A%8A-workload-%E9%87%8D%E5%86%99%E6%88%90-PodGroup"><span class="nav-number">3.</span> <span class="nav-text">第二步：pod-grouper 把 workload 重写成 PodGroup</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%83%E5%9C%A8%E5%81%9A%E4%BB%80%E4%B9%88"><span class="nav-number">3.1.</span> <span class="nav-text">它在做什么</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%80%E5%AE%9A%E8%A6%81%E6%89%BE-top-owner"><span class="nav-number">3.2.</span> <span class="nav-text">为什么一定要找 top owner</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#PodGroup-%E6%89%8D%E6%98%AF-KAI-%E7%9C%9F%E6%AD%A3%E7%9A%84-workload-%E4%B8%BB%E8%AF%AD"><span class="nav-number">3.3.</span> <span class="nav-text">PodGroup 才是 KAI 真正的 workload 主语</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9AQueue-%E6%8A%8A-workload-%E6%94%BE%E8%BF%9B%E8%B5%84%E6%BA%90%E4%B8%8E%E5%85%AC%E5%B9%B3%E6%80%A7%E7%9A%84%E4%B8%8A%E4%B8%8B%E6%96%87%E9%87%8C"><span class="nav-number">4.</span> <span class="nav-text">第三步：Queue 把 workload 放进资源与公平性的上下文里</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5%EF%BC%9Ascheduler-%E5%9C%A8%E4%B8%80%E4%B8%AA-cycle-%E9%87%8C%E5%AF%B9-snapshot-%E5%81%9A%E5%86%B3%E7%AD%96"><span class="nav-number">5.</span> <span class="nav-text">第四步：scheduler 在一个 cycle 里对 snapshot 做决策</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%89%80%E6%9C%89%E5%86%B3%E7%AD%96%E5%9F%BA%E4%BA%8E%E5%90%8C%E4%B8%80%E4%BB%BD%E4%B8%80%E8%87%B4%E8%A7%86%E5%9B%BE"><span class="nav-number">5.1.</span> <span class="nav-text">1. 所有决策基于同一份一致视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-scheduler-%E5%8F%AF%E4%BB%A5%E5%A4%84%E7%90%86%E7%9A%84%E6%98%AF-workload-%E7%BA%A7%E5%88%AB%E7%9A%84%E7%BB%84%E5%90%88%E5%86%B3%E7%AD%96"><span class="nav-number">5.2.</span> <span class="nav-text">2. scheduler 可以处理的是 workload 级别的组合决策</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%94%E6%AD%A5%EF%BC%9Ascheduler-%E4%B8%8D%E7%9B%B4%E6%8E%A5-bind%EF%BC%8C%E8%80%8C%E6%98%AF%E5%88%9B%E5%BB%BA-BindRequest"><span class="nav-number">6.</span> <span class="nav-text">第五步：scheduler 不直接 bind，而是创建 BindRequest</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E4%B8%80%E6%AD%A5%E9%9D%9E%E5%B8%B8%E9%87%8D%E8%A6%81"><span class="nav-number">6.1.</span> <span class="nav-text">为什么这一步非常重要</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%85%AD%E6%AD%A5%EF%BC%9Abinder-reconcile-BindRequest%EF%BC%8C%E6%8A%8A%E5%86%B3%E7%AD%96%E5%8F%98%E6%88%90%E7%9C%9F%E5%AE%9E%E9%9B%86%E7%BE%A4%E7%8A%B6%E6%80%81"><span class="nav-number">7.</span> <span class="nav-text">第六步：binder reconcile BindRequest，把决策变成真实集群状态</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-binder-%E5%A4%84%E7%90%86%E7%9A%84%E6%98%AF%E2%80%9C%E6%89%A7%E8%A1%8C%E5%9E%8B%E5%A4%B1%E8%B4%A5%E2%80%9D"><span class="nav-number">7.1.</span> <span class="nav-text">1. binder 处理的是“执行型失败”</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-binder-%E8%83%BD%E5%81%9A-rollback"><span class="nav-number">7.2.</span> <span class="nav-text">2. binder 能做 rollback</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%80%E5%90%8E%E4%B8%80%E7%8E%AF%EF%BC%9A%E7%8A%B6%E6%80%81%E5%9B%9E%E5%86%99%E4%B8%8E%E5%8E%86%E5%8F%B2%E5%8F%8D%E9%A6%88"><span class="nav-number">8.</span> <span class="nav-text">最后一环：状态回写与历史反馈</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#PodGroupController"><span class="nav-number">8.1.</span> <span class="nav-text">PodGroupController</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#QueueController"><span class="nav-number">8.2.</span> <span class="nav-text">QueueController</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Prometheus-usage-DB"><span class="nav-number">8.3.</span> <span class="nav-text">Prometheus &#x2F; usage DB</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#KAI-%E7%9A%84-workflow-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%80%82%E5%90%88-AI-batch-workload"><span class="nav-number">9.</span> <span class="nav-text">KAI 的 workflow 为什么适合 AI &#x2F; batch workload</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%AE%83%E5%85%88%E5%BB%BA%E6%A8%A1%EF%BC%8C%E5%86%8D%E8%B0%83%E5%BA%A6"><span class="nav-number">9.1.</span> <span class="nav-text">1. 它先建模，再调度</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%AE%83%E5%85%88%E5%86%B3%E7%AD%96%EF%BC%8C%E5%86%8D%E6%89%A7%E8%A1%8C"><span class="nav-number">9.2.</span> <span class="nav-text">2. 它先决策，再执行</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E5%AE%83%E6%9C%89%E5%8F%8D%E9%A6%88%E9%97%AD%E7%8E%AF"><span class="nav-number">9.3.</span> <span class="nav-text">3. 它有反馈闭环</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%88%91%E5%AF%B9%E8%BF%99%E6%9D%A1%E5%B7%A5%E4%BD%9C%E6%B5%81%E7%9A%84%E4%B8%80%E4%B8%AA%E6%80%BB%E7%BB%93"><span class="nav-number">10.</span> <span class="nav-text">我对这条工作流的一个总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8B%E4%B8%80%E7%AF%87%E7%9C%8B%E4%BB%80%E4%B9%88"><span class="nav-number">11.</span> <span class="nav-text">下一篇看什么</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">104</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">249</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-02-workflow/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="KAI Scheduler 深入拆解（二）：从 Pod 到 BindRequest 的控制面工作流 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          KAI Scheduler 深入拆解（二）：从 Pod 到 BindRequest 的控制面工作流
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-23 10:15:00 / Modified: 09:20:54" itemprop="dateCreated datePublished" datetime="2026-04-23T10:15:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>上一篇我把 KAI Scheduler 当成一个平台来读：它不是单个 scheduler 进程，而是一串围绕 CRD、controller 和 scheduling session 组织起来的控制面。</p>
+<p>这一篇开始看它真正的“主干路径”：<strong>一个 workload 进入集群后，到底是怎么一步步变成调度决策，再变成真实节点绑定的？</strong></p>
+<p>如果要先给结论，我会这样概括：</p>
+<blockquote>
+<p>在 KAI 里，提交 workload 并不会立刻进入“给 Pod 选 node”的同步流程，而是先被重写成更适合调度的 workload model，再进入周期性调度循环，最后通过 <code>BindRequest</code> 异步落地。</p>
+</blockquote>
+<p>这条路径一共可以拆成六步：</p>
+<ol>
+<li>workload 进入 Kubernetes</li>
+<li>pod-grouper 抽取 workload 语义，创建 <code>PodGroup</code></li>
+<li>scheduler 在一个 cycle 里对 <code>PodGroup</code> 和 <code>Queue</code> 做 placement 决策</li>
+<li>scheduler 创建 <code>BindRequest</code></li>
+<li>binder reconcile <code>BindRequest</code> 并执行真实绑定</li>
+<li>PodGroup&#x2F;Queue controller 回写状态，形成反馈闭环</li>
+</ol>
+<h2 id="先看整条链路"><a href="#先看整条链路" class="headerlink" title="先看整条链路"></a>先看整条链路</h2><pre class="mermaid">sequenceDiagram
+    participant U as User / Workload Controller
+    participant A as Admission
+    participant PG as Pod Grouper
+    participant PGCRD as PodGroup CRD
+    participant Q as Queue CRD
+    participant S as Scheduler
+    participant BR as BindRequest CRD
+    participant B as Binder
+    participant PGC as PodGroup Controller
+    participant QC as Queue Controller
+    participant PM as Prometheus / Usage DB
+
+    U->>A: 创建 Pod / Job / Ray / Kubeflow workload
+    A-->>U: 准入校验 / 变更
+    U->>PG: Pod 被 watch 到
+    PG->>PGCRD: 基于 top owner 创建或更新 PodGroup
+    U->>Q: workload 通过 queue 标签归属某个 Queue
+    S->>PGCRD: 在 snapshot 中读取 PodGroup
+    S->>Q: 在 snapshot 中读取 Queue
+    S->>BR: 为选中的 Pod 创建 BindRequest
+    B->>BR: reconcile BindRequest
+    B->>B: 执行 bind / 资源准备 / 回滚
+    B-->>U: Pod 绑定到目标节点
+    PGC->>PGCRD: 回写 workload 运行态和资源状态
+    QC->>Q: 聚合队列资源状态
+    QC->>PM: 暴露历史资源使用数据
+    PM-->>S: 为 time-based fairshare 提供历史 usage</pre>
+
+<p>这个 sequence 图里，真正最关键的转折点有两个：</p>
+<ul>
+<li><strong>Pod -&gt; PodGroup</strong>：KAI 把原始 workload 转成更适合调度的抽象。</li>
+<li><strong>Decision -&gt; BindRequest</strong>：KAI 把调度决策和执行绑定解耦。</li>
+</ul>
+<p>只要把这两个转折点读懂，整个系统就顺了。</p>
+<h2 id="第一步：workload-进入集群，但-scheduler-还不会立刻直接处理它"><a href="#第一步：workload-进入集群，但-scheduler-还不会立刻直接处理它" class="headerlink" title="第一步：workload 进入集群，但 scheduler 还不会立刻直接处理它"></a>第一步：workload 进入集群，但 scheduler 还不会立刻直接处理它</h2><p>KAI 支持的工作负载并不只有单 Pod。它非常强调 AI &#x2F; batch &#x2F; distributed workload 的调度语义，所以常见入口包括：</p>
+<ul>
+<li>原生 Pod</li>
+<li>Job &#x2F; CronJob（以及其他 batch 类上层对象）</li>
+<li>Deployment</li>
+<li>MPIJob</li>
+<li>Ray</li>
+<li>Kubeflow 相关 workload</li>
+<li>JobSet</li>
+<li>以及其他带 owner reference 的上层对象</li>
+</ul>
+<p>这些对象刚进入集群时，并不天然具备 KAI 需要的完整调度语义。</p>
+<p>例如，scheduler 真正关心的问题往往是：</p>
+<ul>
+<li>这些 Pod 是否必须一起启动？</li>
+<li>它们属于哪个 queue？</li>
+<li>它们默认优先级和 preemptibility 是什么？</li>
+<li>它们有没有 topology constraint？</li>
+<li>它们是不是多级 subgroup 结构？</li>
+</ul>
+<p>这些信息如果散落在不同 workload 的不同字段里，后续调度逻辑会非常难维护。于是 KAI 先做了一次“语义收敛”。</p>
+<h2 id="第二步：pod-grouper-把-workload-重写成-PodGroup"><a href="#第二步：pod-grouper-把-workload-重写成-PodGroup" class="headerlink" title="第二步：pod-grouper 把 workload 重写成 PodGroup"></a>第二步：pod-grouper 把 workload 重写成 <code>PodGroup</code></h2><p><code>pod-grouper</code> 是整条链路里最容易被低估的组件。</p>
+<p>很多人看 scheduler 时会把 pod-grouper 当成辅助服务，但实际上它承担的是“把 Kubernetes 原生 workload 翻译成 KAI workload model”的职责。</p>
+<h3 id="它在做什么"><a href="#它在做什么" class="headerlink" title="它在做什么"></a>它在做什么</h3><p>pod-grouper 监听 Pod，然后做三件事：</p>
+<ol>
+<li>找到 Pod 的 <strong>top owner</strong></li>
+<li>根据 owner 类型选择合适的 grouping plugin</li>
+<li>生成或更新 <code>PodGroup</code></li>
+</ol>
+<p>文档 <code>docs/developer/pod-grouper.md</code> 给出的核心思路非常清楚：它不是简单按 label 聚合 Pod，而是通过 owner chain 去推断真正的 workload 边界。</p>
+<h3 id="为什么一定要找-top-owner"><a href="#为什么一定要找-top-owner" class="headerlink" title="为什么一定要找 top owner"></a>为什么一定要找 top owner</h3><p>因为很多 Kubernetes workload 都有多层 owner reference。</p>
+<p>例如：</p>
+<ul>
+<li>Pod 的 owner 是 ReplicaSet</li>
+<li>ReplicaSet 的 owner 又是 Deployment</li>
+</ul>
+<p>如果只按 Pod 当前直接 owner 聚合，你得到的是“副本控制器层”的分组，而不是“业务 workload 层”的分组。KAI 的做法是继续往上找，找到最适合代表 workload 语义的对象。</p>
+<p>这一步带来的收益很大：</p>
+<ul>
+<li>同一个 workload 的 Pod 可以稳定归到同一个 <code>PodGroup</code></li>
+<li>不同 workload 类型可以保留各自的分组逻辑</li>
+<li>调度器不需要理解所有 workload CRD 的细节，只需要理解 <code>PodGroup</code></li>
+</ul>
+<h3 id="PodGroup-才是-KAI-真正的-workload-主语"><a href="#PodGroup-才是-KAI-真正的-workload-主语" class="headerlink" title="PodGroup 才是 KAI 真正的 workload 主语"></a><code>PodGroup</code> 才是 KAI 真正的 workload 主语</h3><p>在 <code>pkg/apis/scheduling/v2alpha2/podgroup_types.go</code> 里，<code>PodGroupSpec</code> 已经不仅仅是一个 <code>minMember</code> 包装器，它承载的是 workload 的调度语义：</p>
+<ul>
+<li><code>MinMember</code></li>
+<li><code>MinSubGroup</code></li>
+<li><code>Queue</code></li>
+<li><code>PriorityClassName</code></li>
+<li><code>Preemptibility</code></li>
+<li><code>TopologyConstraint</code></li>
+<li><code>SubGroups</code></li>
+<li><code>MarkUnschedulable</code></li>
+<li><code>SchedulingBackoff</code></li>
+</ul>
+<p>这里最重要的不是字段多，而是字段的组合方式。</p>
+<p>这意味着 KAI 在表达的是：</p>
+<ul>
+<li>这是一个 gang 还是普通任务？</li>
+<li>这是平面 workload 还是层级 workload？</li>
+<li>它属于哪个资源队列？</li>
+<li>它可以被抢占吗？</li>
+<li>它有机架、zone、拓扑域要求吗？</li>
+</ul>
+<p>也就是说，从这一步开始，系统不再是“对一堆 Pod 做 placement”，而是“对带有完整调度语义的 workload group 做 placement”。</p>
+<h2 id="第三步：Queue-把-workload-放进资源与公平性的上下文里"><a href="#第三步：Queue-把-workload-放进资源与公平性的上下文里" class="headerlink" title="第三步：Queue 把 workload 放进资源与公平性的上下文里"></a>第三步：<code>Queue</code> 把 workload 放进资源与公平性的上下文里</h2><p><code>PodGroup</code> 解决的是 workload 建模问题，<code>Queue</code> 解决的是资源分配问题。</p>
+<p>在 KAI 里，queue 不是顺手加的一个标签，而是公平性和资源边界的核心对象。很多关键特性都建立在它上面：</p>
+<ul>
+<li>hierarchical queue</li>
+<li>quota &#x2F; deserved quota</li>
+<li>over-quota share</li>
+<li>reclaim</li>
+<li>fair-share</li>
+<li>time-based fairshare</li>
+</ul>
+<p>也就是说，scheduler 在做决策时，看到的不是“某个 Pod 能不能放到某个节点”，而是：</p>
+<blockquote>
+<p>某个 <code>PodGroup</code> 在它所属 <code>Queue</code> 的资源语境下，是否应该得到这次调度机会。</p>
+</blockquote>
+<p>这是 KAI 跟只做 node fitting 的调度器非常不同的一点。</p>
+<h2 id="第四步：scheduler-在一个-cycle-里对-snapshot-做决策"><a href="#第四步：scheduler-在一个-cycle-里对-snapshot-做决策" class="headerlink" title="第四步：scheduler 在一个 cycle 里对 snapshot 做决策"></a>第四步：scheduler 在一个 cycle 里对 snapshot 做决策</h2><p>等到 <code>PodGroup</code> 和 <code>Queue</code> 都就位以后，scheduler 才开始它真正擅长的事情。</p>
+<p>这里的关键点不是某个单独算法，而是 <strong>周期性调度模型</strong>。</p>
+<p>KAI scheduler 不是收到一个 Pod 事件就立刻同步做完全部决策，而是每个 cycle：</p>
+<ol>
+<li>同步 cache</li>
+<li>获取 snapshot</li>
+<li>打开 session</li>
+<li>执行 actions</li>
+<li>关闭 session</li>
+</ol>
+<p>这带来两个直接好处：</p>
+<h3 id="1-所有决策基于同一份一致视图"><a href="#1-所有决策基于同一份一致视图" class="headerlink" title="1. 所有决策基于同一份一致视图"></a>1. 所有决策基于同一份一致视图</h3><p>在同一个 cycle 里，所有 action 和 plugin 都基于同一个 cluster snapshot 工作。</p>
+<p>这对复杂特性尤其重要：</p>
+<ul>
+<li>gang scheduling</li>
+<li>reclaim</li>
+<li>preempt</li>
+<li>topology-aware placement</li>
+<li>dynamic resources</li>
+<li>queue fairshare</li>
+</ul>
+<p>如果没有 snapshot 这一层，很多逻辑会变成“边读边改边抢锁”，复杂度会急剧上升。</p>
+<h3 id="2-scheduler-可以处理的是-workload-级别的组合决策"><a href="#2-scheduler-可以处理的是-workload-级别的组合决策" class="headerlink" title="2. scheduler 可以处理的是 workload 级别的组合决策"></a>2. scheduler 可以处理的是 workload 级别的组合决策</h3><p>因为它不是只看一个 Pod，而是看 snapshot 里的：</p>
+<ul>
+<li>nodes</li>
+<li>queues</li>
+<li>podgroups</li>
+<li>bindrequests</li>
+<li>资源状态</li>
+<li>历史 usage</li>
+</ul>
+<p>所以它做出来的是更接近“全局最优”或“局部一致最优”的决策，而不只是一个 request&#x2F;response 式的即时选择。</p>
+<h2 id="第五步：scheduler-不直接-bind，而是创建-BindRequest"><a href="#第五步：scheduler-不直接-bind，而是创建-BindRequest" class="headerlink" title="第五步：scheduler 不直接 bind，而是创建 BindRequest"></a>第五步：scheduler 不直接 bind，而是创建 <code>BindRequest</code></h2><p>这是 KAI 整条工作流里最精彩的一步。</p>
+<p>在 <code>pkg/scheduler/cache/cache.go</code> 里，<code>SchedulerCache.Bind(...)</code> 的逻辑不是直接调用 Pod binding API，而是创建 <code>BindRequest</code>。</p>
+<p><code>BindRequestSpec</code> 里会写入：</p>
+<ul>
+<li><code>PodName</code></li>
+<li><code>SelectedNode</code></li>
+<li><code>ReceivedResourceType</code></li>
+<li><code>ReceivedGPU</code></li>
+<li><code>SelectedGPUGroups</code></li>
+<li><code>ResourceClaimAllocations</code></li>
+<li><code>BackoffLimit</code></li>
+</ul>
+<p>这说明什么？说明 scheduler 输出的不是一个轻量的“node choice”，而是一份 <strong>完整的绑定执行意图</strong>。</p>
+<h3 id="为什么这一步非常重要"><a href="#为什么这一步非常重要" class="headerlink" title="为什么这一步非常重要"></a>为什么这一步非常重要</h3><p>如果 scheduler 直接 bind Pod，那它就必须自己同步承担这些职责：</p>
+<ul>
+<li>资源声明与 DRA 处理</li>
+<li>共享 GPU 相关准备</li>
+<li>失败重试</li>
+<li>失败回滚</li>
+<li>状态更新</li>
+<li>绑定副作用控制</li>
+</ul>
+<p>这会让调度循环变得又慢又重。</p>
+<p>KAI 的选择是把它们拆开：</p>
+<ul>
+<li>scheduler 专注于 <strong>决策</strong></li>
+<li>binder 专注于 <strong>执行</strong></li>
+</ul>
+<p>中间用 <code>BindRequest</code> 这个 CRD 做状态中介。</p>
+<p>这类设计最大的价值不是“看起来解耦”，而是真正在错误模型和并发模型上得到收益：</p>
+<ul>
+<li>scheduler cycle 可以更短</li>
+<li>binder 可以独立重试</li>
+<li>执行错误不会把调度内核拖进复杂副作用里</li>
+<li>中间态对象便于排障和观测</li>
+</ul>
+<h2 id="第六步：binder-reconcile-BindRequest，把决策变成真实集群状态"><a href="#第六步：binder-reconcile-BindRequest，把决策变成真实集群状态" class="headerlink" title="第六步：binder reconcile BindRequest，把决策变成真实集群状态"></a>第六步：binder reconcile <code>BindRequest</code>，把决策变成真实集群状态</h2><p>binder 读取到 <code>BindRequest</code> 后，会进入 controller-runtime 的 reconcile 流程。</p>
+<p>它的大致步骤是：</p>
+<ol>
+<li>取回 <code>BindRequest</code></li>
+<li>找到对应 Pod</li>
+<li>找到目标 Node</li>
+<li>如果 Pod 已经绑定则退出</li>
+<li>调用 binder 实现执行真实 bind</li>
+<li>如果失败则 rollback</li>
+<li>更新 <code>BindRequest</code> 状态和 Pod condition</li>
+</ol>
+<p>这里最值得注意的是两点。</p>
+<h3 id="1-binder-处理的是“执行型失败”"><a href="#1-binder-处理的是“执行型失败”" class="headerlink" title="1. binder 处理的是“执行型失败”"></a>1. binder 处理的是“执行型失败”</h3><p>比如：</p>
+<ul>
+<li>节点在短时间内变化了</li>
+<li>资源声明失败了</li>
+<li>共享 GPU 相关准备失败了</li>
+<li>某些 bind-time side effect 没完成</li>
+</ul>
+<p>这些都属于执行面的问题，而不是 placement 逻辑本身的问题。</p>
+<p>KAI 通过 binder 把这些风险从主调度循环里隔离了出来。</p>
+<h3 id="2-binder-能做-rollback"><a href="#2-binder-能做-rollback" class="headerlink" title="2. binder 能做 rollback"></a>2. binder 能做 rollback</h3><p>这很关键。</p>
+<p>当 bind 失败时，binder 会尝试 rollback。对于一个支持 DRA、GPU sharing、复杂资源声明的系统来说，这是必须的。</p>
+<p>因为 scheduler 的决策不只是“选 node”，它往往还隐含了若干资源分配语义。如果失败后没有清理干净，后面很容易出现资源状态污染。</p>
+<h2 id="最后一环：状态回写与历史反馈"><a href="#最后一环：状态回写与历史反馈" class="headerlink" title="最后一环：状态回写与历史反馈"></a>最后一环：状态回写与历史反馈</h2><p>如果工作流只到 binder 为止，那 KAI 还只是一个“高级 scheduler”。</p>
+<p>它之所以更像平台，是因为后面还有完整的反馈闭环。</p>
+<h3 id="PodGroupController"><a href="#PodGroupController" class="headerlink" title="PodGroupController"></a><code>PodGroupController</code></h3><p>负责把 workload 运行态、资源状态、调度条件回写到 <code>PodGroup</code>。</p>
+<p>这让 <code>PodGroup</code> 不只是“调度前的输入”，也变成“调度后的观测对象”。</p>
+<h3 id="QueueController"><a href="#QueueController" class="headerlink" title="QueueController"></a><code>QueueController</code></h3><p>负责聚合 queue 层的资源状态，为公平性和资源分配提供基础。</p>
+<h3 id="Prometheus-usage-DB"><a href="#Prometheus-usage-DB" class="headerlink" title="Prometheus &#x2F; usage DB"></a>Prometheus &#x2F; usage DB</h3><p>当 time-based fairshare 打开以后，这条反馈链会继续延伸：</p>
+<ul>
+<li>pod-group-controller 更新 podgroup 资源状态</li>
+<li>queue-controller 聚合 queue 级 usage</li>
+<li>Prometheus 存储历史 usage</li>
+<li>scheduler 下一轮从 usage DB 读取历史数据</li>
+</ul>
+<p>这就让 KAI 不只是“看当前资源”的 scheduler，而是一个能把 <strong>历史使用行为</strong> 纳入决策的系统。</p>
+<h2 id="KAI-的-workflow-为什么适合-AI-batch-workload"><a href="#KAI-的-workflow-为什么适合-AI-batch-workload" class="headerlink" title="KAI 的 workflow 为什么适合 AI &#x2F; batch workload"></a>KAI 的 workflow 为什么适合 AI &#x2F; batch workload</h2><p>把整条链路看完以后，会很容易理解它为什么适合 AI 场景。</p>
+<h3 id="1-它先建模，再调度"><a href="#1-它先建模，再调度" class="headerlink" title="1. 它先建模，再调度"></a>1. 它先建模，再调度</h3><p>AI workload 往往不是单 Pod，而是：</p>
+<ul>
+<li>多副本训练</li>
+<li>分布式推理</li>
+<li>分层通信结构</li>
+<li>gang &#x2F; subgroup &#x2F; topology 约束</li>
+</ul>
+<p>KAI 通过 <code>PodGroup</code> 先把这些语义固定下来，再做 scheduling，避免把 workload 复杂性泄漏进每个 action&#x2F;plugin 的实现里。</p>
+<h3 id="2-它先决策，再执行"><a href="#2-它先决策，再执行" class="headerlink" title="2. 它先决策，再执行"></a>2. 它先决策，再执行</h3><p>AI workload 的 bind-time 复杂度通常更高：</p>
+<ul>
+<li>GPU sharing</li>
+<li>DRA &#x2F; ResourceClaim</li>
+<li>volume &#x2F; storage 约束</li>
+<li>失败回滚</li>
+</ul>
+<p>用 <code>BindRequest</code> 把 decision plane 和 execution plane 分开，能让调度器更专注，也让系统更稳定。</p>
+<h3 id="3-它有反馈闭环"><a href="#3-它有反馈闭环" class="headerlink" title="3. 它有反馈闭环"></a>3. 它有反馈闭环</h3><p>公平性不只是“这一刻谁先跑”，而是“长期来看谁占用了多少资源”。</p>
+<p>KAI 的 queue controller + Prometheus + usage DB 让它可以逐步走向时间维度的公平性，而不是只做瞬时队列排序。</p>
+<h2 id="我对这条工作流的一个总结"><a href="#我对这条工作流的一个总结" class="headerlink" title="我对这条工作流的一个总结"></a>我对这条工作流的一个总结</h2><p>如果把 KAI 的控制面 workflow 用一句话概括，我会写成：</p>
+<blockquote>
+<p><strong>先把 Kubernetes workload 翻译成 KAI 的 workload language，再在一致性 snapshot 上做调度决策，最后把决策通过异步 binding pipeline 落地，并把结果反馈回 queue 与 workload 状态。</strong></p>
+</blockquote>
+<p>这条链路的好处是系统边界非常清楚：</p>
+<ul>
+<li>pod-grouper 负责“翻译 workload”</li>
+<li>scheduler 负责“决定谁该上、上到哪”</li>
+<li>binder 负责“把决定真的执行掉”</li>
+<li>controller 们负责“把执行结果重新喂回系统”</li>
+</ul>
+<h2 id="下一篇看什么"><a href="#下一篇看什么" class="headerlink" title="下一篇看什么"></a>下一篇看什么</h2><p>理解 workflow 以后，下一步最自然的问题就是：</p>
+<ul>
+<li>snapshot 到底是什么？</li>
+<li>session 里都存了什么？</li>
+<li>action 和 plugin 究竟谁负责流程，谁负责策略？</li>
+<li>KAI 为什么要引入 statement &#x2F; scenario 这种“事务化模拟”模型？</li>
+</ul>
+<p>下一篇就进入调度内核本身，拆解 KAI 最核心的设计：</p>
+<p><strong>cycle、snapshot、session、action、plugin、statement。</strong></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kubernetes/" rel="tag"># kubernetes</a>
+              <a href="/tags/scheduler/" rel="tag"># scheduler</a>
+              <a href="/tags/gpu/" rel="tag"># gpu</a>
+              <a href="/tags/kai-scheduler/" rel="tag"># kai-scheduler</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/23/2026-04-23-kai-scheduler-01-architecture/" rel="prev" title="KAI Scheduler 深入拆解（一）：从组件地图理解整体架构">
+                  <i class="fa fa-angle-left"></i> KAI Scheduler 深入拆解（一）：从组件地图理解整体架构
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/23/2026-04-23-kai-scheduler-03-framework/" rel="next" title="KAI Scheduler 深入拆解（三）：调度框架内核——Cycle、Snapshot、Session、Action、Statement">
+                  KAI Scheduler 深入拆解（三）：调度框架内核——Cycle、Snapshot、Session、Action、Statement <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

@@ -112,7 +112,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">99</span>
+          <span class="site-state-item-count">104</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
@@ -123,7 +123,7 @@
       </div>
       <div class="site-state-item site-state-tags">
           <a href="/tags/">
-        <span class="site-state-item-count">247</span>
+        <span class="site-state-item-count">249</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -140,6 +140,665 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-raid/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-raid/" class="post-title-link" itemprop="url">raid</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="RAID"><a href="#RAID" class="headerlink" title="RAID"></a>RAID</h1><p>RAID是用于增加数据存储的性能和可靠性的技术。全程为Redundant Array of Inexpensive Disks（廉价磁盘冗余阵列）</p>
+<ul>
+<li>RAID 0 - strping</li>
+<li>RAID 1 - mirroring</li>
+<li>RAID 5 - striping with parity</li>
+<li>RAID 6 - striping with double parity</li>
+<li>RAID 10 - combining mirroring and striping</li>
+</ul>
+<h4 id="准备"><a href="#准备" class="headerlink" title="准备"></a>准备</h4><p>mdadm目前是Linux标准RAID管理工具, 能够支持多种模式，可以对RAID进行创建，管理，添加和移除设备等，还能查看RAID设备的详细信息。功能非常强大。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$yum install mdadm -y</span><br><span class="line">$git clone git://neil.brown.name/mdadm</span><br></pre></td></tr></table></figure>
+
+
+
+<p>devicemapper 也能创建RAID设备.</p>
+<p>用dd创建4个镜像作为loop设备</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$dd if=/dev/zero of=disk1.img bs=512 count=4096000</span><br><span class="line">$losetup /dev/loop2 disk1.img</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="RAID-level-0-–-Striping"><a href="#RAID-level-0-–-Striping" class="headerlink" title="RAID level 0 – Striping"></a>RAID level 0 – Striping</h3><p><a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-0-striping.svg"><img src="http://www.prepressure.com/images/raid-level-0-striping.svg" alt="image"></a></p>
+<p>Raid 0 将数据进行条带化，同时向多个磁盘(至少2个)写数据.不做数据冗余，理想的情况，每个磁盘使用单独的控制器管理。</p>
+<h4 id="优点"><a href="#优点" class="headerlink" title="优点"></a>优点</h4><ul>
+<li><p>读写性能好，没有数据冗余。</p>
+</li>
+<li><p>所有磁盘都有用.</p>
+</li>
+<li><p>容易实现.</p>
+<h4 id="缺点"><a href="#缺点" class="headerlink" title="缺点"></a>缺点</h4></li>
+<li><p>没有容错机制</p>
+<h4 id="mdadm"><a href="#mdadm" class="headerlink" title="mdadm"></a>mdadm</h4></li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">mdadm --create --verbose /dev/md0 --level=stripe --raid-devices=2 /dev/loop2 /dev/loop3</span><br><span class="line">mdadm --manage --stop /dev/md0</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">$fdisk -l</span><br><span class="line">...</span><br><span class="line">Disk /dev/md0: 4192 MB, 4192206848 bytes, 8187904 sectors</span><br><span class="line">Units = sectors of 1 * 512 = 512 bytes</span><br><span class="line">Sector size (logical/physical): 512 bytes / 512 bytes</span><br><span class="line">I/O size (minimum/optimal): 524288 bytes / 1048576 bytes</span><br><span class="line"></span><br><span class="line">$lsblk</span><br><span class="line">NAME  MAJ:MIN RM   SIZE RO TYPE  MOUNTPOINT</span><br><span class="line">...</span><br><span class="line">loop2  7:2    0     2G  0 loop  </span><br><span class="line">└─md0  9:0    0   3.9G  0 raid0 </span><br><span class="line">loop3  7:3    0     2G  0 loop  </span><br><span class="line">└─md0  9:0    0   3.9G  0 raid0</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="devicemapper"><a href="#devicemapper" class="headerlink" title="devicemapper"></a>devicemapper</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">// 创建4设备组成的raid0设备，16384000是4个设备总的Sector数量， 0 是每个设备的偏移量</span><br><span class="line">$dmsetup create test-raid0 --table &#x27;0 16384000 striped 4 128 /dev/loop4 0 /dev/loop5 0 /dev/loop6 0 /dev/loop7 0&#x27;</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">$lsblk</span><br><span class="line">loop4         7:4    0     2G  0 loop  </span><br><span class="line">└─test-raid0  253:23   0   7.8G  0 dm    </span><br><span class="line">loop5         7:5    0     2G  0 loop  </span><br><span class="line">└─test-raid0  53:23   0   7.8G  0 dm    </span><br><span class="line">loop6         7:6    0     2G  0 loop  </span><br><span class="line">└─test-raid0  253:23   0   7.8G  0 dm    </span><br><span class="line">loop7         7:7    0     2G  0 loop  </span><br><span class="line">└─test-raid0  253:23   0   7.8G  0 dm</span><br><span class="line"></span><br><span class="line">$fdisk -l</span><br><span class="line">...</span><br><span class="line">Disk /dev/mapper/test-raid0: 8388 MB, 8388608000 bytes, 16384000 sectors</span><br><span class="line">Units = sectors of 1 * 512 = 512 bytes</span><br><span class="line">Sector size (logical/physical): 512 bytes / 512 bytes</span><br><span class="line">I/O size (minimum/optimal): 65536 bytes / 262144 bytes</span><br><span class="line"></span><br><span class="line">$dmsetup status test-raid0</span><br><span class="line">0 16384000 striped 4 7:4 7:5 7:6 7:7 1 AAAA</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="RAID-level-1-–-Mirroring"><a href="#RAID-level-1-–-Mirroring" class="headerlink" title="RAID level 1 – Mirroring"></a>RAID level 1 – Mirroring</h3><h3 id=""><a href="#" class="headerlink" title=""></a><a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-1-mirroring.svg"><img src="http://www.prepressure.com/images/raid-level-1-mirroring.svg" alt="image"></a></h3><p>RAID 1 数据存储两次，如果一个drive挂了，控制器会使用另外一个drive或者直接拷贝另一个drive的数据给它。</p>
+<p>RAID 1的优缺点很明显，值得一提的的是，它不能保证热交换磁盘，也就是说，当一块盘坏了之后，需要将计算机停机，然后才能更换磁盘。</p>
+<h4 id="mdadm-1"><a href="#mdadm-1" class="headerlink" title="mdadm"></a>mdadm</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$mdadm --create --verbose /dev/md0 --level=mirror --raid-devices=2 /dev/loop2 /dev/loop3</span><br></pre></td></tr></table></figure>
+
+<h4 id="devicemapper-1"><a href="#devicemapper-1" class="headerlink" title="devicemapper"></a>devicemapper</h4><p>devicemapper中mirror与raid1是有差别的</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">// 4096000是单个设备的sector数量，因为mirror没有扩大容量，2是设备数量， - 表示没有metadata 设备</span><br><span class="line">$dmsetup create test-raid1 --table &#x27;0 4096000 raid raid1 3 0 region_size 1024 2 - /dev/loop4 - /dev/loop5&#x27;</span><br><span class="line">//下面的是有metadata设备的raid1创建</span><br><span class="line">$dmsetup create test-raid1 --table &#x27;0 4096000 raid raid1 3 0 region_size 1024 2 /dev/loop4 /dev/loop5 /dev/loop6 /dev/loop7&#x27;</span><br><span class="line"></span><br><span class="line">$dmsetup status test-raid1</span><br><span class="line">0 4096000 raid raid1 2 AA 4096000/4096000 idle 0</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="RAID-level-5"><a href="#RAID-level-5" class="headerlink" title="RAID level 5"></a>RAID level 5</h3><p>最为普遍的RAID方式。要求至少3个drive，其中一个drive的一个磁盘作为奇偶校验盘，其他块做striping。所有奇偶校验盘会广泛分布在所有drive上。当有某个盘挂掉后，可以利用其他块以及奇偶校验盘来恢复数据，但如果同一个块中有两个设备挂掉，那么整个RAID就挂了。也就是说，RAID5能够支持单drive失败。<a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-5-striping-with-parity.svg"><br><img src="http://www.prepressure.com/images/raid-level-5-striping-with-parity.svg" alt="image"></a></p>
+<p>RAID5的优点是兼顾了读写性能和安全性，能够支持单drive的失败情况。缺点在于实现比较复杂，恢复数据比较慢，如果在恢复的过程中其他drive也发生故障，那么整个RAID就挂了。</p>
+<h4 id="mdadm-2"><a href="#mdadm-2" class="headerlink" title="mdadm"></a>mdadm</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">// spare device指定备用磁盘，创建3块盘的RAID5</span><br><span class="line">$mdadm --create --verbose /dev/md1 --level=5 --raid-devices=3 /dev/loop4 /dev/loop5 /dev/loop6 --spare-devices=1 /dev/loop7</span><br></pre></td></tr></table></figure>
+
+<p>查看信息</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">`$mdadm --detail /dev/md1/dev/md1:        Version : 1.2  Creation Time : Tue Mar  7 16:57:39 2017     Raid Level : raid5     Array Size : 4093952 (3.90 GiB 4.19 GB)  Used Dev Size : 2046976 (1999.34 MiB 2096.10 MB)   Raid Devices : 3  Total Devices : 4    Persistence : Superblock is persistent    Update Time : Tue Mar  7 16:57:57 2017          State : clean  Active Devices : 3Working Devices : 4 Failed Devices : 0  Spare Devices : 1         Layout : left-symmetric     Chunk Size : 512K           Name : st-integrat-node00:1  (local to host st-integrat-node00)           UUID : 071d2e75:2029e9a2:2e427dd9:d2ab804f         Events : 18    Number   Major   Minor   RaidDevice State       0       7        4        0      active sync   /dev/loop4       1       7        5        1      active sync   /dev/loop5       4       7        6        2      active sync   /dev/loop6       3       7        7        -      spare   /dev/loop7`</span><br></pre></td></tr></table></figure>
+
+<h4 id="device-mapper"><a href="#device-mapper" class="headerlink" title="device-mapper"></a>device-mapper</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// 这里创建了没有metadata设备的4个设备的raid5，因此大小是3倍磁盘扇区大小，有一个作为奇偶校验。 </span><br><span class="line">$dmsetup create test-raid5 --table &#x27;0 12288000 raid raid5_ls 3 64 region_size 1024 4 - /dev/loop4 - /dev/loop5 - /dev/loop6 - /dev/loop7&#x27;</span><br><span class="line">// metadata设备的创建过程和前面RAID1的类似，这里略过。</span><br><span class="line">//devicemapper还可以创建degraded RAID5,只需将最后一个设备置为 - 即可。</span><br><span class="line">$dmsetup create test-raid5 --table &#x27;0 12288000 raid raid5_ls 3 64 region_size 1024 4 - /dev/loop4 - /dev/loop5 - - -</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// resync 表示正在同步， 4096000/4096000表示全部同步完成。</span><br><span class="line"><span class="meta prompt_">$</span><span class="language-bash">dmsetup status test-raid5</span></span><br><span class="line">0 12288000 raid raid5_ls 4 aaaa 2048064/4096000 resync 0</span><br><span class="line">0 12288000 raid raid5_ls 4 AAAA 4096000/4096000 idle 0</span><br><span class="line">//同步过程中也是可以删除设备的</span><br></pre></td></tr></table></figure>
+
+<h3 id="RAID-level-6-–-Striping-with-double-parity"><a href="#RAID-level-6-–-Striping-with-double-parity" class="headerlink" title="RAID level 6 – Striping with double parity"></a>RAID level 6 – Striping with double parity</h3><p><a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-6-striping-with-dual-parity.svg"><img src="http://www.prepressure.com/images/raid-level-6-striping-with-dual-parity.svg" alt="image"></a><br>RAID6改进了RAID5，使用了两块奇偶校验盘，<br>RAID6的创建过程和RAID5相似.</p>
+<h3 id="RAID-level-10-–-combining-RAID-1-RAID-0"><a href="#RAID-level-10-–-combining-RAID-1-RAID-0" class="headerlink" title="RAID level 10 – combining RAID 1 &amp; RAID 0"></a>RAID level 10 – combining RAID 1 &amp; RAID 0</h3><p>RAID10可以看做是RAID1和RAID0的结合。<br><a target="_blank" rel="noopener" href="http://www.prepressure.com/images/raid-level-1-and-0-striping-mirroring.svg"><img src="http://www.prepressure.com/images/raid-level-1-and-0-striping-mirroring.svg" alt="image"></a></p>
+<p>RAID10的优点在于恢复数据速度很快，但相比与RAID5和6，使用设备的代价更大。</p>
+<h4 id="mdadm-3"><a href="#mdadm-3" class="headerlink" title="mdadm"></a>mdadm</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">$mdadm --create --verbose /dev/md1 --level=10 --raid-devices=4 /dev/loop4 /dev/loop5 /dev/loop6 /dev/loop7</span><br><span class="line">mdadm: layout defaults to n2</span><br><span class="line">mdadm: layout defaults to n2</span><br><span class="line">mdadm: chunk size defaults to 512K</span><br><span class="line">mdadm: size set to 2046976K</span><br><span class="line">mdadm: Defaulting to version 1.2 metadata</span><br><span class="line">mdadm: array /dev/md1 started.</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">$mdadm --detail /dev/md1</span><br><span class="line">/dev/md1:</span><br><span class="line">        Version : 1.2</span><br><span class="line">  Creation Time : Tue Mar  7 17:44:43 2017</span><br><span class="line">     Raid Level : raid10</span><br><span class="line">     Array Size : 4093952 (3.90 GiB 4.19 GB)</span><br><span class="line">  Used Dev Size : 2046976 (1999.34 MiB 2096.10 MB)</span><br><span class="line">   Raid Devices : 4</span><br><span class="line">  Total Devices : 4</span><br><span class="line">    Persistence : Superblock is persistent</span><br><span class="line"></span><br><span class="line">    Update Time : Tue Mar  7 17:45:04 2017</span><br><span class="line">          State : clean </span><br><span class="line"> Active Devices : 4</span><br><span class="line">Working Devices : 4</span><br><span class="line"> Failed Devices : 0</span><br><span class="line">  Spare Devices : 0</span><br><span class="line"></span><br><span class="line">         Layout : near=2</span><br><span class="line">     Chunk Size : 512K</span><br><span class="line"></span><br><span class="line">           Name : st-integrat-node00:1  (local to host st-integrat-node00)</span><br><span class="line">           UUID : 643b371a:eeadc82d:7d4effee:cf00411c</span><br><span class="line">         Events : 17</span><br><span class="line"></span><br><span class="line">    Number   Major   Minor   RaidDevice State</span><br><span class="line">       0       7        4        0      active sync set-A   /dev/loop4</span><br><span class="line">       1       7        5        1      active sync set-B   /dev/loop5</span><br><span class="line">       2       7        6        2      active sync set-A   /dev/loop6</span><br><span class="line">       3       7        7        3      active sync set-B   /dev/loop7</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="device-mapper-1"><a href="#device-mapper-1" class="headerlink" title="device-mapper"></a>device-mapper</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">// 创建4个drive的RAID10，一半做镜像，所以大小为2倍drive sector大小。</span><br><span class="line">$dmsetup create test-raid10 --table &#x27;0 8192000 raid raid10 3 64 region_size 1024 4 - /dev/loop4 - /dev/loop5 - /dev/loop6 - /dev/loop7&#x27;</span><br></pre></td></tr></table></figure>
+
+<p>查看结果</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$dmsetup status test-raid10</span><br><span class="line">0 8192000 raid raid10 4 AAAA 8192000/8192000 idle 0</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h3><ul>
+<li>[1] RAID, <a target="_blank" rel="noopener" href="https://www.prepressure.com/library/technology/raid/">https://www.prepressure.com/library/technology/raid/</a></li>
+<li>[2] Device-mapper, <a target="_blank" rel="noopener" href="https://wiki.gentoo.org/wiki/Device-mapper">https://wiki.gentoo.org/wiki/Device-mapper</a></li>
+<li>[3] RAID-Setup, <a target="_blank" rel="noopener" href="https://raid.wiki.kernel.org/index.php/RAID_setup">https://raid.wiki.kernel.org/index.php/RAID_setup</a></li>
+<li>[4] dm-raid, <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt">https://www.kernel.org/doc/Documentation/device-mapper/dm-raid.txt</a></li>
+<li>[5] How To Create RAID Arrays with mdadm on Ubuntu 16.04, <a target="_blank" rel="noopener" href="https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04">https://www.digitalocean.com/community/tutorials/how-to-create-raid-arrays-with-mdadm-on-ubuntu-16-04</a></li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-repair-thinpool/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-repair-thinpool/" class="post-title-link" itemprop="url">repair-thinpool</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/storage/" itemprop="url" rel="index"><span itemprop="name">storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="Repair-thin-pool-document"><a href="#Repair-thin-pool-document" class="headerlink" title="Repair thin-pool document"></a>Repair thin-pool document</h1><h3 id="Use-lvm-repair"><a href="#Use-lvm-repair" class="headerlink" title="Use lvm repair"></a>Use lvm repair</h3><p>If you would have latest lvm2 tools - you could have tried:</p>
+<ol>
+<li><p>deactive if pool is active, before deactive pool, you must to deactive the volumes created from pool. if volume is created by lvm, just umount volume and lvchange, but if volume is created by devicemapper, need manual remove volume and record the deviceId deviceName and table to activate volume. Deactive, actually, is the process of remove the file link of &#x2F;dev&#x2F;vg&#x2F;volume and* &#x2F;dev&#x2F;mapper&#x2F;vg-volume.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>repair meta and active pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --repair  vg/pool</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>active pool</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvchange -ay vg</span><br></pre></td></tr></table></figure>
+
+<p>Below are the steps which happen while running the consistency check:</p>
+<ol>
+<li>Creates a new, repaired copy of the metadata.<br>lvconvert runs the thin_repair command to read damaged metadata from<br>the existing pool metadata LV, and writes a new repaired copy to the<br>VG’s pmspare LV.</li>
+<li>Replaces the thin pool metadata LV.<br>If step 1 is successful, the thin pool metadata LV is replaced with<br>the pmspare LV containing the corrected metadata. The previous thin<br>pool metadata LV, containing the damaged metadata, becomes visible<br>with the new name ThinPoolLV_tmetaN (where N is 0,1,…).</li>
+</ol>
+<p>but in my lvm (version 2.02.166(2)-RHEL7 (2016-11-16)), repair will not create new pmspare, it will direct use free vg to create new meta:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@tosqatest4 ~]# lvs -a silver_vg</span><br><span class="line">  LV                                VG        Attr       LSize   Pool                      Origin Data%  Meta%  Move Log Cpy%Sync Convert</span><br><span class="line">  convoy_Linear_silver_data         silver_vg twi-aotz-- 894.25g                                  0.04   0.01                            </span><br><span class="line">  convoy_Linear_silver_data_meta0   silver_vg -wi-a-----   9.31g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tdata] silver_vg Twi-ao---- 894.25g                                                                         </span><br><span class="line">  [convoy_Linear_silver_data_tmeta] silver_vg ewi-ao----   9.31g                                                                         </span><br><span class="line">  thinvolume                        silver_vg Vwi-aotz--   1.00g convoy_Linear_silver_data        40.04</span><br></pre></td></tr></table></figure>
+
+<p>So pmspare device just a free space device nor a mirror of metadata, if not, we can add pv to vg for repair.</p>
+<h3 id="Use-manual-repair"><a href="#Use-manual-repair" class="headerlink" title="Use manual repair"></a>Use manual repair</h3><p>With older tools - you need to go in these manual step:</p>
+<ol>
+<li><p>create temporary small LV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -an -Zn -L10 --name temp vg</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>replace pool’s metadata volume with this tempLV</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lvconvert --thinpool vg/pool  --poolmetadata temp</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>(say ‘y’ to swap)</p>
+<ol>
+<li><p>activate &amp; repair metadata from ‘temp’ volume - you will likely need another volume where to store repaire metadata -</p>
+<p>so create:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lvcreate -Lat_least_as_big_as_temp  --name repaired  vg</span><br><span class="line">lvchage -ay vg/temp</span><br><span class="line">thin_repair -i /dev/vg/temp  /dev/vg/repaired</span><br></pre></td></tr></table></figure>
+
+<p>if everything when fine - compare visualy ‘transaction_id’ of repaired metadata (thin_dump &#x2F;dev&#x2F;vg&#x2F;repaired)</p>
+<ol>
+<li><p>swap deactivated repaired volume back to your thin-pool</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lvchange -an vg/repaired</span><br><span class="line">lvconvert --thinpool vg/pool --poolmetadata repaired</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>try to activate pool - if it doesn’t work report more problems.</p>
+<h2 id="Metadata-space-exhaustion"><a href="#Metadata-space-exhaustion" class="headerlink" title="Metadata space exhaustion"></a>Metadata space exhaustion</h2><p>Metadata space exhaustion can lead to inconsistent thin pool metadata<br>and inconsistent file systems, so the response requires offline<br>checking and repair.</p>
+<ol>
+<li><p>Deactivate the thin pool LV, or reboot the system if this is not</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">possible.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Repair thin pool with lvconvert –repair.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Metadata check and repair&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Extend pool metadata space with lvextend VG&#x2F;ThinPoolLV_tmeta.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">See &quot;Manually manage free metadata space of a thin pool LV&quot;.</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>Check and repair file system with fsck.</p>
+</li>
+</ol>
+</li>
+</ol>
+</li>
+</ol>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-kmp/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-kmp/" class="post-title-link" itemprop="url">kmp</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>KMP算法用于做字符串匹配, 是计算机中经常用到的算法. 大多数都文章比较难懂, 这里参考了<a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blog/2013/05/Knuth%E2%80%93Morris%E2%80%93Pratt_algorithm.html">阮一封</a>的博客文章, 比较通俗易懂, 但是没有详细解释Next表怎么具体算出来, 只是给出了概念的解释. 这里给出更完整的算法实现和解释.</p>
+<h4 id="基本思想"><a href="#基本思想" class="headerlink" title="基本思想"></a>基本思想</h4><p>KMP的基本思想非常简单, 举例来说, 现在判断字符串”ABCDABD”是否在字符串”BBC ABCDAB ABCDABCDABDE”中.</p>
+<ol>
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050103.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050103.png" alt="img"></a></p>
+<p>首先，字符串”BBC ABCDAB ABCDABCDABDE”的第一个字符与搜索词”ABCDABD”的第一个字符，进行比较。因为B与A不匹配，所以搜索词后移一位。</p>
+<ol start="2">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050104.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050104.png" alt="img"></a></p>
+<p>因为B与A不匹配，搜索词再往后移。</p>
+<ol start="3">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050105.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050105.png" alt="img"></a></p>
+<p>就这样，直到字符串有一个字符，与搜索词的第一个字符相同为止。</p>
+<ol start="4">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050106.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050106.png" alt="img"></a></p>
+<p>接着比较字符串和搜索词的下一个字符，还是相同。</p>
+<ol start="5">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050107.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050107.png" alt="img"></a></p>
+<p>直到字符串有一个字符，与搜索词对应的字符不相同为止。</p>
+<ol start="6">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050108.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050108.png" alt="img"></a></p>
+<p>这时，最自然的反应是，将搜索词整个后移一位，再从头逐个比较。这样做虽然可行，但是效率很差，因为你要把”搜索位置”移到已经比较过的位置，重比一遍。</p>
+<ol start="7">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050107.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050107.png" alt="img"></a></p>
+<p>一个基本事实是，当空格与D不匹配时，你其实知道前面六个字符是”ABCDAB”。KMP算法的想法是，设法利用这个已知信息，不要把”搜索位置”移回已经比较过的位置，继续把它向后移，这样就提高了效率。</p>
+<ol start="8">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050109.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050109.png" alt="img"></a></p>
+<p>怎么做到这一点呢？可以针对搜索词，算出一张《部分匹配表》（Partial Match Table）。这张表是如何产生的，后面再介绍，这里只要会用就可以了。</p>
+<ol start="9">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050107.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050107.png" alt="img"></a></p>
+<p>已知空格与D不匹配时，前面六个字符”ABCDAB”是匹配的。查表可知，最后一个匹配字符B对应的”部分匹配值”为2，因此按照下面的公式算出向后移动的位数：</p>
+<blockquote>
+<p>　　移动位数 &#x3D; 已匹配的字符数 - 对应的部分匹配值</p>
+</blockquote>
+<p>因为 6 - 2 等于4，所以将搜索词向后移动4位。</p>
+<ol start="10">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050110.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050110.png" alt="img"></a></p>
+<p>因为空格与Ｃ不匹配，搜索词还要继续往后移。这时，已匹配的字符数为2（”AB”），对应的”部分匹配值”为0。所以，移动位数 &#x3D; 2 - 0，结果为 2，于是将搜索词向后移2位。</p>
+<ol start="11">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050111.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050111.png" alt="img"></a></p>
+<p>因为空格与A不匹配，继续后移一位。</p>
+<ol start="12">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050112.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050112.png" alt="img"></a></p>
+<p>逐位比较，直到发现C与D不匹配。于是，移动位数 &#x3D; 6 - 2，继续将搜索词向后移动4位。</p>
+<ol start="13">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050113.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050113.png" alt="img"></a></p>
+<p>逐位比较，直到搜索词的最后一位，发现完全匹配，于是搜索完成。如果还要继续搜索（即找出全部匹配），移动位数 &#x3D; 7 - 0，再将搜索词向后移动7位，这里就不再重复了。</p>
+<ol start="14">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050114.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050114.png" alt="img"></a></p>
+<p>下面介绍《部分匹配表》是如何产生的。</p>
+<p>首先，要了解两个概念：”前缀”和”后缀”。 “前缀”指除了最后一个字符以外，一个字符串的全部头部组合；”后缀”指除了第一个字符以外，一个字符串的全部尾部组合。</p>
+<ol start="15">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050109.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050109.png" alt="img"></a></p>
+<p>“部分匹配值”就是”前缀”和”后缀”的最长的共有元素的长度。以”ABCDABD”为例，</p>
+<blockquote>
+<p>　　－　“A”的前缀和后缀都为空集，共有元素的长度为0；</p>
+<p>　　－　“AB”的前缀为[A]，后缀为[B]，共有元素的长度为0；</p>
+<p>　　－　“ABC”的前缀为[A, AB]，后缀为[BC, C]，共有元素的长度0；</p>
+<p>　　－　“ABCD”的前缀为[A, AB, ABC]，后缀为[BCD, CD, D]，共有元素的长度为0；</p>
+<p>　　－　“ABCDA”的前缀为[A, AB, ABC, ABCD]，后缀为[BCDA, CDA, DA, A]，共有元素为”A”，长度为1；</p>
+<p>　　－　“ABCDAB”的前缀为[A, AB, ABC, ABCD, ABCDA]，后缀为[BCDAB, CDAB, DAB, AB, B]，共有元素为”AB”，长度为2；</p>
+<p>　　－　“ABCDABD”的前缀为[A, AB, ABC, ABCD, ABCDA, ABCDAB]，后缀为[BCDABD, CDABD, DABD, ABD, BD, D]，共有元素的长度为0。</p>
+</blockquote>
+<ol start="16">
+<li></li>
+</ol>
+<p><a target="_blank" rel="noopener" href="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050112.png"><img src="http://www.ruanyifeng.com/blogimg/asset/201305/bg2013050112.png" alt="img"></a></p>
+<p>“部分匹配”的实质是，有时候，字符串头部和尾部会有重复。比如，”ABCDAB”之中有两个”AB”，那么它的”部分匹配值”就是2（”AB”的长度）。搜索词移动的时候，第一个”AB”向后移动4位（字符串长度-部分匹配值），就可以来到第二个”AB”的位置。</p>
+<p>####算法实现</p>
+<p>从上述思想来看, KMP的核心在于计算Next(部分匹配表)表, 其他的就是按照一个公式去移动而已. 我们来看看这个表用算法如何构造. 从15我们知道, Next就是”部分匹配值”就是”前缀”和”后缀”的最长的共有元素的长度.</p>
+<p>我们先用最直观的做法来写这段代码, 然后再来优化</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">func Next(str string) []int &#123;</span><br><span class="line">    length := len(str)</span><br><span class="line">    next := make([]int, length) // next数组</span><br><span class="line">    for q := 1; q &lt; length; q++ &#123;</span><br><span class="line">        m := 0</span><br><span class="line">        for k := 0; k &lt; q; k++ &#123;</span><br><span class="line">            if str[:k+1] == str[q-k:q+1] &amp;&amp; k+1 &gt; m&#123; //如果前缀等于后缀, 并且长度是最长的, 就替换m</span><br><span class="line">                m = k+1</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        next[q] = m // m是写入next数组, 循环q</span><br><span class="line">    &#125;</span><br><span class="line">    return next</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这段代码将next数组计算出来, 符合正常的code思路, 但是复杂度是O(n^2), 显然不符合KMP的思想. 我们来做一些优化. 首先, 按照next的特性, 每次不需要回溯到0, 而是充分利用next特性回溯到已经匹配的字串, 如果不中再去找上一个, 算法见:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">func Next(str string) []int &#123;</span><br><span class="line">    length := len(str)</span><br><span class="line">    next := make([]int, length)</span><br><span class="line">    next[0] = 0 // 初始化为0, 表示没有</span><br><span class="line">    for q := 1; q &lt; length; q++ &#123;</span><br><span class="line">        k := next[q - 1] // 只需要退回到前一个的next[q-1]位置, 而不用回到0</span><br><span class="line">        for k &gt; 0 &amp;&amp; str[k] != str[q] &#123; // 如果后一个位置不相等, 再往前回溯</span><br><span class="line">            k = next[k] // 为什么这里不直接跳回到0呢, 因为next[k]表示前面已经匹配的, 而不需要退到起点, 先从最大长度往前回溯</span><br><span class="line">        &#125;</span><br><span class="line">        if str[k] == str[q] &#123;</span><br><span class="line">            // 如果下一个字符相等, 将将k + 1, 由于前面的字串肯定是相等的, 不需要在比较</span><br><span class="line">            next[q] = k + 1</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">            next[q] = 0 // 如果不相等</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    return next</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>改进后的算法时间复杂度为O(2n)</p>
+<p>这种写法看起来不是很美观, 但是可读性更强, 有点写法会将初始值为-1, 然后将k :&#x3D; next[q - 1] 和 k &#x3D; next[k]合在一起, 把 next[q] &#x3D; k + 1和 next[q] &#x3D; 0也合在一起, 这种”炫技” 行为我个人是非常不喜欢的, 看起来简洁但是将算法思想隐藏了, 可理解性很差. 同样我也不喜欢用任何lamda写法, 除非语言层面对此有性能优化, 否则只是用来恶心看代码的人.</p>
+<p>按照这个思想写KMP的算法就非常简单了:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">func kmp(str1, str2 string) bool &#123;</span><br><span class="line">    next := Next(str2)</span><br><span class="line">    i := 0 // i 是str1的index</span><br><span class="line">    j := 0 // j 是str2的index</span><br><span class="line">    length := len(str1)</span><br><span class="line">    for i &lt; length &#123;</span><br><span class="line">        if str1[i+j] == str2[j] &#123;</span><br><span class="line">            j++</span><br><span class="line">            if j == len(str2) &#123;</span><br><span class="line">                // 完全匹配</span><br><span class="line">                return true</span><br><span class="line">            &#125;</span><br><span class="line">            continue</span><br><span class="line">        &#125;</span><br><span class="line">        if j == 0 &#123; // j==0 字节i++ 跳过</span><br><span class="line">            i++</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">            i = i + j - next[j-1]//移动位数 = 已匹配的字符数 - 对应的部分匹配值</span><br><span class="line">            j = next[j - 1] // j回溯到记录位置</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    return false</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>KMP算法的复杂度为O(M+N), 其他写法会更简洁, 但是同样为了可读性, 情愿写的罗嗦一点.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">func main() &#123;</span><br><span class="line">    str1 := &quot;BBC ABCDAB ABCDABCDABDE&quot;</span><br><span class="line">    str := &quot;ABCDABD&quot;</span><br><span class="line">    fmt.Println(kmp(str1, str))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>带上术例子进行计算, 总共循环次数为15次, 其中计算next数组总共只计算了7次.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-lvconvert-down/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-lvconvert-down/" class="post-title-link" itemprop="url">lvconvert-down</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>记录一个kernel bug.</p>
+<p>在组建中调用了lvconvert生成存储池, 但是测试告诉我过程失败并且机器重启了, 通过抓kdump生成以下日志:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">[  983.179047] BUG kmalloc-256(4:099fef32f6df55082271a9ab572acec8251aa754a14a60444d7ce4cb110be56f) (Tainted: G    B          ------------ T): Objects remaining in kmalloc-256(4:099fef32f6df55082271a9ab572acec8251aa754a14a60444d7ce4cb110be56f</span><br><span class="line">[  983.179890] -----------------------------------------------------------------------------</span><br><span class="line"></span><br><span class="line">[  983.180762] INFO: Slab 0xffffea000cae8840 objects=16 used=9 fp=0xffff88032ba21b00 flags=0x2fffff00000080</span><br><span class="line">[  983.181181] CPU: 3 PID: 25070 Comm: lvconvert Tainted: G    B          ------------ T 3.10.0-327.el7.x86_64 #1</span><br><span class="line">[  983.181182] Hardware name: Red Hat KVM, BIOS 0.5.1 01/01/2011</span><br><span class="line">[  983.181183]  ffffea000cae8840 00000000c255adbf ffff88018d43baa8 ffffffff816351f1</span><br><span class="line">[  983.181186]  ffff88018d43bb80 ffffffff811beac4 0000000000000020 ffff88018d43bb90</span><br><span class="line">[  983.181188]  ffff88018d43bb40 656a624f00000000 616d657220737463 6e6920676e696e69</span><br><span class="line">[  983.181190] Call Trace:</span><br><span class="line">[  983.181195]  [&lt;ffffffff816351f1&gt;] dump_stack+0x19/0x1b</span><br><span class="line">[  983.181203]  [&lt;ffffffff811beac4&gt;] slab_err+0xb4/0xe0</span><br><span class="line">[  983.181206]  [&lt;ffffffff811c1f33&gt;] ? __kmalloc+0x1f3/0x230</span><br><span class="line">[  983.181208]  [&lt;ffffffff811c316b&gt;] ? kmem_cache_close+0x12b/0x2f0</span><br><span class="line">[  983.181210]  [&lt;ffffffff811c318c&gt;] kmem_cache_close+0x14c/0x2f0</span><br><span class="line">[  983.181212]  [&lt;ffffffff811c35c4&gt;] __kmem_cache_shutdown+0x14/0x80</span><br><span class="line">[  983.181215]  [&lt;ffffffff8118ceaf&gt;] kmem_cache_destroy+0x3f/0xe0</span><br><span class="line">[  983.181217]  [&lt;ffffffff811d4949&gt;] kmem_cache_destroy_memcg_children+0x89/0xb0</span><br><span class="line">[  983.181221]  [&lt;ffffffff8118ce84&gt;] kmem_cache_destroy+0x14/0xe0</span><br><span class="line">[  983.181231]  [&lt;ffffffff8121705e&gt;] bioset_free+0xce/0x110</span><br><span class="line">[  983.181250]  [&lt;ffffffffa0002fa0&gt;] __dm_destroy+0x1b0/0x340 [dm_mod]</span><br><span class="line">[  983.181257]  [&lt;ffffffffa00047e3&gt;] dm_destroy+0x13/0x20 [dm_mod]</span><br><span class="line">[  983.181263]  [&lt;ffffffffa000a34e&gt;] dev_remove+0x11e/0x180 [dm_mod]</span><br><span class="line">[  983.181268]  [&lt;ffffffffa000a230&gt;] ? dev_suspend+0x250/0x250 [dm_mod]</span><br><span class="line">[  983.181274]  [&lt;ffffffffa000aa25&gt;] ctl_ioctl+0x255/0x500 [dm_mod]</span><br><span class="line">[  983.181278]  [&lt;ffffffff81271b94&gt;] ? SYSC_semtimedop+0x264/0xd10</span><br><span class="line">[  983.181287]  [&lt;ffffffffa000ace3&gt;] dm_ctl_ioctl+0x13/0x20 [dm_mod]</span><br><span class="line">[  983.181289]  [&lt;ffffffff811f1ef5&gt;] do_vfs_ioctl+0x2e5/0x4c0</span><br><span class="line">[  983.181292]  [&lt;ffffffff811e05ee&gt;] ? ____fput+0xe/0x10</span><br><span class="line">[  983.181294]  [&lt;ffffffff811f2171&gt;] SyS_ioctl+0xa1/0xc0</span><br><span class="line">[  983.181298]  [&lt;ffffffff81645909&gt;] system_call_fastpath+0x16/0x1b</span><br></pre></td></tr></table></figure>
+
+<p>看起来是lvconvert过程中缓存分配出现错误, 查到这一步基本无从下手了, 只能google搜索. 在docker项目中发现有相似的情况<a target="_blank" rel="noopener" href="https://github.com/moby/moby/issues/29879">https://github.com/moby/moby/issues/29879</a>, 出问题的三个网址都是3.10的kernel, 回到说是kernel问题, 升到4.16.7-1.el7.elrepo.x86_64没有问题.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-docker-start-failed/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-docker-start-failed/" class="post-title-link" itemprop="url">docker-start-failed</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>make build过程中忽然出现错误:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">Sending build context to Docker daemon   220 MB</span><br><span class="line">Step 1 : FROM warpdrive:tos-release-1-5</span><br><span class="line"> ---&gt; 769306738d96</span><br><span class="line">Step 2 : COPY . /go/src/github.com/transwarp/warpdrive/</span><br><span class="line"> ---&gt; 07c99697b16e</span><br><span class="line">Removing intermediate container 127c0e71a84b</span><br><span class="line">Successfully built 07c99697b16e</span><br><span class="line">/usr/bin/docker: Error response from daemon: invalid header field value &quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux.go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot;.</span><br><span class="line">FATA[0301] exit status 125                              </span><br><span class="line">make: *** [build] Error 1</span><br></pre></td></tr></table></figure>
+
+<p>尝试run 07c99697b16e报同样的错, 查看docker日志, 出现<code>&quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux .go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot;</code></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">8月 21 15:29:01 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:29:01.778212288+08:00&quot; level=error msg=&quot;Handler for POST /v1.24/containers/79a0906242e0180dfd7aeff30e9fb179f7b7c37f0ba20533f83b4cd40b409d2a/start returned error: invali</span><br><span class="line">d header field value \&quot;oci runtime error: container_linux.go:247: starting container process caused \\\&quot;process_linux.go:245: running exec setns process for init caused \\\\\\\&quot;exit status 6\\\\\\\&quot;\\\&quot;\\n\&quot;&quot;</span><br><span class="line">8月 21 15:51:08 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:51:08.075631868+08:00&quot; level=error msg=&quot;containerd: start container&quot; error=&quot;oci runtime error: container_linux.go:247: starting container process caused \&quot;process_linux</span><br><span class="line">.go:245: running exec setns process for init caused \\\&quot;exit status 6\\\&quot;\&quot;\n&quot; id=b93539a02f27cc1ad0114552643d8e0c942fba053dc8cd3980cb8f24cf61ff25</span><br><span class="line">8月 21 15:51:08 zhenghc-tos dockerd[2517]: time=&quot;2018-08-21T15:51:08.092002257+08:00&quot; level=error msg=&quot;Create container failed with error: invalid header field value \&quot;oci runtime error: container_linux.go:247: starting container p</span><br><span class="line">rocess caused \\\&quot;process_linux.go:245: running exec setns process for init caused \\\\\\\&quot;exit status 6\\\\\\\&quot;\\\&quot;\\n\&quot;&quot;</span><br></pre></td></tr></table></figure>
+
+<p>发现Docker比较卡, 于是清理了大量的images, 删掉了所有未运行的container, 再清理了系统缓存, 问题解决了, 但深层次的问题没弄清楚, 尽管清了缓存, 但是清完其实缓存差距不大, docker 也没有显示资源问题, 另外一个点就是, 只有这个image是进不去的, 其他的Images是可以run -it的, 而且在做<code>COPY . /go/src/github.com/transwarp/warpdrive/</code>这一步时间等的比较长.</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/opencontainers/runc/issues/1130">https://github.com/opencontainers/runc/issues/1130</a> 记录了相关的问题, 说runc的问题.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -874,551 +1533,8 @@ D(Deployment) --> A</pre>
 
 
 
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-05-24-k8s-schedule/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-05-24-k8s-schedule/" class="post-title-link" itemprop="url">k8s-schedule</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h4 id="Labels-and-Selectors"><a href="#Labels-and-Selectors" class="headerlink" title="Labels and Selectors"></a>Labels and Selectors</h4><ol>
-<li><p>label<br>  label是k8s中所有资源都有的一个域, 他是一个<key>&#x3D;<value>对, 表示这个资源具有某种特定属性, key必须不能重复. 这样user和其他资源可以通过label来选择具有这种属性的资源集合.</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">&quot;metadata&quot;:</span> &#123;</span><br><span class="line">  <span class="attr">&quot;labels&quot;:</span> &#123;</span><br><span class="line">    <span class="string">&quot;key1&quot;</span> <span class="string">:</span> <span class="string">&quot;value1&quot;</span>,</span><br><span class="line">    <span class="string">&quot;key2&quot;</span> <span class="string">:</span> <span class="string">&quot;value2&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>  label的key有两个段,分别是前缀和名称, 通过’&#x2F;‘分开. 名称字段必须少于63个字符, 必须以’[a-z0-9A-Z]’, ‘-‘, ‘.’, ‘_’和数字 开头和结尾.前缀是可选的, 一旦指定, 不能超过253个字符. label的value指和key中的名称要求一样.</p>
-</li>
-<li><p>Selectors的使用<br>通过api中使用 -l 来选择特定集合的objects: <code>$ kubectl get pods -l &#39;environment in (production, qa)&#39;</code></p>
-</li>
-</ol>
-<p>一些k8s资源, 比如Service and ReplicationController 会有selector字段, 用来选择pod.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">selector:</span><br><span class="line">    component: redis</span><br></pre></td></tr></table></figure>
-
-<p>基于相等的匹配和基于集合的匹配:<br>  <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">selector:</span></span><br><span class="line"><span class="attr">matchLabels:</span></span><br><span class="line">  <span class="attr">component:</span> <span class="string">redis</span></span><br><span class="line"><span class="attr">matchExpressions:</span></span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">tier</span>, <span class="attr">operator:</span> <span class="string">In</span>, <span class="attr">values:</span> [<span class="string">cache</span>]&#125;</span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">environment</span>, <span class="attr">operator:</span> <span class="string">NotIn</span>, <span class="attr">values:</span> [<span class="string">dev</span>]&#125;</span><br></pre></td></tr></table></figure><br>   注意区分概念, label永远都是key&#x3D;value, 多个label在一起能组成一个集合, 类似map. 只有selector有集合的操作, label本身就是一个&lt;k,v&gt; 对, 没有<k in v>这样的label.<br>   集合方式有四种operator: In, NotIn, Exist, DoesNotExist. <code>&#123;key: tier, operator: In, values: [cache]&#125;</code>这条表达式等价于matchLabels中的: <code>tier: cache</code>.<br>   必须满足所有的selector表达式, 才算匹配.<br>   Job, Deployment, Replica Set, and Daemon Set都是支持基于集合的匹配.</p>
-<ol start="3">
-<li>nodeSelector<br>  nodeSelector用于选择某个node, 再次之前, 需要在node上添加label: <code>kubectl label nodes &lt;node-name&gt; &lt;label-key&gt;=&lt;label-value&gt;</code>. 然后在pod中配置相应的nodeSelector, 就能保证pod调度到符合语义的node:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">env:</span> <span class="string">test</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">  <span class="attr">nodeSelector:</span></span><br><span class="line">    <span class="attr">disktype:</span> <span class="string">ssd</span></span><br></pre></td></tr></table></figure>
-k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">kubernetes.io/hostname</span><br><span class="line">failure-domain.beta.kubernetes.io/zone</span><br><span class="line">failure-domain.beta.kubernetes.io/region</span><br><span class="line">beta.kubernetes.io/instance-type</span><br><span class="line">beta.kubernetes.io/os</span><br><span class="line">beta.kubernetes.io/arch</span><br></pre></td></tr></table></figure></li>
-</ol>
-<h4 id="Affinity"><a href="#Affinity" class="headerlink" title="Affinity"></a>Affinity</h4><p>nodeSelector是比较简单的pod选择节点的方式, k8s提供了affinity&#x2F;anti-affinity用来更复杂的提供节点选择方案. 他有两种: node affinity 和 inter-pod affinity&#x2F;anti-affinity:</p>
-<ul>
-<li><p>node affinity<br>nodeAffinity与nodeSelector相似, 也是基于label, 包括两种类型, 可以分别理解为’hard’和’soft’, 一个强制要求, 一个尽可能要求. </p>
-<ul>
-<li>requiredDuringSchedulingIgnoredDuringExecution: hard类型</li>
-<li>preferredDuringSchedulingIgnoredDuringExecution: soft类型<br>内容和label selector基本一致:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">nodeAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">        <span class="attr">nodeSelectorTerms:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">kubernetes.io/e2e-az-name</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az1</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az2</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">        <span class="attr">preference:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">another-node-label-key</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">another-node-label-value</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
-<code>weight</code> 是1-100.</li>
-</ul>
-</li>
-<li><p>pod affinity<br>  podAffinity&#x2F;podAnti-Affinity是比较已经调度到节点上的pod而不是看node本身. 他也有两种类型hard和soft:</p>
-<ul>
-<li>requiredDuringSchedulingIgnoredDuringExecution: hard</li>
-<li>preferredDuringSchedulingIgnoredDuringExecution: soft</li>
-</ul>
-</li>
-</ul>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">podAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">labelSelector:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">S1</span></span><br><span class="line">        <span class="attr">topologyKey:</span> <span class="string">failure-domain.beta.kubernetes.io/zone</span></span><br><span class="line">    <span class="attr">podAntiAffinity:</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">100</span></span><br><span class="line">        <span class="attr">podAffinityTerm:</span></span><br><span class="line">          <span class="attr">labelSelector:</span></span><br><span class="line">            <span class="attr">matchExpressions:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">              <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">              <span class="attr">values:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">S2</span></span><br><span class="line">          <span class="attr">topologyKey:</span> <span class="string">kubernetes.io/hostname</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
-
-<h4 id="Taints-and-Tolerations"><a href="#Taints-and-Tolerations" class="headerlink" title="Taints and Tolerations"></a>Taints and Tolerations</h4><p>affinity是站在pod的角度, 而taints是站在node的角度, </p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key=value:NoSchedule</span><br></pre></td></tr></table></figure>
-<p>这个命令将node1加了一个taint, 表示无法调度, 除非你有相应的toleration:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
-<p>这两个tolerations都能匹配那个taint. operator默认是<code>Equal</code><br>一个空的tolerations匹配所有的taint:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
-<p>以下这个tolerations匹配所有key为<code>key</code>的taints:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
-
-<p>effect有两种： NoExecute和ＮoSchedule， 如果加了NoExecute， 那么所有不匹配的pod将会立即被evicted掉， 如果加了Noschedule, 那么只是Pod无法被调度， 已经调度的Ｐod不受影响。NoExecute还可以指定一个可选的域<code>tolerationSeconds</code>， 表示尽管匹配了taint可以不被立即evicted掉, 但在一定时间之后就会被evicted掉。</p>
-<p>通过<code>kubectl taint nodes node1 key:NoSchedule-</code> 取消taint</p>
-<h5 id="更有意思的是多个taint和多个tolerations的情况"><a href="#更有意思的是多个taint和多个tolerations的情况" class="headerlink" title="更有意思的是多个taint和多个tolerations的情况."></a>更有意思的是多个taint和多个tolerations的情况.</h5><p>例如创建三个taint:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key1=value1:NoSchedule</span><br><span class="line">kubectl taint nodes node1 key1=value1:NoExecute</span><br><span class="line">kubectl taint nodes node1 key2=value2:NoSchedule</span><br></pre></td></tr></table></figure>
-<p>一个pod拥有两个tolerations：</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoExecute&quot;</span></span><br></pre></td></tr></table></figure>
-<p>该pod没有匹配所有的taint, 因此他不能被调度到这个节点， 但如果调度了，他不会被移除， 因为他只有第三个<code>NoSchedule</code>的taint不匹配。</p>
-<h5 id="注意"><a href="#注意" class="headerlink" title="注意"></a>注意</h5><p>在1.6之后， 官方加了一些内置的taint， 他会将pod evctied掉：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">node.kubernetes.io/not-ready: notready.</span><br><span class="line">node.alpha.kubernetes.io/unreachable: Unknown</span><br><span class="line">node.kubernetes.io/out-of-disk: Node becomes out of disk.</span><br><span class="line">node.kubernetes.io/memory-pressure: Node has memory pressure.</span><br><span class="line">node.kubernetes.io/disk-pressure: Node has disk pressure.</span><br><span class="line">node.kubernetes.io/network-unavailable: Node’s network is unavailable.</span><br><span class="line">node.cloudprovider.kubernetes.io/uninitialized: When kubelet is started with “external” cloud provider, it sets this taint on a node to mark it as unusable. When a controller from the cloud-controller-manager initializes this node, kubelet removes this taint.</span><br></pre></td></tr></table></figure>
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-29-golang-rename/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-29-golang-rename/" class="post-title-link" itemprop="url">记一次疑云重重的kubelet延迟很高的问题</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>最近在调查一个kubernetes中发现Kubelet的pods目录:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/xxx/volumes/</span><br></pre></td></tr></table></figure>
-<p>下出现了大量的包含”deleting~” 的目录:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~859156558</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~912994645</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~096627888</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~361944655</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~827756898</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~850958169</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~435144420</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~573873907</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~817019830</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~300298653</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~414447192</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~453118423</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~634999626</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~329196065</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~705907980</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~060876539</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~371568670</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~473777381</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~852926720</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~911951455</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~221614642</span><br><span class="line">/var/lib/kubelet/pods/612f2e76-3ce1-11e8-b2c9-0cc47ae2b22c/volumes/transwarp.io~tosdisk/pvc-f39e86b9-019b-11e8-b2c9-0cc47ae2b22c.deleting~643761641</span><br></pre></td></tr></table></figure>
-<p>导致每次reconciler将这些多余的”deleting~”加入到”ActualOfWorld”中, 然后触发大量的Umount操作, 使得reconciler很久才Loop一次, 现象就是pod create和delete都变得非常得慢.<br>一. 一开始, 我发现自己写的plugin中使用了pkg&#x2F;volume&#x2F;volume.go中的RenameDirectory函数, 函数如下:</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">RenameDirectory</span><span class="params">(oldPath, newName <span class="type">string</span>)</span></span> (<span class="type">string</span>, <span class="type">error</span>) &#123;</span><br><span class="line">	newPath, err := ioutil.TempDir(filepath.Dir(oldPath), newName)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// os.Rename call fails on windows (https://github.com/golang/go/issues/14527)</span></span><br><span class="line">	<span class="comment">// Replacing with copyFolder to the newPath and deleting the oldPath directory</span></span><br><span class="line">	<span class="keyword">if</span> runtime.GOOS == <span class="string">&quot;windows&quot;</span> &#123;</span><br><span class="line">		err = copyFolder(oldPath, newPath)</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			glog.Errorf(<span class="string">&quot;Error copying folder from: %s to: %s with error: %v&quot;</span>, oldPath, newPath, err)</span><br><span class="line">			<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">		&#125;</span><br><span class="line">		os.RemoveAll(oldPath)</span><br><span class="line">		<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	err = os.Rename(oldPath, newPath)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span>, err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> newPath, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-<p>在每次删除目录时, 并不是直接删除, 而是先创建一个随机的空目录, 然后将原目录rename到随机目录, 最后再将这个随机目录删除掉.<br>看似没有什么问题, 但不巧的是, 在golang1.8之后, os.Rename的实现发生了变化</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">rename</span><span class="params">(oldname, newname <span class="type">string</span>)</span></span> <span class="type">error</span> &#123;</span><br><span class="line">	fi, err := Lstat(newname)</span><br><span class="line">	<span class="keyword">if</span> err == <span class="literal">nil</span> &amp;&amp; fi.IsDir() &#123;</span><br><span class="line">		<span class="comment">// There are two independent errors this function can return:</span></span><br><span class="line">		<span class="comment">// one for a bad oldname, and one for a bad newname.</span></span><br><span class="line">		<span class="comment">// At this point we&#x27;ve determined the newname is bad.</span></span><br><span class="line">		<span class="comment">// But just in case oldname is also bad, prioritize returning</span></span><br><span class="line">		<span class="comment">// the oldname error because that&#x27;s what we did historically.</span></span><br><span class="line">		<span class="keyword">if</span> _, err := Lstat(oldname); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">if</span> pe, ok := err.(*PathError); ok &#123;</span><br><span class="line">				err = pe.Err</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, syscall.EEXIST&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">//------------------------版本分割线1.8</span></span><br><span class="line">	err = syscall.Rename(oldname, newname)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> &amp;LinkError&#123;<span class="string">&quot;rename&quot;</span>, oldname, newname, err&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>在虚线以上是go1.8之后新加的内容, 如果rename之后的目录存在, 就会打印”File Exits”错误, 这样就会创建大量的”deleting~”目录. 相关修改和讨论在<a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/issues/43534">Bugs in EmptyDir Teardown path</a>.</p>
-<p>以为问题就这样解决了, 然而不是, 我检查了版本, 使用的是1.7.4, 同时查看了日志, 并没有打印”FILE Exist”的log, 而是打印了”device or resource busy”. 通过多种测试, 发现rename操作无论是进程占用还是进程对文件的读写, 都不会导致device busy问题. 这说明我找到了出问题的地方, 却没找到背后的原因. </p>
-<p>二. 如果rename没有返回错误, 那么只能是之后的remove操作返回的错误. 然而却有几个疑点:</p>
-<ol>
-<li>查看rename出来的deleting目录中都是空目录, 里面并没有数据</li>
-<li>手动可以remove掉这些目录</li>
-<li>原目录并没有消失, 而是存在且有大量的正在更新的数据.</li>
-</ol>
-<p>​    显然问题比我想象的更加复杂. 有一个可能的解释是在我操作delete之后由于太长时间没有删掉导致Kubelet直接暴力删除了这个pod, statefulset又重启了新的pod, 原来的container虽然删掉但相应的namespaces中依然有应用程序在读写, 这种情况导致remove busy, 而且数据在更新.</p>
-<p>这些问题要调查起来都很费力. 显然直接删掉rename逻辑可以解决这个问题, 于是不再追究.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-07-docker-mountflags/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-07-docker-mountflags/" class="post-title-link" itemprop="url">docker-mountflags</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>docker run 的时候如果出现类似:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: linux mounts: path /tmp is mounted on / but it is not a shared mount.</span><br></pre></td></tr></table></figure>
-
-<p>之类的错误, 可以通过修改Docker启动参数解决, 注释掉mountFlags或者改为shared:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$vi /usr/lib/systemd/system/docker.service</span><br><span class="line">MountFlags=slave</span><br></pre></td></tr></table></figure>
-
-<p>修改后发现新的错误:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused &quot;process_linux.go:402: container init caused \&quot;open /dev/console: input/output error\&quot;&quot;: unknown.</span><br><span class="line">FATA[0007] exit status 125</span><br></pre></td></tr></table></figure>
-
-<p>网上查有如下回复:</p>
-<figure class="highlight tex"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I met this problem while I suspend my computer, then I restart my computer, this error was solved. I guess it was because the docker daemon missed driver library path.</span><br></pre></td></tr></table></figure>
-
-<p>所以重启大法好…</p>
-<p>但是真正原因没搞清楚, 待更新.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-14-qos-in-k8s/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-14-qos-in-k8s/" class="post-title-link" itemprop="url">qos-in-k8s</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>​    一直感觉对kubernetes中的qos是一个盲点, 借着复习下scheduler的一些资源调度策略来学习下k8s中的qos策略, 然后再辐射到一般性的qos策略.</p>
-<h3 id="动机"><a href="#动机" class="headerlink" title="动机:"></a>动机:</h3><p>k8s 用非常简单的方式分配资源. 用户能够指定容器的资源限制. 比如一个用户能够指定某个container 只能使用1GB的内存. scheduler通过资源限制去调度容器. 如果某个节点的内存只有4GB, 那个一个有5Gb请求的容器就将不能调度到这个节点. 目前, k8s不能保证容器在一个超卖的系统中运行稳定. </p>
-<p>目前的实现中, 如果用户指定limts给所有的container, 那么集群资源的利用率将会非常低下. 因为容器往往无法充分使用用户指定的那些资源. 一个可能的方式是不指定limits, 这样container就可以无限制的使用, 但是如果这些container无限制的使用资源, 就可能使得指定了limits的容器由于机器资源不够而被杀掉. 这是用户不愿意看到的, 他们希望自己指定了某个大小, 那么启动之后系统就应该保证这个容器的顺利运行. </p>
-<p>qos机制就是在节点资源超卖的环境下, 通过提供不同级别的保证来满足资源的需求. 容器可以用request请求一个最小资源, request与limit不同, container可以使用超过request的值. best-effort级别的container相当于request为0的container. Best-effort container只使用那些其他container没有使用的资源, 可以用于资源清理(这个没看懂). </p>
-<h3 id="Request-and-limits"><a href="#Request-and-limits" class="headerlink" title="Request and limits"></a>Request and limits</h3><p>对于每种资源, container可以指定request和limits, 0 &lt;&#x3D; request &lt;&#x3D; limit &lt;&#x3D; infinity. 如果container成功调度, 意味着container能够保证至少有request的值的资源. container不能超过limit的值. 而request 和 limit 如何执行要看资源是compressible还是incompressible.</p>
-<h4 id="Compressible-Resource-Guarantees"><a href="#Compressible-Resource-Guarantees" class="headerlink" title="Compressible Resource Guarantees"></a>Compressible Resource Guarantees</h4><ul>
-<li>目前只有cpu</li>
-<li>container至少得到request的cpu请求</li>
-<li>剩余的cpu会按照cpu request比例分配给container. 比如container A request 60%, container B request 30%. 假设两个container都尝试拿到更多的cpu, 那么剩余的10%将按照2:1的比例分配.</li>
-<li>如果超过limits, Containers 会被节流(不是被杀死).</li>
-</ul>
-<h4 id="Incompressible-Resouce-Guarantees"><a href="#Incompressible-Resouce-Guarantees" class="headerlink" title="Incompressible Resouce Guarantees"></a>Incompressible Resouce Guarantees</h4><ul>
-<li>目前只有内存. (我认为本地存储也在这一类)</li>
-<li>Containers能够得到request的大小, 如果超过这个大小, 它们可能会被杀掉(如果其他container需要内存), 但是如果containers消耗的少于request值, 他们不会被删除(除非系统任务或者daemonset需要更多的内存)</li>
-<li>Containers会被杀掉如果他们使用了超过limit的内存.</li>
-</ul>
-<h4 id="Kubelet-admission-策略"><a href="#Kubelet-admission-策略" class="headerlink" title="Kubelet admission 策略"></a>Kubelet admission 策略</h4><p>kubelet通过统计containers的request来确保系统资源不会被超载.</p>
-<h3 id="QoS-分级"><a href="#QoS-分级" class="headerlink" title="QoS 分级"></a>QoS 分级</h3><h4 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h4><p>k8s Qos 分成三个等级:</p>
-<ul>
-<li>Guaranteed</li>
-<li>Burstable</li>
-<li>BestEffort</li>
-</ul>
-<p>理论上QoS与limit, request应该是互不干扰的, 但实际上他们的联系非常紧密. QoS class不是自己设置的, 而是在创建pod的时候, 根据limit和request系统自动确认的.</p>
-<h4 id="Guaranteed"><a href="#Guaranteed" class="headerlink" title="Guaranteed"></a>Guaranteed</h4><p>这是级别最高的, 他的触发条件是:</p>
-<ul>
-<li>每个pod中container必须有内存的limit和request, 而且必须相同</li>
-<li>每个pod中cpu必须有内存的limit和request, 而且必须相同</li>
-</ul>
-<p>效果: 这些containers是最高优先级</p>
-<p>注意: 如果设置了limit没有设置request, 系统将会自动填充request跟limit相同.</p>
-<p>####Burstable </p>
-<p>这个的触发条件是:</p>
-<ul>
-<li>pod不满足Guaranteed</li>
-<li>pod中至少一个container有内存或者cpu的请求.</li>
-</ul>
-<p>效果: 能够保证request的请求, 但是不保证limit, 如果超出request请求的内存大小, 发生oom时可能会被杀死.</p>
-<h4 id="BestEffort"><a href="#BestEffort" class="headerlink" title="BestEffort"></a>BestEffort</h4><p>触发条件: 很明显, 没有指定任何request和limit或者值都是0就是BestEffort级别.</p>
-<p>效果: 这些containers没有请求资源保障, 会被认为是最低优先级的, 如果系统发生oom, 他们会被首先杀死. 他们只会使用集群中没有被使用的那部分资源.</p>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>所以k8s的qos主要是通过两方面: request,limit 和 qos class来实现的. 这两方面又有很多交叉的地方. 而且在面对不同的资源的时候, 他们的策略是不一样的.</p>
-<h3 id="Storage-QoS"><a href="#Storage-QoS" class="headerlink" title="Storage QoS"></a>Storage QoS</h3><p>由于k8s中没有关于存储的qos机制, 于是关于存储的qos, 查看了一些文档.</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-03-22-microservices/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-03-22-microservices/" class="post-title-link" itemprop="url">初识微服务</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>星环讲座: 初识微服务</p>
-<p>主讲人: 吴伟</p>
-<p>三本书:</p>
-<ul>
-<li>Building Microservices</li>
-<li>微服务: 从设计到部署</li>
-<li>微服务设计</li>
-</ul>
-<p>大纲:</p>
-<ol>
-<li>什么是微服务</li>
-<li>核心概念</li>
-<li>开源微服务框架</li>
-<li>国内微服务产品</li>
-</ol>
-<h3 id="内容"><a href="#内容" class="headerlink" title="内容:"></a>内容:</h3><ol>
-<li>什么是微服务: 相互独立微小的组建, 能够相互合作: 在一组小的服务, 独立的进程, 通信机制, 基于业务, 独立部署, 没有集中式管理.</li>
-<li>为什么要做微服务: 单体服务膨胀太大, 代码太多, 开发太慢, 发布速度太慢, 新人学习成本太高.</li>
-<li>微服务目标: 敏捷迭代, 灵活扩展, 服务服用.</li>
-<li>微服务核心概念: api网关, 服务发现, 熔断, 限流, 降级, 配置中心, 自动化部署和测试, 日志监控和分部署追踪, 安全, 服务拆分, 服务接口定义, 有状态服务集群, 无状态服务<ul>
-<li>服务发现: 怎么找到另一个服务的地址. 通常使用服务中心或者服务代理.</li>
-<li>api网关: 对外统一接入访问; 内外协议转换(http -&gt; gRPC), 统一认证,监控,负载均衡,缓存; 智能路由: Kong, Nginx Plus, Traefik</li>
-<li>服务容错(熔断): 假设错误一定会发生, 想办法把损失降到最小: custom fallback, fail silent, fail fast. 超时与重试, 降级熔断, 连接隔离</li>
-<li>配置中心: 程序运行时动态调整行为的能力.</li>
-<li>自动化测试部署: CI&#x2F;CD 改动一行代码能够多久部署成功</li>
-<li>服务监控: 系统在做什么, 哪些组建流量比较大, 这个请求在哪个地方失败了, 哪个调用比较慢.</li>
-<li>安全: </li>
-<li>分布式事务: 每个服务解决一个问题, 要解决一个逻辑上的一致性.</li>
-</ul>
-</li>
-</ol>
-<p>cloud native &#x3D; container + CICD&#x2F;devops + microservice</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
   <nav class="pagination">
-    <a class="extend prev" rel="prev" title="Previous page" aria-label="Previous page" href="/page/8/"><i class="fa fa-angle-left"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/8/">8</a><span class="page-number current">9</span><a class="page-number" href="/page/10/">10</a><a class="extend next" rel="next" title="Next page" aria-label="Next page" href="/page/10/"><i class="fa fa-angle-right"></i></a>
+    <a class="extend prev" rel="prev" title="Previous page" aria-label="Previous page" href="/page/8/"><i class="fa fa-angle-left"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/8/">8</a><span class="page-number current">9</span><a class="page-number" href="/page/10/">10</a><a class="page-number" href="/page/11/">11</a><a class="extend next" rel="next" title="Next page" aria-label="Next page" href="/page/10/"><i class="fa fa-angle-right"></i></a>
   </nav>
 
 </div>

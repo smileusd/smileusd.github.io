@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="前面两篇讲了架构和 workflow，上一篇讲了框架层的抽象。这一篇开始不再停留在概念，而是直接沿着源码主链路走一遍 KAI Scheduler 的一次调度周期。 我的目标不是把每个函数都抄一遍，而是回答五个更实在的问题：  scheduler 进程是怎么启动的？ action &#x2F; plugin 是怎么注册进去的？ 一轮 session 是怎么打开和关闭的？ placement 决策最后">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KAI Scheduler 深入拆解（四）：从源码走读一次调度周期">
+<meta property="og:url" content="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-04-core-code/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="前面两篇讲了架构和 workflow，上一篇讲了框架层的抽象。这一篇开始不再停留在概念，而是直接沿着源码主链路走一遍 KAI Scheduler 的一次调度周期。 我的目标不是把每个函数都抄一遍，而是回答五个更实在的问题：  scheduler 进程是怎么启动的？ action &#x2F; plugin 是怎么注册进去的？ 一轮 session 是怎么打开和关闭的？ placement 决策最后">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-04-23T02:45:00.000Z">
+<meta property="article:modified_time" content="2026-04-23T01:21:04.867Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="golang">
+<meta property="article:tag" content="kubernetes">
+<meta property="article:tag" content="scheduler">
+<meta property="article:tag" content="kai-scheduler">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-04-core-code/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-04-core-code/","path":"2026/04/23/2026-04-23-kai-scheduler-04-core-code/","title":"KAI Scheduler 深入拆解（四）：从源码走读一次调度周期"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>KAI Scheduler 深入拆解（四）：从源码走读一次调度周期 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E7%AB%99%EF%BC%9Ascheduler-%E8%BF%9B%E7%A8%8B%E5%85%A5%E5%8F%A3%E4%B8%8D%E6%98%AF%E7%AE%97%E6%B3%95%EF%BC%8C%E8%80%8C%E6%98%AF%E5%B9%B3%E5%8F%B0%E5%90%AF%E5%8A%A8%E9%80%BB%E8%BE%91"><span class="nav-number">1.</span> <span class="nav-text">第一站：scheduler 进程入口不是算法，而是平台启动逻辑</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#RunApp-%E5%85%88%E5%81%9A%E7%9A%84%E6%98%AF%E8%BF%90%E8%A1%8C%E6%97%B6%E5%87%86%E5%A4%87"><span class="nav-number">1.1.</span> <span class="nav-text">RunApp() 先做的是运行时准备</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Run-%E9%87%8C%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E4%B8%A4%E8%A1%8C"><span class="nav-number">1.2.</span> <span class="nav-text">Run() 里最重要的两行</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%8C%E7%AB%99%EF%BC%9Aaction-plugin-%E7%9A%84%E2%80%9C%E8%83%BD%E5%8A%9B%E6%B3%A8%E5%86%8C%E8%A1%A8%E2%80%9D%E9%9D%9E%E5%B8%B8%E7%9B%B4%E8%A7%82"><span class="nav-number">2.</span> <span class="nav-text">第二站：action &#x2F; plugin 的“能力注册表”非常直观</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Action-%E5%B7%A5%E5%8E%82%EF%BC%9A%E6%B5%81%E7%A8%8B%E9%98%B6%E6%AE%B5%E8%A2%AB%E6%B8%85%E6%A5%9A%E5%86%99%E6%AD%BB"><span class="nav-number">2.1.</span> <span class="nav-text">Action 工厂：流程阶段被清楚写死</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Plugin-%E5%B7%A5%E5%8E%82%EF%BC%9A%E7%AD%96%E7%95%A5%E9%9D%A2%E9%9D%9E%E5%B8%B8%E4%B8%B0%E5%AF%8C"><span class="nav-number">2.2.</span> <span class="nav-text">Plugin 工厂：策略面非常丰富</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%89%E7%AB%99%EF%BC%9ANewScheduler-%E7%BB%84%E8%A3%85%E5%87%BA%E6%9D%A5%E7%9A%84%E4%B8%8D%E6%98%AF%E4%B8%80%E4%B8%AA%E7%AE%97%E6%B3%95%E5%AF%B9%E8%B1%A1%EF%BC%8C%E8%80%8C%E6%98%AF%E4%B8%80%E6%95%B4%E5%A5%97%E8%BF%90%E8%A1%8C%E7%8E%AF%E5%A2%83"><span class="nav-number">3.</span> <span class="nav-text">第三站：NewScheduler() 组装出来的不是一个算法对象，而是一整套运行环境</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%9B%9B%E7%AB%99%EF%BC%9A%E8%B0%83%E5%BA%A6%E5%BE%AA%E7%8E%AF%E7%9A%84%E6%A0%B8%E5%BF%83%EF%BC%8C%E7%9C%9F%E7%9A%84%E5%B0%B1%E5%8F%AA%E6%9C%89-runOnce-%E8%BF%99%E4%B9%88%E7%9F%AD"><span class="nav-number">4.</span> <span class="nav-text">第四站：调度循环的核心，真的就只有 runOnce() 这么短</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#runOnce-%E7%9A%84%E4%B8%BB%E9%93%BE%E8%B7%AF"><span class="nav-number">4.1.</span> <span class="nav-text">runOnce() 的主链路</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%94%E7%AB%99%EF%BC%9AOpenSession-%E7%9C%9F%E6%AD%A3%E6%8A%8A-plugin-%E6%B3%A8%E5%85%A5%E5%88%B0%E6%9C%AC%E8%BD%AE%E8%B0%83%E5%BA%A6%E9%87%8C"><span class="nav-number">5.</span> <span class="nav-text">第五站：OpenSession() 真正把 plugin 注入到本轮调度里</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%99%E4%B8%80%E6%AD%A5%E5%B8%A6%E6%9D%A5%E7%9A%84%E4%B8%80%E4%B8%AA%E9%9D%9E%E5%B8%B8%E5%A5%BD%E7%9A%84%E6%95%88%E6%9E%9C"><span class="nav-number">5.1.</span> <span class="nav-text">这一步带来的一个非常好的效果</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%85%AD%E7%AB%99%EF%BC%9ASession-%E9%87%8C%E5%B7%B2%E7%BB%8F%E6%8A%8A%E2%80%9C%E8%B0%83%E5%BA%A6%E4%BC%9A%E7%94%A8%E5%88%B0%E7%9A%84%E6%89%80%E6%9C%89%E9%92%A9%E5%AD%90%E2%80%9D%E6%91%86%E5%9C%A8%E5%8F%B0%E9%9D%A2%E4%B8%8A%E4%BA%86"><span class="nav-number">6.</span> <span class="nav-text">第六站：Session 里已经把“调度会用到的所有钩子”摆在台面上了</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%A4%E4%B8%AA%E5%BE%88%E5%80%BC%E5%BE%97%E6%B3%A8%E6%84%8F%E7%9A%84%E6%96%B9%E6%B3%95"><span class="nav-number">6.1.</span> <span class="nav-text">两个很值得注意的方法</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#BindPod"><span class="nav-number">6.1.1.</span> <span class="nav-text">BindPod(...)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#OrderedNodesByTask"><span class="nav-number">6.1.2.</span> <span class="nav-text">OrderedNodesByTask(...)</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%83%E7%AB%99%EF%BC%9A%E7%9C%9F%E6%AD%A3%E7%9A%84%E2%80%9C%E6%8F%90%E4%BA%A4%E7%82%B9%E2%80%9D%E5%9C%A8-SchedulerCache-Bind"><span class="nav-number">7.</span> <span class="nav-text">第七站：真正的“提交点”在 SchedulerCache.Bind()</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#createBindRequest-%E9%87%8C%E7%9C%9F%E6%AD%A3%E8%90%BD%E5%9C%B0%E4%BA%86%E4%BB%80%E4%B9%88"><span class="nav-number">7.1.</span> <span class="nav-text">createBindRequest(...) 里真正落地了什么</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%85%AB%E7%AB%99%EF%BC%9ABindRequest-%E8%BF%99%E4%B8%AA-CRD-%E5%85%B6%E5%AE%9E%E5%B0%B1%E6%98%AF-decision-plane-%E5%92%8C-execution-plane-%E7%9A%84%E6%8E%A5%E5%8F%A3"><span class="nav-number">8.</span> <span class="nav-text">第八站：BindRequest 这个 CRD 其实就是 decision plane 和 execution plane 的接口</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B9%9D%E7%AB%99%EF%BC%9Abinder-controller-%E6%8A%8A%E5%86%B3%E7%AD%96%E7%9C%9F%E6%AD%A3%E5%8F%98%E6%88%90-cluster-state"><span class="nav-number">9.</span> <span class="nav-text">第九站：binder controller 把决策真正变成 cluster state</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-binder-%E6%98%AF%E6%A0%87%E5%87%86%E7%9A%84-controller-runtime-controller"><span class="nav-number">9.1.</span> <span class="nav-text">1. binder 是标准的 controller-runtime controller</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%A4%B1%E8%B4%A5%E8%B7%AF%E5%BE%84%E8%A2%AB%E8%AE%A4%E7%9C%9F%E5%AF%B9%E5%BE%85%E4%BA%86"><span class="nav-number">9.2.</span> <span class="nav-text">2. 失败路径被认真对待了</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-binder-%E4%B8%8D%E5%8F%AA%E6%98%AF-bind-Pod%EF%BC%8C%E5%AE%83%E8%BF%98%E7%BB%B4%E6%8A%A4%E6%89%A7%E8%A1%8C%E8%AF%AD%E4%B9%89"><span class="nav-number">9.3.</span> <span class="nav-text">3. binder 不只是 bind Pod，它还维护执行语义</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%8D%81%E7%AB%99%EF%BC%9A%E6%8A%8A%E8%B0%83%E7%94%A8%E9%93%BE%E4%B8%B2%E8%B5%B7%E6%9D%A5%E7%9C%8B%EF%BC%8CKAI-%E7%9A%84%E4%B8%80%E6%AC%A1%E8%B0%83%E5%BA%A6%E5%B0%B1%E9%9D%9E%E5%B8%B8%E6%B8%85%E6%A5%9A%E4%BA%86"><span class="nav-number">10.</span> <span class="nav-text">第十站：把调用链串起来看，KAI 的一次调度就非常清楚了</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E6%9D%A1%E5%AE%9E%E7%8E%B0%E9%93%BE%E8%B7%AF%E5%80%BC%E5%BE%97%E5%AD%A6%E4%B9%A0"><span class="nav-number">11.</span> <span class="nav-text">为什么这条实现链路值得学习</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E4%B8%BB%E5%BE%AA%E7%8E%AF%E8%B6%B3%E5%A4%9F%E7%9F%AD"><span class="nav-number">11.1.</span> <span class="nav-text">1. 主循环足够短</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E7%AD%96%E7%95%A5%E5%92%8C%E6%B5%81%E7%A8%8B%E6%8B%86%E5%BE%97%E5%BE%88%E5%B9%B2%E5%87%80"><span class="nav-number">11.2.</span> <span class="nav-text">2. 策略和流程拆得很干净</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E5%86%B3%E7%AD%96%E4%B8%8E%E6%89%A7%E8%A1%8C%E6%98%8E%E7%A1%AE%E8%A7%A3%E8%80%A6"><span class="nav-number">11.3.</span> <span class="nav-text">3. 决策与执行明确解耦</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E4%BB%BD%E6%88%91%E8%87%AA%E5%B7%B1%E7%9A%84%E2%80%9C%E6%BA%90%E7%A0%81%E7%B2%BE%E8%AF%BB%E9%A1%BA%E5%BA%8F%E2%80%9D"><span class="nav-number">12.</span> <span class="nav-text">一份我自己的“源码精读顺序”</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8B%E4%B8%80%E7%AF%87%E7%9C%8B%E4%BB%80%E4%B9%88"><span class="nav-number">13.</span> <span class="nav-text">下一篇看什么</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">104</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">249</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-04-core-code/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="KAI Scheduler 深入拆解（四）：从源码走读一次调度周期 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          KAI Scheduler 深入拆解（四）：从源码走读一次调度周期
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-04-23 10:45:00 / Modified: 09:21:04" itemprop="dateCreated datePublished" datetime="2026-04-23T10:45:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>前面两篇讲了架构和 workflow，上一篇讲了框架层的抽象。这一篇开始不再停留在概念，而是直接沿着源码主链路走一遍 KAI Scheduler 的一次调度周期。</p>
+<p>我的目标不是把每个函数都抄一遍，而是回答五个更实在的问题：</p>
+<ol>
+<li>scheduler 进程是怎么启动的？</li>
+<li>action &#x2F; plugin 是怎么注册进去的？</li>
+<li>一轮 session 是怎么打开和关闭的？</li>
+<li>placement 决策最后是怎么变成 <code>BindRequest</code> 的？</li>
+<li>binder 是怎么把这个决策真正执行掉的？</li>
+</ol>
+<p>如果你只准备精读少数几个文件，我建议把注意力放在下面这几处：</p>
+<ul>
+<li><code>cmd/scheduler/app/server.go</code></li>
+<li><code>pkg/scheduler/scheduler.go</code></li>
+<li><code>pkg/scheduler/framework/framework.go</code></li>
+<li><code>pkg/scheduler/framework/session.go</code></li>
+<li><code>pkg/scheduler/actions/factory.go</code></li>
+<li><code>pkg/scheduler/plugins/factory.go</code></li>
+<li><code>pkg/scheduler/cache/cache.go</code></li>
+<li><code>pkg/apis/scheduling/v1alpha2/bindrequest_types.go</code></li>
+<li><code>pkg/binder/controllers/bindrequest_controller.go</code></li>
+</ul>
+<h2 id="第一站：scheduler-进程入口不是算法，而是平台启动逻辑"><a href="#第一站：scheduler-进程入口不是算法，而是平台启动逻辑" class="headerlink" title="第一站：scheduler 进程入口不是算法，而是平台启动逻辑"></a>第一站：scheduler 进程入口不是算法，而是平台启动逻辑</h2><p>真正的入口在 <code>cmd/scheduler/app/server.go</code>。</p>
+<h3 id="RunApp-先做的是运行时准备"><a href="#RunApp-先做的是运行时准备" class="headerlink" title="RunApp() 先做的是运行时准备"></a><code>RunApp()</code> 先做的是运行时准备</h3><p>从代码顺序上看，大致是：</p>
+<ol>
+<li>解析和校验命令行参数</li>
+<li>启动 plugin server 的 HTTP mux</li>
+<li>初始化 profiling &#x2F; pyroscope</li>
+<li>初始化 logging</li>
+<li>读取 kube config 并设置 QPS &#x2F; Burst</li>
+<li>进入 <code>Run(...)</code></li>
+</ol>
+<p>也就是说，KAI scheduler 本身就是一个标准 Kubernetes 控制面进程，而不是“读个配置然后进一个大循环”的轻量程序。</p>
+<h3 id="Run-里最重要的两行"><a href="#Run-里最重要的两行" class="headerlink" title="Run() 里最重要的两行"></a><code>Run()</code> 里最重要的两行</h3><p>对理解调度内核最关键的，其实是这两步：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">actions.InitDefaultActions()</span><br><span class="line">plugins.InitDefaultPlugins()</span><br></pre></td></tr></table></figure>
+
+<p>这代表 KAI 在启动阶段先把“可用动作”和“可用插件”注册进框架，再从配置解析出本次实际启用的 action&#x2F;plugin 组合。</p>
+<p>这有个很重要的意义：</p>
+<blockquote>
+<p><strong>注册是能力集合，配置才是实际执行计划。</strong></p>
+</blockquote>
+<p>换句话说：</p>
+<ul>
+<li><code>InitDefaultActions()</code> 负责告诉框架有哪些 action 存在</li>
+<li><code>InitDefaultPlugins()</code> 负责告诉框架有哪些 plugin 可用</li>
+<li><code>ResolveConfigurationFromFile(...)</code> 决定这一轮部署到底启用哪些，以及它们的优先级和参数是什么</li>
+</ul>
+<p>这比很多项目直接在代码里写死流程要干净得多。</p>
+<h2 id="第二站：action-plugin-的“能力注册表”非常直观"><a href="#第二站：action-plugin-的“能力注册表”非常直观" class="headerlink" title="第二站：action &#x2F; plugin 的“能力注册表”非常直观"></a>第二站：action &#x2F; plugin 的“能力注册表”非常直观</h2><h3 id="Action-工厂：流程阶段被清楚写死"><a href="#Action-工厂：流程阶段被清楚写死" class="headerlink" title="Action 工厂：流程阶段被清楚写死"></a>Action 工厂：流程阶段被清楚写死</h3><p><code>pkg/scheduler/actions/factory.go</code> 很短，但很重要：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">InitDefaultActions</span><span class="params">()</span></span> &#123;</span><br><span class="line">    framework.RegisterAction(reclaim.New())</span><br><span class="line">    framework.RegisterAction(allocate.New())</span><br><span class="line">    framework.RegisterAction(preempt.New())</span><br><span class="line">    framework.RegisterAction(consolidation.New())</span><br><span class="line">    framework.RegisterAction(stalegangeviction.New())</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里要注意一个细节：<strong>注册顺序不等于执行顺序</strong>。</p>
+<p>真正的执行顺序来自配置解析，而默认优先级则来自 <code>SchedulingShard</code> 的 action 配置语义：</p>
+<ul>
+<li><code>allocate</code></li>
+<li><code>consolidation</code></li>
+<li><code>reclaim</code></li>
+<li><code>preempt</code></li>
+<li><code>stalegangeviction</code></li>
+</ul>
+<p>所以代码层面的注册只是“把工厂挂到框架里”，而不是“马上决定调度流程”。</p>
+<h3 id="Plugin-工厂：策略面非常丰富"><a href="#Plugin-工厂：策略面非常丰富" class="headerlink" title="Plugin 工厂：策略面非常丰富"></a>Plugin 工厂：策略面非常丰富</h3><p><code>pkg/scheduler/plugins/factory.go</code> 更能体现 KAI 的平台化程度。默认注册的 plugin 包括：</p>
+<ul>
+<li><code>predicates</code></li>
+<li><code>priority</code></li>
+<li><code>nodeplacement</code></li>
+<li><code>nominatednode</code></li>
+<li><code>nodeavailability</code></li>
+<li><code>gpusharingorder</code></li>
+<li><code>gpupack</code></li>
+<li><code>gpuspread</code></li>
+<li><code>resourcetype</code></li>
+<li><code>podaffinity</code></li>
+<li><code>elastic</code></li>
+<li><code>kubeflow</code></li>
+<li><code>ray</code></li>
+<li><code>taskorder</code></li>
+<li><code>subgrouporder</code></li>
+<li><code>dynamicresources</code></li>
+<li><code>topology</code></li>
+<li><code>proportion</code></li>
+<li><code>minruntime</code></li>
+<li><code>snapshot</code></li>
+<li><code>reflectjoborder</code></li>
+</ul>
+<p>这张列表本身已经非常说明问题：KAI 不是一个只会做 node predicate + score 的 scheduler，它的策略面覆盖了：</p>
+<ul>
+<li>queue fairness</li>
+<li>AI workload integration</li>
+<li>GPU placement</li>
+<li>topology</li>
+<li>subgroup ordering</li>
+<li>dynamic resources</li>
+<li>minimum runtime</li>
+<li>snapshot analysis</li>
+</ul>
+<p>也就是说，KAI 的“可扩展性”不是停留在接口层，而是已经沉淀成一个很具体的内建策略生态。</p>
+<h2 id="第三站：NewScheduler-组装出来的不是一个算法对象，而是一整套运行环境"><a href="#第三站：NewScheduler-组装出来的不是一个算法对象，而是一整套运行环境" class="headerlink" title="第三站：NewScheduler() 组装出来的不是一个算法对象，而是一整套运行环境"></a>第三站：<code>NewScheduler()</code> 组装出来的不是一个算法对象，而是一整套运行环境</h2><p>进入 <code>pkg/scheduler/scheduler.go</code> 后，可以看到 <code>NewScheduler(...)</code> 做了很多准备工作：</p>
+<ul>
+<li>创建 Kubernetes client 和 KAI 自定义 client</li>
+<li>创建 discovery client</li>
+<li>初始化 usage DB client</li>
+<li>组装 <code>SchedulerCacheParams</code></li>
+<li>创建 scheduler cache</li>
+<li>保存 <code>SchedulerConfiguration</code> 和 <code>SchedulerParams</code></li>
+</ul>
+<p>这里非常值得注意的是 <code>SchedulerCacheParams</code> 内容，它不是普通缓存初始化参数，而是把 KAI 的运行语义一并带进来了：</p>
+<ul>
+<li><code>SchedulerName</code></li>
+<li><code>NodePoolParams</code></li>
+<li><code>RestrictNodeScheduling</code></li>
+<li><code>DetailedFitErrors</code></li>
+<li><code>ScheduleCSIStorage</code></li>
+<li><code>FullHierarchyFairness</code></li>
+<li><code>NumOfStatusRecordingWorkers</code></li>
+<li><code>UpdatePodEvictionCondition</code></li>
+<li><code>UsageDBClient</code></li>
+</ul>
+<p>这意味着 cache 不只是个 informer wrapper，而是调度器真正的运行底座。</p>
+<h2 id="第四站：调度循环的核心，真的就只有-runOnce-这么短"><a href="#第四站：调度循环的核心，真的就只有-runOnce-这么短" class="headerlink" title="第四站：调度循环的核心，真的就只有 runOnce() 这么短"></a>第四站：调度循环的核心，真的就只有 <code>runOnce()</code> 这么短</h2><p>从代码阅读体验来看，KAI 最漂亮的地方之一，就是主循环本身极简。</p>
+<p><code>Run()</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *Scheduler)</span></span> Run(stopCh &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;) &#123;</span><br><span class="line">    s.cache.Run(stopCh)</span><br><span class="line">    s.cache.WaitForCacheSync(stopCh)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">        wait.Until(s.runOnce, s.schedulePeriod, stopCh)</span><br><span class="line">    &#125;()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>先启动 cache，再等待同步，然后按 <code>schedulePeriod</code> 周期执行 <code>runOnce()</code>。</p>
+<h3 id="runOnce-的主链路"><a href="#runOnce-的主链路" class="headerlink" title="runOnce() 的主链路"></a><code>runOnce()</code> 的主链路</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *Scheduler)</span></span> runOnce() &#123;</span><br><span class="line">    ssn, err := framework.OpenSession(...)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123; <span class="keyword">return</span> &#125;</span><br><span class="line">    <span class="keyword">defer</span> framework.CloseSession(ssn)</span><br><span class="line"></span><br><span class="line">    actions, _ := conf_util.GetActionsFromConfig(s.config)</span><br><span class="line">    <span class="keyword">for</span> _, action := <span class="keyword">range</span> actions &#123;</span><br><span class="line">        action.Execute(ssn)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这段代码极度简洁，但它背后隐含的是整个框架层次：</p>
+<ul>
+<li><code>OpenSession()</code> 负责把 cluster snapshot 和 plugin callbacks 组织好</li>
+<li><code>GetActionsFromConfig()</code> 负责把本轮要执行的流程读出来</li>
+<li><code>action.Execute(ssn)</code> 负责真正的调度阶段逻辑</li>
+<li><code>CloseSession()</code> 负责收尾、状态事件和清理</li>
+</ul>
+<p>这就形成了一条非常稳定的主干：</p>
+<pre class="mermaid">flowchart LR
+    A[Run] --> B[cache.Run]
+    B --> C[WaitForCacheSync]
+    C --> D[runOnce]
+    D --> E[OpenSession]
+    E --> F[Resolve Actions]
+    F --> G[Execute Actions]
+    G --> H[CloseSession]</pre>
+
+<h2 id="第五站：OpenSession-真正把-plugin-注入到本轮调度里"><a href="#第五站：OpenSession-真正把-plugin-注入到本轮调度里" class="headerlink" title="第五站：OpenSession() 真正把 plugin 注入到本轮调度里"></a>第五站：<code>OpenSession()</code> 真正把 plugin 注入到本轮调度里</h2><p><code>pkg/scheduler/framework/framework.go</code> 的 <code>OpenSession()</code> 非常值得精读。</p>
+<p>它的逻辑可以概括为：</p>
+<ol>
+<li>如果 plugin server 还没起来，就初始化它</li>
+<li>调用底层 <code>openSession(...)</code> 从 cache 里拿 snapshot</li>
+<li>把 <code>config</code> 塞进 session</li>
+<li>遍历配置中的 tiers&#x2F;plugins</li>
+<li>通过 plugin builder 创建 plugin 实例</li>
+<li>调用 <code>plugin.OnSessionOpen(ssn)</code></li>
+</ol>
+<p>这一步的关键不在于“插件被创建了”，而在于：</p>
+<blockquote>
+<p><code>OnSessionOpen</code> 会把 plugin 的 callback 注册进当前 session。</p>
+</blockquote>
+<p>这意味着，每轮调度里真正生效的策略，不是从全局某个 registry 动态查一遍，而是已经在 session 打开时被“装配”进这一轮上下文了。</p>
+<h3 id="这一步带来的一个非常好的效果"><a href="#这一步带来的一个非常好的效果" class="headerlink" title="这一步带来的一个非常好的效果"></a>这一步带来的一个非常好的效果</h3><p>每个 plugin 都只需要关心：</p>
+<ul>
+<li>本轮开始时如何初始化自己的状态</li>
+<li>往 session 注册哪些 compare&#x2F;predicate&#x2F;order&#x2F;fairness&#x2F;mutate 函数</li>
+<li>本轮结束时如何清理或上报</li>
+</ul>
+<p>这让 plugin 的实现边界非常清楚。</p>
+<h2 id="第六站：Session-里已经把“调度会用到的所有钩子”摆在台面上了"><a href="#第六站：Session-里已经把“调度会用到的所有钩子”摆在台面上了" class="headerlink" title="第六站：Session 里已经把“调度会用到的所有钩子”摆在台面上了"></a>第六站：Session 里已经把“调度会用到的所有钩子”摆在台面上了</h2><p><code>pkg/scheduler/framework/session.go</code> 的 <code>Session</code> 结构体是最值得反复读的文件之一。</p>
+<p>因为它几乎就是 KAI 调度能力的“公开清单”。</p>
+<p>它里面最有代表性的字段包括：</p>
+<ul>
+<li><code>NodeOrderFns</code></li>
+<li><code>JobOrderFns</code></li>
+<li><code>TaskOrderFns</code></li>
+<li><code>QueueOrderFns</code></li>
+<li><code>PrePredicateFns</code></li>
+<li><code>PredicateFns</code></li>
+<li><code>BindRequestMutateFns</code></li>
+<li><code>CanReclaimResourcesFns</code></li>
+<li><code>ReclaimVictimFilterFns</code></li>
+<li><code>PreemptVictimFilterFns</code></li>
+<li><code>GetQueueFairShareFns</code></li>
+<li><code>eventHandlers</code></li>
+</ul>
+<p>你会发现 KAI 真正的扩展点不是一个单独的 <code>Score()</code> 接口，而是对调度过程的很多局部决策都开放了函数槽位。</p>
+<p>这也是为什么它能容纳这么多高级能力。</p>
+<h3 id="两个很值得注意的方法"><a href="#两个很值得注意的方法" class="headerlink" title="两个很值得注意的方法"></a>两个很值得注意的方法</h3><h4 id="BindPod"><a href="#BindPod" class="headerlink" title="BindPod(...)"></a><code>BindPod(...)</code></h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(ssn *Session)</span></span> BindPod(pod *pod_info.PodInfo) <span class="type">error</span> &#123;</span><br><span class="line">    bindRequestAnnotations := ssn.MutateBindRequestAnnotations(pod, pod.NodeName)</span><br><span class="line">    <span class="keyword">if</span> err := ssn.Cache.Bind(pod, pod.NodeName, bindRequestAnnotations); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> err</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个方法本身已经说明了：<strong>session 层并不会直接调用原生 Pod binding，而是把绑定动作下放给 cache，再由 cache 生成 <code>BindRequest</code>。</strong></p>
+<h4 id="OrderedNodesByTask"><a href="#OrderedNodesByTask" class="headerlink" title="OrderedNodesByTask(...)"></a><code>OrderedNodesByTask(...)</code></h4><p>这个方法则体现了 KAI 的 node ordering 是如何工作的：</p>
+<ol>
+<li>先执行 <code>NodePreOrderFn</code></li>
+<li>再并发计算每个 node 的 <code>NodeOrderFn</code> score</li>
+<li>按分值排序返回</li>
+</ol>
+<p>这里能明显看出 KAI 的策略执行与排序逻辑已经抽象得很清楚。</p>
+<h2 id="第七站：真正的“提交点”在-SchedulerCache-Bind"><a href="#第七站：真正的“提交点”在-SchedulerCache-Bind" class="headerlink" title="第七站：真正的“提交点”在 SchedulerCache.Bind()"></a>第七站：真正的“提交点”在 <code>SchedulerCache.Bind()</code></h2><p>如果你想知道 placement 决策在哪一层真正离开 session，答案就在 <code>pkg/scheduler/cache/cache.go</code>。</p>
+<p><code>SchedulerCache.Bind(...)</code> 做的事情大致是：</p>
+<ol>
+<li>记录 PreBind 状态</li>
+<li>调用 <code>createBindRequest(...)</code></li>
+<li>如有需要 patch Pod labels</li>
+<li>更新 Bound 状态</li>
+</ol>
+<p>最关键的不是状态更新，而是 <code>createBindRequest(...)</code>。</p>
+<h3 id="createBindRequest-里真正落地了什么"><a href="#createBindRequest-里真正落地了什么" class="headerlink" title="createBindRequest(...) 里真正落地了什么"></a><code>createBindRequest(...)</code> 里真正落地了什么</h3><p>它会构造一个 <code>BindRequest</code>，写入：</p>
+<ul>
+<li><code>selected-node</code> label</li>
+<li>ownerReference 指向 Pod</li>
+<li>annotations（来自 bind mutate plugins）</li>
+<li><code>PodName</code></li>
+<li><code>SelectedNode</code></li>
+<li><code>SelectedGPUGroups</code></li>
+<li><code>ReceivedResourceType</code></li>
+<li><code>ReceivedGPU</code></li>
+<li><code>ResourceClaimAllocations</code></li>
+</ul>
+<p>这一步非常有信息量，因为它告诉我们：</p>
+<ol>
+<li>scheduler 的输出对象是 <strong>KAI 自己的 binding contract</strong></li>
+<li>这个 contract 不只是 node name，还包含 GPU &#x2F; DRA &#x2F; annotation 等执行信息</li>
+<li>plugin 甚至能在 bind request 生成前修改 annotations</li>
+</ol>
+<p>也就是说，KAI 把“binding 输入模型”也设计成了平台扩展面的一部分。</p>
+<h2 id="第八站：BindRequest-这个-CRD-其实就是-decision-plane-和-execution-plane-的接口"><a href="#第八站：BindRequest-这个-CRD-其实就是-decision-plane-和-execution-plane-的接口" class="headerlink" title="第八站：BindRequest 这个 CRD 其实就是 decision plane 和 execution plane 的接口"></a>第八站：<code>BindRequest</code> 这个 CRD 其实就是 decision plane 和 execution plane 的接口</h2><p><code>pkg/apis/scheduling/v1alpha2/bindrequest_types.go</code> 里的 <code>BindRequest</code> 很值得单独看一下。</p>
+<p><code>Spec</code> 里最关键的字段是：</p>
+<ul>
+<li><code>PodName</code></li>
+<li><code>SelectedNode</code></li>
+<li><code>ReceivedResourceType</code></li>
+<li><code>ReceivedGPU</code></li>
+<li><code>SelectedGPUGroups</code></li>
+<li><code>ResourceClaimAllocations</code></li>
+</ul>
+<p>另外，CRD 里确实还定义了 <code>BackoffLimit</code> 字段，但当前 scheduler 的 <code>createBindRequest()</code> 并不会主动填充它。</p>
+<p><code>Status</code> 则记录：</p>
+<ul>
+<li><code>Phase</code></li>
+<li><code>Reason</code></li>
+<li><code>FailedAttempts</code></li>
+</ul>
+<p>从设计角度看，它不是一个普通“中间对象”，而是一个非常明确的执行 contract：</p>
+<ul>
+<li>scheduler 负责写入“应该怎样执行绑定”</li>
+<li>binder 负责消费并推进状态</li>
+</ul>
+<p>这是 KAI 解耦最关键的 API 边界之一。</p>
+<h2 id="第九站：binder-controller-把决策真正变成-cluster-state"><a href="#第九站：binder-controller-把决策真正变成-cluster-state" class="headerlink" title="第九站：binder controller 把决策真正变成 cluster state"></a>第九站：binder controller 把决策真正变成 cluster state</h2><p>接下来进入 <code>pkg/binder/controllers/bindrequest_controller.go</code>。</p>
+<p><code>Reconcile(...)</code> 的主逻辑其实很好懂：</p>
+<ol>
+<li>获取 <code>BindRequest</code></li>
+<li>已删除或已成功则退出</li>
+<li>取对应 Pod</li>
+<li>若 Pod 已绑定则退出</li>
+<li>取目标 Node</li>
+<li>调用 <code>r.binder.Bind(ctx, pod, node, bindRequest)</code></li>
+<li>如果失败则 <code>Rollback(...)</code></li>
+<li>最后更新 <code>BindRequest</code> 状态、Pod condition</li>
+</ol>
+<p>这里有几个很值得注意的点。</p>
+<h3 id="1-binder-是标准的-controller-runtime-controller"><a href="#1-binder-是标准的-controller-runtime-controller" class="headerlink" title="1. binder 是标准的 controller-runtime controller"></a>1. binder 是标准的 controller-runtime controller</h3><p>这意味着 binder 本身具备：</p>
+<ul>
+<li>reconcile 模型</li>
+<li>watch &#x2F; queue &#x2F; rate limiter</li>
+<li>status update</li>
+<li>delete event handler</li>
+<li>MaxConcurrentReconciles 控制</li>
+</ul>
+<p>也就是说，KAI 没有发明一套自定义执行引擎，而是把 binding plane 放回了 Kubernetes 最自然的 controller 范式里。</p>
+<h3 id="2-失败路径被认真对待了"><a href="#2-失败路径被认真对待了" class="headerlink" title="2. 失败路径被认真对待了"></a>2. 失败路径被认真对待了</h3><p>当 <code>binder.Bind(...)</code> 返回错误时，controller 会显式调用 <code>Rollback(...)</code>。</p>
+<p>这点非常重要。</p>
+<p>因为在 AI &#x2F; GPU &#x2F; DRA 场景里，binding 不只是一次 API call，可能还伴随着：</p>
+<ul>
+<li>ResourceClaim 更新</li>
+<li>共享 GPU 相关预留</li>
+<li>状态条件修改</li>
+<li>其他资源副作用</li>
+</ul>
+<p>如果失败后不 rollback，很容易留下脏状态。</p>
+<h3 id="3-binder-不只是-bind-Pod，它还维护执行语义"><a href="#3-binder-不只是-bind-Pod，它还维护执行语义" class="headerlink" title="3. binder 不只是 bind Pod，它还维护执行语义"></a>3. binder 不只是 bind Pod，它还维护执行语义</h3><p>从 controller 周围的代码可以看出来，binder 同时在维护：</p>
+<ul>
+<li>BindRequest phase&#x2F;status</li>
+<li>PodBound condition</li>
+<li>与 resource reservation 的协同</li>
+<li>删除事件后的清理动作</li>
+</ul>
+<p>这意味着 execution plane 不是一层薄封装，而是一个正式子系统。</p>
+<h2 id="第十站：把调用链串起来看，KAI-的一次调度就非常清楚了"><a href="#第十站：把调用链串起来看，KAI-的一次调度就非常清楚了" class="headerlink" title="第十站：把调用链串起来看，KAI 的一次调度就非常清楚了"></a>第十站：把调用链串起来看，KAI 的一次调度就非常清楚了</h2><p>如果用伪调用栈把它串起来，大致可以写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">cmd/scheduler/app/server.go</span><br><span class="line">  RunApp()</span><br><span class="line">    -&gt; Run(...)</span><br><span class="line">      -&gt; actions.InitDefaultActions()</span><br><span class="line">      -&gt; plugins.InitDefaultPlugins()</span><br><span class="line">      -&gt; scheduler.NewScheduler(...)</span><br><span class="line">      -&gt; scheduler.Run(...)</span><br><span class="line">        -&gt; wait.Until(runOnce)</span><br><span class="line">          -&gt; framework.OpenSession(...)</span><br><span class="line">            -&gt; cache.Snapshot()</span><br><span class="line">            -&gt; plugin.OnSessionOpen(ssn)</span><br><span class="line">          -&gt; action.Execute(ssn)</span><br><span class="line">            -&gt; ssn.BindPod(...)</span><br><span class="line">              -&gt; ssn.Cache.Bind(...)</span><br><span class="line">                -&gt; createBindRequest(...)</span><br><span class="line">                  -&gt; create BindRequest CR</span><br><span class="line">          -&gt; framework.CloseSession(ssn)</span><br><span class="line"></span><br><span class="line">pkg/binder/controllers/bindrequest_controller.go</span><br><span class="line">  Reconcile(...)</span><br><span class="line">    -&gt; fetch BindRequest / Pod / Node</span><br><span class="line">    -&gt; binder.Bind(...)</span><br><span class="line">    -&gt; rollback on error</span><br><span class="line">    -&gt; update status / pod condition</span><br></pre></td></tr></table></figure>
+
+<p>这条链路体现出了 KAI 最核心的分层：</p>
+<ul>
+<li><strong>启动层</strong>：server &#x2F; options &#x2F; leader election &#x2F; metrics</li>
+<li><strong>执行框架层</strong>：scheduler &#x2F; framework &#x2F; session</li>
+<li><strong>策略层</strong>：actions + plugins</li>
+<li><strong>提交层</strong>：cache -&gt; BindRequest</li>
+<li><strong>执行层</strong>：binder controller</li>
+</ul>
+<h2 id="为什么这条实现链路值得学习"><a href="#为什么这条实现链路值得学习" class="headerlink" title="为什么这条实现链路值得学习"></a>为什么这条实现链路值得学习</h2><p>我觉得 KAI 这条源码主链路特别值得看，不是因为它“炫技”，而是因为它把复杂调度系统最容易失控的地方都压住了。</p>
+<h3 id="1-主循环足够短"><a href="#1-主循环足够短" class="headerlink" title="1. 主循环足够短"></a>1. 主循环足够短</h3><p>主循环短，意味着：</p>
+<ul>
+<li>更容易审计</li>
+<li>更容易稳定</li>
+<li>高级能力不会把入口拖成泥球</li>
+</ul>
+<h3 id="2-策略和流程拆得很干净"><a href="#2-策略和流程拆得很干净" class="headerlink" title="2. 策略和流程拆得很干净"></a>2. 策略和流程拆得很干净</h3><ul>
+<li>action 决定流程阶段</li>
+<li>plugin 决定策略</li>
+<li>cache&#x2F;session 决定执行上下文</li>
+<li>binder 决定落地执行</li>
+</ul>
+<h3 id="3-决策与执行明确解耦"><a href="#3-决策与执行明确解耦" class="headerlink" title="3. 决策与执行明确解耦"></a>3. 决策与执行明确解耦</h3><p>这是整个系统最重要的长期收益点。</p>
+<p>很多 scheduler 一旦开始支持复杂资源、副作用、回滚，就会在主调度线程里越写越重。KAI 用 <code>BindRequest</code> 这层接口把这个问题处理得很优雅。</p>
+<h2 id="一份我自己的“源码精读顺序”"><a href="#一份我自己的“源码精读顺序”" class="headerlink" title="一份我自己的“源码精读顺序”"></a>一份我自己的“源码精读顺序”</h2><p>如果你打算真的跟代码，我建议按下面顺序：</p>
+<ol>
+<li><code>cmd/scheduler/app/server.go</code></li>
+<li><code>pkg/scheduler/scheduler.go</code></li>
+<li><code>pkg/scheduler/framework/framework.go</code></li>
+<li><code>pkg/scheduler/framework/session.go</code></li>
+<li><code>pkg/scheduler/actions/factory.go</code></li>
+<li><code>pkg/scheduler/plugins/factory.go</code></li>
+<li><code>pkg/scheduler/cache/cache.go</code> 中的 bind &#x2F; evict &#x2F; snapshot 相关逻辑</li>
+<li><code>pkg/apis/scheduling/v1alpha2/bindrequest_types.go</code></li>
+<li><code>pkg/binder/controllers/bindrequest_controller.go</code></li>
+</ol>
+<p>这样读的好处是：先把主骨架立住，再回头钻进具体 action&#x2F;plugin 算法时不容易迷路。</p>
+<h2 id="下一篇看什么"><a href="#下一篇看什么" class="headerlink" title="下一篇看什么"></a>下一篇看什么</h2><p>到这里，KAI 的主调度链路已经比较清楚了。但如果只停在这里，会低估它为什么能持续扩展。</p>
+<p>真正支撑 KAI 持续演化的，是最后一层：</p>
+<ul>
+<li>plugin 体系到底开放了哪些扩展点？</li>
+<li><code>SchedulingShard</code> 为什么是一个很强的 policy surface？</li>
+<li>拓扑感知、公平性、time-based fairshare 为什么可以自然叠加进这套框架？</li>
+</ul>
+<p>下一篇就专门讲这些“高级能力背后的结构原因”。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/golang/" rel="tag"># golang</a>
+              <a href="/tags/kubernetes/" rel="tag"># kubernetes</a>
+              <a href="/tags/scheduler/" rel="tag"># scheduler</a>
+              <a href="/tags/kai-scheduler/" rel="tag"># kai-scheduler</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/23/2026-04-23-kai-scheduler-03-framework/" rel="prev" title="KAI Scheduler 深入拆解（三）：调度框架内核——Cycle、Snapshot、Session、Action、Statement">
+                  <i class="fa fa-angle-left"></i> KAI Scheduler 深入拆解（三）：调度框架内核——Cycle、Snapshot、Session、Action、Statement
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/04/23/2026-04-23-kai-scheduler-05-extensions/" rel="next" title="KAI Scheduler 深入拆解（五）：插件、分片、拓扑感知与时间公平性">
+                  KAI Scheduler 深入拆解（五）：插件、分片、拓扑感知与时间公平性 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
