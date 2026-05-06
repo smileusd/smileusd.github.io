@@ -112,7 +112,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">104</span>
+          <span class="site-state-item-count">105</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
@@ -123,7 +123,7 @@
       </div>
       <div class="site-state-item site-state-tags">
           <a href="/tags/">
-        <span class="site-state-item-count">249</span>
+        <span class="site-state-item-count">251</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -140,6 +140,126 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2024-03-06-IOCost-model-impact-cpu-soft-lockup/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2024-03-06-IOCost-model-impact-cpu-soft-lockup/" class="post-title-link" itemprop="url">IOCost model impact cpu soft lockup</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:51:59" itemprop="dateCreated datePublished" datetime="2024-03-10T12:51:59+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/system/" itemprop="url" rel="index"><span itemprop="name">system</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h3 id="Reproduce"><a href="#Reproduce" class="headerlink" title="Reproduce"></a>Reproduce</h3><p><em>environment</em>:</p>
+<p>5.15 kernel</p>
+<p><em>way</em>:</p>
+<p>Enable cgroup v2 and bfq, set bfq as scheduler on target deviceEnable io cost by &#x2F;sys&#x2F;fs&#x2F;cgroup&#x2F;io.cost.qos, set cgroup io.weightStart two or more fio process to read or write on the target device, at least contains 1 direct and 1 buffer io, each one use different cgroupsWait 10-30 minutes</p>
+<h3 id="Debug"><a href="#Debug" class="headerlink" title="Debug"></a>Debug</h3><p>Kernel Dump 1 (Set hardlockup_panic&#x3D;1 by sysctl):</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br></pre></td><td class="code"><pre><span class="line">[ 1408.828715] Call Trace:</span><br><span class="line">[ 1408.828716]  &lt;TASK&gt;</span><br><span class="line">[ 1408.828718]  _raw_spin_lock_irq+0x26/0x30</span><br><span class="line">[ 1408.828722]  bfq_bio_merge+0x9f/0x160 [bfq]</span><br><span class="line">[ 1408.828727]  __blk_mq_sched_bio_merge+0x36/0x190</span><br><span class="line">[ 1408.828731]  blk_mq_submit_bio+0xd2/0x600</span><br><span class="line">[ 1408.828735]  __submit_bio+0x1dc/0x210</span><br><span class="line">[ 1408.828738]  submit_bio_noacct+0x263/0x2c0</span><br><span class="line">[ 1408.828741]  submit_bio+0x48/0x130</span><br><span class="line">[ 1408.828743]  iomap_submit_ioend.isra.0+0x52/0x80</span><br><span class="line">[ 1408.828745]  iomap_writepage_map+0x490/0x630</span><br><span class="line">[ 1408.828748]  iomap_do_writepage+0x75/0x230</span><br><span class="line">[ 1408.828750]  ? clear_page_dirty_for_io+0xdf/0x1d0</span><br><span class="line">[ 1408.828754]  write_cache_pages+0x184/0x450</span><br><span class="line">[ 1408.828756]  ? iomap_truncate_page+0x60/0x60</span><br><span class="line">[ 1408.828760]  iomap_writepages+0x20/0x40</span><br><span class="line">[ 1408.828762]  xfs_vm_writepages+0x84/0xb0 [xfs]</span><br><span class="line">[ 1408.828837]  do_writepages+0xc5/0x1c0</span><br><span class="line">[ 1408.828839]  ? __wb_calc_thresh+0x3e/0x120</span><br><span class="line">[ 1408.828842]  __writeback_single_inode+0x44/0x290</span><br><span class="line">[ 1408.828845]  writeback_sb_inodes+0x22d/0x4b0</span><br><span class="line">[ 1408.828849]  __writeback_inodes_wb+0x56/0xf0</span><br><span class="line">[ 1408.828852]  wb_writeback+0x1ce/0x290</span><br><span class="line">[ 1408.828855]  wb_workfn+0x31b/0x490</span><br><span class="line">[ 1408.828858]  ? psi_task_switch+0xc3/0x240</span><br><span class="line">[ 1408.828862]  process_one_work+0x22b/0x3d0</span><br><span class="line">[ 1408.828865]  worker_thread+0x4d/0x3f0</span><br><span class="line">[ 1408.828868]  ? process_one_work+0x3d0/0x3d0</span><br><span class="line">[ 1408.828870]  kthread+0x12a/0x150</span><br><span class="line">[ 1408.828872]  ? set_kthread_struct+0x40/0x40</span><br><span class="line">[ 1408.828874]  ret_from_fork+0x22/0x30</span><br><span class="line">[ 1408.828879]  &lt;/TASK&gt;</span><br><span class="line">[ 1408.829600] Kernel panic - not syncing: Hard LOCKUP</span><br><span class="line">[ 1408.829602] CPU: 26 PID: 0 Comm: swapper/26 Kdump: loaded Tainted: P          IOE K   5.15.0-26-generic #26</span><br><span class="line">[ 1408.829604] Hardware name: Dell Inc. PowerEdge C6420/0K2TT6, BIOS 2.4.8 11/27/2019</span><br><span class="line">[ 1408.829605] Call Trace:</span><br><span class="line">[ 1408.829606]  &lt;NMI&gt;</span><br><span class="line">[ 1408.829608]  dump_stack_lvl+0x4a/0x5f</span><br><span class="line">[ 1408.829615]  dump_stack+0x10/0x12</span><br><span class="line">[ 1408.829617]  panic+0x149/0x321</span><br><span class="line">[ 1408.829623]  nmi_panic.cold+0xc/0xc</span><br><span class="line">[ 1408.829626]  watchdog_overflow_callback.cold+0x5c/0x70</span><br><span class="line">[ 1408.829631]  __perf_event_overflow+0x57/0x100</span><br><span class="line">[ 1408.829634]  perf_event_overflow+0x14/0x20</span><br><span class="line">[ 1408.829637]  handle_pmi_common+0x1f3/0x2f0</span><br><span class="line">[ 1408.829643]  ? flush_tlb_one_kernel+0xe/0x20</span><br><span class="line">[ 1408.829647]  ? __set_pte_vaddr+0x37/0x40</span><br><span class="line">[ 1408.829650]  ? set_pte_vaddr_p4d+0x3d/0x50</span><br><span class="line">[ 1408.829652]  ? set_pte_vaddr+0x81/0xb0</span><br><span class="line">[ 1408.829653]  ? __native_set_fixmap+0x28/0x40</span><br><span class="line">[ 1408.829655]  ? native_set_fixmap+0x66/0x70</span><br><span class="line">[ 1408.829657]  ? ghes_copy_tofrom_phys+0x7c/0x120</span><br><span class="line">[ 1408.829663]  ? __ghes_peek_estatus.isra.0+0x4e/0xb0</span><br><span class="line">[ 1408.829666]  intel_pmu_handle_irq+0xf4/0x210</span><br><span class="line">[ 1408.829670]  perf_event_nmi_handler+0x2d/0x50</span><br><span class="line">[ 1408.829672]  nmi_handle+0x66/0x120</span><br><span class="line">[ 1408.829678]  default_do_nmi+0x45/0x110</span><br><span class="line">[ 1408.829681]  exc_nmi+0x175/0x190</span><br><span class="line">[ 1408.829683]  end_repeat_nmi+0x16/0x55</span><br><span class="line">[ 1408.829685] RIP: 0010:native_queued_spin_lock_slowpath+0x14f/0x220</span><br><span class="line">[ 1408.827472]  ? adjust_inuse_and_calc_cost+0x13a/0x250</span><br><span class="line">[ 1408.827475]  ioc_rqos_merge+0xef/0x260</span><br><span class="line">[ 1408.827478]  __rq_qos_merge+0x31/0x50</span><br><span class="line">[ 1408.827481]  bio_attempt_back_merge+0x43/0xd0</span><br><span class="line">[ 1408.827484]  blk_mq_sched_try_merge+0x147/0x1d0</span><br><span class="line">[ 1408.827486]  bfq_bio_merge+0xe2/0x160 [bfq]</span><br><span class="line">[ 1408.827491]  __blk_mq_sched_bio_merge+0x36/0x190</span><br><span class="line">[ 1408.827495]  blk_mq_submit_bio+0xd2/0x600</span><br><span class="line">[ 1408.827499]  __submit_bio+0x1dc/0x210</span><br><span class="line">[ 1408.827502]  ? get_user_pages_fast+0x24/0x40</span><br><span class="line">[ 1408.827507]  ? iov_iter_get_pages+0xc6/0x3f0</span><br><span class="line">[ 1408.827513]  submit_bio_noacct+0xac/0x2c0</span><br><span class="line">[ 1408.827516]  submit_bio+0x48/0x130</span><br><span class="line">[ 1408.827518]  iomap_dio_submit_bio+0x79/0x80</span><br><span class="line">[ 1408.827524]  iomap_dio_bio_iter+0x2d7/0x4a0</span><br><span class="line">[ 1408.827528]  __iomap_dio_rw+0x531/0x7c0</span><br><span class="line">[ 1408.827532]  iomap_dio_rw+0xe/0x30</span><br><span class="line">[ 1408.827535]  xfs_file_dio_write_aligned+0xa0/0x110 [xfs]</span><br><span class="line">[ 1408.827647]  xfs_file_write_iter+0x101/0x1a0 [xfs]</span><br><span class="line">[ 1408.827736]  aio_write+0x116/0x210</span><br><span class="line">[ 1408.827740]  ? update_load_avg+0x7c/0x640</span><br><span class="line">[ 1408.827744]  ? set_next_entity+0xb7/0x200</span><br><span class="line">[ 1408.827747]  __io_submit_one.constprop.0+0x40e/0x720</span><br><span class="line">[ 1408.827749]  ? __io_submit_one.constprop.0+0x40e/0x720</span><br><span class="line">[ 1408.827752]  ? __check_object_size+0x5d/0x150</span><br><span class="line">[ 1408.827755]  ? _copy_to_user+0x20/0x30</span><br><span class="line">[ 1408.827760]  ? aio_read_events+0x210/0x320</span><br><span class="line">[ 1408.827762]  io_submit_one+0xe3/0x550</span><br><span class="line">[ 1408.827764]  ? io_submit_one+0xe3/0x550</span><br><span class="line">[ 1408.827766]  ? audit_filter_rules.constprop.0+0x3b1/0x12e0</span><br><span class="line">[ 1408.827772]  __x64_sys_io_submit+0x8d/0x180</span><br><span class="line">[ 1408.827775]  ? syscall_trace_enter.isra.0+0x146/0x1c0</span><br><span class="line">[ 1408.827779]  do_syscall_64+0x5c/0xc0</span><br><span class="line">[ 1408.827782]  ? exit_to_user_mode_prepare+0x3d/0x1c0</span><br><span class="line">[ 1408.827785]  ? syscall_exit_to_user_mode+0x27/0x50</span><br><span class="line">[ 1408.827788]  ? do_syscall_64+0x69/0xc0</span><br><span class="line">[ 1408.827790]  ? irqentry_exit+0x19/0x30</span><br><span class="line">[ 1408.827793]  ? sysvec_call_function_single+0x4e/0x90</span><br><span class="line">[ 1408.827795]  ? asm_sysvec_call_function_single+0xa/0x20</span><br><span class="line">[ 1408.827799]  entry_SYSCALL_64_after_hwframe+0x44/0xae</span><br></pre></td></tr></table></figure>
+
+
+
+
+
+<p>Kernel dump 2 :</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br></pre></td><td class="code"><pre><span class="line">[60977.577690] BUG: spinlock recursion on CPU#21, fio/11770</span><br><span class="line">[60977.583007]  lock: 0xffff92600e348c20, .magic: dead4ead, .owner: fio/11770, .owner_cpu: 21</span><br><span class="line">[60977.591275] CPU: 21 PID: 11770 Comm: fio Kdump: loaded Not tainted 5.15.0-26-generic #26</span><br><span class="line">[60977.599362] Hardware name: Supermicro SYS-6029TP-H-EI012/X11DPT-PS-EI012, BIOS 1.0.9.0 01/31/2018</span><br><span class="line">[60977.608229] Call Trace:</span><br><span class="line">[60977.610682]  &lt;IRQ&gt;</span><br><span class="line">[60977.612700]  dump_stack_lvl+0x58/0x7d</span><br><span class="line">[60977.616367]  dump_stack+0x10/0x12</span><br><span class="line">[60977.619687]  spin_dump.cold+0x24/0x39</span><br><span class="line">[60977.623359]  do_raw_spin_lock+0x9a/0xd0</span><br><span class="line">[60977.627198]  _raw_spin_lock_irqsave+0x7d/0x80</span><br><span class="line">[60977.631561]  bfq_finish_requeue_request+0x55/0x540 [bfq]</span><br><span class="line">[60977.636874]  blk_mq_free_request+0x3e/0x160</span><br><span class="line">[60977.641058]  __blk_mq_end_request+0x102/0x110</span><br><span class="line">[60977.645419]  scsi_end_request+0xce/0x190</span><br><span class="line">[60977.649345]  scsi_io_completion+0x7e/0x5d0</span><br><span class="line">[60977.653442]  scsi_finish_command+0xca/0x100</span><br><span class="line">[60977.657629]  scsi_complete+0x74/0xe0</span><br><span class="line">[60977.661212]  blk_complete_reqs+0x3b/0x50</span><br><span class="line">[60977.665135]  blk_done_softirq+0x1d/0x20</span><br><span class="line">[60977.668975]  __do_softirq+0xf7/0x31e</span><br><span class="line">[60977.672554]  irq_exit_rcu+0x79/0xa0</span><br><span class="line">[60977.676044]  sysvec_call_function_single+0x7c/0x90</span><br><span class="line">[60977.680837]  &lt;/IRQ&gt;</span><br><span class="line">[60977.682945]  &lt;TASK&gt;</span><br><span class="line">[60977.685051]  asm_sysvec_call_function_single+0x12/0x20</span><br><span class="line">[60977.690189] RIP: 0010:_raw_spin_unlock_irq+0x2a/0x30</span><br><span class="line">[60977.695155] Code: 0f 1f 44 00 00 55 48 89 e5 41 54 49 89 fc 48 8d 7f 18 48 8b 75 08 e8 75 6f 3d ff 4c 89 e7 e8 8d b0 3d ff fb 66 0f 1f 44 00 00 &lt;41&gt; 5c 5d c3 66 90 0f 1f 44 00 00 55 48 89 e5 41 54 49 89 fc 48 8d</span><br><span class="line">[60977.713902] RSP: 0018:ffffa0781992b670 EFLAGS: 00000246</span><br><span class="line">[60977.719128] RAX: 0000000000000015 RBX: 00000000001d9281 RCX: 0000000036d7555b</span><br><span class="line">[60977.726260] RDX: 000000007a3bfa68 RSI: ffff9260bca80d48 RDI: ffff92600fd9f0e0</span><br><span class="line">[60977.733392] RBP: ffffa0781992b678 R08: 00000000ffffffff R09: 00000000ffffffff</span><br><span class="line">[60977.740527] R10: 0000000000000001 R11: ffff9231c6d2cc00 R12: ffff92600fd9f0e0</span><br><span class="line">[60977.747661] R13: ffffa0781992b710 R14: 0000000000000001 R15: 000000000019007e</span><br><span class="line">[60977.754794]  adjust_inuse_and_calc_cost+0x164/0x250</span><br><span class="line">[60977.759673]  ioc_rqos_merge+0xef/0x260</span><br><span class="line">[60977.763425]  __rq_qos_merge+0x31/0x50</span><br><span class="line">[60977.767091]  bio_attempt_back_merge+0x64/0xf0</span><br><span class="line">[60977.771451]  blk_mq_sched_try_merge+0x147/0x1d0</span><br><span class="line">[60977.775982]  bfq_bio_merge+0xe2/0x150 [bfq]</span><br><span class="line">[60977.780168]  __blk_mq_sched_bio_merge+0x36/0x1b0</span><br><span class="line">[60977.784790]  blk_mq_submit_bio+0xd5/0x690</span><br><span class="line">[60977.788803]  __submit_bio+0x23d/0x270</span><br><span class="line">[60977.792465]  ? wake_up_page_bit+0xd3/0x100</span><br><span class="line">[60977.796568]  submit_bio_noacct+0x26c/0x2d0</span><br><span class="line">[60977.800664]  ? wake_up_page_bit+0xd3/0x100</span><br><span class="line">[60977.804764]  submit_bio+0x48/0x140</span><br><span class="line">[60977.808171]  iomap_submit_ioend.isra.0+0x52/0x80</span><br><span class="line">[60977.812790]  iomap_writepage_map+0x490/0x630</span><br><span class="line">[60977.817065]  iomap_do_writepage+0x8c/0x260</span><br><span class="line">[60977.821161]  ? clear_page_dirty_for_io+0x113/0x220</span><br><span class="line">[60977.825955]  write_cache_pages+0x19e/0x460</span><br><span class="line">[60977.830054]  ? iomap_truncate_page+0x60/0x60</span><br><span class="line">[60977.834330]  iomap_writepages+0x20/0x40</span><br><span class="line">[60977.838167]  xfs_vm_writepages+0x85/0xb0 [xfs]</span><br><span class="line">[60977.842718]  do_writepages+0xc6/0x1c0</span><br><span class="line">[60977.846384]  ? _raw_spin_unlock+0x23/0x30</span><br><span class="line">[60977.850398]  filemap_fdatawrite_wbc+0x7d/0xc0</span><br><span class="line">[60977.854756]  __filemap_fdatawrite_range+0x54/0x70</span><br><span class="line">[60977.859463]  generic_fadvise+0x299/0x2c0</span><br><span class="line">[60977.863387]  xfs_file_fadvise+0x23/0x80 [xfs]</span><br><span class="line">[60977.867807]  vfs_fadvise+0x1e/0x30</span><br><span class="line">[60977.871214]  ksys_fadvise64_64+0x41/0x80</span><br><span class="line">[60977.875140]  ? syscall_trace_enter.isra.0+0x16b/0x1e0</span><br><span class="line">[60977.880194]  __x64_sys_fadvise64+0x1e/0x30</span><br><span class="line">[60977.884291]  do_syscall_64+0x5c/0xc0</span><br><span class="line">[60977.887870]  ? irqentry_exit_to_user_mode+0x9/0x20</span><br><span class="line">[60977.892665]  ? irqentry_exit+0x19/0x30</span><br><span class="line">[60977.896416]  ? exc_page_fault+0x94/0x1b0</span><br><span class="line">[60977.900343]  ? asm_exc_page_fault+0x8/0x30</span><br><span class="line">[60977.904444]  entry_SYSCALL_64_after_hwframe+0x44/0xae</span><br><span class="line">[60977.909496] RIP: 0033:0x7f16f2c07d3e</span><br><span class="line">[60977.913076] Code: 10 10 00 f7 d8 64 89 02 b8 ff ff ff ff eb b3 e8 28 d8 01 00 0f 1f 84 00 00 00 00 00 f3 0f 1e fa 41 89 ca b8 dd 00 00 00 0f 05 &lt;89&gt; c2 f7 da 3d 00 f0 ff ff b8 00 00 00 00 0f 47 c2 c3 41 57 41 56</span><br><span class="line">[60977.931819] RSP: 002b:00007ffd83ec8338 EFLAGS: 00000246 ORIG_RAX: 00000000000000dd</span><br><span class="line">[60977.939388] RAX: ffffffffffffffda RBX: 00007f16effca890 RCX: 00007f16f2c07d3e</span><br><span class="line">[60977.946518] RDX: 0000000280000000 RSI: 0000000000000000 RDI: 0000000000000006</span><br><span class="line">[60977.953652] RBP: 0000000000000000 R08: 00007f16e8f2b028 R09: 0000000000000000</span><br><span class="line">[60977.960784] R10: 0000000000000004 R11: 0000000000000246 R12: 0000000280000000</span><br><span class="line">[60977.967918] R13: 00007f16e8c16c80 R14: 00007f16effca890 R15: 00007f16e8c16c80</span><br><span class="line">[60977.975053]  &lt;/TASK&gt;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<p>Kernel dump 3 (enable lockdep):</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br></pre></td><td class="code"><pre><span class="line">[ 4398.422037] WARNING: inconsistent lock state</span><br><span class="line">[ 4398.426311] 5.15.0-26-generic #26 Not tainted</span><br><span class="line">[ 4398.430666] --------------------------------</span><br><span class="line">[ 4398.434939] inconsistent &#123;IN-HARDIRQ-W&#125; -&gt; &#123;HARDIRQ-ON-W&#125; usage.</span><br><span class="line">[ 4398.440947] fio/156503 [HC0[0]:SC0[0]:HE0:SE1] takes:</span><br><span class="line">[ 4398.445997] ffff8b5bd4771c38 (&amp;bfqd-&gt;lock)&#123;?.-.&#125;-&#123;2:2&#125;, at: bfq_bio_merge+0x9f/0x150 [bfq]</span><br><span class="line">[ 4398.454265] &#123;IN-HARDIRQ-W&#125; state was registered at:</span><br><span class="line">[ 4398.459148]   lock_acquire+0xd8/0x300</span><br><span class="line">[ 4398.462823]   _raw_spin_lock_irqsave+0x52/0xa0</span><br><span class="line">[ 4398.467279]   bfq_idle_slice_timer+0x2d/0xc0 [bfq]</span><br><span class="line">[ 4398.472079]   __hrtimer_run_queues+0x8b/0x420</span><br><span class="line">[ 4398.476438]   hrtimer_interrupt+0x109/0x230</span><br><span class="line">[ 4398.480621]   __sysvec_apic_timer_interrupt+0x78/0x1f0</span><br><span class="line">[ 4398.485761]   sysvec_apic_timer_interrupt+0x77/0x90</span><br><span class="line">[ 4398.490640]   asm_sysvec_apic_timer_interrupt+0x12/0x20</span><br><span class="line">[ 4398.495868]   lock_is_held_type+0x115/0x150</span><br><span class="line">[ 4398.500054]   rcu_read_lock_sched_held+0x5a/0x90</span><br><span class="line">[ 4398.504673]   lock_acquire+0x19f/0x300</span><br><span class="line">[ 4398.508426]   process_one_work+0x28d/0x5d0</span><br><span class="line">[ 4398.512525]   worker_thread+0x4a/0x3d0</span><br><span class="line">[ 4398.516276]   kthread+0x141/0x160</span><br><span class="line">[ 4398.519597]   ret_from_fork+0x22/0x30</span><br><span class="line">[ 4398.523289] irq event stamp: 1141506</span><br><span class="line">[ 4398.526869] hardirqs last  enabled at (1141505): [&lt;ffffffff880849b1&gt;] _raw_spin_unlock_irqrestore+0x51/0x70</span><br><span class="line">[ 4398.536601] hardirqs last disabled at (1141506): [&lt;ffffffff88084744&gt;] _raw_spin_lock_irq+0x74/0x90</span><br><span class="line">[ 4398.545556] softirqs last  enabled at (1139712): [&lt;ffffffff884002f5&gt;] __do_softirq+0x2f5/0x4d3</span><br><span class="line">[ 4398.554160] softirqs last disabled at (1139699): [&lt;ffffffff872c9556&gt;] irq_exit_rcu+0x96/0xc0</span><br><span class="line">[ 4398.562594] </span><br><span class="line">               other info that might help us debug this:</span><br><span class="line">[ 4398.569121]  Possible unsafe locking scenario:</span><br><span class="line">               </span><br><span class="line">[ 4398.575041]        CPU0</span><br><span class="line">[ 4398.577494]        ----</span><br><span class="line">[ 4398.579947]   lock(&amp;bfqd-&gt;lock);</span><br><span class="line">[ 4398.583188]   &lt;Interrupt&gt;</span><br><span class="line">[ 4398.585813]     lock(&amp;bfqd-&gt;lock);</span><br><span class="line">[ 4398.589219] </span><br><span class="line">                *** DEADLOCK ***</span><br><span class="line">               </span><br><span class="line">[ 4398.595137] 2 locks held by fio/156503:</span><br><span class="line">[ 4398.598978]  #0: ffff8b5c653c4e28 (&amp;sb-&gt;s_type-&gt;i_mutex_key#14)&#123;++++&#125;-&#123;3:3&#125;, at: xfs_ilock+0x104/0x1b0 [xfs]</span><br><span class="line">[ 4398.608937]  #1: ffff8b5bd4771c38 (&amp;bfqd-&gt;lock)&#123;?.-.&#125;-&#123;2:2&#125;, at: bfq_bio_merge+0x9f/0x150 [bfq]</span><br><span class="line">[ 4398.617637] </span><br><span class="line">               stack backtrace:</span><br><span class="line">[ 4398.621999] CPU: 19 PID: 156503 Comm: fio Kdump: loaded Not tainted 5.15.0-26-generic #26</span><br><span class="line">[ 4398.630170] Hardware name: Supermicro SYS-6029TP-H-EI012/X11DPT-PS-EI012, BIOS 1.0.9.0 01/31/2018</span><br><span class="line">[ 4398.639036] Call Trace:</span><br><span class="line">[ 4398.641488]  &lt;TASK&gt;</span><br><span class="line">[ 4398.643596]  dump_stack_lvl+0x6e/0x9c</span><br><span class="line">[ 4398.647284]  dump_stack+0x10/0x12</span><br><span class="line">[ 4398.650605]  print_usage_bug.part.0+0x18e/0x19d</span><br><span class="line">[ 4398.655138]  mark_lock_irq.cold+0x11/0x2c</span><br><span class="line">[ 4398.659151]  ? stack_trace_save+0x4c/0x70</span><br><span class="line">[ 4398.663164]  ? save_trace+0x45/0x2f0</span><br><span class="line">[ 4398.666742]  mark_lock.part.0+0x11f/0x220</span><br><span class="line">[ 4398.670756]  mark_held_locks+0x54/0x80</span><br><span class="line">[ 4398.674510]  ? adjust_inuse_and_calc_cost+0x164/0x2c0</span><br><span class="line">[ 4398.679563]  lockdep_hardirqs_on_prepare+0x7f/0x1c0</span><br><span class="line">[ 4398.680859] patch_est_timer: disagrees about version of symbol module_layout</span><br><span class="line">[ 4398.684449]  ? _raw_spin_unlock_irq+0x28/0x40</span><br><span class="line">[ 4398.695856]  trace_hardirqs_on+0x21/0xe0</span><br><span class="line">[ 4398.699791]  _raw_spin_unlock_irq+0x28/0x40</span><br><span class="line">[ 4398.703974]  adjust_inuse_and_calc_cost+0x164/0x2c0</span><br><span class="line">[ 4398.708858]  ioc_rqos_merge+0xef/0x280</span><br><span class="line">[ 4398.712608]  __rq_qos_merge+0x31/0x50</span><br><span class="line">[ 4398.716272]  bio_attempt_back_merge+0x63/0x160</span><br><span class="line">[ 4398.720722]  blk_mq_sched_try_merge+0x147/0x1d0</span><br><span class="line">[ 4398.725256]  bfq_bio_merge+0xe2/0x150 [bfq]</span><br><span class="line">[ 4398.729448]  __blk_mq_sched_bio_merge+0x36/0x1b0</span><br><span class="line">[ 4398.734069]  blk_mq_submit_bio+0xd5/0x900</span><br><span class="line">[ 4398.738082]  __submit_bio+0x307/0x340</span><br><span class="line">[ 4398.741746]  ? get_user_pages_fast+0x24/0x40</span><br><span class="line">[ 4398.746018]  ? iov_iter_get_pages+0xc6/0x400</span><br><span class="line">[ 4398.750292]  submit_bio_noacct+0x26c/0x2d0</span><br><span class="line">[ 4398.754393]  submit_bio+0x48/0x140</span><br><span class="line">[ 4398.757797]  iomap_dio_submit_bio+0x7c/0x90</span><br><span class="line">[ 4398.761983]  iomap_dio_bio_iter+0x2da/0x4b0</span><br><span class="line">[ 4398.766172]  __iomap_dio_rw+0x514/0x830</span><br><span class="line">[ 4398.770012]  iomap_dio_rw+0xe/0x30</span><br><span class="line">[ 4398.773413]  xfs_file_dio_write_aligned+0xb9/0x1a0 [xfs]</span><br><span class="line">[ 4398.778821]  ? sched_clock_cpu+0x12/0xe0</span><br><span class="line">[ 4398.782749]  xfs_file_write_iter+0x101/0x1a0 [xfs]</span><br><span class="line">[ 4398.787613]  aio_write+0x131/0x310</span><br><span class="line">[ 4398.791019]  ? __fget_files+0xcf/0x1c0</span><br><span class="line">[ 4398.794771]  __io_submit_one.constprop.0+0x43a/0x570</span><br><span class="line">[ 4398.799740]  ? __io_submit_one.constprop.0+0x43a/0x570</span><br><span class="line">[ 4398.804885]  ? sched_clock_cpu+0x12/0xe0</span><br><span class="line">[ 4398.808819]  ? io_submit_one+0xd9/0x870</span><br><span class="line">[ 4398.812671]  io_submit_one+0x142/0x870</span><br><span class="line">[ 4398.816429]  ? io_submit_one+0x142/0x870</span><br><span class="line">[ 4398.820373]  __x64_sys_io_submit+0x97/0x2a0</span><br><span class="line">[ 4398.824569]  ? syscall_trace_enter.isra.0+0x186/0x250</span><br><span class="line">[ 4398.829632]  do_syscall_64+0x5c/0xc0</span><br><span class="line">[ 4398.833217]  ? __x64_sys_io_cancel+0x250/0x250</span><br><span class="line">[ 4398.837660]  ? do_syscall_64+0x5c/0xc0</span><br><span class="line">[ 4398.841412]  ? do_syscall_64+0x69/0xc0</span><br><span class="line">[ 4398.845165]  ? do_syscall_64+0x69/0xc0</span><br><span class="line">[ 4398.848921]  ? sysvec_call_function_single+0x4e/0x90</span><br><span class="line">[ 4398.853884]  ? asm_sysvec_call_function_single+0xa/0x20</span><br><span class="line">[ 4398.859110]  entry_SYSCALL_64_after_hwframe+0x44/0xae</span><br><span class="line">[ 4398.864165] RIP: 0033:0x7fd43e139697</span><br><span class="line">[ 4398.867746] Code: 00 75 10 8b 47 0c 39 47 08 74 10 0f 1f 84 00 00 00 00 00 e9 bb ff ff ff 0f 1f 00 31 c0 c3 0f 1f 44 00 00 b8 d1 00 00 00 0f 05 &lt;c3&gt; 0f 1f 84 00 00 00 00 00 b8 d2 00 00 00 0f 05 c3 0f 1f 84 00 00</span><br><span class="line">[ 4398.886488] RSP: 002b:00007fd439a49cc8 EFLAGS: 00000202 ORIG_RAX: 00000000000000d1</span><br><span class="line">[ 4398.894057] RAX: ffffffffffffffda RBX: 00007fd43a24c000 RCX: 00007fd43e139697</span><br><span class="line">[ 4398.901187] RDX: 00007fd43400d530 RSI: 0000000000000001 RDI: 00007fd43eb24000</span><br><span class="line">[ 4398.908323] RBP: 00007fd43a24c000 R08: 00007fd43a7051f0 R09: 00000000000001f0</span><br><span class="line">[ 4398.915454] R10: 0000000004455000 R11: 0000000000000202 R12: 00007fd43400ccf0</span><br><span class="line">[ 4398.922587] R13: 00007fd43400d740 R14: 00007fd43400d530 R15: 00007fd43a251210</span><br><span class="line">[ 4398.929725]  &lt;/TASK&gt;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>Lock chain:</p>
+<ol>
+<li>bfq_bio_merge:</li>
+</ol>
+<p>​	spin_lock_irq(&amp;bfqd-&gt;lock);</p>
+<p>​	blk_mq_sched_try_merge:</p>
+<p>​		adjust_inuse_and_calc_cost:</p>
+<p>​				spin_lock_irq(&amp;ioc-&gt;lock);</p>
+<p>​				spin_unlock_irq(&amp;ioc-&gt;lock);</p>
+<ol start="2">
+<li>bfq_finish_requeue_request:</li>
+</ol>
+<p>​		spin_lock_irqsave(&amp;bfqd-&gt;lock, flags);</p>
+<p>​		…</p>
+<p>​		spin_unlock_irqrestore(&amp;bfqd-&gt;lock, flags);</p>
+<p><img src="https://lh7-us.googleusercontent.com/bq2FPR6rf3vTi3qwBroUf_ukX2q8_kuRj8GbANgmURAwdcfd3c6QBivBGFvtvvADlqdTU4CbjvhIBrHzJefKR8UpE5WR7A0jZ7tFH5odAsfF8JjofHbi2vq8AFHgUT6cdfmcOxm0Tc0gyZCdXJGYfog" alt="img"></p>
+<p>There is a process running on cpu and hold a lock spin_lock_irq(&amp;bfqd-&gt;lock), then the process to hold the second lock by spin_lock_irq(&amp;ioc-&gt;lock), after finish calculation, the process release the second lock spin_unlock_irq(&amp;ioc-&gt;lock), at this time the kernel allow irq, and a irq preempts the cpu and when run into function <em>bfq_finish_requeue_request,</em> it try to hold the first lock by spin_lock_irqsave(&amp;bfqd-&gt;lock, flags), but it is still hold by original process, so it is deadlock. The locked module can detect this case and reprot the risk into dmesg (stack 3). </p>
+<h3 id="Solution"><a href="#Solution" class="headerlink" title="Solution"></a>Solution</h3><p>This kernel patch fix the issue in kernel 6.3.13 version:</p>
+<p><em><a target="_blank" rel="noopener" href="https://lwn.net/Articles/937933/">https://lwn.net/Articles/937933/</a></em></p>
+<p><a target="_blank" rel="noopener" href="https://www.spinics.net/lists/stable/msg669695.html"><em>https://www.spinics.net/lists/stable/msg669695.html</em></a></p>
+<p>In this patch, the fix is using <em>spin_lock_irqsave</em> to replace <em>spin_lock_irq</em> in the function of “<em>adjust_inuse_and_calc_cost</em>” to block the irq when unlocked.</p>
+<p>We will cherry-pick the patch into our 5.15 kernel.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -1323,198 +1443,6 @@ D(Deployment) --> A</pre>
 <h4 id="Map-的删除"><a href="#Map-的删除" class="headerlink" title="Map 的删除"></a>Map 的删除</h4><p>删除的前面部分也是找到对应的key和value, 此处省略.</p>
 <figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">mapdelete</span><span class="params">(t *maptype, h *hmap, key unsafe.Pointer)</span></span> &#123;</span><br><span class="line"><span class="comment">// 查找位置, 省略</span></span><br><span class="line">	<span class="keyword">if</span> t.indirectkey &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的地址, 将地址变为nil</span></span><br><span class="line">				*(*unsafe.Pointer)(k) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果存的是key的值, 清空key的值</span></span><br><span class="line">				typedmemclr(t.key, k)</span><br><span class="line">			&#125;</span><br><span class="line">			v := unsafe.Pointer(<span class="type">uintptr</span>(unsafe.Pointer(b)) + dataOffset + bucketCnt*<span class="type">uintptr</span>(t.keysize) + i*<span class="type">uintptr</span>(t.valuesize))</span><br><span class="line">    	<span class="comment">// 同理</span></span><br><span class="line">			<span class="keyword">if</span> t.indirectvalue &#123;</span><br><span class="line">				*(*unsafe.Pointer)(v) = <span class="literal">nil</span></span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				typedmemclr(t.elem, v)</span><br><span class="line">			&#125;</span><br><span class="line">    		<span class="comment">//将tophash相应位置标记为空, kv数量-1.</span></span><br><span class="line">			b.tophash[i] = empty</span><br><span class="line">			h.count--</span><br><span class="line">			<span class="keyword">goto</span> done</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-ceph/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-ceph/" class="post-title-link" itemprop="url">ceph introduction</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/architecture/" itemprop="url" rel="index"><span itemprop="name">architecture</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>ceph相当庞大, 准备用一个系列来学习, 先来看看基础的架构和基本概念.</p>
-<h4 id="基本架构"><a href="#基本架构" class="headerlink" title="基本架构"></a>基本架构</h4><p><a target="_blank" rel="noopener" href="http://docs.ceph.com/docs/master/_images/stack.png"><img src="http://docs.ceph.com/docs/master/_images/stack.png" alt="ceph_arcihitecture"></a></p>
-<p>ceph提供对象, 块,和文件系统存储, 它也支持直接使用librados库做存储开发. 在底层都要通过<a target="_blank" rel="noopener" href="https://ceph.com/wp-content/uploads/2016/08/weil-rados-pdsw07.pdf">RADOS</a>服务, 它是可靠的分布式对象存储服务. 也就是说无论上层对外提供的是何种类型的服务, ceph最终都将它转换成二进制对象进行存储.</p>
-<h5 id="可扩展性和高可用性"><a href="#可扩展性和高可用性" class="headerlink" title="可扩展性和高可用性"></a>可扩展性和高可用性</h5><p>一个ceph存储集群包括两种类型的Daemon:</p>
-<ol>
-<li>ceph monitor: 维护一个集群map的副本. ceph monitor是高可用的.</li>
-<li>ceph osd daemon: 检查自己的状态和其他osd的状态, 然后发送给monitor. ceph client和ceph osd daemon都使用<a target="_blank" rel="noopener" href="https://ceph.com/wp-content/uploads/2016/08/weil-crush-sc06.pdf">CRUSH算法</a>有效计算数据位置信息, 而不是依赖于一个中心化的查询表.</li>
-</ol>
-<p>Ceph OSD Daemon将所有数据以对象的形式保存在一个扁平的命名空间(而不是树形结构). 一个对象有一个全局唯一的ID号, 二进制数据和元数据(key&#x2F;value键值对组成). 对象的语意完全由ceph客户端决定.</p>
-<p><a target="_blank" rel="noopener" href="http://docs.ceph.com/docs/master/_images/ditaa-ae8b394e1d31afd181408bab946ca4a216ca44b7.png"><img src="http://docs.ceph.com/docs/master/_images/ditaa-ae8b394e1d31afd181408bab946ca4a216ca44b7.png" alt="数据结构"></a></p>
-<p>ceph消除了中心化的gateway, 让Ceph client直接与ceph osd daemon交互, ceph osd daemon将数据在不同的ceph 节点 创建对象的副本, 保证数据的可用性.</p>
-<h5 id="集群map"><a href="#集群map" class="headerlink" title="集群map"></a>集群map</h5><ol>
-<li><p>monitor map: 包含集群fsid, 位置, 命名地址和每个monitor的端口. epoch表示版本, 通过ceph mon dump查看</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[root@ceph-1 ~]# ceph mon dump</span><br><span class="line">dumped monmap epoch 1</span><br><span class="line">epoch 1</span><br><span class="line">fsid a6af0fa0-0e86-4685-920a-6e999c83ba8f</span><br><span class="line">last_changed 2018-07-09 15:07:50.144554</span><br><span class="line">created 2018-07-09 15:07:50.144554</span><br><span class="line">0: 10.0.11.9:6789/0 mon.ceph-1</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>OSD map: 包含集群fsid. a list of pools, replica sizes, PG numbers, a list of OSDs and their status (e.g., <code>up</code>, <code>in</code>).</p>
-</li>
-<li><p>The PG map: 包含PG version, its time stamp, the last OSD map epoch, the full ratios, and details on each placement group such as the PG ID, the Up Set, the Acting Set, the state of the PG (e.g., <code>active + clean</code>), and data usage statistics for each pool</p>
-</li>
-<li><p>The CRUSH map: 存储设备列表, 失败的Domain, 已经写入数据的水平路由规则.</p>
-</li>
-<li><p>The MDS Map: Contains the current MDS map epoch, when the map was created, and the last time it changed</p>
-</li>
-</ol>
-<h4 id="Ceph-Crush"><a href="#Ceph-Crush" class="headerlink" title="Ceph Crush"></a>Ceph Crush</h4><blockquote>
-<p>那么问题来了，把一份数据存到一群Server中分几步？</p>
-</blockquote>
-<p>Ceph的答案是：两步。</p>
-<ol>
-<li>计算PG</li>
-<li>计算OSD</li>
-</ol>
-<h5 id="计算PG"><a href="#计算PG" class="headerlink" title="计算PG"></a>计算PG</h5><p>在Ceph中，一切皆对象。</p>
-<p>那么用什么来区分两个对象呢？<strong>对象名</strong>。也就是说，每个不同的对象都有不一样的对象名。于是，开篇的问题就变成了：</p>
-<blockquote>
-<p>把一个对象存到一群Server中分几步？</p>
-</blockquote>
-<p>这里的一群Server，由Ceph组织成一个集群，这个集群由若干的磁盘组成，也就是由若干的OSD组成。于是，继续简化问题：</p>
-<blockquote>
-<p>把一个对象存到一堆OSD中分几步?</p>
-</blockquote>
-<h4 id="Ceph中的逻辑层"><a href="#Ceph中的逻辑层" class="headerlink" title="Ceph中的逻辑层"></a>Ceph中的逻辑层</h4><p>Ceph为了保存一个对象，对上构建了一个逻辑层，也就是池(pool)，用于保存对象.</p>
-<p>Pool再一次进行了细分，即将一个pool划分为若干的PG(归置组 Placement Group)，这类似于棋盘上的方格，所有的方格构成了整个棋盘，也就是说所有的PG构成了一个pool。</p>
-<p>现在需要解决的问题是，对象怎么知道要保存到哪个PG上，假定这里我们的pool名叫rbd，共有256个PG，给每个PG编个号分别叫做<code>0x0, 0x1, ...0xF, 0x10, 0x11... 0xFE, 0xFF</code>。</p>
-<p>要解决这个问题，我们先看看我们拥有什么，1，不同的对象名。2，不同的PG编号。这里就可以引入Ceph的计算方法了 : HASH。</p>
-<p>对于对象名分别为<code>bar</code>和<code>foo</code>的两个对象，对他们的对象名进行计算即:</p>
-<ul>
-<li>HASH(‘bar’) &#x3D; 0x3E0A4162</li>
-<li>HASH(‘foo’) &#x3D; 0x7FE391A0</li>
-<li>HASH(‘bar’) &#x3D; 0x3E0A4162</li>
-</ul>
-<p>对于一个同样的对象名，计算出来的结果永远都是一样的.</p>
-<p>有了这个输出，我们使用小学就会的方法：求余数！用随机数除以PG的总数256，得到的余数一定会落在[0x0, 0xFF]之间，也就是这256个PG中的某一个：</p>
-<ul>
-<li>0x3E0A4162 % 0xFF &#x3D;&#x3D;&#x3D;&gt; 0x62</li>
-<li>0x7FE391A0 % 0xFF &#x3D;&#x3D;&#x3D;&gt; 0xA0</li>
-</ul>
-<p>于是乎，对象<code>bar</code>保存到编号为<code>0x62</code>的PG中，对象<code>foo</code>保存到编号为<code>0xA0</code>的PG中。</p>
-<p>所以每个对象自有名字开始，他们要保存到的PG就已经确定了。那么爱思考的小明同学就会提出一个问题，难道不管对象的高矮胖瘦都是一样的使用这种方法计算PG吗，答案是，YES! 也就是说Ceph不区分对象的真实大小内容以及任何形式的格式，只认对象名。毕竟当对象数达到百万级时，对象的分布从宏观上来看还是平均的。</p>
-<p>这里给出更Ceph一点的说明，实际上在Ceph中，存在着多个pool，每个pool里面存在着若干的PG，如果两个pool里面的PG编号相同，Ceph怎么区分呢? 于是乎，Ceph对每个pool进行了编号，比如刚刚的rbd池，给予编号0，再建一个pool就给予编号1，那么在Ceph里，PG的实际编号是由<code>pool_id+.+PG_id</code>组成的，也就是说，刚刚的<code>bar</code>对象会保存在<code>0.62</code>这个PG里，<code>foo</code>这个对象会保存在<code>0.A0</code>这个PG里。其他池里的PG名称可能为<code>1.12f, 2.aa1,10.aa1</code>等。</p>
-<h4 id="Ceph中的物理层"><a href="#Ceph中的物理层" class="headerlink" title="Ceph中的物理层"></a>Ceph中的物理层</h4><p>理解了刚刚的逻辑层，我们再看一下Ceph里的物理层，对下，也就是我们若干的服务器上的磁盘，通常，Ceph将一个磁盘看作一个OSD(实际上，OSD是管理一个磁盘的程序)，于是物理层由若干的OSD组成，我们的最终目标是将对象保存到磁盘上，在逻辑层里，对象是保存到PG里面的，那么现在的任务就是<code>打通PG和OSD之间的隧道</code>。PG相当于一堆余数相同的对象的组合，PG把这一部分对象打了个包，现在我们需要把很多的包平均的安放在各个OSD上，这就是CRUSH算法所要做的事情：<code>CRUSH计算PG-&gt;OSD的映射关系</code>。</p>
-<p>加上刚刚的对象映射到PG的方法，我们将开篇的两步表示成如下的两个计算公式：</p>
-<ul>
-<li>池ID + HASH(‘对象名’) % pg_num &#x3D;&#x3D;&#x3D;&gt; PG_ID</li>
-<li>CRUSH(PG_ID) &#x3D;&#x3D;&#x3D;&gt; OSD</li>
-</ul>
-<p>在讨论CRUSH算法之前，我们来做一点思考，可以发现，上面两个计算公式有点类似，为何我们不把</p>
-<ul>
-<li><code>CRUSH(PG_ID) ===&gt; OSD</code><br>改为</li>
-<li><code>HASH(PG_ID) %OSD_num ===&gt; OSD</code></li>
-</ul>
-<p>我可以如下几个由此假设带来的副作用：</p>
-<ul>
-<li>如果挂掉一个OSD，<code>OSD_num-1</code>，于是所有的<code>PG % OSD_num</code>的余数都会变化，也就是说这个PG保存的磁盘发生了变化，对这最简单的解释就是，这个PG上的数据要从一个磁盘全部迁移到另一个磁盘上去，一个优秀的存储架构应当在磁盘损坏时使得数据迁移量降到最低，CRUSH可以做到。(这一点一致性哈希也能做到)</li>
-<li>如果保存多个副本，我们希望得到多个OSD结果的输出，HASH只能获得一个，但是CRUSH可以获得任意多个。</li>
-<li>如果增加OSD的数量，OSD_num增大了，同样会导致PG在OSD之间的胡乱迁移，但是CRUSH可以保证数据向新增机器均匀的扩散。</li>
-</ul>
-<p>所以HASH只适用于一对一的映射关系计算，并且两个映射组合(对象名和PG总数)不能变化，因此这里的假设不适用于PG-&gt;OSD的映射计算。因此，这里开始引入CRUSH算法。</p>
-<h4 id="CRUSH算法"><a href="#CRUSH算法" class="headerlink" title="CRUSH算法"></a>CRUSH算法</h4><p>首先来看我们要做什么：</p>
-<ul>
-<li>把已有的PG_ID映射到OSD上，有了映射关系就可以把一个PG保存到一个磁盘上。</li>
-<li>如果我们想保存三个副本，可以把一个PG映射到三个不同的OSD上，这三个OSD上保存着一模一样的PG内容。</li>
-</ul>
-<p>再来看我们有了什么：</p>
-<ul>
-<li>互不相同的PG_ID。</li>
-<li>如果给OSD也编个号，那么就有了互不相同的OSD_ID。</li>
-<li>每个OSD最大的不同的就是它们的容量，即4T还是800G的容量，我们将每个OSD的容量又称为OSD的权重(weight)，规定4T权重为4，800G为0.8，也就是以T为单位的值。</li>
-</ul>
-<p>现在问题转化为：如何将PG_ID映射到有各自权重的OSD上。这里我直接使用CRUSH里面采取的<code>Straw</code>算法，翻译过来就是抽签，说白了就是挑个最长的签，这里的签指的是OSD的权重。</p>
-<ul>
-<li>CRUSH_HASH( PG_ID, OSD_ID, r ) &#x3D;&#x3D;&#x3D;&gt; draw</li>
-<li>( draw &amp;0xffff ) * osd_weight &#x3D;&#x3D;&#x3D;&gt; osd_straw</li>
-<li>pick up high_osd_straw</li>
-</ul>
-<p>第一行，我们姑且把r当做一个常数，第一行实际上就做了搓一搓的事情:将PG_ID, OSD_ID和r一起当做CRUSH_HASH的输入，求出一个十六进制输出，这和HASH(对象名)完全类似，只是多了两个输入。所以需要强调的是，对于相同的三个输入，计算得出的<code>draw</code>的值是一定相同的。</p>
-<p>这个<code>draw</code>到底有啥用？其实，CRUSH希望得到一个随机数，也就是这里的<code>draw</code>，然后拿这个随机数去乘以OSD的权重，这样把随机数和OSD的权重搓在一起，就得到了每个OSD的实际签长，而且每个签都不一样长(极大概率)，就很容易从中挑一个最长的。</p>
-<p>说白了，CRUSH希望<code>随机</code>挑一个OSD出来，但是还要满足权重越大的OSD被挑中的概率越大，为了达到随机的目的，它在挑之前让每个OSD都拿着自己的权重乘以一个随机数，再取乘积最大的那个。那么这里我们再定个小目标：挑个一亿次！从宏观来看，同样是乘以一个随机数，在样本容量足够大之后，这个随机数对挑中的结果不再有影响，起决定性影响的是OSD的权重，也就是说，OSD的权重越大，宏观来看被挑中的概率越大。</p>
-<p>如果看到这里你已经被搅晕了，那让我再简单梳理下PG选择一个OSD时做的事情：</p>
-<ul>
-<li>给出一个PG_ID，作为CRUSH_HASH的输入。</li>
-<li>CRUSH_HASH(PG_ID, OSD_ID, r) 得出一个随机数(重点是随机数，不是HASH)。</li>
-<li>对于所有的OSD用他们的权重乘以每个OSD_ID对应的随机数，得到乘积。</li>
-<li>选出乘积最大的OSD。</li>
-<li>这个PG就会保存到这个OSD上。</li>
-</ul>
-<p>现在趁热打铁，解决一个PG映射到多个OSD的问题，还记得那个常量<code>r</code>吗？我们把<code>r+1</code>，再求一遍随机数，再去乘以每个OSD的权重，再去选出乘积最大的OSD，如果和之前的OSD编号不一样，那么就选中它，如果和之前的OSD编号一样的话，那么再把<code>r+2</code>，再次选一次，直到选出我们需要的三个不一样编号的OSD为止！</p>
-<p>当然实际选择过程还要稍微复杂一点，我这里只是用最简单的方法来解释CRUSH在选择OSD的时候所做的事情。</p>
-<p>基于这样的结构选择OSD，我们提出了新的要求：</p>
-<ul>
-<li>一共选出三个OSD。</li>
-<li>这三个OSD需要都位于一个row下面。</li>
-<li>每个cabinet内至多有一个OSD。</li>
-</ul>
-<p>这样的要求，如果用上一节的CRUSH选OSD的方法，不能满足二三两个要求，因为OSD的分布是随机的。</p>
 
       
     </div>

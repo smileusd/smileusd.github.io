@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="系统梳理业界在 Kubernetes 上运行 vLLM 的常见模式，以及训练和推理为什么通常要解耦部署。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="业界如何在 Kubernetes 上跑 vLLM：训练与推理分离的实践">
+<meta property="og:url" content="https://smileusd.github.io/2026/05/06/2026-05-06-vllm-kubernetes-training-inference-separation/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="系统梳理业界在 Kubernetes 上运行 vLLM 的常见模式，以及训练和推理为什么通常要解耦部署。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-05-06T11:00:00.000Z">
+<meta property="article:modified_time" content="2026-05-06T10:41:32.044Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="vLLM">
+<meta property="article:tag" content="LLM">
+<meta property="article:tag" content="AI Infrastructure">
+<meta property="article:tag" content="Ray">
+<meta property="article:tag" content="Kubeflow">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/05/06/2026-05-06-vllm-kubernetes-training-inference-separation/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/05/06/2026-05-06-vllm-kubernetes-training-inference-separation/","path":"2026/05/06/2026-05-06-vllm-kubernetes-training-inference-separation/","title":"业界如何在 Kubernetes 上跑 vLLM：训练与推理分离的实践"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>业界如何在 Kubernetes 上跑 vLLM：训练与推理分离的实践 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%85%88%E8%AF%B4%E7%BB%93%E8%AE%BA%EF%BC%9AvLLM-%E4%B8%BB%E8%A6%81%E8%B4%9F%E8%B4%A3%E6%8E%A8%E7%90%86%EF%BC%8C%E4%B8%8D%E8%B4%9F%E8%B4%A3%E8%AE%AD%E7%BB%83"><span class="nav-number">1.</span> <span class="nav-text">一、先说结论：vLLM 主要负责推理，不负责训练</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81Kubernetes-%E4%B8%8A%E8%B7%91-vLLM-%E7%9A%84%E5%9B%9B%E7%A7%8D%E4%B8%BB%E6%B5%81%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.</span> <span class="nav-text">二、Kubernetes 上跑 vLLM 的四种主流模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A8%A1%E5%BC%8F-1%EF%BC%9A%E5%8D%95-Pod-%E5%8D%95%E5%AE%9E%E4%BE%8B-%E2%80%94%E2%80%94-%E6%9C%80%E5%AE%B9%E6%98%93%E8%90%BD%E5%9C%B0"><span class="nav-number">2.1.</span> <span class="nav-text">模式 1：单 Pod 单实例 —— 最容易落地</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A8%A1%E5%BC%8F-2%EF%BC%9A%E4%B8%80%E4%B8%AA%E9%80%BB%E8%BE%91%E5%89%AF%E6%9C%AC%E8%B7%A8%E5%A4%9A-GPU-%E5%A4%9A%E8%8A%82%E7%82%B9"><span class="nav-number">2.2.</span> <span class="nav-text">模式 2：一个逻辑副本跨多 GPU &#x2F; 多节点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A8%A1%E5%BC%8F-3%EF%BC%9A%E5%A4%9A%E4%B8%AA-vLLM-%E5%89%AF%E6%9C%AC-%E5%A4%96%E9%83%A8%E8%B7%AF%E7%94%B1%E5%B1%82"><span class="nav-number">2.3.</span> <span class="nav-text">模式 3：多个 vLLM 副本 + 外部路由层</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A8%A1%E5%BC%8F-4%EF%BC%9APrefill-Decode-%E5%88%86%E7%A6%BB"><span class="nav-number">2.4.</span> <span class="nav-text">模式 4：Prefill &#x2F; Decode 分离</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E8%AE%AD%E7%BB%83%E4%BE%A7%E5%9C%A8-Kubernetes-%E4%B8%8A%E9%80%9A%E5%B8%B8%E6%80%8E%E4%B9%88%E8%B7%91"><span class="nav-number">3.</span> <span class="nav-text">三、训练侧在 Kubernetes 上通常怎么跑</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Checkpoint-%E8%83%BD%E4%B8%8D%E8%83%BD%E7%A8%B3%E5%AE%9A%E4%BF%9D%E5%AD%98"><span class="nav-number">3.1.</span> <span class="nav-text">1. Checkpoint 能不能稳定保存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%98%AF%E5%90%A6%E6%94%AF%E6%8C%81-gang-scheduling"><span class="nav-number">3.2.</span> <span class="nav-text">2. 是否支持 gang scheduling</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%95%B0%E6%8D%AE%E4%B8%8E%E5%AD%98%E5%82%A8%E5%B8%A6%E5%AE%BD%E6%98%AF%E5%90%A6%E8%B6%B3%E5%A4%9F"><span class="nav-number">3.3.</span> <span class="nav-text">3. 数据与存储带宽是否足够</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E6%98%AF%E5%90%A6%E6%94%AF%E6%8C%81-spot-preemptible-%E8%B5%84%E6%BA%90"><span class="nav-number">3.4.</span> <span class="nav-text">4. 是否支持 spot &#x2F; preemptible 资源</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E6%8E%A8%E7%90%86%E4%BE%A7%E5%9C%A8-Kubernetes-%E4%B8%8A%E9%80%9A%E5%B8%B8%E6%80%8E%E4%B9%88%E8%B7%91"><span class="nav-number">4.</span> <span class="nav-text">四、推理侧在 Kubernetes 上通常怎么跑</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E4%B8%BA%E4%BB%80%E4%B9%88%E8%AE%AD%E7%BB%83%E5%92%8C%E6%8E%A8%E7%90%86%E8%A6%81%E5%88%86%E5%BC%80%E8%B7%91"><span class="nav-number">5.</span> <span class="nav-text">五、为什么训练和推理要分开跑</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E7%9B%AE%E6%A0%87%E4%B8%8D%E5%90%8C"><span class="nav-number">5.1.</span> <span class="nav-text">1. 目标不同</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%B7%A5%E4%BD%9C%E8%B4%9F%E8%BD%BD%E5%AE%8C%E5%85%A8%E4%B8%8D%E5%90%8C"><span class="nav-number">5.2.</span> <span class="nav-text">2. 工作负载完全不同</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E5%8D%87%E7%BA%A7%E8%8A%82%E5%A5%8F%E4%B8%8D%E5%90%8C"><span class="nav-number">5.3.</span> <span class="nav-text">3. 升级节奏不同</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E8%B5%84%E6%BA%90%E4%BA%89%E7%94%A8%E9%9D%9E%E5%B8%B8%E6%98%8E%E6%98%BE"><span class="nav-number">5.4.</span> <span class="nav-text">4. 资源争用非常明显</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E4%B8%9A%E7%95%8C%E5%B8%B8%E8%A7%81%E7%9A%84%E4%B8%A4%E7%A7%8D%E2%80%9C%E8%AE%AD%E7%BB%83-%E6%8E%A8%E7%90%86%E8%A7%A3%E8%80%A6%E2%80%9D%E6%9E%B6%E6%9E%84"><span class="nav-number">6.</span> <span class="nav-text">六、业界常见的两种“训练&#x2F;推理解耦”架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E6%A1%88-A%EF%BC%9A%E5%90%8C%E4%B8%80%E9%9B%86%E7%BE%A4%EF%BC%8C%E4%B8%8D%E5%90%8C-node-pool"><span class="nav-number">6.1.</span> <span class="nav-text">方案 A：同一集群，不同 node pool</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E6%A1%88-B%EF%BC%9A%E8%AE%AD%E7%BB%83%E9%9B%86%E7%BE%A4%E5%92%8C%E6%8E%A8%E7%90%86%E9%9B%86%E7%BE%A4%E5%88%86%E7%A6%BB"><span class="nav-number">6.2.</span> <span class="nav-text">方案 B：训练集群和推理集群分离</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E8%90%BD%E5%9C%B0%E6%97%B6%E6%9C%80%E5%80%BC%E5%BE%97%E6%B3%A8%E6%84%8F%E7%9A%84%E5%87%A0%E4%B8%AA%E5%AE%9E%E8%B7%B5%E7%82%B9"><span class="nav-number">7.</span> <span class="nav-text">七、落地时最值得注意的几个实践点</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E4%BC%98%E5%85%88%E4%BB%8E%E7%AE%80%E5%8D%95%E6%9E%B6%E6%9E%84%E5%BC%80%E5%A7%8B"><span class="nav-number">7.1.</span> <span class="nav-text">1. 优先从简单架构开始</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E7%94%A8%E2%80%9C%E6%A8%A1%E5%9E%8B%E4%BA%A7%E7%89%A9%E2%80%9D%E8%A1%94%E6%8E%A5%E8%AE%AD%E7%BB%83%E5%92%8C%E6%8E%A8%E7%90%86"><span class="nav-number">7.2.</span> <span class="nav-text">2. 用“模型产物”衔接训练和推理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E5%88%86%E7%A6%BB%E8%8A%82%E7%82%B9%E6%B1%A0"><span class="nav-number">7.3.</span> <span class="nav-text">3. 分离节点池</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E5%A4%9A%E8%8A%82%E7%82%B9%E6%8E%A8%E7%90%86%E8%A6%81%E8%AE%A4%E7%9C%9F%E5%A4%84%E7%90%86%E7%BD%91%E7%BB%9C%E4%B8%8E%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98"><span class="nav-number">7.4.</span> <span class="nav-text">4. 多节点推理要认真处理网络与共享内存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-%E4%B8%8D%E8%A6%81%E6%8A%8A-Service-%E5%91%BD%E5%90%8D%E4%B8%BA-vllm"><span class="nav-number">7.5.</span> <span class="nav-text">5. 不要把 Service 命名为 vllm</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E5%A6%82%E4%BD%95%E5%BF%AB%E9%80%9F%E9%80%89%E5%9E%8B"><span class="nav-number">8.</span> <span class="nav-text">八、如何快速选型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%9D%E3%80%81%E6%80%BB%E7%BB%93"><span class="nav-number">9.</span> <span class="nav-text">九、总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">10.</span> <span class="nav-text">参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">105</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">251</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/05/06/2026-05-06-vllm-kubernetes-training-inference-separation/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="业界如何在 Kubernetes 上跑 vLLM：训练与推理分离的实践 | Hexo">
+      <meta itemprop="description" content="系统梳理业界在 Kubernetes 上运行 vLLM 的常见模式，以及训练和推理为什么通常要解耦部署。">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          业界如何在 Kubernetes 上跑 vLLM：训练与推理分离的实践
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-05-06 19:00:00 / Modified: 18:41:32" itemprop="dateCreated datePublished" datetime="2026-05-06T19:00:00+08:00">2026-05-06</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/AI-ML/" itemprop="url" rel="index"><span itemprop="name">AI/ML</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+            <div class="post-description">系统梳理业界在 Kubernetes 上运行 vLLM 的常见模式，以及训练和推理为什么通常要解耦部署。</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>vLLM 已经成为大语言模型推理领域最重要的开源引擎之一，但它本质上是一个 <strong>推理与服务系统</strong>，而不是一个训练框架。理解这一点之后，很多 Kubernetes 上的架构选择就会变得非常自然：<strong>训练用训练栈，推理用 vLLM，二者通过模型产物衔接，而不是混在同一个工作负载里。</strong></p>
+<p>如果只问一句“业界如何在 Kubernetes 上跑 vLLM”，最简短的答案是：<strong>小规模用 Helm&#x2F;Deployment 跑单实例或多副本，大模型和多节点场景会引入 KubeRay&#x2F;Ray Serve，一旦追求更高吞吐或更严格 SLA，就会把路由、数据并行、甚至 prefill&#x2F;decode 拆开。</strong></p>
+<span id="more"></span>
+
+<h2 id="一、先说结论：vLLM-主要负责推理，不负责训练"><a href="#一、先说结论：vLLM-主要负责推理，不负责训练" class="headerlink" title="一、先说结论：vLLM 主要负责推理，不负责训练"></a>一、先说结论：vLLM 主要负责推理，不负责训练</h2><p>在工程实践里，训练和推理几乎总是两套不同的系统：</p>
+<ul>
+<li><strong>训练侧</strong>关心的是吞吐、收敛速度、checkpoint、容错恢复</li>
+<li><strong>推理侧</strong>关心的是 TTFT、ITL、P95&#x2F;P99 延迟、QPS、稳定性与成本</li>
+<li><strong>vLLM</strong> 的强项是推理执行、KV cache 管理、continuous batching、并行推理和 OpenAI 兼容服务接口</li>
+<li>真正的训练通常还是由 <strong>PyTorch、DeepSpeed、FSDP、Megatron-LM、Ray Train、Kubeflow Training Operator</strong> 等栈承担</li>
+</ul>
+<p>所以，Kubernetes 上最常见的真实做法不是“用 vLLM 跑训练和推理”，而是：</p>
+<ol>
+<li>用训练作业产生 checkpoint &#x2F; adapter &#x2F; LoRA &#x2F; 量化产物</li>
+<li>将这些产物保存到对象存储、共享文件系统或模型仓库</li>
+<li>再由推理发布系统把模型拉到 vLLM 服务中</li>
+</ol>
+<p>这是一条非常典型的 <strong>artifact-based handoff</strong> 链路。</p>
+<hr>
+<h2 id="二、Kubernetes-上跑-vLLM-的四种主流模式"><a href="#二、Kubernetes-上跑-vLLM-的四种主流模式" class="headerlink" title="二、Kubernetes 上跑 vLLM 的四种主流模式"></a>二、Kubernetes 上跑 vLLM 的四种主流模式</h2><h3 id="模式-1：单-Pod-单实例-——-最容易落地"><a href="#模式-1：单-Pod-单实例-——-最容易落地" class="headerlink" title="模式 1：单 Pod 单实例 —— 最容易落地"></a>模式 1：单 Pod 单实例 —— 最容易落地</h3><p>这是很多团队的起点，也是小中型模型最常见的形态。</p>
+<p>特点：</p>
+<ul>
+<li>一个 Pod 里直接启动 <code>vllm serve</code></li>
+<li>前面挂 <code>Service</code> 和 <code>Ingress/Gateway</code></li>
+<li>模型从 PVC、S3、对象存储或 Hugging Face cache 加载</li>
+<li>横向扩容时，直接增加 Deployment 副本数</li>
+</ul>
+<p>适合：</p>
+<ul>
+<li>7B &#x2F; 14B &#x2F; 32B 这类模型</li>
+<li>单卡或单机多卡能放下的服务</li>
+<li>想先快速上线一个可用 API</li>
+</ul>
+<p>这种方式和传统 Web 服务最像，运维团队也最容易接受。vLLM 官方仓库里已经提供了 Helm chart，可直接作为 Kubernetes 部署的起点。</p>
+<h3 id="模式-2：一个逻辑副本跨多-GPU-多节点"><a href="#模式-2：一个逻辑副本跨多-GPU-多节点" class="headerlink" title="模式 2：一个逻辑副本跨多 GPU &#x2F; 多节点"></a>模式 2：一个逻辑副本跨多 GPU &#x2F; 多节点</h3><p>当模型单卡放不下，或者希望在一个逻辑副本内实现更低延迟时，就会进入分布式推理模式。</p>
+<p>在 vLLM 中，最常见的是：</p>
+<ul>
+<li><strong>TP（Tensor Parallel）</strong>：把权重切到多张 GPU 上</li>
+<li><strong>PP（Pipeline Parallel）</strong>：把层切到多个节点或多个 GPU 上</li>
+<li><strong>EP（Expert Parallel）</strong>：MoE 模型中把 expert 分散到不同 GPU</li>
+</ul>
+<p>常见经验是：</p>
+<ul>
+<li><strong>单机多卡</strong>：优先用 TP</li>
+<li><strong>多机多卡</strong>：常见组合是 <code>TP = 每节点 GPU 数</code>，<code>PP = 节点数</code></li>
+<li><strong>MoE 模型</strong>：会进一步结合 DP 或 EP</li>
+</ul>
+<p>在 Kubernetes 上，这种模式经常搭配 <strong>KubeRay</strong> 或 Ray 集群来管理多节点资源。这样做的好处是：</p>
+<ul>
+<li>多节点资源调度更容易统一管理</li>
+<li>节点故障、资源发现、日志和观测更体系化</li>
+<li>更容易和 Ray Serve &#x2F; Ray Data 这样的生态集成</li>
+</ul>
+<h3 id="模式-3：多个-vLLM-副本-外部路由层"><a href="#模式-3：多个-vLLM-副本-外部路由层" class="headerlink" title="模式 3：多个 vLLM 副本 + 外部路由层"></a>模式 3：多个 vLLM 副本 + 外部路由层</h3><p>这是很多生产环境里比“单个超大实例”更常见的方案。</p>
+<p>原因很简单：vLLM 的很多关键状态是 <strong>实例本地状态</strong>，尤其是：</p>
+<ul>
+<li>当前请求队列</li>
+<li>等待队列长度</li>
+<li>每个实例自己的 KV cache</li>
+<li>prefix cache 命中情况</li>
+</ul>
+<p>因此，大规模线上系统往往不会只用一个简单的四层负载均衡把流量随机打给多个 vLLM Pod，而是会在前面增加一层更“聪明”的路由组件，例如：</p>
+<ul>
+<li>Ray Serve</li>
+<li>KServe</li>
+<li>自研 inference gateway</li>
+<li>带排队与打分能力的 API router</li>
+</ul>
+<p>这些路由层会根据实时指标做请求分配，比如：</p>
+<ul>
+<li>哪个副本排队更短</li>
+<li>哪个副本 KV cache 可能有 prefix 命中</li>
+<li>哪个副本当前 GPU 更空闲</li>
+<li>某些租户或模型应固定路由到哪些实例</li>
+</ul>
+<p>这类架构的核心思想是：<strong>不要只扩 Pod，还要让流量调度理解模型服务的内部状态。</strong></p>
+<h3 id="模式-4：Prefill-Decode-分离"><a href="#模式-4：Prefill-Decode-分离" class="headerlink" title="模式 4：Prefill &#x2F; Decode 分离"></a>模式 4：Prefill &#x2F; Decode 分离</h3><p>这是更高阶、也越来越主流的一类部署方式。</p>
+<p>LLM 推理并不是一个单一负载：</p>
+<ul>
+<li><strong>Prefill</strong> 更像高吞吐的大计算任务</li>
+<li><strong>Decode</strong> 更像低延迟、依赖 KV cache 的持续小步执行</li>
+</ul>
+<p>两者对 GPU、显存、批处理和时延的偏好完全不同，因此很多高阶推理系统会把它们拆成两类服务，分别扩缩容。</p>
+<pre class="mermaid">graph LR
+    C[Client / Gateway] --> R[Router]
+    R --> P[Prefill Pods]
+    R --> D[Decode Pods]
+    P --> K[KV Cache Transfer / Connector]
+    K --> D</pre>
+
+<p>适合：</p>
+<ul>
+<li>超长上下文请求</li>
+<li>对 TTFT 和 ITL 有明确 SLA</li>
+<li>超大模型 &#x2F; MoE 模型</li>
+<li>希望按阶段分别扩容并精细调度资源</li>
+</ul>
+<p>这类架构会更复杂，但在高端生产环境里非常有吸引力，因为它允许把“吞吐优化”和“延迟优化”拆开做。</p>
+<hr>
+<h2 id="三、训练侧在-Kubernetes-上通常怎么跑"><a href="#三、训练侧在-Kubernetes-上通常怎么跑" class="headerlink" title="三、训练侧在 Kubernetes 上通常怎么跑"></a>三、训练侧在 Kubernetes 上通常怎么跑</h2><p>训练作业和 vLLM 的运行方式完全不同。训练侧最常见的 Kubernetes 形态通常是：</p>
+<ul>
+<li><code>Job</code></li>
+<li><code>PyTorchJob</code></li>
+<li><code>MPIJob</code></li>
+<li><code>RayJob</code></li>
+<li>搭配 Kubeflow Training Operator</li>
+<li>大规模场景再叠加 Volcano &#x2F; Kueue 做 gang scheduling</li>
+</ul>
+<p>一个典型的训练流水线如下：</p>
+<pre class="mermaid">graph TD
+    D[Dataset / Feature Store] --> T[Training Job]
+    T --> C[Checkpoint / Adapter / LoRA]
+    C --> E[Evaluation Job]
+    E --> R[Model Registry / Object Storage]
+    R --> S[Serving Release]</pre>
+
+<p>训练侧最关心的几个问题是：</p>
+<h3 id="1-Checkpoint-能不能稳定保存"><a href="#1-Checkpoint-能不能稳定保存" class="headerlink" title="1. Checkpoint 能不能稳定保存"></a>1. Checkpoint 能不能稳定保存</h3><p>训练作业通常运行很久，而且常常会抢占、重启或因为配额调整中断。所以 checkpoint 是训练体系中的核心，而不是附属品。</p>
+<h3 id="2-是否支持-gang-scheduling"><a href="#2-是否支持-gang-scheduling" class="headerlink" title="2. 是否支持 gang scheduling"></a>2. 是否支持 gang scheduling</h3><p>对于 8 卡、16 卡训练，如果只调度到一部分资源，作业根本没法正常开始。因此很多训练平台都会要求“要么一起调度成功，要么不要启动”。</p>
+<h3 id="3-数据与存储带宽是否足够"><a href="#3-数据与存储带宽是否足够" class="headerlink" title="3. 数据与存储带宽是否足够"></a>3. 数据与存储带宽是否足够</h3><p>训练对数据吞吐和 checkpoint 写入带宽都很敏感。它面临的是 dataset streaming、样本打乱、断点续训，而不是在线请求分发。</p>
+<h3 id="4-是否支持-spot-preemptible-资源"><a href="#4-是否支持-spot-preemptible-资源" class="headerlink" title="4. 是否支持 spot &#x2F; preemptible 资源"></a>4. 是否支持 spot &#x2F; preemptible 资源</h3><p>训练侧常常会用更便宜、可被抢占的 GPU 资源来控制成本；推理侧通常不愿意这样做，因为线上服务需要稳定 SLA。</p>
+<hr>
+<h2 id="四、推理侧在-Kubernetes-上通常怎么跑"><a href="#四、推理侧在-Kubernetes-上通常怎么跑" class="headerlink" title="四、推理侧在 Kubernetes 上通常怎么跑"></a>四、推理侧在 Kubernetes 上通常怎么跑</h2><p>推理作业更像“常驻服务”，而不是一次性 batch 任务。</p>
+<p>最常见的资源对象包括：</p>
+<ul>
+<li><code>Deployment</code>：最常见</li>
+<li><code>StatefulSet</code>：需要稳定身份或本地缓存时使用</li>
+<li><code>RayService</code>：Ray Serve&#x2F;KubeRay 场景</li>
+<li><code>InferenceService</code>：搭配 KServe 时常见</li>
+</ul>
+<p>一个常见的推理发布链路是：</p>
+<pre class="mermaid">graph TD
+    M[Checkpoint / LoRA / Quantized Weights] --> O[Object Storage / Model Registry]
+    O --> I[Init Container / Model Downloader]
+    I --> V[vLLM Pods]
+    V --> G[Gateway / Ingress]
+    G --> U[Users / Applications]</pre>
+
+<p>推理侧真正关心的是：</p>
+<ul>
+<li>TTFT（Time to First Token）</li>
+<li>ITL（Inter-Token Latency）</li>
+<li>P95 &#x2F; P99 延迟</li>
+<li>QPS &#x2F; TPS</li>
+<li>GPU 利用率</li>
+<li>KV cache 利用率</li>
+<li>prefix cache 命中率</li>
+<li>排队长度与拒绝率</li>
+</ul>
+<p>这也是为什么训练和推理很难共用一套资源调度逻辑。</p>
+<hr>
+<h2 id="五、为什么训练和推理要分开跑"><a href="#五、为什么训练和推理要分开跑" class="headerlink" title="五、为什么训练和推理要分开跑"></a>五、为什么训练和推理要分开跑</h2><h3 id="1-目标不同"><a href="#1-目标不同" class="headerlink" title="1. 目标不同"></a>1. 目标不同</h3><p>训练的目标是让模型变得更好；推理的目标是稳定、便宜、快速地把模型能力交付出去。</p>
+<h3 id="2-工作负载完全不同"><a href="#2-工作负载完全不同" class="headerlink" title="2. 工作负载完全不同"></a>2. 工作负载完全不同</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>训练</th>
+<th>推理</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>资源形态</td>
+<td>大批处理、长作业</td>
+<td>持续在线服务</td>
+</tr>
+<tr>
+<td>调度要求</td>
+<td>gang scheduling、checkpoint</td>
+<td>autoscaling、健康检查</td>
+</tr>
+<tr>
+<td>关注指标</td>
+<td>tokens&#x2F;sec、loss、收敛</td>
+<td>TTFT、ITL、P99、QPS</td>
+</tr>
+<tr>
+<td>容错方式</td>
+<td>恢复 checkpoint</td>
+<td>重试、摘流、滚动升级</td>
+</tr>
+<tr>
+<td>资源策略</td>
+<td>可接受 spot&#x2F;preemptible</td>
+<td>更强调稳定资源</td>
+</tr>
+</tbody></table>
+<h3 id="3-升级节奏不同"><a href="#3-升级节奏不同" class="headerlink" title="3. 升级节奏不同"></a>3. 升级节奏不同</h3><p>训练环境经常升级：</p>
+<ul>
+<li>新的数据集</li>
+<li>新的优化器</li>
+<li>新的 kernel</li>
+<li>新的训练框架版本</li>
+</ul>
+<p>推理环境更保守，往往更强调：</p>
+<ul>
+<li>稳定镜像</li>
+<li>明确回滚</li>
+<li>可观测性</li>
+<li>小步升级</li>
+</ul>
+<h3 id="4-资源争用非常明显"><a href="#4-资源争用非常明显" class="headerlink" title="4. 资源争用非常明显"></a>4. 资源争用非常明显</h3><p>即使在同一个集群里，只要训练和推理共用 GPU 节点池，也会很容易出现以下问题：</p>
+<ul>
+<li>训练作业抢占 GPU</li>
+<li>训练数据加载占满网络或存储带宽</li>
+<li>checkpoint 写入影响推理冷启动</li>
+<li>推理服务因为节点波动导致延迟抖动</li>
+</ul>
+<p>所以，越往生产走，越倾向于把训练和推理拆成两个 node pool，甚至两个独立集群。</p>
+<hr>
+<h2 id="六、业界常见的两种“训练-推理解耦”架构"><a href="#六、业界常见的两种“训练-推理解耦”架构" class="headerlink" title="六、业界常见的两种“训练&#x2F;推理解耦”架构"></a>六、业界常见的两种“训练&#x2F;推理解耦”架构</h2><h3 id="方案-A：同一集群，不同-node-pool"><a href="#方案-A：同一集群，不同-node-pool" class="headerlink" title="方案 A：同一集群，不同 node pool"></a>方案 A：同一集群，不同 node pool</h3><p>适合刚起步或平台规模还不大的团队。</p>
+<pre class="mermaid">graph TB
+    subgraph Cluster[One Kubernetes Cluster]
+        subgraph TrainNS[Namespace: train]
+            TJ[PyTorchJob / RayJob]
+        end
+        subgraph ServeNS[Namespace: serve]
+            VS[vLLM Deployment / RayService]
+        end
+        subgraph Storage[Shared Storage]
+            OBJ[Object Storage / PVC / Model Registry]
+        end
+        TJ --> OBJ
+        OBJ --> VS
+    end</pre>
+
+<p>这种方式的优点是：</p>
+<ul>
+<li>架构简单</li>
+<li>资源池共享率高</li>
+<li>运维门槛较低</li>
+</ul>
+<p>缺点也很明显：</p>
+<ul>
+<li>相互影响更容易出现</li>
+<li>容量规划更难</li>
+<li>线上 SLO 容易被训练任务拖慢</li>
+</ul>
+<h3 id="方案-B：训练集群和推理集群分离"><a href="#方案-B：训练集群和推理集群分离" class="headerlink" title="方案 B：训练集群和推理集群分离"></a>方案 B：训练集群和推理集群分离</h3><p>这是更成熟也更稳妥的企业级做法。</p>
+<pre class="mermaid">graph LR
+    subgraph Train[Training Cluster]
+        T1[Distributed Training Jobs]
+        T2[Evaluation / Validation]
+    end
+
+    subgraph Registry[Artifact Layer]
+        A[Checkpoint / Adapter / Quantized Model]
+    end
+
+    subgraph Serve[Serving Cluster]
+        S1[Model Downloader]
+        S2[vLLM Pods]
+        S3[Gateway / Router]
+    end
+
+    T1 --> T2 --> A --> S1 --> S2 --> S3</pre>
+
+<p>这类架构的优势非常明显：</p>
+<ul>
+<li>训练和推理各自独立扩容</li>
+<li>权限边界更清晰</li>
+<li>回滚、灰度、发布更容易管理</li>
+<li>可以把训练环境做得更激进，把推理环境做得更保守</li>
+</ul>
+<hr>
+<h2 id="七、落地时最值得注意的几个实践点"><a href="#七、落地时最值得注意的几个实践点" class="headerlink" title="七、落地时最值得注意的几个实践点"></a>七、落地时最值得注意的几个实践点</h2><h3 id="1-优先从简单架构开始"><a href="#1-优先从简单架构开始" class="headerlink" title="1. 优先从简单架构开始"></a>1. 优先从简单架构开始</h3><p>如果模型单卡放得下，就先从单副本开始；如果单机多卡能解决，就先别急着上多节点。跨节点分布式推理对网络、调度和观测的要求都会明显上升。</p>
+<h3 id="2-用“模型产物”衔接训练和推理"><a href="#2-用“模型产物”衔接训练和推理" class="headerlink" title="2. 用“模型产物”衔接训练和推理"></a>2. 用“模型产物”衔接训练和推理</h3><p>不要试图让训练进程直接“变身”为推理服务。正确的交接方式应该是：</p>
+<ul>
+<li>训练输出 checkpoint &#x2F; adapter &#x2F; merged weights</li>
+<li>推理流水线读取这些产物</li>
+<li>单独构建或更新 vLLM 服务</li>
+</ul>
+<h3 id="3-分离节点池"><a href="#3-分离节点池" class="headerlink" title="3. 分离节点池"></a>3. 分离节点池</h3><p>最少也应该做到：</p>
+<ul>
+<li><code>gpu-train</code> 给训练</li>
+<li><code>gpu-serve</code> 给推理</li>
+</ul>
+<p>并结合：</p>
+<ul>
+<li><code>taints/tolerations</code></li>
+<li><code>nodeSelector</code></li>
+<li><code>affinity</code></li>
+<li><code>priorityClass</code></li>
+</ul>
+<p>避免两类工作负载相互干扰。</p>
+<h3 id="4-多节点推理要认真处理网络与共享内存"><a href="#4-多节点推理要认真处理网络与共享内存" class="headerlink" title="4. 多节点推理要认真处理网络与共享内存"></a>4. 多节点推理要认真处理网络与共享内存</h3><p>在多节点 TP&#x2F;PP&#x2F;EP 场景中，网络质量会直接决定性能是否可接受。很多团队在 Kubernetes 上跑到这一步时，才真正开始关注：</p>
+<ul>
+<li><code>/dev/shm</code></li>
+<li><code>IPC_LOCK</code></li>
+<li>RDMA &#x2F; Infiniband</li>
+<li><code>hostNetwork</code></li>
+<li>privileged 安全上下文</li>
+</ul>
+<p>这些配置不是“锦上添花”，而是多节点高性能推理能否跑稳的基础设施前提。</p>
+<h3 id="5-不要把-Service-命名为-vllm"><a href="#5-不要把-Service-命名为-vllm" class="headerlink" title="5. 不要把 Service 命名为 vllm"></a>5. 不要把 Service 命名为 <code>vllm</code></h3><p>这是个很容易忽略的坑。vLLM 使用大量 <code>VLLM_*</code> 环境变量，而 Kubernetes 也会为 Service 注入同名前缀环境变量。如果 Service 名字就叫 <code>vllm</code>，可能会造成冲突。</p>
+<hr>
+<h2 id="八、如何快速选型"><a href="#八、如何快速选型" class="headerlink" title="八、如何快速选型"></a>八、如何快速选型</h2><p>如果你正要设计一套新的架构，可以按下面这张表先做第一轮判断：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐模式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>小模型、低复杂度、先上线</td>
+<td>单 Pod 单实例 + Deployment&#x2F;Helm</td>
+</tr>
+<tr>
+<td>单机多卡、低延迟优先</td>
+<td>单实例 + TP</td>
+</tr>
+<tr>
+<td>多机大模型</td>
+<td>KubeRay&#x2F;Ray + TP&#x2F;PP</td>
+</tr>
+<tr>
+<td>高并发在线服务</td>
+<td>多个 vLLM 副本 + 外部路由</td>
+</tr>
+<tr>
+<td>MoE 高吞吐</td>
+<td>DP + EP</td>
+</tr>
+<tr>
+<td>超长上下文 &#x2F; 严格 SLA</td>
+<td>Prefill&#x2F;Decode 分离</td>
+</tr>
+<tr>
+<td>训练平台</td>
+<td>PyTorchJob &#x2F; RayJob &#x2F; Kubeflow Training</td>
+</tr>
+<tr>
+<td>企业级生产</td>
+<td>训练集群与推理集群分离</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="九、总结"><a href="#九、总结" class="headerlink" title="九、总结"></a>九、总结</h2><p>从 Kubernetes 的角度看，vLLM 最适合被视为一个 <strong>GPU 推理服务组件</strong>。它擅长的是：</p>
+<ul>
+<li>高性能在线推理</li>
+<li>KV cache 管理</li>
+<li>连续批处理</li>
+<li>多种并行推理模式</li>
+<li>标准化的 API 服务接口</li>
+</ul>
+<p>而训练系统擅长的是：</p>
+<ul>
+<li>分布式训练</li>
+<li>checkpoint 管理</li>
+<li>数据管道</li>
+<li>恢复与重试</li>
+<li>训练资源编排</li>
+</ul>
+<p>因此，业界在 Kubernetes 上的主流实践并不是“让 vLLM 同时承担训练和推理”，而是把这两件事拆开：</p>
+<ul>
+<li><strong>训练侧</strong>负责产出模型产物</li>
+<li><strong>推理侧</strong>负责把模型能力稳定交付给线上流量</li>
+<li><strong>平台层</strong>负责调度、发布、路由和观测</li>
+</ul>
+<p>这也是为什么一个成熟的 LLM 平台，最终看起来往往不像“一个 Pod 跑一切”，而更像是一条完整的模型供应链。</p>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/docs/deployment/frameworks/helm.md">vLLM Helm Deployment</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/docs/serving/parallelism_scaling.md">vLLM Parallelism and Scaling</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/docs/serving/data_parallel_deployment.md">vLLM Data Parallel Deployment</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/docs/serving/context_parallel_deployment.md">vLLM Context Parallel Deployment</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/docs/serving/expert_parallel_deployment.md">vLLM Expert Parallel and Disaggregated Serving</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/vllm-project/vllm/blob/main/docs/deployment/integrations/dynamo.md">vLLM NVIDIA Dynamo Integration</a></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/vLLM/" rel="tag"># vLLM</a>
+              <a href="/tags/LLM/" rel="tag"># LLM</a>
+              <a href="/tags/AI-Infrastructure/" rel="tag"># AI Infrastructure</a>
+              <a href="/tags/Ray/" rel="tag"># Ray</a>
+              <a href="/tags/Kubeflow/" rel="tag"># Kubeflow</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/04/23/2026-04-23-kai-scheduler-05-extensions/" rel="prev" title="KAI Scheduler 深入拆解（五）：插件、分片、拓扑感知与时间公平性">
+                  <i class="fa fa-angle-left"></i> KAI Scheduler 深入拆解（五）：插件、分片、拓扑感知与时间公平性
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
