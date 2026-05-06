@@ -27,7 +27,7 @@
 <meta property="og:description" content="第一部分：vLLM 架构概览简介在深入研究具体组件之前，我们需要先了解 vLLM 的整体架构。本文梳理了各主要组件及其交互方式，为后续各部分的深入探讨奠定基础。 全局视角vLLM 的设计围绕以下几个核心原则：  关注点分离：不同职责（调度、执行、服务）由各自独立的组件负责处理 进程隔离：V1 架构采用多进程设计，以提升健壮性和 CPU 利用率 异步处理：请求在流水线中流转，不会产生阻塞 默认分布式">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-04-13T06:00:00.000Z">
-<meta property="article:modified_time" content="2026-05-06T06:28:29.923Z">
+<meta property="article:modified_time" content="2026-05-06T10:14:31.926Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="vLLM">
 <meta property="article:tag" content="LLM">
@@ -195,7 +195,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-05-06 14:28:29" itemprop="dateModified" datetime="2026-05-06T14:28:29+08:00">2026-05-06</time>
+      <time title="Modified: 2026-05-06 18:14:31" itemprop="dateModified" datetime="2026-05-06T18:14:31+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -453,7 +453,7 @@
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">LLMEngine</span><br><span class="line">  ├── InputProcessor (tokenization, preprocessing)</span><br><span class="line">  ├── EngineCore</span><br><span class="line">  │   ├── StructuredOutputManager</span><br><span class="line">  │   ├── Scheduler</span><br><span class="line">  │   │   ├── KVCacheManager</span><br><span class="line">  │   │   └── EncoderCacheManager</span><br><span class="line">  │   └── Executor</span><br><span class="line">  │       └── Workers / backend runners</span><br><span class="line">  │           └── GPUModelRunner / CPUModelRunner / XPUModelRunner</span><br><span class="line">  │               └── Model (nn.Module)</span><br><span class="line">  └── OutputProcessor (detokenization, streaming)</span><br></pre></td></tr></table></figure>
 
 <p>许多核心类会接收或持有 <code>VllmConfig</code>，但并非所有类都直接以它作为构造参数；例如 <code>OutputProcessor</code> 并不直接接收 <code>VllmConfig</code>。</p>
-<h2 id="进程间通信"><a href="#进程间通信" class="headerlink" title="进程间通信"></a>进程间通信</h2><h3 id="ZMQ-Sockets"><a href="#ZMQ-Sockets" class="headerlink" title="ZMQ Sockets"></a>ZMQ Sockets</h3><p>API server 与 engine core 仍通过 ZMQ 进行通信，但当前实现已经不是旧式的 <code>pickle.dumps(...)</code> &#x2F; <code>pickle.loads(...)</code> 直传对象，而是基于 <code>MsgpackEncoder</code> &#x2F; <code>MsgpackDecoder</code> 的 multipart frame：</p>
+<h2 id="进程间通信"><a href="#进程间通信" class="headerlink" title="进程间通信"></a>进程间通信</h2><h3 id="ZMQ-Sockets"><a href="#ZMQ-Sockets" class="headerlink" title="ZMQ Sockets"></a>ZMQ Sockets</h3><p>API server 与 engine core 通过 ZMQ 进行通信，消息编码采用基于 <code>MsgpackEncoder</code> &#x2F; <code>MsgpackDecoder</code> 的 multipart frame：</p>
 <ul>
 <li>front-end &#x2F; API server 一侧会把 <code>EngineCoreRequest</code> 编码成 multipart 消息并通过 <code>send_multipart(...)</code> 发送</li>
 <li>engine core 一侧通过 <code>recv_multipart(...)</code> 接收，再按消息类型用 <code>MsgpackDecoder</code> 解码</li>

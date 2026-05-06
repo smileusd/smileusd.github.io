@@ -27,7 +27,7 @@
 <meta property="og:description" content="第三部分：Scheduler——vLLM 的大脑简介Scheduler 是 vLLM 的核心调度器。在每个微秒级的时间窗口内，它都要做出关键决策：处理哪些 request、计算多少个 token、何时 preempt request，以及如何最大化 GPU 利用率。本文将深入探讨 Scheduler 的算法与实现。 调度挑战问题空间在任意时刻，Scheduler 必须处理：  等待中的 reque">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-04-13T06:20:00.000Z">
-<meta property="article:modified_time" content="2026-05-06T06:24:41.828Z">
+<meta property="article:modified_time" content="2026-05-06T10:15:03.958Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="vLLM">
 <meta property="article:tag" content="Scheduler">
@@ -195,7 +195,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-05-06 14:24:41" itemprop="dateModified" datetime="2026-05-06T14:24:41+08:00">2026-05-06</time>
+      <time title="Modified: 2026-05-06 18:15:03" itemprop="dateModified" datetime="2026-05-06T18:15:03+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -250,7 +250,7 @@
 <li><strong>更低延迟</strong>：新 request 可立即开始处理</li>
 </ul>
 <h2 id="Scheduler-架构"><a href="#Scheduler-架构" class="headerlink" title="Scheduler 架构"></a>Scheduler 架构</h2><p><strong>文件位置</strong>：<code>vllm/v1/core/sched/scheduler.py</code></p>
-<h3 id="核心数据结构"><a href="#核心数据结构" class="headerlink" title="核心数据结构"></a>核心数据结构</h3><p>当前 <code>Scheduler</code> 仍维护 <code>requests</code>、<code>waiting</code>、<code>running</code> 和 <code>skipped_waiting</code>，并持有 <code>KVCacheManager</code> &#x2F; <code>EncoderCacheManager</code> 等资源管理器。不过 <code>max_num_scheduled_tokens</code> 的来源在当前源码里是：</p>
+<h3 id="核心数据结构"><a href="#核心数据结构" class="headerlink" title="核心数据结构"></a>核心数据结构</h3><p><code>Scheduler</code> 维护 <code>requests</code>、<code>waiting</code>、<code>running</code> 和 <code>skipped_waiting</code>，并持有 <code>KVCacheManager</code> &#x2F; <code>EncoderCacheManager</code> 等资源管理器。其中 <code>max_num_scheduled_tokens</code> 的来源是：</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">self.max_num_scheduled_tokens = (</span><br><span class="line">    self.scheduler_config.max_num_scheduled_tokens</span><br><span class="line">    <span class="keyword">if</span> self.scheduler_config.max_num_scheduled_tokens</span><br><span class="line">    <span class="keyword">else</span> self.scheduler_config.max_num_batched_tokens</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
 
 <p>也就是说，<code>max_num_batched_tokens</code> 现在是 fallback，而不是唯一来源。</p>
@@ -280,7 +280,7 @@
 <li><code>arrival_time</code>（更早者优先）</li>
 <li><code>request_id</code></li>
 </ol>
-<h2 id="调度算法"><a href="#调度算法" class="headerlink" title="调度算法"></a>调度算法</h2><h3 id="整体流程"><a href="#整体流程" class="headerlink" title="整体流程"></a>整体流程</h3><p>当前 <code>schedule()</code> 的核心思路仍然是“先处理 running，再在条件允许时接纳 waiting”，但输出对象比旧文中的列表结构复杂得多。<code>SchedulerOutput</code> 会分别携带：</p>
+<h2 id="调度算法"><a href="#调度算法" class="headerlink" title="调度算法"></a>调度算法</h2><h3 id="整体流程"><a href="#整体流程" class="headerlink" title="整体流程"></a>整体流程</h3><p><code>schedule()</code> 的核心思路仍然是“先处理 running，再在条件允许时接纳 waiting”。<code>SchedulerOutput</code> 会分别携带：</p>
 <ul>
 <li><code>scheduled_new_reqs</code></li>
 <li><code>scheduled_cached_reqs</code></li>
@@ -312,7 +312,7 @@
 <li>若拿不到 slot，则按当前策略 preempt 其他 request 或 preempt 当前 request</li>
 </ol>
 <p>因此，比起“给 request 写回 <code>request.num_scheduled_tokens = ...</code>”，当前实现更准确的说法是：<strong>每轮调度数量被记录在 <code>SchedulerOutput.num_scheduled_tokens[request_id]</code> 中</strong>。</p>
-<h3 id="第三步：调度等待中的-Request"><a href="#第三步：调度等待中的-Request" class="headerlink" title="第三步：调度等待中的 Request"></a>第三步：调度等待中的 Request</h3><p>waiting request 的准入现在比旧版示意复杂得多。一个新 request 要进入本轮 batch，通常会经历这些检查：</p>
+<h3 id="第三步：调度等待中的-Request"><a href="#第三步：调度等待中的-Request" class="headerlink" title="第三步：调度等待中的 Request"></a>第三步：调度等待中的 Request</h3><p>一个新 request 要进入本轮 batch，通常会经历这些检查：</p>
 <ol>
 <li>从 <code>waiting</code> 或 <code>skipped_waiting</code> 中选择可调度的队列</li>
 <li>处理 structured output grammar、remote KV、streaming 等阻塞状态</li>
@@ -320,12 +320,12 @@
 <li>再用 <code>can_fit_full_sequence()</code> 判断完整序列是否可以被系统接纳</li>
 <li>通过 <code>allocate_slots()</code> 为本轮真正需要的 token 分配 slot</li>
 </ol>
-<p>有两个与旧文不同的关键点：</p>
+<p>这里有两个关键点：</p>
 <ul>
 <li>scheduler 维护的是 <code>waiting + skipped_waiting</code> 两条队列，而不是单一 waiting queue</li>
 <li><strong>只有当本轮没有发生 preemption 时</strong>，scheduler 才会继续接纳 waiting request</li>
 </ul>
-<h3 id="第四步：处理-Preemption"><a href="#第四步：处理-Preemption" class="headerlink" title="第四步：处理 Preemption"></a>第四步：处理 Preemption</h3><p>当前实现使用 <code>_preempt_request()</code>，而不是旧文里的 <code>preempt_request()</code> 伪代码。真实流程更接近：</p>
+<h3 id="第四步：处理-Preemption"><a href="#第四步：处理-Preemption" class="headerlink" title="第四步：处理 Preemption"></a>第四步：处理 Preemption</h3><p>preemption 通过 <code>_preempt_request()</code> 完成，流程更接近：</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">_preempt_request</span>(<span class="params">self, request, timestamp</span>):</span><br><span class="line">    self.kv_cache_manager.free(request)</span><br><span class="line">    self.encoder_cache_manager.free(request)</span><br><span class="line">    request.status = RequestStatus.PREEMPTED</span><br><span class="line">    request.num_preemptions += <span class="number">1</span></span><br><span class="line">    self.waiting.prepend_request(request)</span><br></pre></td></tr></table></figure>
 
 <p>需要注意：</p>
@@ -352,7 +352,7 @@
 <li><code>fcfs</code></li>
 <li><code>priority</code></li>
 </ul>
-<p><code>priority</code> 模式下不是“数字越大越重要”，而是<strong>数字越小越先执行</strong>。如果你要在文档里举例，更安全的说法是：</p>
+<p><code>priority</code> 模式下<strong>数字越小越先执行</strong>。可以这样理解：</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Lower numeric value = higher scheduling priority</span></span><br><span class="line">priority = <span class="number">0</span>   <span class="comment"># interactive / urgent</span></span><br><span class="line">priority = <span class="number">10</span>  <span class="comment"># background</span></span><br></pre></td></tr></table></figure>
 
 <h3 id="支持-Speculative-Decoding"><a href="#支持-Speculative-Decoding" class="headerlink" title="支持 Speculative Decoding"></a>支持 Speculative Decoding</h3><p>当前 scheduler 对 speculative decoding 的感知体现在：</p>
@@ -364,13 +364,13 @@
 </ul>
 <p>因此，比起 <code>main_model.verify(draft_tokens)</code> 这种直观伪代码，更准确的描述是：scheduler 会为 lookahead &#x2F; draft token 预留 slot，并通过 <code>scheduled_spec_decode_tokens</code> 把本轮 spec decode 信息传给后续执行与输出更新路径。</p>
 <h3 id="Request-重排序"><a href="#Request-重排序" class="headerlink" title="Request 重排序"></a>Request 重排序</h3><p>当前本地源码里并没有一个按“预估 prefix cache 命中率”对 waiting requests 进行重排序的 <code>reorder_for_cache_hits()</code> 实现。waiting 请求的顺序主要由 FCFS &#x2F; priority queue 决定，再叠加 <code>skipped_waiting</code> 的恢复逻辑。</p>
-<h2 id="资源管理"><a href="#资源管理" class="headerlink" title="资源管理"></a>资源管理</h2><h3 id="KV-Cache-分配"><a href="#KV-Cache-分配" class="headerlink" title="KV Cache 分配"></a>KV Cache 分配</h3><p>旧文中的 <code>can_admit_request()</code> &#x2F; <code>kv_cache_manager.get_num_free_blocks()</code> &#x2F; <code>evict_cached_blocks()</code> 是过时的抽象。当前更贴近源码的准入流程是：</p>
+<h2 id="资源管理"><a href="#资源管理" class="headerlink" title="资源管理"></a>资源管理</h2><h3 id="KV-Cache-分配"><a href="#KV-Cache-分配" class="headerlink" title="KV Cache 分配"></a>KV Cache 分配</h3><p>更贴近源码的准入流程是：</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">computed_blocks, num_cached_tokens = kv_cache_manager.get_computed_blocks(request)</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> kv_cache_manager.can_fit_full_sequence(</span><br><span class="line">    request,</span><br><span class="line">    num_new_computed_tokens=num_cached_tokens,</span><br><span class="line">    new_computed_blocks=computed_blocks,</span><br><span class="line">):</span><br><span class="line">    new_blocks = kv_cache_manager.allocate_slots(</span><br><span class="line">        request,</span><br><span class="line">        num_new_tokens,</span><br><span class="line">        num_new_computed_tokens=num_cached_tokens,</span><br><span class="line">        new_computed_blocks=computed_blocks,</span><br><span class="line">    )</span><br></pre></td></tr></table></figure>
 
 <p>当存在 sliding window、external KV transfer、spec decode 或 encoder-decoder cross-attention 时，<code>allocate_slots()</code> 还会综合这些上下文一起计算需要分配的 block 数量。</p>
-<h3 id="内存压力处理"><a href="#内存压力处理" class="headerlink" title="内存压力处理"></a>内存压力处理</h3><p>当前 scheduler 的内存压力处理更接近“尝试为 running request 分配 slot，失败时根据当前策略 preempt”，而不是先用一个 <code>MIN_FREE_BLOCKS</code> 阈值做静态判断。prefix cache 的显式淘汰接口是 <code>kv_cache_manager.evict_blocks(block_ids)</code>，它按 block id 清理缓存索引，而不是旧文里的 <code>evict_cached_blocks(NUM_BLOCKS_TO_EVICT)</code>。</p>
+<h3 id="内存压力处理"><a href="#内存压力处理" class="headerlink" title="内存压力处理"></a>内存压力处理</h3><p>当前 scheduler 的内存压力处理更接近“尝试为 running request 分配 slot，失败时根据当前策略 preempt”。prefix cache 的显式淘汰接口是 <code>kv_cache_manager.evict_blocks(block_ids)</code>，它按 block id 清理缓存索引。</p>
 <h3 id="Encoder-Cache-管理"><a href="#Encoder-Cache-管理" class="headerlink" title="Encoder Cache 管理"></a>Encoder Cache 管理</h3><p>多模态 &#x2F; encoder-decoder 场景下，当前 request 并不是暴露 <code>encoder_input_ids</code> 这个简化字段。scheduler 会通过 <code>request.mm_features</code>、<code>_try_schedule_encoder_inputs()</code>，以及 <code>EncoderCacheManager.can_allocate()</code> &#x2F; <code>allocate()</code> &#x2F; <code>check_and_update_cache()</code> 来判断 encoder side 是否有容量。</p>
-<h2 id="性能指标"><a href="#性能指标" class="headerlink" title="性能指标"></a>性能指标</h2><h3 id="Scheduler-统计信息"><a href="#Scheduler-统计信息" class="headerlink" title="Scheduler 统计信息"></a>Scheduler 统计信息</h3><p>当前 <code>SchedulerStats</code> 的字段也比旧文中的示例更丰富，重点包括：</p>
+<h2 id="性能指标"><a href="#性能指标" class="headerlink" title="性能指标"></a>性能指标</h2><h3 id="Scheduler-统计信息"><a href="#Scheduler-统计信息" class="headerlink" title="Scheduler 统计信息"></a>Scheduler 统计信息</h3><p><code>SchedulerStats</code> 的重点字段包括：</p>
 <ul>
 <li><code>num_running_reqs</code></li>
 <li><code>num_waiting_reqs</code></li>

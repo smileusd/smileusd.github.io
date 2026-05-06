@@ -1081,7 +1081,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-05-06 16:25:05" itemprop="dateModified" datetime="2026-05-06T16:25:05+08:00">2026-05-06</time>
+      <time title="Modified: 2026-05-06 18:14:32" itemprop="dateModified" datetime="2026-05-06T18:14:32+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -1235,7 +1235,7 @@
 <li>session 是某一轮的计算上下文</li>
 </ul>
 <p>这能让 plugin 在 <code>OnSessionOpen</code> 时做本轮初始化，在 <code>OnSessionClose</code> 时做清理或指标记录，而不用在长期全局状态里互相污染。</p>
-<h2 id="第五层：Action-——-流程由-action-决定，但顺序是配置驱动的"><a href="#第五层：Action-——-流程由-action-决定，但顺序是配置驱动的" class="headerlink" title="第五层：Action —— 流程由 action 决定，但顺序是配置驱动的"></a>第五层：Action —— 流程由 action 决定，但顺序是配置驱动的</h2><p>在 KAI 里，action 确实定义了调度流程阶段，但“这一轮按什么顺序跑”并不是写死在 <code>runOnce()</code> 里的。当前源码里，<code>runOnce()</code> 每轮都会通过 <code>conf_util.GetActionsFromConfig(s.config)</code> 读取 action 序列；默认配置则是：</p>
+<h2 id="第五层：Action-——-流程由-action-决定，但顺序是配置驱动的"><a href="#第五层：Action-——-流程由-action-决定，但顺序是配置驱动的" class="headerlink" title="第五层：Action —— 流程由 action 决定，但顺序是配置驱动的"></a>第五层：Action —— 流程由 action 决定，但顺序是配置驱动的</h2><p>在 KAI 里，action 定义调度流程阶段，而“这一轮按什么顺序跑”由配置决定。<code>runOnce()</code> 每轮都会通过 <code>conf_util.GetActionsFromConfig(s.config)</code> 读取 action 序列；默认配置则是：</p>
 <ol>
 <li><code>allocate</code></li>
 <li><code>consolidation</code></li>
@@ -1243,7 +1243,7 @@
 <li><code>preempt</code></li>
 <li><code>stalegangeviction</code></li>
 </ol>
-<p>文档里常把它们写成 <code>Allocate</code> &#x2F; <code>Reclaim</code> 这种概念名，但代码和配置里的实际 token 是上面这组小写名字。</p>
+<p>代码和配置里的实际 token 是上面这组小写名字。</p>
 <p>这组默认顺序仍然表达了一种非常清晰的调度哲学：</p>
 <blockquote>
 <p>先尝试无破坏地调度，再做布局整理，再做跨 queue 回收，再做更激进的抢占，最后清理 gang 死锁状态。</p>
@@ -1295,13 +1295,13 @@
 </ul>
 </li>
 </ol>
-<h2 id="第七层：Statement-Scenario-——-KAI-最有意思的设计之一"><a href="#第七层：Statement-Scenario-——-KAI-最有意思的设计之一" class="headerlink" title="第七层：Statement &#x2F; Scenario —— KAI 最有意思的设计之一"></a>第七层：Statement &#x2F; Scenario —— KAI 最有意思的设计之一</h2><p>KAI 文档里有两个很重要但很容易被忽略的概念：</p>
+<h2 id="第七层：Statement-Scenario-——-KAI-最有意思的设计之一"><a href="#第七层：Statement-Scenario-——-KAI-最有意思的设计之一" class="headerlink" title="第七层：Statement &#x2F; Scenario —— KAI 最有意思的设计之一"></a>第七层：Statement &#x2F; Scenario —— KAI 最有意思的设计之一</h2><p>这里有两个很重要的概念：</p>
 <ul>
 <li><code>Scenario</code></li>
 <li><code>Statement</code></li>
 </ul>
 <p>我认为这两个概念是 KAI 能处理复杂调度动作的关键。</p>
-<h2 id="Scenario：先构造“如果这样调度，会发生什么”"><a href="#Scenario：先构造“如果这样调度，会发生什么”" class="headerlink" title="Scenario：先构造“如果这样调度，会发生什么”"></a>Scenario：先构造“如果这样调度，会发生什么”</h2><p>在 KAI 当前实现里，更适合把 <code>Scenario</code> 理解成 reclaim &#x2F; preempt &#x2F; consolidation 这类动作里的“候选情景”或“校验视角”，而不是和 <code>Statement</code> 完全对称的一层通用事务对象。</p>
+<h2 id="Scenario：先构造“如果这样调度，会发生什么”"><a href="#Scenario：先构造“如果这样调度，会发生什么”" class="headerlink" title="Scenario：先构造“如果这样调度，会发生什么”"></a>Scenario：先构造“如果这样调度，会发生什么”</h2><p><code>Scenario</code> 可以理解成 reclaim &#x2F; preempt &#x2F; consolidation 这类动作里的“候选情景”或“校验视角”，而不是和 <code>Statement</code> 完全对称的一层通用事务对象。</p>
 <p>比如某个 reclaim &#x2F; preempt 场景，不是直接去驱逐 Pod，而是先在内存里构造一个可能的结果：</p>
 <ul>
 <li>如果把这几个 Pod 挪走会怎样？</li>
@@ -1309,7 +1309,7 @@
 <li>如果先释放某些资源再放入新 workload，会不会整体成立？</li>
 </ul>
 <p>这意味着 KAI 不是“想到一个动作就立刻提交”，而是先做 <strong>what-if analysis</strong>。</p>
-<h2 id="Statement：把一组调度操作组织成事务式单元"><a href="#Statement：把一组调度操作组织成事务式单元" class="headerlink" title="Statement：把一组调度操作组织成事务式单元"></a>Statement：把一组调度操作组织成事务式单元</h2><p>文档把 Statement 描述成 transaction-like object，我觉得这个词非常准确。</p>
+<h2 id="Statement：把一组调度操作组织成事务式单元"><a href="#Statement：把一组调度操作组织成事务式单元" class="headerlink" title="Statement：把一组调度操作组织成事务式单元"></a>Statement：把一组调度操作组织成事务式单元</h2><p><code>Statement</code> 可以理解成一个 transaction-like object。</p>
 <p>它支持：</p>
 <ul>
 <li><code>Checkpoint()</code></li>
