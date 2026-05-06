@@ -270,9 +270,15 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
-      
 
-      <time title="Created: 2026-04-23 11:00:00 / Modified: 09:21:15" itemprop="dateCreated datePublished" datetime="2026-04-23T11:00:00+08:00">2026-04-23</time>
+      <time title="Created: 2026-04-23 11:00:00" itemprop="dateCreated datePublished" datetime="2026-04-23T11:00:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-05-06 16:25:07" itemprop="dateModified" datetime="2026-05-06T16:25:07+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -314,7 +320,7 @@
 <li>运行边界由 session &#x2F; statement 管</li>
 <li>平台级定制由 <code>SchedulingShard</code> 管</li>
 <li>工作负载语义由 <code>PodGroup</code> 管</li>
-<li>历史反馈由 queue controller + Prometheus + usage DB 管</li>
+<li>历史反馈由 queue controller 导出指标，再经 Prometheus &#x2F; usage DB client 回流</li>
 </ul>
 <p>换句话说，KAI 的扩展性不是“多写几个 if”，而是 <strong>架构层面为扩展预留了空间</strong>。</p>
 <h2 id="先看最关键的一点：plugin-不是装饰品，而是调度策略的主入口"><a href="#先看最关键的一点：plugin-不是装饰品，而是调度策略的主入口" class="headerlink" title="先看最关键的一点：plugin 不是装饰品，而是调度策略的主入口"></a>先看最关键的一点：plugin 不是装饰品，而是调度策略的主入口</h2><p><code>pkg/scheduler/plugins/factory.go</code> 把默认插件注册得非常完整：</p>
@@ -354,7 +360,7 @@
 <li>bind request mutation</li>
 </ul>
 <p>这就是为什么 KAI 的高级特性能持续叠加，而不会轻易把主调度流程搞乱。</p>
-<h2 id="Session-暴露的扩展点，基本等于-KAI-的能力边界"><a href="#Session-暴露的扩展点，基本等于-KAI-的能力边界" class="headerlink" title="Session 暴露的扩展点，基本等于 KAI 的能力边界"></a>Session 暴露的扩展点，基本等于 KAI 的能力边界</h2><p>在 <code>pkg/scheduler/framework/session.go</code> 里，<code>Session</code> 暴露的函数槽位非常多，最有代表性的包括：</p>
+<h2 id="Session-暴露的扩展点，基本等于-KAI-的能力边界"><a href="#Session-暴露的扩展点，基本等于-KAI-的能力边界" class="headerlink" title="Session 暴露的扩展点，基本等于 KAI 的能力边界"></a>Session 暴露的扩展点，基本等于 KAI 的能力边界</h2><p>在 <code>pkg/scheduler/framework/session.go</code> &#x2F; <code>session_plugins.go</code> 里，<code>Session</code> 暴露的函数槽位和注册方法比前几篇里举的更宽，最有代表性的包括：</p>
 <ul>
 <li><code>JobOrderFns</code></li>
 <li><code>TaskOrderFns</code></li>
@@ -371,6 +377,12 @@
 <li><code>GetQueueDeservedResourcesFns</code></li>
 <li><code>GetQueueFairShareFns</code></li>
 <li><code>BindRequestMutateFns</code></li>
+<li><code>AddSubsetNodesFn(...)</code></li>
+<li><code>AddPreJobAllocationFn(...)</code></li>
+<li><code>AddReclaimScenarioValidatorFn(...)</code></li>
+<li><code>AddPreemptScenarioValidatorFn(...)</code></li>
+<li><code>AddHttpHandler(...)</code></li>
+<li><code>AddIsJobOverCapacityFn(...)</code></li>
 <li>event handlers</li>
 </ul>
 <p>只要看见这些接口，就能立刻理解 KAI 的插件思想：</p>
@@ -382,6 +394,15 @@
 <li>新能力可以落在明确的扩展点上，而不是侵入主流程。</li>
 <li>现有能力可以通过配置和优先级组合，而不是硬编码互斥。</li>
 </ol>
+<p>换句话说，KAI 开放的不只是排序&#x2F;过滤，还包括候选节点裁剪、pre-job allocation、reclaim&#x2F;preempt 场景校验、执行前 <code>BindRequest</code> mutate，甚至给插件挂自定义 HTTP handler 的能力。</p>
+<h2 id="别忘了：binder-这一侧也有正式插件面"><a href="#别忘了：binder-这一侧也有正式插件面" class="headerlink" title="别忘了：binder 这一侧也有正式插件面"></a>别忘了：binder 这一侧也有正式插件面</h2><p>前面几篇更容易让人把注意力放在 scheduler session 上，但 KAI 的扩展面并不只存在于决策侧。</p>
+<p>在 <code>pkg/binder/plugins/interface.go</code> 里，binder plugin 暴露的就是一条很清楚的执行期接口：</p>
+<ul>
+<li><code>PreBind(...)</code></li>
+<li><code>PostBind(...)</code></li>
+<li><code>Rollback(...)</code></li>
+</ul>
+<p>这意味着执行落地这一侧也不是硬编码死的。凡是和真实 bind、副作用处理、失败回滚相关的逻辑，都可以在 binder 这条插件面上扩展，而不用把它们重新塞回 scheduler 主循环。</p>
 <h2 id="SchedulingShard：KAI-真正的平台配置面"><a href="#SchedulingShard：KAI-真正的平台配置面" class="headerlink" title="SchedulingShard：KAI 真正的平台配置面"></a><code>SchedulingShard</code>：KAI 真正的平台配置面</h2><p>如果说 plugin 是“代码级扩展点”，那 <code>SchedulingShard</code> 就是“平台级策略面”。</p>
 <p>我认为这是 KAI 最值得单独夸的一层设计。</p>
 <p>在 <code>pkg/apis/kai/v1/schedulingshard_types.go</code> 里，<code>SchedulingShardSpec</code> 暴露的内容包括：</p>
@@ -398,6 +419,7 @@
 </ul>
 <p>这意味着什么？</p>
 <p>这意味着 KAI 把很多原本应该藏在源码、flag 或者某个配置文件里的策略选择，提升成了 <strong>可声明、可演化、可分片实例化的 Kubernetes API</strong>。</p>
+<p>还有一个容易被忽略的细节：这些默认 plugin&#x2F;action 并不是无条件全开。operator 在把 <code>SchedulingShard</code> 物化成 scheduler 配置时，会根据 <code>PlacementStrategy</code> 条件启用或关闭 <code>gpusharingorder</code>、<code>gpupack</code>、<code>gpuspread</code>、<code>consolidation</code> 等默认项。</p>
 <h3 id="为什么这层设计非常强"><a href="#为什么这层设计非常强" class="headerlink" title="为什么这层设计非常强"></a>为什么这层设计非常强</h3><p>因为它让“调度器实例”不再是同质的。</p>
 <p>你可以想象这样几种 shard：</p>
 <ul>
@@ -421,6 +443,7 @@
 <li>用 CRD 做配置入口</li>
 </ul>
 <p>这样带来的好处不只是扩容，更重要的是 <strong>策略与资源空间同时分片</strong>。</p>
+<p>这里还有一个容易说错的细节：默认 shard 并不是用“label 等于空字符串”来兜底未分片资源。当前 selector 语义更接近 <code>DoesNotExist</code>——也就是当某个 partition &#x2F; nodepool value 为空时，它会接住“没有这个标签”的资源，而不是匹配一个空值标签。</p>
 <p>也就是说，不同 shard 不只是“不同副本数的 scheduler”，而是：</p>
 <ul>
 <li>看到的资源集合不同</li>
@@ -448,6 +471,7 @@
 <li>多级 subgroup 结构</li>
 </ul>
 <p>所以 topology 不需要硬插一条特别路径，而是能顺着既有框架表达出来。</p>
+<p>从当前插件实现看，topology 主要挂在三类扩展点上：<code>AddSubsetNodesFn(...)</code>、<code>AddNodeOrderFn(...)</code> 和 <code>AddPreJobAllocationFn(...)</code>。也就是说，它更像“先裁候选节点，再做域内节点排序，并在分配前补一次校验&#x2F;整理”，而不是单独依赖某个 GPU order 钩子。</p>
 <h2 id="公平性：KAI-的-fairshare-不是单一排序函数，而是-queue-系统的一部分"><a href="#公平性：KAI-的-fairshare-不是单一排序函数，而是-queue-系统的一部分" class="headerlink" title="公平性：KAI 的 fairshare 不是单一排序函数，而是 queue 系统的一部分"></a>公平性：KAI 的 fairshare 不是单一排序函数，而是 queue 系统的一部分</h2><p><code>docs/fairness/README.md</code> 里最重要的一句话是：</p>
 <ul>
 <li>deserved quota 一定优先满足</li>
@@ -471,9 +495,9 @@
 <h2 id="Time-based-fairshare：KAI-开始把“历史行为”放进调度决策"><a href="#Time-based-fairshare：KAI-开始把“历史行为”放进调度决策" class="headerlink" title="Time-based fairshare：KAI 开始把“历史行为”放进调度决策"></a>Time-based fairshare：KAI 开始把“历史行为”放进调度决策</h2><p>我觉得 time-based fairshare 是 KAI 很有代表性的一个能力，因为它显示出这套架构并不只看“这一刻的资源状态”，而是开始纳入时间维度。</p>
 <p><code>docs/time-based-fairshare/README.md</code> 给出的主线是：</p>
 <ol>
-<li>PodGroup Controller 发布 podgroup 资源状态</li>
-<li>Queue Controller 聚合 queue usage</li>
-<li>Prometheus 存储历史数据</li>
+<li>PodGroup Controller 更新 podgroup 资源状态</li>
+<li>Queue Controller patch queue 状态并导出队列级指标</li>
+<li>Prometheus 存储这些历史指标</li>
 <li>scheduler 通过 usage DB client 拉取 usage</li>
 <li><code>proportion</code> 等 fairness 相关逻辑把历史 usage 纳入 over-quota 资源分配</li>
 </ol>
@@ -524,7 +548,7 @@
 <h3 id="5-中间态执行落在-BindRequest-binder"><a href="#5-中间态执行落在-BindRequest-binder" class="headerlink" title="5. 中间态执行落在 BindRequest + binder"></a>5. 中间态执行落在 <code>BindRequest</code> + binder</h3><p>而不是让 scheduler 同步做完所有副作用。</p>
 <h3 id="6-平台调优落在-SchedulingShard"><a href="#6-平台调优落在-SchedulingShard" class="headerlink" title="6. 平台调优落在 SchedulingShard"></a>6. 平台调优落在 <code>SchedulingShard</code></h3><p>而不是只能改源码或启动参数。</p>
 <p>这就是为什么我觉得 KAI 的架构不仅功能多，而且有继续长下去的空间。</p>
-<h2 id="如果想扩展-KAI，最值得看哪几类点"><a href="#如果想扩展-KAI，最值得看哪几类点" class="headerlink" title="如果想扩展 KAI，最值得看哪几类点"></a>如果想扩展 KAI，最值得看哪几类点</h2><p>从阅读体验上，我会把 KAI 的扩展入口分成四类。</p>
+<h2 id="如果想扩展-KAI，最值得看哪几类点"><a href="#如果想扩展-KAI，最值得看哪几类点" class="headerlink" title="如果想扩展 KAI，最值得看哪几类点"></a>如果想扩展 KAI，最值得看哪几类点</h2><p>从阅读体验上，我会把 KAI 的扩展入口分成五类。</p>
 <h3 id="1-想加-workload-语义"><a href="#1-想加-workload-语义" class="headerlink" title="1. 想加 workload 语义"></a>1. 想加 workload 语义</h3><p>先看：</p>
 <ul>
 <li><code>PodGroup</code> API</li>
@@ -548,6 +572,12 @@
 <li><code>SchedulingShard</code></li>
 <li>partition label 机制</li>
 <li>operator 相关 reconciliation</li>
+</ul>
+<h3 id="5-想改执行落地路径"><a href="#5-想改执行落地路径" class="headerlink" title="5. 想改执行落地路径"></a>5. 想改执行落地路径</h3><p>先看：</p>
+<ul>
+<li><code>pkg/binder/plugins/interface.go</code></li>
+<li><code>PreBind</code> &#x2F; <code>PostBind</code> &#x2F; <code>Rollback</code></li>
+<li><code>pkg/binder/controllers/bindrequest_controller.go</code></li>
 </ul>
 <h2 id="我对-KAI-扩展能力的一个总结"><a href="#我对-KAI-扩展能力的一个总结" class="headerlink" title="我对 KAI 扩展能力的一个总结"></a>我对 KAI 扩展能力的一个总结</h2><p>如果只用一句话概括，我会写成：</p>
 <blockquote>
@@ -626,9 +656,15 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
-      
 
-      <time title="Created: 2026-04-23 10:45:00 / Modified: 09:21:04" itemprop="dateCreated datePublished" datetime="2026-04-23T10:45:00+08:00">2026-04-23</time>
+      <time title="Created: 2026-04-23 10:45:00" itemprop="dateCreated datePublished" datetime="2026-04-23T10:45:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-05-06 16:22:21" itemprop="dateModified" datetime="2026-05-06T16:22:21+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -661,6 +697,7 @@
 </ol>
 <p>如果你只准备精读少数几个文件，我建议把注意力放在下面这几处：</p>
 <ul>
+<li><code>cmd/scheduler/main.go</code></li>
 <li><code>cmd/scheduler/app/server.go</code></li>
 <li><code>pkg/scheduler/scheduler.go</code></li>
 <li><code>pkg/scheduler/framework/framework.go</code></li>
@@ -671,7 +708,7 @@
 <li><code>pkg/apis/scheduling/v1alpha2/bindrequest_types.go</code></li>
 <li><code>pkg/binder/controllers/bindrequest_controller.go</code></li>
 </ul>
-<h2 id="第一站：scheduler-进程入口不是算法，而是平台启动逻辑"><a href="#第一站：scheduler-进程入口不是算法，而是平台启动逻辑" class="headerlink" title="第一站：scheduler 进程入口不是算法，而是平台启动逻辑"></a>第一站：scheduler 进程入口不是算法，而是平台启动逻辑</h2><p>真正的入口在 <code>cmd/scheduler/app/server.go</code>。</p>
+<h2 id="第一站：scheduler-进程入口不是算法，而是平台启动逻辑"><a href="#第一站：scheduler-进程入口不是算法，而是平台启动逻辑" class="headerlink" title="第一站：scheduler 进程入口不是算法，而是平台启动逻辑"></a>第一站：scheduler 进程入口不是算法，而是平台启动逻辑</h2><p>真正的二进制入口其实在 <code>cmd/scheduler/main.go</code>，它只做一件事：调用 <code>app.RunApp()</code>。真正展开运行时准备的地方，才是 <code>cmd/scheduler/app/server.go</code>。</p>
 <h3 id="RunApp-先做的是运行时准备"><a href="#RunApp-先做的是运行时准备" class="headerlink" title="RunApp() 先做的是运行时准备"></a><code>RunApp()</code> 先做的是运行时准备</h3><p>从代码顺序上看，大致是：</p>
 <ol>
 <li>解析和校验命令行参数</li>
@@ -681,6 +718,7 @@
 <li>读取 kube config 并设置 QPS &#x2F; Burst</li>
 <li>进入 <code>Run(...)</code></li>
 </ol>
+<p>如果是 operator 管理的 shard 部署，这时传进来的 <code>--scheduler-conf</code> 往往已经是 operator 根据 <code>SchedulingShard</code> 物化出来的配置文件，而不是 scheduler 进程自己去直接读取 CRD 后现场拼装。</p>
 <p>也就是说，KAI scheduler 本身就是一个标准 Kubernetes 控制面进程，而不是“读个配置然后进一个大循环”的轻量程序。</p>
 <h3 id="Run-里最重要的两行"><a href="#Run-里最重要的两行" class="headerlink" title="Run() 里最重要的两行"></a><code>Run()</code> 里最重要的两行</h3><p>对理解调度内核最关键的，其实是这两步：</p>
 <figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">actions.InitDefaultActions()</span><br><span class="line">plugins.InitDefaultPlugins()</span><br></pre></td></tr></table></figure>
@@ -694,22 +732,20 @@
 <ul>
 <li><code>InitDefaultActions()</code> 负责告诉框架有哪些 action 存在</li>
 <li><code>InitDefaultPlugins()</code> 负责告诉框架有哪些 plugin 可用</li>
-<li><code>ResolveConfigurationFromFile(...)</code> 决定这一轮部署到底启用哪些，以及它们的优先级和参数是什么</li>
+<li><code>ResolveConfigurationFromFile(...)</code> 读取当前进程拿到的配置文件，决定这一轮部署到底启用哪些，以及它们的优先级和参数是什么</li>
 </ul>
 <p>这比很多项目直接在代码里写死流程要干净得多。</p>
 <h2 id="第二站：action-plugin-的“能力注册表”非常直观"><a href="#第二站：action-plugin-的“能力注册表”非常直观" class="headerlink" title="第二站：action &#x2F; plugin 的“能力注册表”非常直观"></a>第二站：action &#x2F; plugin 的“能力注册表”非常直观</h2><h3 id="Action-工厂：流程阶段被清楚写死"><a href="#Action-工厂：流程阶段被清楚写死" class="headerlink" title="Action 工厂：流程阶段被清楚写死"></a>Action 工厂：流程阶段被清楚写死</h3><p><code>pkg/scheduler/actions/factory.go</code> 很短，但很重要：</p>
 <figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">InitDefaultActions</span><span class="params">()</span></span> &#123;</span><br><span class="line">    framework.RegisterAction(reclaim.New())</span><br><span class="line">    framework.RegisterAction(allocate.New())</span><br><span class="line">    framework.RegisterAction(preempt.New())</span><br><span class="line">    framework.RegisterAction(consolidation.New())</span><br><span class="line">    framework.RegisterAction(stalegangeviction.New())</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <p>这里要注意一个细节：<strong>注册顺序不等于执行顺序</strong>。</p>
-<p>真正的执行顺序来自配置解析，而默认优先级则来自 <code>SchedulingShard</code> 的 action 配置语义：</p>
+<p>真正的执行顺序来自配置解析，但这件事有两层来源：</p>
 <ul>
-<li><code>allocate</code></li>
-<li><code>consolidation</code></li>
-<li><code>reclaim</code></li>
-<li><code>preempt</code></li>
-<li><code>stalegangeviction</code></li>
+<li>如果直接跑 scheduler，默认顺序来自内置的 <code>defaultSchedulerConf</code></li>
+<li>如果通过 operator 部署 shard，operator 会先根据 <code>SchedulingShard.Actions</code> 的 priority 生成最终 <code>config.yaml</code></li>
+<li>scheduler runtime 再通过 <code>ResolveConfigurationFromFile(...)</code> 读取这个物化后的文件</li>
 </ul>
-<p>所以代码层面的注册只是“把工厂挂到框架里”，而不是“马上决定调度流程”。</p>
+<p>无论哪种路径，代码层面的注册都只是“把工厂挂到框架里”，而不是“马上决定调度流程”。</p>
 <h3 id="Plugin-工厂：策略面非常丰富"><a href="#Plugin-工厂：策略面非常丰富" class="headerlink" title="Plugin 工厂：策略面非常丰富"></a>Plugin 工厂：策略面非常丰富</h3><p><code>pkg/scheduler/plugins/factory.go</code> 更能体现 KAI 的平台化程度。默认注册的 plugin 包括：</p>
 <ul>
 <li><code>predicates</code></li>
@@ -795,13 +831,14 @@
 <h2 id="第五站：OpenSession-真正把-plugin-注入到本轮调度里"><a href="#第五站：OpenSession-真正把-plugin-注入到本轮调度里" class="headerlink" title="第五站：OpenSession() 真正把 plugin 注入到本轮调度里"></a>第五站：<code>OpenSession()</code> 真正把 plugin 注入到本轮调度里</h2><p><code>pkg/scheduler/framework/framework.go</code> 的 <code>OpenSession()</code> 非常值得精读。</p>
 <p>它的逻辑可以概括为：</p>
 <ol>
-<li>如果 plugin server 还没起来，就初始化它</li>
+<li>如有必要初始化 plugin dispatch wrapper，并把 handler 挂到 mux</li>
 <li>调用底层 <code>openSession(...)</code> 从 cache 里拿 snapshot</li>
 <li>把 <code>config</code> 塞进 session</li>
 <li>遍历配置中的 tiers&#x2F;plugins</li>
 <li>通过 plugin builder 创建 plugin 实例</li>
 <li>调用 <code>plugin.OnSessionOpen(ssn)</code></li>
 </ol>
+<p>这里要特别注意：真正的 HTTP listener 是在 <code>RunApp()</code> 里启动的；<code>OpenSession()</code> 这一步做的更像是把 framework 的 plugin handler 接到已经存在的 mux 上。</p>
 <p>这一步的关键不在于“插件被创建了”，而在于：</p>
 <blockquote>
 <p><code>OnSessionOpen</code> 会把 plugin 的 callback 注册进当前 session。</p>
@@ -935,7 +972,7 @@
 </ul>
 <p>这意味着 execution plane 不是一层薄封装，而是一个正式子系统。</p>
 <h2 id="第十站：把调用链串起来看，KAI-的一次调度就非常清楚了"><a href="#第十站：把调用链串起来看，KAI-的一次调度就非常清楚了" class="headerlink" title="第十站：把调用链串起来看，KAI 的一次调度就非常清楚了"></a>第十站：把调用链串起来看，KAI 的一次调度就非常清楚了</h2><p>如果用伪调用栈把它串起来，大致可以写成：</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">cmd/scheduler/app/server.go</span><br><span class="line">  RunApp()</span><br><span class="line">    -&gt; Run(...)</span><br><span class="line">      -&gt; actions.InitDefaultActions()</span><br><span class="line">      -&gt; plugins.InitDefaultPlugins()</span><br><span class="line">      -&gt; scheduler.NewScheduler(...)</span><br><span class="line">      -&gt; scheduler.Run(...)</span><br><span class="line">        -&gt; wait.Until(runOnce)</span><br><span class="line">          -&gt; framework.OpenSession(...)</span><br><span class="line">            -&gt; cache.Snapshot()</span><br><span class="line">            -&gt; plugin.OnSessionOpen(ssn)</span><br><span class="line">          -&gt; action.Execute(ssn)</span><br><span class="line">            -&gt; ssn.BindPod(...)</span><br><span class="line">              -&gt; ssn.Cache.Bind(...)</span><br><span class="line">                -&gt; createBindRequest(...)</span><br><span class="line">                  -&gt; create BindRequest CR</span><br><span class="line">          -&gt; framework.CloseSession(ssn)</span><br><span class="line"></span><br><span class="line">pkg/binder/controllers/bindrequest_controller.go</span><br><span class="line">  Reconcile(...)</span><br><span class="line">    -&gt; fetch BindRequest / Pod / Node</span><br><span class="line">    -&gt; binder.Bind(...)</span><br><span class="line">    -&gt; rollback on error</span><br><span class="line">    -&gt; update status / pod condition</span><br></pre></td></tr></table></figure>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">cmd/scheduler/main.go</span><br><span class="line">  main()</span><br><span class="line">    -&gt; app.RunApp()</span><br><span class="line">      -&gt; Run(...)</span><br><span class="line">      -&gt; actions.InitDefaultActions()</span><br><span class="line">      -&gt; plugins.InitDefaultPlugins()</span><br><span class="line">      -&gt; scheduler.NewScheduler(...)</span><br><span class="line">      -&gt; scheduler.Run(...)</span><br><span class="line">        -&gt; wait.Until(runOnce)</span><br><span class="line">          -&gt; framework.OpenSession(...)</span><br><span class="line">            -&gt; cache.Snapshot()</span><br><span class="line">            -&gt; plugin.OnSessionOpen(ssn)</span><br><span class="line">          -&gt; action.Execute(ssn)</span><br><span class="line">            -&gt; ssn.BindPod(...)</span><br><span class="line">              -&gt; ssn.Cache.Bind(...)</span><br><span class="line">                -&gt; createBindRequest(...)</span><br><span class="line">                  -&gt; create BindRequest CR</span><br><span class="line">          -&gt; framework.CloseSession(ssn)</span><br><span class="line"></span><br><span class="line">pkg/binder/controllers/bindrequest_controller.go</span><br><span class="line">  Reconcile(...)</span><br><span class="line">    -&gt; fetch BindRequest / Pod / Node</span><br><span class="line">    -&gt; binder.Bind(...)</span><br><span class="line">    -&gt; rollback on error</span><br><span class="line">    -&gt; update status / pod condition</span><br></pre></td></tr></table></figure>
 
 <p>这条链路体现出了 KAI 最核心的分层：</p>
 <ul>
@@ -962,6 +999,7 @@
 <p>很多 scheduler 一旦开始支持复杂资源、副作用、回滚，就会在主调度线程里越写越重。KAI 用 <code>BindRequest</code> 这层接口把这个问题处理得很优雅。</p>
 <h2 id="一份我自己的“源码精读顺序”"><a href="#一份我自己的“源码精读顺序”" class="headerlink" title="一份我自己的“源码精读顺序”"></a>一份我自己的“源码精读顺序”</h2><p>如果你打算真的跟代码，我建议按下面顺序：</p>
 <ol>
+<li><code>cmd/scheduler/main.go</code></li>
 <li><code>cmd/scheduler/app/server.go</code></li>
 <li><code>pkg/scheduler/scheduler.go</code></li>
 <li><code>pkg/scheduler/framework/framework.go</code></li>
@@ -1035,9 +1073,15 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
-      
 
-      <time title="Created: 2026-04-23 10:30:00 / Modified: 09:11:04" itemprop="dateCreated datePublished" datetime="2026-04-23T10:30:00+08:00">2026-04-23</time>
+      <time title="Created: 2026-04-23 10:30:00" itemprop="dateCreated datePublished" datetime="2026-04-23T10:30:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-05-06 16:25:05" itemprop="dateModified" datetime="2026-05-06T16:25:05+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -1096,8 +1140,7 @@
 <h2 id="第一层：Cycle-——-调度不是事件回调，而是周期性计算"><a href="#第一层：Cycle-——-调度不是事件回调，而是周期性计算" class="headerlink" title="第一层：Cycle —— 调度不是事件回调，而是周期性计算"></a>第一层：Cycle —— 调度不是事件回调，而是周期性计算</h2><p>KAI 文档里一直强调“scheduling cycle”，这不是表述习惯，而是真正的架构选择。</p>
 <p>每个 cycle 的流程可以简化成：</p>
 <pre class="mermaid">flowchart LR
-    Start([Cycle Start]) --> Cache[Cache Sync]
-    Cache --> Snapshot[Take Snapshot]
+    Start([Cycle Start]) --> Snapshot[Take Snapshot from Cache]
     Snapshot --> Session[Open Session]
     Session --> Actions[Execute Actions]
     Actions --> Close[Close Session]
@@ -1184,7 +1227,7 @@
 <li>保存 snapshot 得到的 <code>ClusterInfo</code></li>
 <li>承载本轮调度的 callback registry</li>
 <li>提供绑定、驱逐、节点排序、GPU 排序等调度操作</li>
-<li>为 statement&#x2F;scenario 提供统一语义边界</li>
+<li>为 statement，以及 reclaim &#x2F; preempt 这类动作里的场景推演提供统一语义边界</li>
 </ol>
 <h3 id="这层设计的妙处"><a href="#这层设计的妙处" class="headerlink" title="这层设计的妙处"></a>这层设计的妙处</h3><p>它把“当前一轮调度会发生什么”从长期状态里剥离出来了。</p>
 <ul>
@@ -1192,26 +1235,27 @@
 <li>session 是某一轮的计算上下文</li>
 </ul>
 <p>这能让 plugin 在 <code>OnSessionOpen</code> 时做本轮初始化，在 <code>OnSessionClose</code> 时做清理或指标记录，而不用在长期全局状态里互相污染。</p>
-<h2 id="第五层：Action-——-流程由-action-决定，不由-plugin-决定"><a href="#第五层：Action-——-流程由-action-决定，不由-plugin-决定" class="headerlink" title="第五层：Action —— 流程由 action 决定，不由 plugin 决定"></a>第五层：Action —— 流程由 action 决定，不由 plugin 决定</h2><p>KAI 文档 <code>docs/developer/action-framework.md</code> 给出的 action 顺序是：</p>
+<h2 id="第五层：Action-——-流程由-action-决定，但顺序是配置驱动的"><a href="#第五层：Action-——-流程由-action-决定，但顺序是配置驱动的" class="headerlink" title="第五层：Action —— 流程由 action 决定，但顺序是配置驱动的"></a>第五层：Action —— 流程由 action 决定，但顺序是配置驱动的</h2><p>在 KAI 里，action 确实定义了调度流程阶段，但“这一轮按什么顺序跑”并不是写死在 <code>runOnce()</code> 里的。当前源码里，<code>runOnce()</code> 每轮都会通过 <code>conf_util.GetActionsFromConfig(s.config)</code> 读取 action 序列；默认配置则是：</p>
 <ol>
-<li><code>Allocate</code></li>
-<li><code>Consolidate</code></li>
-<li><code>Reclaim</code></li>
-<li><code>Preempt</code></li>
-<li><code>StaleGangEviction</code></li>
+<li><code>allocate</code></li>
+<li><code>consolidation</code></li>
+<li><code>reclaim</code></li>
+<li><code>preempt</code></li>
+<li><code>stalegangeviction</code></li>
 </ol>
-<p>这五个动作本身就已经表达了一种非常清晰的调度哲学：</p>
+<p>文档里常把它们写成 <code>Allocate</code> &#x2F; <code>Reclaim</code> 这种概念名，但代码和配置里的实际 token 是上面这组小写名字。</p>
+<p>这组默认顺序仍然表达了一种非常清晰的调度哲学：</p>
 <blockquote>
-<p>先尝试无破坏地调度，再尝试优化碎片，再尝试跨 queue 回收资源，再尝试队列内优先级抢占，最后清理 gang 死锁状态。</p>
+<p>先尝试无破坏地调度，再做布局整理，再做跨 queue 回收，再做更激进的抢占，最后清理 gang 死锁状态。</p>
 </blockquote>
-<p>换句话说，<strong>Action 负责的是“调度流程的阶段控制”</strong>。</p>
-<h3 id="为什么-action-顺序很重要"><a href="#为什么-action-顺序很重要" class="headerlink" title="为什么 action 顺序很重要"></a>为什么 action 顺序很重要</h3><p>KAI 不是随便堆几个插件，而是明确规定了“先做什么，后做什么”。</p>
-<h4 id="Allocate"><a href="#Allocate" class="headerlink" title="Allocate"></a>Allocate</h4><p>优先处理无需干扰即可落地的工作负载。</p>
-<h4 id="Consolidate"><a href="#Consolidate" class="headerlink" title="Consolidate"></a>Consolidate</h4><p>在已有布局上做整理，减少碎片。</p>
-<h4 id="Reclaim"><a href="#Reclaim" class="headerlink" title="Reclaim"></a>Reclaim</h4><p>当 queue 之间资源分配不公平时，做跨 queue 回收。</p>
-<h4 id="Preempt"><a href="#Preempt" class="headerlink" title="Preempt"></a>Preempt</h4><p>当同一 queue 内高优 workload 需要资源时，再做优先级抢占。</p>
-<h4 id="StaleGangEviction"><a href="#StaleGangEviction" class="headerlink" title="StaleGangEviction"></a>StaleGangEviction</h4><p>处理 gang 语义下的僵死&#x2F;失效场景。</p>
-<p>这个顺序说明 KAI 很重视“<strong>尽量把破坏性动作后置</strong>”。</p>
+<p>换句话说，<strong>Action 负责的是“调度流程的阶段控制”，但阶段顺序本身仍然可以被配置覆盖。</strong></p>
+<h3 id="为什么-action-顺序很重要"><a href="#为什么-action-顺序很重要" class="headerlink" title="为什么 action 顺序很重要"></a>为什么 action 顺序很重要</h3><p>KAI 不是随便堆几个插件，而是把“先做什么，后做什么”收敛成一条可配置的 phase pipeline。</p>
+<h4 id="allocate"><a href="#allocate" class="headerlink" title="allocate"></a><code>allocate</code></h4><p>优先处理无需干扰即可落地的工作负载。</p>
+<h4 id="consolidation"><a href="#consolidation" class="headerlink" title="consolidation"></a><code>consolidation</code></h4><p>在已有布局上做整理，减少碎片。</p>
+<h4 id="reclaim"><a href="#reclaim" class="headerlink" title="reclaim"></a><code>reclaim</code></h4><p>当 queue 之间资源分配不公平时，做跨 queue 回收。</p>
+<h4 id="preempt"><a href="#preempt" class="headerlink" title="preempt"></a><code>preempt</code></h4><p>当同一 queue 内高优 workload 需要资源时，再做优先级抢占。</p>
+<h4 id="stalegangeviction"><a href="#stalegangeviction" class="headerlink" title="stalegangeviction"></a><code>stalegangeviction</code></h4><p>处理 gang 语义下的僵死&#x2F;失效场景。</p>
+<p>这个默认顺序说明 KAI 很重视“<strong>尽量把破坏性动作后置</strong>”。</p>
 <h2 id="第六层：Plugin-——-策略由-plugin-注入，不由-action-写死"><a href="#第六层：Plugin-——-策略由-plugin-注入，不由-action-写死" class="headerlink" title="第六层：Plugin —— 策略由 plugin 注入，不由 action 写死"></a>第六层：Plugin —— 策略由 plugin 注入，不由 action 写死</h2><p>如果说 action 决定“什么时候干什么”，那 plugin 决定“具体按什么规则干”。</p>
 <p>在 <code>pkg/scheduler/framework/framework.go</code> 里，<code>OpenSession()</code> 会读取配置里的 tiers 和 plugins，然后依次：</p>
 <ol>
@@ -1232,6 +1276,7 @@
 <li>bind request mutation</li>
 <li>allocate &#x2F; deallocate event handlers</li>
 </ul>
+<p>不过这些 callback 并不是都以同一种方式组合：有些会累积执行，有些会按顺序挑第一个可用实现；例如部分 reclaim 相关判断在当前源码里就是 first-provider-wins，而不是所有插件结果一起归并。</p>
 <h3 id="一个非常关键的区分"><a href="#一个非常关键的区分" class="headerlink" title="一个非常关键的区分"></a>一个非常关键的区分</h3><p>很多调度框架里，action 和 plugin 的边界不够清楚；而 KAI 这里非常明确：</p>
 <ul>
 <li><strong>Action &#x3D; 调度流程阶段</strong></li>
@@ -1256,8 +1301,8 @@
 <li><code>Statement</code></li>
 </ul>
 <p>我认为这两个概念是 KAI 能处理复杂调度动作的关键。</p>
-<h2 id="Scenario：先构造“如果这样调度，会发生什么”"><a href="#Scenario：先构造“如果这样调度，会发生什么”" class="headerlink" title="Scenario：先构造“如果这样调度，会发生什么”"></a>Scenario：先构造“如果这样调度，会发生什么”</h2><p>Scenario 本质上是一个假设中的调度状态。</p>
-<p>比如某个 reclaim &#x2F; preempt &#x2F; consolidate 场景，不是直接去驱逐 Pod，而是先在内存里构造一个可能的结果：</p>
+<h2 id="Scenario：先构造“如果这样调度，会发生什么”"><a href="#Scenario：先构造“如果这样调度，会发生什么”" class="headerlink" title="Scenario：先构造“如果这样调度，会发生什么”"></a>Scenario：先构造“如果这样调度，会发生什么”</h2><p>在 KAI 当前实现里，更适合把 <code>Scenario</code> 理解成 reclaim &#x2F; preempt &#x2F; consolidation 这类动作里的“候选情景”或“校验视角”，而不是和 <code>Statement</code> 完全对称的一层通用事务对象。</p>
+<p>比如某个 reclaim &#x2F; preempt 场景，不是直接去驱逐 Pod，而是先在内存里构造一个可能的结果：</p>
 <ul>
 <li>如果把这几个 Pod 挪走会怎样？</li>
 <li>如果这个 PodGroup 迁移到另一个 domain 会怎样？</li>
@@ -1297,14 +1342,14 @@
     C[Plugin callbacks] --> B
     B --> D[Commit to cache / cluster]
 
-    A1[Allocate / Consolidate / Reclaim / Preempt] -.控制流程.-> A
+    A1[allocate / consolidation / reclaim / preempt] -.控制流程.-> A
     C1[Predicate / Order / FairShare / Bind Mutate] -.提供策略.-> C
     B1[Checkpoint / Rollback / Commit] -.提供事务化模拟.-> B</pre>
 
 <ul>
 <li>action 决定“当前做哪类动作”</li>
 <li>plugin 决定“按什么规则评估和排序”</li>
-<li>statement&#x2F;scenario 决定“怎么安全地模拟和提交”</li>
+<li>statement 决定“怎么安全地模拟和提交”，而 scenario 更像动作内部的候选情景&#x2F;验证视角</li>
 </ul>
 <p>这三个层次组合在一起，才形成 KAI 的调度内核。</p>
 <h2 id="为什么这套框架足以承载高级能力"><a href="#为什么这套框架足以承载高级能力" class="headerlink" title="为什么这套框架足以承载高级能力"></a>为什么这套框架足以承载高级能力</h2><p>KAI 后续的很多高级特性，其实都不是“另起炉灶”，而是在这套框架上叠加出来的：</p>
@@ -1318,7 +1363,7 @@
 <p>也就是说，KAI 的高阶能力不是靠一堆特判支撑，而是靠一个足够稳的 execution model 支撑。</p>
 <h2 id="我对-KAI-调度框架的一个总结"><a href="#我对-KAI-调度框架的一个总结" class="headerlink" title="我对 KAI 调度框架的一个总结"></a>我对 KAI 调度框架的一个总结</h2><p>如果只用一句话概括这套内核，我会写成：</p>
 <blockquote>
-<p><strong>KAI 把调度建模成：在一致性 snapshot 上打开一个 session，由 action 驱动流程、由 plugin 注入策略、由 statement&#x2F;scenario 提供可回滚模拟，然后把成立的结果提交回集群。</strong></p>
+<p><strong>KAI 把调度建模成：在一致性 snapshot 上打开一个 session，由 action 驱动流程、由 plugin 注入策略、由 statement 提供可回滚模拟，并在部分动作里通过 scenario 组织候选情景，然后把成立的结果提交回集群。</strong></p>
 </blockquote>
 <p>这是一个非常适合复杂 workload 调度的模型。</p>
 <p>它的好处不是“优雅”，而是很实用：</p>
@@ -1391,9 +1436,15 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
-      
 
-      <time title="Created: 2026-04-23 10:15:00 / Modified: 09:20:54" itemprop="dateCreated datePublished" datetime="2026-04-23T10:15:00+08:00">2026-04-23</time>
+      <time title="Created: 2026-04-23 10:15:00" itemprop="dateCreated datePublished" datetime="2026-04-23T10:15:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-05-06 16:25:22" itemprop="dateModified" datetime="2026-05-06T16:25:22+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -1441,7 +1492,7 @@
     participant B as Binder
     participant PGC as PodGroup Controller
     participant QC as Queue Controller
-    participant PM as Prometheus / Usage DB
+    participant PM as Prometheus / Metrics Store
 
     U->>A: 创建 Pod / Job / Ray / Kubeflow workload
     A-->>U: 准入校验 / 变更
@@ -1454,10 +1505,10 @@
     B->>BR: reconcile BindRequest
     B->>B: 执行 bind / 资源准备 / 回滚
     B-->>U: Pod 绑定到目标节点
-    PGC->>PGCRD: 回写 workload 运行态和资源状态
-    QC->>Q: 聚合队列资源状态
-    QC->>PM: 暴露历史资源使用数据
-    PM-->>S: 为 time-based fairshare 提供历史 usage</pre>
+    PGC->>PGCRD: 回写资源状态与部分运行态
+    QC->>Q: patch Queue 状态
+    QC->>PM: 暴露队列级资源指标
+    PM-->>S: usage DB client 查询历史 usage</pre>
 
 <p>这个 sequence 图里，真正最关键的转折点有两个：</p>
 <ul>
@@ -1547,9 +1598,8 @@
 <p>这是 KAI 跟只做 node fitting 的调度器非常不同的一点。</p>
 <h2 id="第四步：scheduler-在一个-cycle-里对-snapshot-做决策"><a href="#第四步：scheduler-在一个-cycle-里对-snapshot-做决策" class="headerlink" title="第四步：scheduler 在一个 cycle 里对 snapshot 做决策"></a>第四步：scheduler 在一个 cycle 里对 snapshot 做决策</h2><p>等到 <code>PodGroup</code> 和 <code>Queue</code> 都就位以后，scheduler 才开始它真正擅长的事情。</p>
 <p>这里的关键点不是某个单独算法，而是 <strong>周期性调度模型</strong>。</p>
-<p>KAI scheduler 不是收到一个 Pod 事件就立刻同步做完全部决策，而是每个 cycle：</p>
+<p>KAI scheduler 不是收到一个 Pod 事件就立刻同步做完全部决策。更准确地说，是启动时先让 cache 跑起来并等待同步；进入稳定运行后，每个 cycle 再做：</p>
 <ol>
-<li>同步 cache</li>
 <li>获取 snapshot</li>
 <li>打开 session</li>
 <li>执行 actions</li>
@@ -1579,7 +1629,7 @@
 <p>所以它做出来的是更接近“全局最优”或“局部一致最优”的决策，而不只是一个 request&#x2F;response 式的即时选择。</p>
 <h2 id="第五步：scheduler-不直接-bind，而是创建-BindRequest"><a href="#第五步：scheduler-不直接-bind，而是创建-BindRequest" class="headerlink" title="第五步：scheduler 不直接 bind，而是创建 BindRequest"></a>第五步：scheduler 不直接 bind，而是创建 <code>BindRequest</code></h2><p>这是 KAI 整条工作流里最精彩的一步。</p>
 <p>在 <code>pkg/scheduler/cache/cache.go</code> 里，<code>SchedulerCache.Bind(...)</code> 的逻辑不是直接调用 Pod binding API，而是创建 <code>BindRequest</code>。</p>
-<p><code>BindRequestSpec</code> 里会写入：</p>
+<p>当前 scheduler 创建 <code>BindRequest</code> 时，<code>BindRequestSpec</code> 里主要会写入：</p>
 <ul>
 <li><code>PodName</code></li>
 <li><code>SelectedNode</code></li>
@@ -1587,9 +1637,8 @@
 <li><code>ReceivedGPU</code></li>
 <li><code>SelectedGPUGroups</code></li>
 <li><code>ResourceClaimAllocations</code></li>
-<li><code>BackoffLimit</code></li>
 </ul>
-<p>这说明什么？说明 scheduler 输出的不是一个轻量的“node choice”，而是一份 <strong>完整的绑定执行意图</strong>。</p>
+<p>另外，<code>BindRequest</code> 类型里确实还定义了 <code>BackoffLimit</code>，但当前 scheduler 创建对象时并不会主动填充它。更重要的是，scheduler 输出的不是一个轻量的“node choice”，而是一份 <strong>完整的绑定执行意图</strong>。</p>
 <h3 id="为什么这一步非常重要"><a href="#为什么这一步非常重要" class="headerlink" title="为什么这一步非常重要"></a>为什么这一步非常重要</h3><p>如果 scheduler 直接 bind Pod，那它就必须自己同步承担这些职责：</p>
 <ul>
 <li>资源声明与 DRA 处理</li>
@@ -1639,15 +1688,15 @@
 <p>因为 scheduler 的决策不只是“选 node”，它往往还隐含了若干资源分配语义。如果失败后没有清理干净，后面很容易出现资源状态污染。</p>
 <h2 id="最后一环：状态回写与历史反馈"><a href="#最后一环：状态回写与历史反馈" class="headerlink" title="最后一环：状态回写与历史反馈"></a>最后一环：状态回写与历史反馈</h2><p>如果工作流只到 binder 为止，那 KAI 还只是一个“高级 scheduler”。</p>
 <p>它之所以更像平台，是因为后面还有完整的反馈闭环。</p>
-<h3 id="PodGroupController"><a href="#PodGroupController" class="headerlink" title="PodGroupController"></a><code>PodGroupController</code></h3><p>负责把 workload 运行态、资源状态、调度条件回写到 <code>PodGroup</code>。</p>
+<h3 id="PodGroupController"><a href="#PodGroupController" class="headerlink" title="PodGroupController"></a><code>PodGroupController</code></h3><p>它主要回写 <code>PodGroup.ResourcesStatus</code>，并补充部分调度&#x2F;运行态信息。</p>
 <p>这让 <code>PodGroup</code> 不只是“调度前的输入”，也变成“调度后的观测对象”。</p>
-<h3 id="QueueController"><a href="#QueueController" class="headerlink" title="QueueController"></a><code>QueueController</code></h3><p>负责聚合 queue 层的资源状态，为公平性和资源分配提供基础。</p>
+<h3 id="QueueController"><a href="#QueueController" class="headerlink" title="QueueController"></a><code>QueueController</code></h3><p>它主要 patch <code>Queue</code> 状态，并把队列级资源统计暴露成指标，为公平性和资源分配提供基础。</p>
 <h3 id="Prometheus-usage-DB"><a href="#Prometheus-usage-DB" class="headerlink" title="Prometheus &#x2F; usage DB"></a>Prometheus &#x2F; usage DB</h3><p>当 time-based fairshare 打开以后，这条反馈链会继续延伸：</p>
 <ul>
-<li>pod-group-controller 更新 podgroup 资源状态</li>
-<li>queue-controller 聚合 queue 级 usage</li>
-<li>Prometheus 存储历史 usage</li>
-<li>scheduler 下一轮从 usage DB 读取历史数据</li>
+<li>podgroup-controller 更新 podgroup 资源状态</li>
+<li>queue-controller patch queue 状态并导出指标</li>
+<li>Prometheus 存储这些历史指标</li>
+<li>scheduler 通过 usage DB client 读取历史数据</li>
 </ul>
 <p>这就让 KAI 不只是“看当前资源”的 scheduler，而是一个能把 <strong>历史使用行为</strong> 纳入决策的系统。</p>
 <h2 id="KAI-的-workflow-为什么适合-AI-batch-workload"><a href="#KAI-的-workflow-为什么适合-AI-batch-workload" class="headerlink" title="KAI 的 workflow 为什么适合 AI &#x2F; batch workload"></a>KAI 的 workflow 为什么适合 AI &#x2F; batch workload</h2><p>把整条链路看完以后，会很容易理解它为什么适合 AI 场景。</p>
@@ -1668,7 +1717,7 @@
 </ul>
 <p>用 <code>BindRequest</code> 把 decision plane 和 execution plane 分开，能让调度器更专注，也让系统更稳定。</p>
 <h3 id="3-它有反馈闭环"><a href="#3-它有反馈闭环" class="headerlink" title="3. 它有反馈闭环"></a>3. 它有反馈闭环</h3><p>公平性不只是“这一刻谁先跑”，而是“长期来看谁占用了多少资源”。</p>
-<p>KAI 的 queue controller + Prometheus + usage DB 让它可以逐步走向时间维度的公平性，而不是只做瞬时队列排序。</p>
+<p>KAI 通过 queue controller 导出队列级指标，再由 Prometheus 和 usage DB client 把这些历史数据带回调度决策里，因此它可以逐步走向时间维度的公平性，而不是只做瞬时队列排序。</p>
 <h2 id="我对这条工作流的一个总结"><a href="#我对这条工作流的一个总结" class="headerlink" title="我对这条工作流的一个总结"></a>我对这条工作流的一个总结</h2><p>如果把 KAI 的控制面 workflow 用一句话概括，我会写成：</p>
 <blockquote>
 <p><strong>先把 Kubernetes workload 翻译成 KAI 的 workload language，再在一致性 snapshot 上做调度决策，最后把决策通过异步 binding pipeline 落地，并把结果反馈回 queue 与 workload 状态。</strong></p>
@@ -1743,9 +1792,15 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
-      
 
-      <time title="Created: 2026-04-23 10:00:00 / Modified: 09:20:44" itemprop="dateCreated datePublished" datetime="2026-04-23T10:00:00+08:00">2026-04-23</time>
+      <time title="Created: 2026-04-23 10:00:00" itemprop="dateCreated datePublished" datetime="2026-04-23T10:00:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-05-06 16:19:50" itemprop="dateModified" datetime="2026-05-06T16:19:50+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -1773,21 +1828,21 @@
 <li><strong>工作负载建模</strong>：把 Pod、Job、Ray、Kubeflow、JobSet 之类的对象，统一收敛成 <code>PodGroup</code>、<code>Queue</code> 这些调度语义更强的 CRD。</li>
 <li><strong>调度决策</strong>：scheduler 基于 snapshot&#x2F;session&#x2F;actions&#x2F;plugins 做周期性调度。</li>
 <li><strong>执行落地</strong>：scheduler 不直接 bind Pod，而是创建 <code>BindRequest</code>，交给 binder 异步执行。</li>
-<li><strong>状态与反馈</strong>：PodGroup Controller、Queue Controller、Prometheus、usage DB 一起把“当前状态”和“历史使用量”喂回调度器。</li>
+<li><strong>状态与反馈</strong>：PodGroup Controller、Queue Controller 与 scheduler status updater 一起回写当前状态；当启用 Prometheus-backed usage DB 时，历史使用量再通过 usage DB client 回流给调度器。</li>
 <li><strong>平台配置</strong>：operator 通过 <code>Config</code> 和 <code>SchedulingShard</code> 把整套控制面部署出来，并且把每个 shard 的调度策略参数化。</li>
 </ol>
 <p>如果只盯着 <code>pkg/scheduler</code>，会看见一个很强的调度内核；但如果把 <code>cmd/</code>、<code>pkg/apis/</code>、<code>pkg/operator/</code>、<code>pkg/binder/</code>、<code>pkg/podgrouper/</code> 放在一起，才会看见 KAI 真正的系统轮廓。</p>
-<h2 id="先从-repo-结构建立“地图感”"><a href="#先从-repo-结构建立“地图感”" class="headerlink" title="先从 repo 结构建立“地图感”"></a>先从 repo 结构建立“地图感”</h2><p>这个仓库最值得先看的不是某个具体算法，而是目录本身：</p>
+<h2 id="先从-repo-结构建立“地图感”"><a href="#先从-repo-结构建立“地图感”" class="headerlink" title="先从 repo 结构建立“地图感”"></a>先从 repo 结构建立“地图感”</h2><p>这个仓库最值得先看的不是某个具体算法，而是目录本身。下面这个目录树是为了建立“地图感”整理出的简化视图：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">cmd/</span><br><span class="line">  admission/</span><br><span class="line">  binder/</span><br><span class="line">  operator/</span><br><span class="line">  podgrouper/</span><br><span class="line">  podgroupcontroller/</span><br><span class="line">  queuecontroller/</span><br><span class="line">  scheduler/</span><br><span class="line">  nodescaleadjuster/</span><br><span class="line">  resourcereservation/</span><br><span class="line">  snapshot-tool/</span><br><span class="line">  fairshare-simulator/</span><br><span class="line">  time-based-fairshare-simulator/</span><br><span class="line"></span><br><span class="line">pkg/</span><br><span class="line">  apis/</span><br><span class="line">  binder/</span><br><span class="line">  operator/</span><br><span class="line">  podgrouper/</span><br><span class="line">  podgroupcontroller/</span><br><span class="line">  queuecontroller/</span><br><span class="line">  scheduler/</span><br><span class="line">  common/</span><br><span class="line"></span><br><span class="line">docs/</span><br><span class="line">  developer/</span><br><span class="line">  operator/</span><br><span class="line">  fairness/</span><br><span class="line">  queues/</span><br><span class="line">  topology/</span><br><span class="line">  time-based-fairshare/</span><br></pre></td></tr></table></figure>
 
-<p>这个结构已经说明了一件事：<strong>KAI 的实现方式不是把复杂性都堆进 scheduler 进程，而是把不同职责拆成多个控制器和服务。</strong></p>
+<p>这不是逐目录逐文件的完整清单，但已经足够说明一件事：<strong>KAI 的实现方式不是把复杂性都堆进 scheduler 进程，而是把不同职责拆成多个控制器和服务。</strong></p>
 <h3 id="cmd-：每个二进制都代表一个架构角色"><a href="#cmd-：每个二进制都代表一个架构角色" class="headerlink" title="cmd/：每个二进制都代表一个架构角色"></a><code>cmd/</code>：每个二进制都代表一个架构角色</h3><p>从 <code>cmd/</code> 可以直接看出 KAI 的主要运行单元：</p>
 <ul>
 <li><code>scheduler</code>：真正做 placement 决策的内核。</li>
 <li><code>binder</code>：异步执行 bind、资源准备、回滚。</li>
-<li><code>podgrouper</code>：自动把 workload 转换成 <code>PodGroup</code>。</li>
-<li><code>podgroupcontroller</code>：回写 PodGroup 的运行态和资源状态。</li>
-<li><code>queuecontroller</code>：维护队列层级与资源使用状态。</li>
+<li><code>podgrouper</code>：监听匹配 <code>schedulerName</code> 的 Pod，并把 workload 转换成 <code>PodGroup</code>。</li>
+<li><code>podgroupcontroller</code>：回写 <code>PodGroup</code> 的资源状态，并补充部分运行态信息。</li>
+<li><code>queuecontroller</code>：回写 <code>Queue</code> 状态，并暴露队列级资源统计指标。</li>
 <li><code>operator</code>：把整套 KAI 控制面部署出来。</li>
 <li><code>admission</code>：准入控制和 webhook。</li>
 <li><code>nodescaleadjuster</code>：和节点伸缩场景对接。</li>
@@ -1835,8 +1890,9 @@
     Pods --> QueueController[Queue Controller]
     PodGroupController --> PodGroup
     QueueController --> Queue
-    QueueController --> Prometheus[Prometheus / Usage DB]
-    Prometheus --> Scheduler</pre>
+    QueueController --> Prometheus[Prometheus Metrics]
+    Prometheus --> UsageDB[Usage DB Client]
+    UsageDB --> Scheduler</pre>
 
 <p>这个图最想表达的是三件事：</p>
 <h3 id="1-KAI-先把-workload-变成“可调度对象”，再做调度"><a href="#1-KAI-先把-workload-变成“可调度对象”，再做调度" class="headerlink" title="1. KAI 先把 workload 变成“可调度对象”，再做调度"></a>1. KAI 先把 workload 变成“可调度对象”，再做调度</h3><p>Kubernetes 原生对象很多：Pod、Job、Deployment、RayCluster、PyTorchJob、MPIJob、JobSet……</p>
@@ -1857,9 +1913,9 @@
 </ul>
 <p>这类设计在控制面系统里非常常见，但在 scheduler 里做得这么明确，其实很少见。</p>
 <h3 id="3-KAI-不是静态策略，而是可配置的调度平台"><a href="#3-KAI-不是静态策略，而是可配置的调度平台" class="headerlink" title="3. KAI 不是静态策略，而是可配置的调度平台"></a>3. KAI 不是静态策略，而是可配置的调度平台</h3><p>很多项目的“可扩展”只是加几个 flag。KAI 明显不是这个级别。</p>
-<p><code>scheduling shard</code> 这一层直接把下面这些内容暴露成平台配置面：</p>
+<p><code>SchedulingShard</code> 这一层直接把下面这些内容暴露成平台配置面：</p>
 <ul>
-<li>partition &#x2F; node pool</li>
+<li><code>partitionLabelValue</code> &#x2F; node pool label</li>
 <li>placement strategy（binpack &#x2F; spread）</li>
 <li>queue depth</li>
 <li>min runtime</li>
@@ -1882,7 +1938,7 @@
 </ul>
 <p>这很像在 Kubernetes 里做了一层“平台安装 API”。</p>
 <h3 id="SchedulingShard：调度器不再是单实例，而是按分片部署"><a href="#SchedulingShard：调度器不再是单实例，而是按分片部署" class="headerlink" title="SchedulingShard：调度器不再是单实例，而是按分片部署"></a><code>SchedulingShard</code>：调度器不再是单实例，而是按分片部署</h3><p><code>SchedulingShard</code> 是另一个非常有代表性的对象。</p>
-<p>它说明 KAI 并不把“集群只有一个 scheduler 实例”当成默认前提，而是支持按 node pool &#x2F; queue &#x2F; podgroup label 做逻辑分片。每个 shard 都可以有自己的：</p>
+<p>它说明 KAI 并不把“集群只有一个 scheduler 实例”当成默认前提，而是支持按 node pool &#x2F; <code>partitionLabelValue</code> 做逻辑分片，并让带有对应分片标签的 <code>Queue</code> &#x2F; <code>PodGroup</code> 进入同一个调度域。每个 shard 都可以有自己的：</p>
 <ul>
 <li><code>partitionLabelValue</code></li>
 <li>placement strategy</li>

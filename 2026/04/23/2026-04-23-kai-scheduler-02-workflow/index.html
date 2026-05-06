@@ -27,7 +27,7 @@
 <meta property="og:description" content="上一篇我把 KAI Scheduler 当成一个平台来读：它不是单个 scheduler 进程，而是一串围绕 CRD、controller 和 scheduling session 组织起来的控制面。 这一篇开始看它真正的“主干路径”：一个 workload 进入集群后，到底是怎么一步步变成调度决策，再变成真实节点绑定的？ 如果要先给结论，我会这样概括：  在 KAI 里，提交 workload">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-04-23T02:15:00.000Z">
-<meta property="article:modified_time" content="2026-04-23T01:20:54.583Z">
+<meta property="article:modified_time" content="2026-05-06T08:25:22.512Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="kubernetes">
 <meta property="article:tag" content="scheduler">
@@ -187,9 +187,15 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
-      
 
-      <time title="Created: 2026-04-23 10:15:00 / Modified: 09:20:54" itemprop="dateCreated datePublished" datetime="2026-04-23T10:15:00+08:00">2026-04-23</time>
+      <time title="Created: 2026-04-23 10:15:00" itemprop="dateCreated datePublished" datetime="2026-04-23T10:15:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-05-06 16:25:22" itemprop="dateModified" datetime="2026-05-06T16:25:22+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -236,7 +242,7 @@
     participant B as Binder
     participant PGC as PodGroup Controller
     participant QC as Queue Controller
-    participant PM as Prometheus / Usage DB
+    participant PM as Prometheus / Metrics Store
 
     U->>A: 创建 Pod / Job / Ray / Kubeflow workload
     A-->>U: 准入校验 / 变更
@@ -249,10 +255,10 @@
     B->>BR: reconcile BindRequest
     B->>B: 执行 bind / 资源准备 / 回滚
     B-->>U: Pod 绑定到目标节点
-    PGC->>PGCRD: 回写 workload 运行态和资源状态
-    QC->>Q: 聚合队列资源状态
-    QC->>PM: 暴露历史资源使用数据
-    PM-->>S: 为 time-based fairshare 提供历史 usage</pre>
+    PGC->>PGCRD: 回写资源状态与部分运行态
+    QC->>Q: patch Queue 状态
+    QC->>PM: 暴露队列级资源指标
+    PM-->>S: usage DB client 查询历史 usage</pre>
 
 <p>这个 sequence 图里，真正最关键的转折点有两个：</p>
 <ul>
@@ -342,9 +348,8 @@
 <p>这是 KAI 跟只做 node fitting 的调度器非常不同的一点。</p>
 <h2 id="第四步：scheduler-在一个-cycle-里对-snapshot-做决策"><a href="#第四步：scheduler-在一个-cycle-里对-snapshot-做决策" class="headerlink" title="第四步：scheduler 在一个 cycle 里对 snapshot 做决策"></a>第四步：scheduler 在一个 cycle 里对 snapshot 做决策</h2><p>等到 <code>PodGroup</code> 和 <code>Queue</code> 都就位以后，scheduler 才开始它真正擅长的事情。</p>
 <p>这里的关键点不是某个单独算法，而是 <strong>周期性调度模型</strong>。</p>
-<p>KAI scheduler 不是收到一个 Pod 事件就立刻同步做完全部决策，而是每个 cycle：</p>
+<p>KAI scheduler 不是收到一个 Pod 事件就立刻同步做完全部决策。更准确地说，是启动时先让 cache 跑起来并等待同步；进入稳定运行后，每个 cycle 再做：</p>
 <ol>
-<li>同步 cache</li>
 <li>获取 snapshot</li>
 <li>打开 session</li>
 <li>执行 actions</li>
@@ -374,7 +379,7 @@
 <p>所以它做出来的是更接近“全局最优”或“局部一致最优”的决策，而不只是一个 request&#x2F;response 式的即时选择。</p>
 <h2 id="第五步：scheduler-不直接-bind，而是创建-BindRequest"><a href="#第五步：scheduler-不直接-bind，而是创建-BindRequest" class="headerlink" title="第五步：scheduler 不直接 bind，而是创建 BindRequest"></a>第五步：scheduler 不直接 bind，而是创建 <code>BindRequest</code></h2><p>这是 KAI 整条工作流里最精彩的一步。</p>
 <p>在 <code>pkg/scheduler/cache/cache.go</code> 里，<code>SchedulerCache.Bind(...)</code> 的逻辑不是直接调用 Pod binding API，而是创建 <code>BindRequest</code>。</p>
-<p><code>BindRequestSpec</code> 里会写入：</p>
+<p>当前 scheduler 创建 <code>BindRequest</code> 时，<code>BindRequestSpec</code> 里主要会写入：</p>
 <ul>
 <li><code>PodName</code></li>
 <li><code>SelectedNode</code></li>
@@ -382,9 +387,8 @@
 <li><code>ReceivedGPU</code></li>
 <li><code>SelectedGPUGroups</code></li>
 <li><code>ResourceClaimAllocations</code></li>
-<li><code>BackoffLimit</code></li>
 </ul>
-<p>这说明什么？说明 scheduler 输出的不是一个轻量的“node choice”，而是一份 <strong>完整的绑定执行意图</strong>。</p>
+<p>另外，<code>BindRequest</code> 类型里确实还定义了 <code>BackoffLimit</code>，但当前 scheduler 创建对象时并不会主动填充它。更重要的是，scheduler 输出的不是一个轻量的“node choice”，而是一份 <strong>完整的绑定执行意图</strong>。</p>
 <h3 id="为什么这一步非常重要"><a href="#为什么这一步非常重要" class="headerlink" title="为什么这一步非常重要"></a>为什么这一步非常重要</h3><p>如果 scheduler 直接 bind Pod，那它就必须自己同步承担这些职责：</p>
 <ul>
 <li>资源声明与 DRA 处理</li>
@@ -434,15 +438,15 @@
 <p>因为 scheduler 的决策不只是“选 node”，它往往还隐含了若干资源分配语义。如果失败后没有清理干净，后面很容易出现资源状态污染。</p>
 <h2 id="最后一环：状态回写与历史反馈"><a href="#最后一环：状态回写与历史反馈" class="headerlink" title="最后一环：状态回写与历史反馈"></a>最后一环：状态回写与历史反馈</h2><p>如果工作流只到 binder 为止，那 KAI 还只是一个“高级 scheduler”。</p>
 <p>它之所以更像平台，是因为后面还有完整的反馈闭环。</p>
-<h3 id="PodGroupController"><a href="#PodGroupController" class="headerlink" title="PodGroupController"></a><code>PodGroupController</code></h3><p>负责把 workload 运行态、资源状态、调度条件回写到 <code>PodGroup</code>。</p>
+<h3 id="PodGroupController"><a href="#PodGroupController" class="headerlink" title="PodGroupController"></a><code>PodGroupController</code></h3><p>它主要回写 <code>PodGroup.ResourcesStatus</code>，并补充部分调度&#x2F;运行态信息。</p>
 <p>这让 <code>PodGroup</code> 不只是“调度前的输入”，也变成“调度后的观测对象”。</p>
-<h3 id="QueueController"><a href="#QueueController" class="headerlink" title="QueueController"></a><code>QueueController</code></h3><p>负责聚合 queue 层的资源状态，为公平性和资源分配提供基础。</p>
+<h3 id="QueueController"><a href="#QueueController" class="headerlink" title="QueueController"></a><code>QueueController</code></h3><p>它主要 patch <code>Queue</code> 状态，并把队列级资源统计暴露成指标，为公平性和资源分配提供基础。</p>
 <h3 id="Prometheus-usage-DB"><a href="#Prometheus-usage-DB" class="headerlink" title="Prometheus &#x2F; usage DB"></a>Prometheus &#x2F; usage DB</h3><p>当 time-based fairshare 打开以后，这条反馈链会继续延伸：</p>
 <ul>
-<li>pod-group-controller 更新 podgroup 资源状态</li>
-<li>queue-controller 聚合 queue 级 usage</li>
-<li>Prometheus 存储历史 usage</li>
-<li>scheduler 下一轮从 usage DB 读取历史数据</li>
+<li>podgroup-controller 更新 podgroup 资源状态</li>
+<li>queue-controller patch queue 状态并导出指标</li>
+<li>Prometheus 存储这些历史指标</li>
+<li>scheduler 通过 usage DB client 读取历史数据</li>
 </ul>
 <p>这就让 KAI 不只是“看当前资源”的 scheduler，而是一个能把 <strong>历史使用行为</strong> 纳入决策的系统。</p>
 <h2 id="KAI-的-workflow-为什么适合-AI-batch-workload"><a href="#KAI-的-workflow-为什么适合-AI-batch-workload" class="headerlink" title="KAI 的 workflow 为什么适合 AI &#x2F; batch workload"></a>KAI 的 workflow 为什么适合 AI &#x2F; batch workload</h2><p>把整条链路看完以后，会很容易理解它为什么适合 AI 场景。</p>
@@ -463,7 +467,7 @@
 </ul>
 <p>用 <code>BindRequest</code> 把 decision plane 和 execution plane 分开，能让调度器更专注，也让系统更稳定。</p>
 <h3 id="3-它有反馈闭环"><a href="#3-它有反馈闭环" class="headerlink" title="3. 它有反馈闭环"></a>3. 它有反馈闭环</h3><p>公平性不只是“这一刻谁先跑”，而是“长期来看谁占用了多少资源”。</p>
-<p>KAI 的 queue controller + Prometheus + usage DB 让它可以逐步走向时间维度的公平性，而不是只做瞬时队列排序。</p>
+<p>KAI 通过 queue controller 导出队列级指标，再由 Prometheus 和 usage DB client 把这些历史数据带回调度决策里，因此它可以逐步走向时间维度的公平性，而不是只做瞬时队列排序。</p>
 <h2 id="我对这条工作流的一个总结"><a href="#我对这条工作流的一个总结" class="headerlink" title="我对这条工作流的一个总结"></a>我对这条工作流的一个总结</h2><p>如果把 KAI 的控制面 workflow 用一句话概括，我会写成：</p>
 <blockquote>
 <p><strong>先把 Kubernetes workload 翻译成 KAI 的 workload language，再在一致性 snapshot 上做调度决策，最后把决策通过异步 binding pipeline 落地，并把结果反馈回 queue 与 workload 状态。</strong></p>

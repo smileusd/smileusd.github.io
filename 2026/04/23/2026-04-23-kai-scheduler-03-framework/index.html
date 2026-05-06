@@ -27,7 +27,7 @@
 <meta property="og:description" content="如果说上一篇讲的是控制面工作流，那么这一篇要进入 KAI Scheduler 最核心的部分：调度内核是怎么组织的。 我读 KAI 代码时最大的感受是，它并不是把所有逻辑揉进一个“大调度函数”，而是把调度过程拆成了几层非常稳定的抽象：  cycle cache snapshot session actions plugins statement &#x2F; scenario  这些抽象不是为了“显">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-04-23T02:30:00.000Z">
-<meta property="article:modified_time" content="2026-04-23T01:11:04.010Z">
+<meta property="article:modified_time" content="2026-05-06T08:25:05.630Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="kubernetes">
 <meta property="article:tag" content="scheduler">
@@ -108,7 +108,7 @@
       <div class="sidebar-panel-container">
         <!--noindex-->
         <div class="post-toc-wrap sidebar-panel">
-            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%88%E7%9C%8B%E6%9C%80%E7%9F%AD%E7%9A%84%E8%B0%83%E5%BA%A6%E4%B8%BB%E5%BE%AA%E7%8E%AF"><span class="nav-number">1.</span> <span class="nav-text">先看最短的调度主循环</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E5%B1%82%EF%BC%9ACycle-%E2%80%94%E2%80%94-%E8%B0%83%E5%BA%A6%E4%B8%8D%E6%98%AF%E4%BA%8B%E4%BB%B6%E5%9B%9E%E8%B0%83%EF%BC%8C%E8%80%8C%E6%98%AF%E5%91%A8%E6%9C%9F%E6%80%A7%E8%AE%A1%E7%AE%97"><span class="nav-number">2.</span> <span class="nav-text">第一层：Cycle —— 调度不是事件回调，而是周期性计算</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88-KAI-%E9%80%89%E6%8B%A9-cycle-model"><span class="nav-number">2.1.</span> <span class="nav-text">为什么 KAI 选择 cycle model</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%8C%E5%B1%82%EF%BC%9ACache-%E2%80%94%E2%80%94-%E8%B0%83%E5%BA%A6%E5%99%A8%E7%9C%9F%E6%AD%A3%E4%BE%9D%E8%B5%96%E7%9A%84%E6%98%AF%E8%81%9A%E5%90%88%E6%80%81%EF%BC%8C%E8%80%8C%E4%B8%8D%E6%98%AF%E9%9B%B6%E6%95%A3-API-%E8%B0%83%E7%94%A8"><span class="nav-number">3.</span> <span class="nav-text">第二层：Cache —— 调度器真正依赖的是聚合态，而不是零散 API 调用</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E5%B1%82%E5%BE%88%E5%85%B3%E9%94%AE"><span class="nav-number">3.1.</span> <span class="nav-text">为什么这层很关键</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%89%E5%B1%82%EF%BC%9ASnapshot-%E2%80%94%E2%80%94-%E6%AF%8F%E4%B8%80%E8%BD%AE%E8%B0%83%E5%BA%A6%E9%83%BD%E4%BB%8E%E4%B8%80%E8%87%B4%E6%80%A7%E8%A7%86%E5%9B%BE%E5%87%BA%E5%8F%91"><span class="nav-number">4.</span> <span class="nav-text">第三层：Snapshot —— 每一轮调度都从一致性视图出发</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#snapshot-%E7%9A%84%E6%84%8F%E4%B9%89"><span class="nav-number">4.1.</span> <span class="nav-text">snapshot 的意义</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-number">4.1.1.</span> <span class="nav-text">一致性</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8F%AF%E6%A8%A1%E6%8B%9F"><span class="nav-number">4.1.2.</span> <span class="nav-text">可模拟</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8F%AF%E5%A4%8D%E7%8E%B0"><span class="nav-number">4.1.3.</span> <span class="nav-text">可复现</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%9B%9B%E5%B1%82%EF%BC%9ASession-%E2%80%94%E2%80%94-%E4%B8%80%E8%BD%AE%E8%B0%83%E5%BA%A6%E7%9C%9F%E6%AD%A3%E7%9A%84%E6%89%A7%E8%A1%8C%E4%B8%8A%E4%B8%8B%E6%96%87"><span class="nav-number">5.</span> <span class="nav-text">第四层：Session —— 一轮调度真正的执行上下文</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Session-%E8%B4%9F%E8%B4%A3%E4%BB%80%E4%B9%88"><span class="nav-number">5.1.</span> <span class="nav-text">Session 负责什么</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%99%E5%B1%82%E8%AE%BE%E8%AE%A1%E7%9A%84%E5%A6%99%E5%A4%84"><span class="nav-number">5.2.</span> <span class="nav-text">这层设计的妙处</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%94%E5%B1%82%EF%BC%9AAction-%E2%80%94%E2%80%94-%E6%B5%81%E7%A8%8B%E7%94%B1-action-%E5%86%B3%E5%AE%9A%EF%BC%8C%E4%B8%8D%E7%94%B1-plugin-%E5%86%B3%E5%AE%9A"><span class="nav-number">6.</span> <span class="nav-text">第五层：Action —— 流程由 action 决定，不由 plugin 决定</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88-action-%E9%A1%BA%E5%BA%8F%E5%BE%88%E9%87%8D%E8%A6%81"><span class="nav-number">6.1.</span> <span class="nav-text">为什么 action 顺序很重要</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Allocate"><span class="nav-number">6.1.1.</span> <span class="nav-text">Allocate</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Consolidate"><span class="nav-number">6.1.2.</span> <span class="nav-text">Consolidate</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Reclaim"><span class="nav-number">6.1.3.</span> <span class="nav-text">Reclaim</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Preempt"><span class="nav-number">6.1.4.</span> <span class="nav-text">Preempt</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#StaleGangEviction"><span class="nav-number">6.1.5.</span> <span class="nav-text">StaleGangEviction</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%85%AD%E5%B1%82%EF%BC%9APlugin-%E2%80%94%E2%80%94-%E7%AD%96%E7%95%A5%E7%94%B1-plugin-%E6%B3%A8%E5%85%A5%EF%BC%8C%E4%B8%8D%E7%94%B1-action-%E5%86%99%E6%AD%BB"><span class="nav-number">7.</span> <span class="nav-text">第六层：Plugin —— 策略由 plugin 注入，不由 action 写死</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%99%E6%84%8F%E5%91%B3%E7%9D%80%E4%BB%80%E4%B9%88"><span class="nav-number">7.1.</span> <span class="nav-text">这意味着什么</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E4%B8%AA%E9%9D%9E%E5%B8%B8%E5%85%B3%E9%94%AE%E7%9A%84%E5%8C%BA%E5%88%86"><span class="nav-number">7.2.</span> <span class="nav-text">一个非常关键的区分</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%83%E5%B1%82%EF%BC%9AStatement-Scenario-%E2%80%94%E2%80%94-KAI-%E6%9C%80%E6%9C%89%E6%84%8F%E6%80%9D%E7%9A%84%E8%AE%BE%E8%AE%A1%E4%B9%8B%E4%B8%80"><span class="nav-number">8.</span> <span class="nav-text">第七层：Statement &#x2F; Scenario —— KAI 最有意思的设计之一</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Scenario%EF%BC%9A%E5%85%88%E6%9E%84%E9%80%A0%E2%80%9C%E5%A6%82%E6%9E%9C%E8%BF%99%E6%A0%B7%E8%B0%83%E5%BA%A6%EF%BC%8C%E4%BC%9A%E5%8F%91%E7%94%9F%E4%BB%80%E4%B9%88%E2%80%9D"><span class="nav-number">9.</span> <span class="nav-text">Scenario：先构造“如果这样调度，会发生什么”</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Statement%EF%BC%9A%E6%8A%8A%E4%B8%80%E7%BB%84%E8%B0%83%E5%BA%A6%E6%93%8D%E4%BD%9C%E7%BB%84%E7%BB%87%E6%88%90%E4%BA%8B%E5%8A%A1%E5%BC%8F%E5%8D%95%E5%85%83"><span class="nav-number">10.</span> <span class="nav-text">Statement：把一组调度操作组织成事务式单元</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E9%9D%9E%E5%B8%B8%E9%80%82%E5%90%88-KAI"><span class="nav-number">10.1.</span> <span class="nav-text">为什么这非常适合 KAI</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Action-Plugin-Statement-%E8%BF%99%E4%B8%89%E4%B8%AA%E4%B8%9C%E8%A5%BF%E6%80%8E%E4%B9%88%E9%85%8D%E5%90%88"><span class="nav-number">11.</span> <span class="nav-text">Action + Plugin + Statement 这三个东西怎么配合</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E5%A5%97%E6%A1%86%E6%9E%B6%E8%B6%B3%E4%BB%A5%E6%89%BF%E8%BD%BD%E9%AB%98%E7%BA%A7%E8%83%BD%E5%8A%9B"><span class="nav-number">12.</span> <span class="nav-text">为什么这套框架足以承载高级能力</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%88%91%E5%AF%B9-KAI-%E8%B0%83%E5%BA%A6%E6%A1%86%E6%9E%B6%E7%9A%84%E4%B8%80%E4%B8%AA%E6%80%BB%E7%BB%93"><span class="nav-number">13.</span> <span class="nav-text">我对 KAI 调度框架的一个总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8B%E4%B8%80%E7%AF%87%E7%9C%8B%E4%BB%80%E4%B9%88"><span class="nav-number">14.</span> <span class="nav-text">下一篇看什么</span></a></li></ol></div>
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%88%E7%9C%8B%E6%9C%80%E7%9F%AD%E7%9A%84%E8%B0%83%E5%BA%A6%E4%B8%BB%E5%BE%AA%E7%8E%AF"><span class="nav-number">1.</span> <span class="nav-text">先看最短的调度主循环</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E5%B1%82%EF%BC%9ACycle-%E2%80%94%E2%80%94-%E8%B0%83%E5%BA%A6%E4%B8%8D%E6%98%AF%E4%BA%8B%E4%BB%B6%E5%9B%9E%E8%B0%83%EF%BC%8C%E8%80%8C%E6%98%AF%E5%91%A8%E6%9C%9F%E6%80%A7%E8%AE%A1%E7%AE%97"><span class="nav-number">2.</span> <span class="nav-text">第一层：Cycle —— 调度不是事件回调，而是周期性计算</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88-KAI-%E9%80%89%E6%8B%A9-cycle-model"><span class="nav-number">2.1.</span> <span class="nav-text">为什么 KAI 选择 cycle model</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%8C%E5%B1%82%EF%BC%9ACache-%E2%80%94%E2%80%94-%E8%B0%83%E5%BA%A6%E5%99%A8%E7%9C%9F%E6%AD%A3%E4%BE%9D%E8%B5%96%E7%9A%84%E6%98%AF%E8%81%9A%E5%90%88%E6%80%81%EF%BC%8C%E8%80%8C%E4%B8%8D%E6%98%AF%E9%9B%B6%E6%95%A3-API-%E8%B0%83%E7%94%A8"><span class="nav-number">3.</span> <span class="nav-text">第二层：Cache —— 调度器真正依赖的是聚合态，而不是零散 API 调用</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E5%B1%82%E5%BE%88%E5%85%B3%E9%94%AE"><span class="nav-number">3.1.</span> <span class="nav-text">为什么这层很关键</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%89%E5%B1%82%EF%BC%9ASnapshot-%E2%80%94%E2%80%94-%E6%AF%8F%E4%B8%80%E8%BD%AE%E8%B0%83%E5%BA%A6%E9%83%BD%E4%BB%8E%E4%B8%80%E8%87%B4%E6%80%A7%E8%A7%86%E5%9B%BE%E5%87%BA%E5%8F%91"><span class="nav-number">4.</span> <span class="nav-text">第三层：Snapshot —— 每一轮调度都从一致性视图出发</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#snapshot-%E7%9A%84%E6%84%8F%E4%B9%89"><span class="nav-number">4.1.</span> <span class="nav-text">snapshot 的意义</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-number">4.1.1.</span> <span class="nav-text">一致性</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8F%AF%E6%A8%A1%E6%8B%9F"><span class="nav-number">4.1.2.</span> <span class="nav-text">可模拟</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8F%AF%E5%A4%8D%E7%8E%B0"><span class="nav-number">4.1.3.</span> <span class="nav-text">可复现</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%9B%9B%E5%B1%82%EF%BC%9ASession-%E2%80%94%E2%80%94-%E4%B8%80%E8%BD%AE%E8%B0%83%E5%BA%A6%E7%9C%9F%E6%AD%A3%E7%9A%84%E6%89%A7%E8%A1%8C%E4%B8%8A%E4%B8%8B%E6%96%87"><span class="nav-number">5.</span> <span class="nav-text">第四层：Session —— 一轮调度真正的执行上下文</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Session-%E8%B4%9F%E8%B4%A3%E4%BB%80%E4%B9%88"><span class="nav-number">5.1.</span> <span class="nav-text">Session 负责什么</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%99%E5%B1%82%E8%AE%BE%E8%AE%A1%E7%9A%84%E5%A6%99%E5%A4%84"><span class="nav-number">5.2.</span> <span class="nav-text">这层设计的妙处</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%94%E5%B1%82%EF%BC%9AAction-%E2%80%94%E2%80%94-%E6%B5%81%E7%A8%8B%E7%94%B1-action-%E5%86%B3%E5%AE%9A%EF%BC%8C%E4%BD%86%E9%A1%BA%E5%BA%8F%E6%98%AF%E9%85%8D%E7%BD%AE%E9%A9%B1%E5%8A%A8%E7%9A%84"><span class="nav-number">6.</span> <span class="nav-text">第五层：Action —— 流程由 action 决定，但顺序是配置驱动的</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88-action-%E9%A1%BA%E5%BA%8F%E5%BE%88%E9%87%8D%E8%A6%81"><span class="nav-number">6.1.</span> <span class="nav-text">为什么 action 顺序很重要</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#allocate"><span class="nav-number">6.1.1.</span> <span class="nav-text">allocate</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#consolidation"><span class="nav-number">6.1.2.</span> <span class="nav-text">consolidation</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#reclaim"><span class="nav-number">6.1.3.</span> <span class="nav-text">reclaim</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#preempt"><span class="nav-number">6.1.4.</span> <span class="nav-text">preempt</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#stalegangeviction"><span class="nav-number">6.1.5.</span> <span class="nav-text">stalegangeviction</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%85%AD%E5%B1%82%EF%BC%9APlugin-%E2%80%94%E2%80%94-%E7%AD%96%E7%95%A5%E7%94%B1-plugin-%E6%B3%A8%E5%85%A5%EF%BC%8C%E4%B8%8D%E7%94%B1-action-%E5%86%99%E6%AD%BB"><span class="nav-number">7.</span> <span class="nav-text">第六层：Plugin —— 策略由 plugin 注入，不由 action 写死</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%99%E6%84%8F%E5%91%B3%E7%9D%80%E4%BB%80%E4%B9%88"><span class="nav-number">7.1.</span> <span class="nav-text">这意味着什么</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E4%B8%AA%E9%9D%9E%E5%B8%B8%E5%85%B3%E9%94%AE%E7%9A%84%E5%8C%BA%E5%88%86"><span class="nav-number">7.2.</span> <span class="nav-text">一个非常关键的区分</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%83%E5%B1%82%EF%BC%9AStatement-Scenario-%E2%80%94%E2%80%94-KAI-%E6%9C%80%E6%9C%89%E6%84%8F%E6%80%9D%E7%9A%84%E8%AE%BE%E8%AE%A1%E4%B9%8B%E4%B8%80"><span class="nav-number">8.</span> <span class="nav-text">第七层：Statement &#x2F; Scenario —— KAI 最有意思的设计之一</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Scenario%EF%BC%9A%E5%85%88%E6%9E%84%E9%80%A0%E2%80%9C%E5%A6%82%E6%9E%9C%E8%BF%99%E6%A0%B7%E8%B0%83%E5%BA%A6%EF%BC%8C%E4%BC%9A%E5%8F%91%E7%94%9F%E4%BB%80%E4%B9%88%E2%80%9D"><span class="nav-number">9.</span> <span class="nav-text">Scenario：先构造“如果这样调度，会发生什么”</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Statement%EF%BC%9A%E6%8A%8A%E4%B8%80%E7%BB%84%E8%B0%83%E5%BA%A6%E6%93%8D%E4%BD%9C%E7%BB%84%E7%BB%87%E6%88%90%E4%BA%8B%E5%8A%A1%E5%BC%8F%E5%8D%95%E5%85%83"><span class="nav-number">10.</span> <span class="nav-text">Statement：把一组调度操作组织成事务式单元</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E9%9D%9E%E5%B8%B8%E9%80%82%E5%90%88-KAI"><span class="nav-number">10.1.</span> <span class="nav-text">为什么这非常适合 KAI</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Action-Plugin-Statement-%E8%BF%99%E4%B8%89%E4%B8%AA%E4%B8%9C%E8%A5%BF%E6%80%8E%E4%B9%88%E9%85%8D%E5%90%88"><span class="nav-number">11.</span> <span class="nav-text">Action + Plugin + Statement 这三个东西怎么配合</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E5%A5%97%E6%A1%86%E6%9E%B6%E8%B6%B3%E4%BB%A5%E6%89%BF%E8%BD%BD%E9%AB%98%E7%BA%A7%E8%83%BD%E5%8A%9B"><span class="nav-number">12.</span> <span class="nav-text">为什么这套框架足以承载高级能力</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%88%91%E5%AF%B9-KAI-%E8%B0%83%E5%BA%A6%E6%A1%86%E6%9E%B6%E7%9A%84%E4%B8%80%E4%B8%AA%E6%80%BB%E7%BB%93"><span class="nav-number">13.</span> <span class="nav-text">我对 KAI 调度框架的一个总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8B%E4%B8%80%E7%AF%87%E7%9C%8B%E4%BB%80%E4%B9%88"><span class="nav-number">14.</span> <span class="nav-text">下一篇看什么</span></a></li></ol></div>
         </div>
         <!--/noindex-->
 
@@ -187,9 +187,15 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
-      
 
-      <time title="Created: 2026-04-23 10:30:00 / Modified: 09:11:04" itemprop="dateCreated datePublished" datetime="2026-04-23T10:30:00+08:00">2026-04-23</time>
+      <time title="Created: 2026-04-23 10:30:00" itemprop="dateCreated datePublished" datetime="2026-04-23T10:30:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-05-06 16:25:05" itemprop="dateModified" datetime="2026-05-06T16:25:05+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -247,8 +253,7 @@
 <h2 id="第一层：Cycle-——-调度不是事件回调，而是周期性计算"><a href="#第一层：Cycle-——-调度不是事件回调，而是周期性计算" class="headerlink" title="第一层：Cycle —— 调度不是事件回调，而是周期性计算"></a>第一层：Cycle —— 调度不是事件回调，而是周期性计算</h2><p>KAI 文档里一直强调“scheduling cycle”，这不是表述习惯，而是真正的架构选择。</p>
 <p>每个 cycle 的流程可以简化成：</p>
 <pre class="mermaid">flowchart LR
-    Start([Cycle Start]) --> Cache[Cache Sync]
-    Cache --> Snapshot[Take Snapshot]
+    Start([Cycle Start]) --> Snapshot[Take Snapshot from Cache]
     Snapshot --> Session[Open Session]
     Session --> Actions[Execute Actions]
     Actions --> Close[Close Session]
@@ -335,7 +340,7 @@
 <li>保存 snapshot 得到的 <code>ClusterInfo</code></li>
 <li>承载本轮调度的 callback registry</li>
 <li>提供绑定、驱逐、节点排序、GPU 排序等调度操作</li>
-<li>为 statement&#x2F;scenario 提供统一语义边界</li>
+<li>为 statement，以及 reclaim &#x2F; preempt 这类动作里的场景推演提供统一语义边界</li>
 </ol>
 <h3 id="这层设计的妙处"><a href="#这层设计的妙处" class="headerlink" title="这层设计的妙处"></a>这层设计的妙处</h3><p>它把“当前一轮调度会发生什么”从长期状态里剥离出来了。</p>
 <ul>
@@ -343,26 +348,27 @@
 <li>session 是某一轮的计算上下文</li>
 </ul>
 <p>这能让 plugin 在 <code>OnSessionOpen</code> 时做本轮初始化，在 <code>OnSessionClose</code> 时做清理或指标记录，而不用在长期全局状态里互相污染。</p>
-<h2 id="第五层：Action-——-流程由-action-决定，不由-plugin-决定"><a href="#第五层：Action-——-流程由-action-决定，不由-plugin-决定" class="headerlink" title="第五层：Action —— 流程由 action 决定，不由 plugin 决定"></a>第五层：Action —— 流程由 action 决定，不由 plugin 决定</h2><p>KAI 文档 <code>docs/developer/action-framework.md</code> 给出的 action 顺序是：</p>
+<h2 id="第五层：Action-——-流程由-action-决定，但顺序是配置驱动的"><a href="#第五层：Action-——-流程由-action-决定，但顺序是配置驱动的" class="headerlink" title="第五层：Action —— 流程由 action 决定，但顺序是配置驱动的"></a>第五层：Action —— 流程由 action 决定，但顺序是配置驱动的</h2><p>在 KAI 里，action 确实定义了调度流程阶段，但“这一轮按什么顺序跑”并不是写死在 <code>runOnce()</code> 里的。当前源码里，<code>runOnce()</code> 每轮都会通过 <code>conf_util.GetActionsFromConfig(s.config)</code> 读取 action 序列；默认配置则是：</p>
 <ol>
-<li><code>Allocate</code></li>
-<li><code>Consolidate</code></li>
-<li><code>Reclaim</code></li>
-<li><code>Preempt</code></li>
-<li><code>StaleGangEviction</code></li>
+<li><code>allocate</code></li>
+<li><code>consolidation</code></li>
+<li><code>reclaim</code></li>
+<li><code>preempt</code></li>
+<li><code>stalegangeviction</code></li>
 </ol>
-<p>这五个动作本身就已经表达了一种非常清晰的调度哲学：</p>
+<p>文档里常把它们写成 <code>Allocate</code> &#x2F; <code>Reclaim</code> 这种概念名，但代码和配置里的实际 token 是上面这组小写名字。</p>
+<p>这组默认顺序仍然表达了一种非常清晰的调度哲学：</p>
 <blockquote>
-<p>先尝试无破坏地调度，再尝试优化碎片，再尝试跨 queue 回收资源，再尝试队列内优先级抢占，最后清理 gang 死锁状态。</p>
+<p>先尝试无破坏地调度，再做布局整理，再做跨 queue 回收，再做更激进的抢占，最后清理 gang 死锁状态。</p>
 </blockquote>
-<p>换句话说，<strong>Action 负责的是“调度流程的阶段控制”</strong>。</p>
-<h3 id="为什么-action-顺序很重要"><a href="#为什么-action-顺序很重要" class="headerlink" title="为什么 action 顺序很重要"></a>为什么 action 顺序很重要</h3><p>KAI 不是随便堆几个插件，而是明确规定了“先做什么，后做什么”。</p>
-<h4 id="Allocate"><a href="#Allocate" class="headerlink" title="Allocate"></a>Allocate</h4><p>优先处理无需干扰即可落地的工作负载。</p>
-<h4 id="Consolidate"><a href="#Consolidate" class="headerlink" title="Consolidate"></a>Consolidate</h4><p>在已有布局上做整理，减少碎片。</p>
-<h4 id="Reclaim"><a href="#Reclaim" class="headerlink" title="Reclaim"></a>Reclaim</h4><p>当 queue 之间资源分配不公平时，做跨 queue 回收。</p>
-<h4 id="Preempt"><a href="#Preempt" class="headerlink" title="Preempt"></a>Preempt</h4><p>当同一 queue 内高优 workload 需要资源时，再做优先级抢占。</p>
-<h4 id="StaleGangEviction"><a href="#StaleGangEviction" class="headerlink" title="StaleGangEviction"></a>StaleGangEviction</h4><p>处理 gang 语义下的僵死&#x2F;失效场景。</p>
-<p>这个顺序说明 KAI 很重视“<strong>尽量把破坏性动作后置</strong>”。</p>
+<p>换句话说，<strong>Action 负责的是“调度流程的阶段控制”，但阶段顺序本身仍然可以被配置覆盖。</strong></p>
+<h3 id="为什么-action-顺序很重要"><a href="#为什么-action-顺序很重要" class="headerlink" title="为什么 action 顺序很重要"></a>为什么 action 顺序很重要</h3><p>KAI 不是随便堆几个插件，而是把“先做什么，后做什么”收敛成一条可配置的 phase pipeline。</p>
+<h4 id="allocate"><a href="#allocate" class="headerlink" title="allocate"></a><code>allocate</code></h4><p>优先处理无需干扰即可落地的工作负载。</p>
+<h4 id="consolidation"><a href="#consolidation" class="headerlink" title="consolidation"></a><code>consolidation</code></h4><p>在已有布局上做整理，减少碎片。</p>
+<h4 id="reclaim"><a href="#reclaim" class="headerlink" title="reclaim"></a><code>reclaim</code></h4><p>当 queue 之间资源分配不公平时，做跨 queue 回收。</p>
+<h4 id="preempt"><a href="#preempt" class="headerlink" title="preempt"></a><code>preempt</code></h4><p>当同一 queue 内高优 workload 需要资源时，再做优先级抢占。</p>
+<h4 id="stalegangeviction"><a href="#stalegangeviction" class="headerlink" title="stalegangeviction"></a><code>stalegangeviction</code></h4><p>处理 gang 语义下的僵死&#x2F;失效场景。</p>
+<p>这个默认顺序说明 KAI 很重视“<strong>尽量把破坏性动作后置</strong>”。</p>
 <h2 id="第六层：Plugin-——-策略由-plugin-注入，不由-action-写死"><a href="#第六层：Plugin-——-策略由-plugin-注入，不由-action-写死" class="headerlink" title="第六层：Plugin —— 策略由 plugin 注入，不由 action 写死"></a>第六层：Plugin —— 策略由 plugin 注入，不由 action 写死</h2><p>如果说 action 决定“什么时候干什么”，那 plugin 决定“具体按什么规则干”。</p>
 <p>在 <code>pkg/scheduler/framework/framework.go</code> 里，<code>OpenSession()</code> 会读取配置里的 tiers 和 plugins，然后依次：</p>
 <ol>
@@ -383,6 +389,7 @@
 <li>bind request mutation</li>
 <li>allocate &#x2F; deallocate event handlers</li>
 </ul>
+<p>不过这些 callback 并不是都以同一种方式组合：有些会累积执行，有些会按顺序挑第一个可用实现；例如部分 reclaim 相关判断在当前源码里就是 first-provider-wins，而不是所有插件结果一起归并。</p>
 <h3 id="一个非常关键的区分"><a href="#一个非常关键的区分" class="headerlink" title="一个非常关键的区分"></a>一个非常关键的区分</h3><p>很多调度框架里，action 和 plugin 的边界不够清楚；而 KAI 这里非常明确：</p>
 <ul>
 <li><strong>Action &#x3D; 调度流程阶段</strong></li>
@@ -407,8 +414,8 @@
 <li><code>Statement</code></li>
 </ul>
 <p>我认为这两个概念是 KAI 能处理复杂调度动作的关键。</p>
-<h2 id="Scenario：先构造“如果这样调度，会发生什么”"><a href="#Scenario：先构造“如果这样调度，会发生什么”" class="headerlink" title="Scenario：先构造“如果这样调度，会发生什么”"></a>Scenario：先构造“如果这样调度，会发生什么”</h2><p>Scenario 本质上是一个假设中的调度状态。</p>
-<p>比如某个 reclaim &#x2F; preempt &#x2F; consolidate 场景，不是直接去驱逐 Pod，而是先在内存里构造一个可能的结果：</p>
+<h2 id="Scenario：先构造“如果这样调度，会发生什么”"><a href="#Scenario：先构造“如果这样调度，会发生什么”" class="headerlink" title="Scenario：先构造“如果这样调度，会发生什么”"></a>Scenario：先构造“如果这样调度，会发生什么”</h2><p>在 KAI 当前实现里，更适合把 <code>Scenario</code> 理解成 reclaim &#x2F; preempt &#x2F; consolidation 这类动作里的“候选情景”或“校验视角”，而不是和 <code>Statement</code> 完全对称的一层通用事务对象。</p>
+<p>比如某个 reclaim &#x2F; preempt 场景，不是直接去驱逐 Pod，而是先在内存里构造一个可能的结果：</p>
 <ul>
 <li>如果把这几个 Pod 挪走会怎样？</li>
 <li>如果这个 PodGroup 迁移到另一个 domain 会怎样？</li>
@@ -448,14 +455,14 @@
     C[Plugin callbacks] --> B
     B --> D[Commit to cache / cluster]
 
-    A1[Allocate / Consolidate / Reclaim / Preempt] -.控制流程.-> A
+    A1[allocate / consolidation / reclaim / preempt] -.控制流程.-> A
     C1[Predicate / Order / FairShare / Bind Mutate] -.提供策略.-> C
     B1[Checkpoint / Rollback / Commit] -.提供事务化模拟.-> B</pre>
 
 <ul>
 <li>action 决定“当前做哪类动作”</li>
 <li>plugin 决定“按什么规则评估和排序”</li>
-<li>statement&#x2F;scenario 决定“怎么安全地模拟和提交”</li>
+<li>statement 决定“怎么安全地模拟和提交”，而 scenario 更像动作内部的候选情景&#x2F;验证视角</li>
 </ul>
 <p>这三个层次组合在一起，才形成 KAI 的调度内核。</p>
 <h2 id="为什么这套框架足以承载高级能力"><a href="#为什么这套框架足以承载高级能力" class="headerlink" title="为什么这套框架足以承载高级能力"></a>为什么这套框架足以承载高级能力</h2><p>KAI 后续的很多高级特性，其实都不是“另起炉灶”，而是在这套框架上叠加出来的：</p>
@@ -469,7 +476,7 @@
 <p>也就是说，KAI 的高阶能力不是靠一堆特判支撑，而是靠一个足够稳的 execution model 支撑。</p>
 <h2 id="我对-KAI-调度框架的一个总结"><a href="#我对-KAI-调度框架的一个总结" class="headerlink" title="我对 KAI 调度框架的一个总结"></a>我对 KAI 调度框架的一个总结</h2><p>如果只用一句话概括这套内核，我会写成：</p>
 <blockquote>
-<p><strong>KAI 把调度建模成：在一致性 snapshot 上打开一个 session，由 action 驱动流程、由 plugin 注入策略、由 statement&#x2F;scenario 提供可回滚模拟，然后把成立的结果提交回集群。</strong></p>
+<p><strong>KAI 把调度建模成：在一致性 snapshot 上打开一个 session，由 action 驱动流程、由 plugin 注入策略、由 statement 提供可回滚模拟，并在部分动作里通过 scenario 组织候选情景，然后把成立的结果提交回集群。</strong></p>
 </blockquote>
 <p>这是一个非常适合复杂 workload 调度的模型。</p>
 <p>它的好处不是“优雅”，而是很实用：</p>

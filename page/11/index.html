@@ -149,7 +149,7 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-03-21-git-submodule-problem/">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-03-21-golang-initialize/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -167,7 +167,7 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-03-21-git-submodule-problem/" class="post-title-link" itemprop="url">git出现fatal: Pathspec 'xxx' is in submodule 'xxx'的解决方法</a>
+          <a href="/2024/03/10/2018-03-21-golang-initialize/" class="post-title-link" itemprop="url">golang 初始化顺序初探</a>
         </h2>
 
         <div class="post-meta-container">
@@ -200,16 +200,11 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <p>在hexo中, 在themes目录下git clone了一个子目录themes&#x2F;next. git push 到远程仓库后没有看到themes&#x2F;next中的内容, 也无法git add</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ git commit -m &quot;fix&quot; themes/next/</span><br><span class="line">On branch master</span><br><span class="line">Changes not staged for commit:</span><br><span class="line">        modified:   themes/next (modified content)</span><br><span class="line">shentao@shentao-ThinkPad-T450:~/blog$ git add themes/next/*</span><br><span class="line">fatal: Pathspec &#x27;themes/next/bower.json&#x27; is in submodule &#x27;themes/next&#x27;</span><br></pre></td></tr></table></figure>
-<p>当创建一个子git项目是, 项目就叫做git submodule结构, 外部无法对子模块进行控制, 有两种方式(我知道的):<br>1.</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">cd themes/next</span><br><span class="line">git add .</span><br><span class="line">git commit</span><br></pre></td></tr></table></figure>
-<p>再到外部提交</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">git add themes/next</span><br><span class="line">git commit</span><br><span class="line">git push</span><br></pre></td></tr></table></figure>
-
-<ol start="2">
-<li><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">git rm --cached themes/next  </span><br><span class="line">git add themes/next</span><br></pre></td></tr></table></figure></li>
-</ol>
+          <p>写了一个简单的程序, 想通过外部环境变量传递给程序的全局变量, 这个全局变量又被另一个全局变量使用, 发现另一个变量无法改变, 然后发现一些有意思的golang程序初始化顺序, 需要稍微注意一下. </p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">&quot;fmt&quot;</span></span><br><span class="line">    <span class="string">&quot;flag&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">    <span class="comment">// 1</span></span><br><span class="line">    size  = flag.String(<span class="string">&quot;size&quot;</span>, <span class="string">&quot;3&quot;</span>, <span class="string">&quot;size&quot;</span>)</span><br><span class="line">    a = <span class="string">&quot;1&quot;</span></span><br><span class="line">    b = a + <span class="string">&quot;2&quot;</span></span><br><span class="line">    c = b + *size</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> &#123;</span><br><span class="line">    <span class="comment">// 2</span></span><br><span class="line">    fmt.Printf(<span class="string">&quot;%s,  %s, %s, %s \n&quot;</span>, a, b, c, *size)</span><br><span class="line">    a = <span class="string">&quot;2&quot;</span></span><br><span class="line">    b = a + <span class="string">&quot;2&quot;</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">    fmt.Printf(<span class="string">&quot;%s,  %s, %s, %s \n&quot;</span>, a, b, c, *size)</span><br><span class="line">    <span class="comment">// 3</span></span><br><span class="line">    flag.Parse()</span><br><span class="line">    fmt.Printf(<span class="string">&quot;%s,  %s, %s, %s \n&quot;</span>, a, b, c, *size)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>输出如下:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">/home/shentao/.IdeaIC2016.1/config/plugins/Go/lib/dlv/linux/dlv --listen=localhost:34206 --headless=true exec &quot;/tmp/Build initializetest.go and rungo&quot; -- -size=10</span><br><span class="line">1,  12, 123, 3 </span><br><span class="line">2,  22, 123, 3 </span><br><span class="line">2,  22, 123, 10 </span><br></pre></td></tr></table></figure>
+<p>注释标记的是实际运行顺序, 先是变量的初始化, 此时size还没传入解析, 所以使用默认值”3”; 其次是调用init函数; 最后是main函数, main函数再进行flag.Parse(), 此时size改变, 但是其他变量不会再变.</p>
 
       
     </div>
