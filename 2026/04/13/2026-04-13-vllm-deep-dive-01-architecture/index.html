@@ -27,7 +27,7 @@
 <meta property="og:description" content="第一部分：vLLM 架构概览简介在深入研究具体组件之前，我们需要先了解 vLLM 的整体架构。本文梳理了各主要组件及其交互方式，为后续各部分的深入探讨奠定基础。 全局视角vLLM 的设计围绕以下几个核心原则：  关注点分离：不同职责（调度、执行、服务）由各自独立的组件负责处理 进程隔离：V1 架构采用多进程设计，以提升健壮性和 CPU 利用率 异步处理：请求在流水线中流转，不会产生阻塞 默认分布式">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-04-13T06:00:00.000Z">
-<meta property="article:modified_time" content="2026-04-14T10:24:59.496Z">
+<meta property="article:modified_time" content="2026-05-06T06:28:29.923Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="vLLM">
 <meta property="article:tag" content="LLM">
@@ -108,7 +108,7 @@
       <div class="sidebar-panel-container">
         <!--noindex-->
         <div class="post-toc-wrap sidebar-panel">
-            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86%EF%BC%9AvLLM-%E6%9E%B6%E6%9E%84%E6%A6%82%E8%A7%88"><span class="nav-number">1.</span> <span class="nav-text">第一部分：vLLM 架构概览</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%A8%E5%B1%80%E8%A7%86%E8%A7%92"><span class="nav-number">1.2.</span> <span class="nav-text">全局视角</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%AB%98%E5%B1%82%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="nav-number">1.3.</span> <span class="nav-text">高层数据流</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#V1-%E5%A4%9A%E8%BF%9B%E7%A8%8B%E6%9E%B6%E6%9E%84"><span class="nav-number">1.4.</span> <span class="nav-text">V1 多进程架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-API-Server-%E8%BF%9B%E7%A8%8B"><span class="nav-number">1.4.1.</span> <span class="nav-text">1. API Server 进程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Engine-Core-%E8%BF%9B%E7%A8%8B"><span class="nav-number">1.4.2.</span> <span class="nav-text">2. Engine Core 进程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-GPU-Worker-%E8%BF%9B%E7%A8%8B"><span class="nav-number">1.4.3.</span> <span class="nav-text">3. GPU Worker 进程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-DP-Coordinator-%E8%BF%9B%E7%A8%8B%EF%BC%88%E6%8C%89%E9%9C%80%E5%90%AF%E5%8A%A8%EF%BC%89"><span class="nav-number">1.4.4.</span> <span class="nav-text">4. DP Coordinator 进程（按需启动）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%9B%E7%A8%8B%E6%95%B0%E9%87%8F%E7%A4%BA%E4%BE%8B"><span class="nav-number">1.5.</span> <span class="nav-text">进程数量示例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-1%EF%BC%9A%E5%8D%95-GPU"><span class="nav-number">1.5.1.</span> <span class="nav-text">示例 1：单 GPU</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-2%EF%BC%9ATensor-Parallelism%EF%BC%884-%E4%B8%AA-GPU%EF%BC%89"><span class="nav-number">1.5.2.</span> <span class="nav-text">示例 2：Tensor Parallelism（4 个 GPU）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-3%EF%BC%9AData-Parallelism%EF%BC%884-%E4%B8%AA-GPU%EF%BC%89"><span class="nav-number">1.5.3.</span> <span class="nav-text">示例 3：Data Parallelism（4 个 GPU）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-4%EF%BC%9A%E6%B7%B7%E5%90%88%E5%B9%B6%E8%A1%8C%EF%BC%888-%E4%B8%AA-GPU%EF%BC%89"><span class="nav-number">1.5.4.</span> <span class="nav-text">示例 4：混合并行（8 个 GPU）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6%E8%AF%A6%E8%A7%A3"><span class="nav-number">1.6.</span> <span class="nav-text">核心组件详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#LLMEngine"><span class="nav-number">1.6.1.</span> <span class="nav-text">LLMEngine</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Scheduler"><span class="nav-number">1.6.2.</span> <span class="nav-text">Scheduler</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#KV-Cache-Manager"><span class="nav-number">1.6.3.</span> <span class="nav-text">KV Cache Manager</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Worker-%E4%B8%8E-ModelRunner"><span class="nav-number">1.6.4.</span> <span class="nav-text">Worker 与 ModelRunner</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AF%B7%E6%B1%82%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-number">1.7.</span> <span class="nav-text">请求生命周期</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E8%AF%B7%E6%B1%82%E5%88%B0%E8%BE%BE"><span class="nav-number">1.7.1.</span> <span class="nav-text">1. 请求到达</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-API-Server-%E5%A4%84%E7%90%86"><span class="nav-number">1.7.2.</span> <span class="nav-text">2. API Server 处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Engine-Core-%E6%8E%A5%E6%94%B6"><span class="nav-number">1.7.3.</span> <span class="nav-text">3. Engine Core 接收</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E9%A6%96%E6%AC%A1%E8%B0%83%E5%BA%A6%E8%BF%AD%E4%BB%A3"><span class="nav-number">1.7.4.</span> <span class="nav-text">4. 首次调度迭代</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-Worker-%E6%89%A7%E8%A1%8C"><span class="nav-number">1.7.5.</span> <span class="nav-text">5. Worker 执行</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-%E8%BE%93%E5%87%BA%E5%A4%84%E7%90%86"><span class="nav-number">1.7.6.</span> <span class="nav-text">6. 输出处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-API-Server-%E6%B5%81%E5%BC%8F%E8%BE%93%E5%87%BA"><span class="nav-number">1.7.7.</span> <span class="nav-text">7. API Server 流式输出</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-%E5%90%8E%E7%BB%AD%E8%BF%AD%E4%BB%A3"><span class="nav-number">1.7.8.</span> <span class="nav-text">8. 后续迭代</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-%E8%AF%B7%E6%B1%82%E5%AE%8C%E6%88%90"><span class="nav-number">1.7.9.</span> <span class="nav-text">9. 请求完成</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E4%B8%8E%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">1.8.</span> <span class="nav-text">配置与初始化</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%B1%BB%E5%B1%82%E6%AC%A1%E7%BB%93%E6%9E%84"><span class="nav-number">1.9.</span> <span class="nav-text">类层次结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%9B%E7%A8%8B%E9%97%B4%E9%80%9A%E4%BF%A1"><span class="nav-number">1.10.</span> <span class="nav-text">进程间通信</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ZMQ-Sockets"><span class="nav-number">1.10.1.</span> <span class="nav-text">ZMQ Sockets</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NCCL-%E7%94%A8%E4%BA%8E-GPU-%E9%80%9A%E4%BF%A1"><span class="nav-number">1.10.2.</span> <span class="nav-text">NCCL 用于 GPU 通信</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80"><span class="nav-number">1.11.</span> <span class="nav-text">内存布局</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#GPU-%E5%86%85%E5%AD%98%E5%88%86%E5%B8%83"><span class="nav-number">1.11.1.</span> <span class="nav-text">GPU 内存分布</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#KV-Cache-%E5%86%85%E5%AD%98"><span class="nav-number">1.11.2.</span> <span class="nav-text">KV Cache 内存</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%A7%E8%83%BD%E7%89%B9%E5%BE%81"><span class="nav-number">1.12.</span> <span class="nav-text">性能特征</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8B%E4%B8%80%E6%AD%A5"><span class="nav-number">1.13.</span> <span class="nav-text">下一步</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-number">1.14.</span> <span class="nav-text">关键要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">1.15.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86%EF%BC%9AvLLM-%E6%9E%B6%E6%9E%84%E6%A6%82%E8%A7%88"><span class="nav-number">1.</span> <span class="nav-text">第一部分：vLLM 架构概览</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%A8%E5%B1%80%E8%A7%86%E8%A7%92"><span class="nav-number">1.2.</span> <span class="nav-text">全局视角</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%AB%98%E5%B1%82%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="nav-number">1.3.</span> <span class="nav-text">高层数据流</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#V1-%E5%A4%9A%E8%BF%9B%E7%A8%8B%E6%9E%B6%E6%9E%84"><span class="nav-number">1.4.</span> <span class="nav-text">V1 多进程架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-API-Server-%E8%BF%9B%E7%A8%8B"><span class="nav-number">1.4.1.</span> <span class="nav-text">1. API Server 进程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Engine-Core-%E8%BF%9B%E7%A8%8B"><span class="nav-number">1.4.2.</span> <span class="nav-text">2. Engine Core 进程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-GPU-Worker-%E8%BF%9B%E7%A8%8B"><span class="nav-number">1.4.3.</span> <span class="nav-text">3. GPU Worker 进程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-DP-Coordinator-%E8%BF%9B%E7%A8%8B%EF%BC%88%E6%8C%89%E9%9C%80%E5%90%AF%E5%8A%A8%EF%BC%89"><span class="nav-number">1.4.4.</span> <span class="nav-text">4. DP Coordinator 进程（按需启动）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%9B%E7%A8%8B%E6%95%B0%E9%87%8F%E7%A4%BA%E4%BE%8B"><span class="nav-number">1.5.</span> <span class="nav-text">进程数量示例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-1%EF%BC%9A%E5%8D%95-GPU"><span class="nav-number">1.5.1.</span> <span class="nav-text">示例 1：单 GPU</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-2%EF%BC%9ATensor-Parallelism%EF%BC%884-%E4%B8%AA-GPU%EF%BC%89"><span class="nav-number">1.5.2.</span> <span class="nav-text">示例 2：Tensor Parallelism（4 个 GPU）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-3%EF%BC%9AData-Parallelism%EF%BC%884-%E4%B8%AA-GPU%EF%BC%89"><span class="nav-number">1.5.3.</span> <span class="nav-text">示例 3：Data Parallelism（4 个 GPU）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-4%EF%BC%9A%E6%B7%B7%E5%90%88%E5%B9%B6%E8%A1%8C%EF%BC%888-%E4%B8%AA-GPU%EF%BC%89"><span class="nav-number">1.5.4.</span> <span class="nav-text">示例 4：混合并行（8 个 GPU）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6%E8%AF%A6%E8%A7%A3"><span class="nav-number">1.6.</span> <span class="nav-text">核心组件详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#LLMEngine"><span class="nav-number">1.6.1.</span> <span class="nav-text">LLMEngine</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Scheduler"><span class="nav-number">1.6.2.</span> <span class="nav-text">Scheduler</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#KV-Cache-Manager"><span class="nav-number">1.6.3.</span> <span class="nav-text">KV Cache Manager</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Worker-%E4%B8%8E%E5%90%8E%E7%AB%AF-Runner"><span class="nav-number">1.6.4.</span> <span class="nav-text">Worker 与后端 Runner</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AF%B7%E6%B1%82%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-number">1.7.</span> <span class="nav-text">请求生命周期</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E8%AF%B7%E6%B1%82%E5%88%B0%E8%BE%BE"><span class="nav-number">1.7.1.</span> <span class="nav-text">1. 请求到达</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-API-Server-%E5%A4%84%E7%90%86"><span class="nav-number">1.7.2.</span> <span class="nav-text">2. API Server 处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Engine-Core-%E6%8E%A5%E6%94%B6"><span class="nav-number">1.7.3.</span> <span class="nav-text">3. Engine Core 接收</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E9%A6%96%E6%AC%A1%E8%B0%83%E5%BA%A6%E8%BF%AD%E4%BB%A3"><span class="nav-number">1.7.4.</span> <span class="nav-text">4. 首次调度迭代</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-Worker-%E6%89%A7%E8%A1%8C"><span class="nav-number">1.7.5.</span> <span class="nav-text">5. Worker 执行</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-%E8%BE%93%E5%87%BA%E5%A4%84%E7%90%86"><span class="nav-number">1.7.6.</span> <span class="nav-text">6. 输出处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-API-Server-%E6%B5%81%E5%BC%8F%E8%BE%93%E5%87%BA"><span class="nav-number">1.7.7.</span> <span class="nav-text">7. API Server 流式输出</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-%E5%90%8E%E7%BB%AD%E8%BF%AD%E4%BB%A3"><span class="nav-number">1.7.8.</span> <span class="nav-text">8. 后续迭代</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-%E8%AF%B7%E6%B1%82%E5%AE%8C%E6%88%90"><span class="nav-number">1.7.9.</span> <span class="nav-text">9. 请求完成</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E4%B8%8E%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">1.8.</span> <span class="nav-text">配置与初始化</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%B1%BB%E5%B1%82%E6%AC%A1%E7%BB%93%E6%9E%84"><span class="nav-number">1.9.</span> <span class="nav-text">类层次结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%9B%E7%A8%8B%E9%97%B4%E9%80%9A%E4%BF%A1"><span class="nav-number">1.10.</span> <span class="nav-text">进程间通信</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ZMQ-Sockets"><span class="nav-number">1.10.1.</span> <span class="nav-text">ZMQ Sockets</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NCCL-%E7%94%A8%E4%BA%8E-GPU-%E9%80%9A%E4%BF%A1"><span class="nav-number">1.10.2.</span> <span class="nav-text">NCCL 用于 GPU 通信</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80"><span class="nav-number">1.11.</span> <span class="nav-text">内存布局</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#GPU-%E5%86%85%E5%AD%98%E5%88%86%E5%B8%83"><span class="nav-number">1.11.1.</span> <span class="nav-text">GPU 内存分布</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#KV-Cache-%E5%86%85%E5%AD%98"><span class="nav-number">1.11.2.</span> <span class="nav-text">KV Cache 内存</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%A7%E8%83%BD%E7%89%B9%E5%BE%81"><span class="nav-number">1.12.</span> <span class="nav-text">性能特征</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8B%E4%B8%80%E6%AD%A5"><span class="nav-number">1.13.</span> <span class="nav-text">下一步</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-number">1.14.</span> <span class="nav-text">关键要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">1.15.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
         </div>
         <!--/noindex-->
 
@@ -195,7 +195,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-04-14 18:24:59" itemprop="dateModified" datetime="2026-04-14T18:24:59+08:00">2026-04-14</time>
+      <time title="Modified: 2026-05-06 14:28:29" itemprop="dateModified" datetime="2026-05-06T14:28:29+08:00">2026-05-06</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -228,16 +228,16 @@
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">User Request (HTTP/gRPC)</span><br><span class="line">    ↓</span><br><span class="line">API Server Process</span><br><span class="line">    ↓ (ZMQ Socket)</span><br><span class="line">Engine Core Process</span><br><span class="line">    ↓</span><br><span class="line">Scheduler</span><br><span class="line">    ↓</span><br><span class="line">GPU Worker Processes</span><br><span class="line">    ↓ (NCCL/Collective Ops)</span><br><span class="line">Model Execution</span><br><span class="line">    ↓</span><br><span class="line">Output Processing</span><br><span class="line">    ↓ (ZMQ Socket)</span><br><span class="line">API Server Process</span><br><span class="line">    ↓</span><br><span class="line">Streaming Response to User</span><br></pre></td></tr></table></figure>
 
 <h2 id="V1-多进程架构"><a href="#V1-多进程架构" class="headerlink" title="V1 多进程架构"></a>V1 多进程架构</h2><p>V1 架构（于 2024 年底引入）采用多进程设计，以实现更好的 CPU 利用率和进程隔离。下面逐一介绍各进程类型：</p>
-<h3 id="1-API-Server-进程"><a href="#1-API-Server-进程" class="headerlink" title="1. API Server 进程"></a>1. API Server 进程</h3><p><strong>职责</strong>：处理 HTTP&#x2F;gRPC 请求及 I&#x2F;O 操作</p>
+<h3 id="1-API-Server-进程"><a href="#1-API-Server-进程" class="headerlink" title="1. API Server 进程"></a>1. API Server 进程</h3><p><strong>职责</strong>：处理前端请求、I&#x2F;O，以及与 engine core 的通信</p>
 <p><strong>主要任务</strong>：</p>
 <ul>
-<li>接收并校验 HTTP 请求</li>
+<li>接收并校验 OpenAI-compatible HTTP 请求</li>
 <li>对输入文本进行 tokenize</li>
 <li>加载多模态数据（图像、音频）</li>
 <li>将输出以流式方式返回给客户端</li>
-<li>处理 API 鉴权与限流</li>
+<li>处理 API 鉴权及其他前端请求逻辑</li>
 </ul>
-<p><strong>核心实现</strong>：<code>vllm/entrypoints/openai/api_server.py</code></p>
+<p><strong>核心实现</strong>：OpenAI-compatible HTTP 服务位于 <code>vllm/entrypoints/openai/api_server.py</code>；gRPC 服务位于 <code>vllm/entrypoints/grpc_server.py</code>。</p>
 <p>API server 对于模型执行而言是无状态的。它不了解 GPU 内存、KV cache 或模型权重，只负责：</p>
 <ol>
 <li>将用户请求转换为 <code>EngineCoreRequest</code> 对象</li>
@@ -245,7 +245,7 @@
 <li>接收返回的 <code>EngineCoreOutput</code> 对象</li>
 <li>将其转换为 API 响应</li>
 </ol>
-<p><strong>进程数量</strong>：默认为 1 个 API server。启用 data parallelism（<code>--data-parallel-size N</code>）后，自动扩展至 N 个 API server。</p>
+<p><strong>进程数量</strong>：默认单 API server；在在线 data parallel 部署中，<code>api_server_count</code> 的默认值会随 internal &#x2F; hybrid &#x2F; external load-balancing 模式变化，并可由 <code>--api-server-count</code> 覆盖。</p>
 <p><strong>CPU 线程</strong>：使用 <code>VLLM_MEDIA_LOADING_THREAD_COUNT</code> 个线程（默认 8）并行加载媒体文件。</p>
 <h3 id="2-Engine-Core-进程"><a href="#2-Engine-Core-进程" class="headerlink" title="2. Engine Core 进程"></a>2. Engine Core 进程</h3><p><strong>职责</strong>：调度请求并协调模型执行</p>
 <p><strong>主要任务</strong>：</p>
@@ -272,37 +272,32 @@
 <li>参与集合通信操作（用于 tensor parallelism &#x2F; pipeline parallelism）</li>
 </ul>
 <p><strong>核心实现</strong>：<code>vllm/v1/worker/gpu_worker.py</code></p>
-<p>每个 GPU 都有其专属的 worker 进程。worker 负责：</p>
+<p>在 <code>MultiprocExecutor</code> 下，通常会看到“每个 GPU 一个 worker 进程”；但在单机单卡默认的 <code>UniProcExecutor</code> 路径中，worker 会运行在 EngineCore 进程内，而不是独立的 OS 进程。worker 负责：</p>
 <ol>
 <li>加载其对应分片的模型权重</li>
 <li>从对应的 engine core 接收执行请求</li>
 <li>运行模型前向传播</li>
-<li>返回输出结果（logits、KV cache 更新）</li>
+<li>将执行结果交回 executor &#x2F; engine core 的后续处理路径</li>
 </ol>
-<p><strong>进程数量</strong>：每个 GPU 一个。对于 8 个 GPU，设置 <code>--tensor-parallel-size 4 --data-parallel-size 2</code> 时：</p>
-<ul>
-<li>共 8 个 GPU worker</li>
-<li>分为 2 组，每组 4 个（tensor parallel 分组）</li>
-<li>2 个 engine core（每个 data parallel rank 各一个）</li>
-</ul>
-<h3 id="4-DP-Coordinator-进程（按需启动）"><a href="#4-DP-Coordinator-进程（按需启动）" class="headerlink" title="4. DP Coordinator 进程（按需启动）"></a>4. DP Coordinator 进程（按需启动）</h3><p><strong>职责</strong>：协调 data parallel 引擎</p>
+<p><strong>进程数量</strong>：取决于 executor 后端。对于 8 个 GPU、设置 <code>--tensor-parallel-size 4 --data-parallel-size 2</code> 这类多 GPU 部署，通常会看到 8 个 worker，由 2 个 engine core 分别协调 2 组 tensor parallel worker。</p>
+<h3 id="4-DP-Coordinator-进程（按需启动）"><a href="#4-DP-Coordinator-进程（按需启动）" class="headerlink" title="4. DP Coordinator 进程（按需启动）"></a>4. DP Coordinator 进程（按需启动）</h3><p><strong>职责</strong>：在 data parallel 部署中汇总引擎状态，并为前端负载均衡与 wave coordination 提供协调信息</p>
 <p><strong>主要任务</strong>：</p>
 <ul>
-<li>在 data parallel rank 之间进行负载均衡</li>
-<li>同步 MoE 模型执行</li>
-<li>将请求路由至负载最低的引擎</li>
+<li>汇总各 DP engine 的 waiting &#x2F; running 队列统计</li>
+<li>将这些统计发布给 front-end client，供其做负载均衡决策</li>
+<li>维护 request wave &#x2F; running state，并在需要时广播 <code>START_DP_WAVE</code></li>
 </ul>
 <p><strong>核心实现</strong>：<code>vllm/v1/engine/coordinator.py</code></p>
 <p><strong>进程数量</strong>：当 <code>--data-parallel-size &gt; 1</code> 时启动 1 个，否则不启动。</p>
-<h2 id="进程数量示例"><a href="#进程数量示例" class="headerlink" title="进程数量示例"></a>进程数量示例</h2><p>下面来看几个具体示例：</p>
+<h2 id="进程数量示例"><a href="#进程数量示例" class="headerlink" title="进程数量示例"></a>进程数量示例</h2><p>下面来看几个具体示例。需要注意的是，实际 OS 进程数量会随 executor 后端与 load-balancing 模式变化；以下示例以当前 CLI 默认路径为参考：</p>
 <h3 id="示例-1：单-GPU"><a href="#示例-1：单-GPU" class="headerlink" title="示例 1：单 GPU"></a>示例 1：单 GPU</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-8B</span><br></pre></td></tr></table></figure>
 
 <p>进程：</p>
 <ul>
-<li>1 个 API Server</li>
+<li>1 个 API Server（当前进程）</li>
 <li>1 个 Engine Core</li>
-<li>1 个 GPU Worker</li>
-<li><strong>共计：3 个进程</strong></li>
+<li>GPU worker 以内嵌方式运行在 EngineCore 进程内（<code>UniProcExecutor</code>）</li>
+<li><strong>共计：通常约 2 个 OS 进程</strong></li>
 </ul>
 <h3 id="示例-2：Tensor-Parallelism（4-个-GPU）"><a href="#示例-2：Tensor-Parallelism（4-个-GPU）" class="headerlink" title="示例 2：Tensor Parallelism（4 个 GPU）"></a>示例 2：Tensor Parallelism（4 个 GPU）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-70B --tensor-parallel-size 4</span><br></pre></td></tr></table></figure>
 
@@ -317,21 +312,23 @@
 
 <p>进程：</p>
 <ul>
-<li>4 个 API Server（随 data parallelism 扩展）</li>
+<li>1 个 launcher &#x2F; manager</li>
+<li>4 个 API Server</li>
 <li>4 个 Engine Core（每个 DP rank 各一个）</li>
 <li>4 个 GPU Worker（每个 GPU 各一个）</li>
 <li>1 个 DP Coordinator</li>
-<li><strong>共计：13 个进程</strong></li>
+<li><strong>共计：单机 internal-LB 部署下通常约 14 个进程</strong></li>
 </ul>
 <h3 id="示例-4：混合并行（8-个-GPU）"><a href="#示例-4：混合并行（8-个-GPU）" class="headerlink" title="示例 4：混合并行（8 个 GPU）"></a>示例 4：混合并行（8 个 GPU）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vllm serve meta-llama/Llama-3-70B --tensor-parallel-size 2 --data-parallel-size 4</span><br></pre></td></tr></table></figure>
 
 <p>进程：</p>
 <ul>
+<li>1 个 launcher &#x2F; manager</li>
 <li>4 个 API Server</li>
 <li>4 个 Engine Core（每个 DP rank 各一个）</li>
 <li>8 个 GPU Worker（每个 DP rank 2 个，每个 GPU 各一个）</li>
 <li>1 个 DP Coordinator</li>
-<li><strong>共计：17 个进程</strong></li>
+<li><strong>共计：单机 internal-LB 部署下通常约 18 个进程</strong></li>
 </ul>
 <h2 id="核心组件详解"><a href="#核心组件详解" class="headerlink" title="核心组件详解"></a>核心组件详解</h2><h3 id="LLMEngine"><a href="#LLMEngine" class="headerlink" title="LLMEngine"></a>LLMEngine</h3><p><code>LLMEngine</code> 类是离线推理（直接使用 Python API）的主要入口点。</p>
 <p><strong>位置</strong>：<code>vllm/v1/engine/llm_engine.py</code></p>
@@ -380,19 +377,19 @@
 <li>任何能放入 1000 个块的组合</li>
 </ul>
 <p>我们将在第二部分深入剖析 PagedAttention。</p>
-<h3 id="Worker-与-ModelRunner"><a href="#Worker-与-ModelRunner" class="headerlink" title="Worker 与 ModelRunner"></a>Worker 与 ModelRunner</h3><p>worker 进程负责加载模型并执行前向传播。</p>
+<h3 id="Worker-与后端-Runner"><a href="#Worker-与后端-Runner" class="headerlink" title="Worker 与后端 Runner"></a>Worker 与后端 Runner</h3><p>worker 进程负责加载模型并执行前向传播。</p>
 <p><strong>Worker</strong>（<code>vllm/v1/worker/gpu_worker.py</code>）：</p>
 <ul>
 <li>管理 GPU 设备</li>
 <li>初始化模型权重</li>
 <li>与其他 worker 协调（用于 tensor parallelism &#x2F; pipeline parallelism）</li>
 </ul>
-<p><strong>ModelRunner</strong>（因后端而异）：</p>
+<p><strong>具体后端的 model runner</strong>（例如 <code>GPUModelRunner</code> &#x2F; <code>CPUModelRunner</code> &#x2F; <code>XPUModelRunner</code>，以及较新的 GPU runner 路径）：</p>
 <ul>
 <li>准备输入 tensor</li>
 <li>执行模型前向传播</li>
 <li>应用 CUDA graph 优化</li>
-<li>返回输出 logits</li>
+<li>产出供 executor &#x2F; engine core 后续处理的执行结果</li>
 </ul>
 <h2 id="请求生命周期"><a href="#请求生命周期" class="headerlink" title="请求生命周期"></a>请求生命周期</h2><p>让我们跟踪一个完整请求在系统中的流转过程：</p>
 <h3 id="1-请求到达"><a href="#1-请求到达" class="headerlink" title="1. 请求到达"></a>1. 请求到达</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">POST /v1/completions</span><br><span class="line">&#123;</span><br><span class="line">  <span class="string">&quot;model&quot;</span>: <span class="string">&quot;meta-llama/Llama-3-8B&quot;</span>,</span><br><span class="line">  <span class="string">&quot;prompt&quot;</span>: <span class="string">&quot;The capital of France is&quot;</span>,</span><br><span class="line">  <span class="string">&quot;max_tokens&quot;</span>: <span class="number">50</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
@@ -405,27 +402,24 @@
 </ul>
 <h3 id="3-Engine-Core-接收"><a href="#3-Engine-Core-接收" class="headerlink" title="3. Engine Core 接收"></a>3. Engine Core 接收</h3><ul>
 <li>将请求加入 scheduler 的等待队列</li>
-<li>分配请求 ID：<code>&quot;req_abc123&quot;</code></li>
+<li>请求 ID 通常已在前端 <code>InputProcessor</code> 阶段分配&#x2F;随机化，并随 <code>EngineCoreRequest</code> 一起传入</li>
 <li>初始化请求状态</li>
 </ul>
 <h3 id="4-首次调度迭代"><a href="#4-首次调度迭代" class="headerlink" title="4. 首次调度迭代"></a>4. 首次调度迭代</h3><ul>
 <li>Scheduler 发现等待队列中的新请求</li>
-<li>检查 KV cache：5 个 token 需要计算</li>
-<li>分配 KV cache 块（块大小为 16 token 时，分配 1 个块）</li>
-<li>调度 prefill：计算全部 5 个 token</li>
+<li>检查 prefix cache &#x2F; KV cache 状态</li>
+<li>为本轮需要计算的 token 分配 KV cache 块（块大小为 16 token 时，这个例子中通常只需要 1 个块）</li>
+<li>生成本轮 <code>SchedulerOutput</code></li>
 </ul>
 <h3 id="5-Worker-执行"><a href="#5-Worker-执行" class="headerlink" title="5. Worker 执行"></a>5. Worker 执行</h3><ul>
-<li>从 engine core 接收调度指令</li>
+<li>executor &#x2F; worker 接收调度结果</li>
 <li>准备输入 tensor</li>
 <li>运行模型前向传播</li>
-<li>生成第一个 token（例如，token ID 330 &#x3D; “Paris”）</li>
-<li>将 logits 返回给 engine core</li>
+<li>若需要采样，则通过 <code>model_executor.sample_tokens(...)</code> 生成本轮 token 输出</li>
 </ul>
 <h3 id="6-输出处理"><a href="#6-输出处理" class="headerlink" title="6. 输出处理"></a>6. 输出处理</h3><ul>
-<li>Engine core 接收 logits</li>
-<li>采样下一个 token：330（”Paris”）</li>
-<li>更新请求状态：将 token 追加到输出中</li>
-<li>通过 ZMQ 将输出发送给 API server</li>
+<li>engine core 使用 <code>scheduler.update_from_output(...)</code> 更新请求状态</li>
+<li>将 <code>EngineCoreOutput</code> 通过 ZMQ 发送给 API server</li>
 </ul>
 <h3 id="7-API-Server-流式输出"><a href="#7-API-Server-流式输出" class="headerlink" title="7. API Server 流式输出"></a>7. API Server 流式输出</h3><ul>
 <li>从 engine core 接收 token</li>
@@ -447,7 +441,7 @@
 <h2 id="配置与初始化"><a href="#配置与初始化" class="headerlink" title="配置与初始化"></a>配置与初始化</h2><p>vLLM 的配置统一集中在 <code>VllmConfig</code> 中：</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> vllm.config <span class="keyword">import</span> VllmConfig</span><br><span class="line"></span><br><span class="line">vllm_config = VllmConfig(</span><br><span class="line">    model_config=ModelConfig(...),</span><br><span class="line">    cache_config=CacheConfig(...),</span><br><span class="line">    scheduler_config=SchedulerConfig(...),</span><br><span class="line">    parallel_config=ParallelConfig(...),</span><br><span class="line">    <span class="comment"># ... more configs</span></span><br><span class="line">)</span><br></pre></td></tr></table></figure>
 
-<p>所有组件共享同一个 <code>VllmConfig</code> 对象，以确保一致性。</p>
+<p>许多核心组件会共享或持有同一个 <code>VllmConfig</code>，以确保配置一致性。</p>
 <p><strong>主要配置项</strong>：</p>
 <ul>
 <li><strong>ModelConfig</strong>：模型名称、dtype、tokenizer</li>
@@ -456,12 +450,15 @@
 <li><strong>ParallelConfig</strong>：TP&#x2F;PP&#x2F;DP 规模、分布式后端</li>
 </ul>
 <h2 id="类层次结构"><a href="#类层次结构" class="headerlink" title="类层次结构"></a>类层次结构</h2><p>类层次结构遵循一致的模式：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">LLMEngine</span><br><span class="line">  ├── InputProcessor (tokenization, preprocessing)</span><br><span class="line">  ├── EngineCore</span><br><span class="line">  │   ├── Scheduler</span><br><span class="line">  │   │   ├── KVCacheManager</span><br><span class="line">  │   │   ├── EncoderCacheManager</span><br><span class="line">  │   │   └── StructuredOutputManager</span><br><span class="line">  │   └── Executor</span><br><span class="line">  │       └── Workers (one per GPU)</span><br><span class="line">  │           └── ModelRunner</span><br><span class="line">  │               └── Model (nn.Module)</span><br><span class="line">  └── OutputProcessor (detokenization, streaming)</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">LLMEngine</span><br><span class="line">  ├── InputProcessor (tokenization, preprocessing)</span><br><span class="line">  ├── EngineCore</span><br><span class="line">  │   ├── StructuredOutputManager</span><br><span class="line">  │   ├── Scheduler</span><br><span class="line">  │   │   ├── KVCacheManager</span><br><span class="line">  │   │   └── EncoderCacheManager</span><br><span class="line">  │   └── Executor</span><br><span class="line">  │       └── Workers / backend runners</span><br><span class="line">  │           └── GPUModelRunner / CPUModelRunner / XPUModelRunner</span><br><span class="line">  │               └── Model (nn.Module)</span><br><span class="line">  └── OutputProcessor (detokenization, streaming)</span><br></pre></td></tr></table></figure>
 
-<p>每个类在其构造函数中均接受 <code>VllmConfig</code>，从而可以访问所有配置选项。</p>
-<h2 id="进程间通信"><a href="#进程间通信" class="headerlink" title="进程间通信"></a>进程间通信</h2><h3 id="ZMQ-Sockets"><a href="#ZMQ-Sockets" class="headerlink" title="ZMQ Sockets"></a>ZMQ Sockets</h3><p>API server 与 engine core 通过 ZMQ 进行通信：</p>
-<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># API Server side</span></span><br><span class="line">zmq_socket.send(pickle.dumps(request))</span><br><span class="line"></span><br><span class="line"><span class="comment"># Engine Core side</span></span><br><span class="line">request = pickle.loads(zmq_socket.recv())</span><br></pre></td></tr></table></figure>
-
+<p>许多核心类会接收或持有 <code>VllmConfig</code>，但并非所有类都直接以它作为构造参数；例如 <code>OutputProcessor</code> 并不直接接收 <code>VllmConfig</code>。</p>
+<h2 id="进程间通信"><a href="#进程间通信" class="headerlink" title="进程间通信"></a>进程间通信</h2><h3 id="ZMQ-Sockets"><a href="#ZMQ-Sockets" class="headerlink" title="ZMQ Sockets"></a>ZMQ Sockets</h3><p>API server 与 engine core 仍通过 ZMQ 进行通信，但当前实现已经不是旧式的 <code>pickle.dumps(...)</code> &#x2F; <code>pickle.loads(...)</code> 直传对象，而是基于 <code>MsgpackEncoder</code> &#x2F; <code>MsgpackDecoder</code> 的 multipart frame：</p>
+<ul>
+<li>front-end &#x2F; API server 一侧会把 <code>EngineCoreRequest</code> 编码成 multipart 消息并通过 <code>send_multipart(...)</code> 发送</li>
+<li>engine core 一侧通过 <code>recv_multipart(...)</code> 接收，再按消息类型用 <code>MsgpackDecoder</code> 解码</li>
+<li>在需要传输 tensor 的路径上，还会配合 tensor IPC，而不是把所有内容都塞进单个 pickle payload</li>
+</ul>
 <p><strong>为什么选择 ZMQ？</strong></p>
 <ul>
 <li>高性能（微秒级延迟）</li>
@@ -528,9 +525,9 @@
 <li><strong>V1 采用多进程架构</strong>，以提升 CPU 利用率和故障隔离能力</li>
 <li><strong>Scheduler 是核心协调者</strong>，负责决策每次迭代的计算内容</li>
 <li><strong>KV cache 管理</strong>（PagedAttention）是内存效率的关键所在</li>
-<li><strong>进程数量随并行度扩展</strong>：通常为 <code>API server 数 + Engine core 数 + GPU worker 数 +（可选的 DP Coordinator）</code></li>
+<li><strong>进程数量随并行度扩展</strong>：但会受到 executor 后端、load-balancing 模式以及是否存在 launcher &#x2F; manager 进程的影响</li>
 <li><strong>ZMQ 实现了高效的</strong>进程间通信</li>
-<li><strong>所有组件共享</strong>统一的 <code>VllmConfig</code>，确保一致性</li>
+<li><strong>许多核心组件共享或持有</strong>统一的 <code>VllmConfig</code>，以保持配置一致性</li>
 </ol>
 <h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
 <li><a target="_blank" rel="noopener" href="https://docs.vllm.ai/en/latest/design/arch_overview.html">vLLM 架构文档</a></li>
