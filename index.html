@@ -112,7 +112,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">105</span>
+          <span class="site-state-item-count">106</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
@@ -123,7 +123,7 @@
       </div>
       <div class="site-state-item site-state-tags">
           <a href="/tags/">
-        <span class="site-state-item-count">251</span>
+        <span class="site-state-item-count">254</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -217,6 +217,377 @@
             </div>
           <!--/noindex-->
         
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/" class="post-title-link" itemprop="url">Deep Dive: SCST Kernel Module Infinite Loop and Deadlock Analysis</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-01 10:00:00 / Modified: 17:46:15" itemprop="dateCreated datePublished" datetime="2026-06-01T10:00:00+08:00">2026-06-01</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="SCST-Infinite-Loop-Deadlock-Root-Cause-Analysis-and-Fix"><a href="#SCST-Infinite-Loop-Deadlock-Root-Cause-Analysis-and-Fix" class="headerlink" title="SCST Infinite Loop Deadlock: Root Cause Analysis and Fix"></a>SCST Infinite Loop Deadlock: Root Cause Analysis and Fix</h1><h2 id="Executive-Summary"><a href="#Executive-Summary" class="headerlink" title="Executive Summary"></a>Executive Summary</h2><p>This post provides a deep technical analysis of a critical infinite loop bug in the SCST (SCSI Target) kernel module that caused complete system hangs during device cleanup. The issue manifested as kernel tasks stuck in uninterruptible sleep (D state), eventually triggering soft lockup detection and system instability.</p>
+<p><strong>The Problem:</strong> During device shutdown, the cleanup routine enters an infinite loop when zombie commands remain in the hash table but not in the ready queue, creating a deadlock condition.</p>
+<p><strong>The Solution:</strong> Implemented comprehensive diagnostics, force cleanup mechanism with timeout handling, and proper command lifecycle management to break the deadlock.</p>
+<hr>
+<h2 id="Background-The-SCST-User-Space-Device-Handler"><a href="#Background-The-SCST-User-Space-Device-Handler" class="headerlink" title="Background: The SCST User-Space Device Handler"></a>Background: The SCST User-Space Device Handler</h2><p>SCST is a professional, clustered, high-performance storage target subsystem for Linux. The <code>scst_user</code> module allows user-space applications to implement SCSI target devices via a character device interface.</p>
+<h3 id="Architecture-Overview"><a href="#Architecture-Overview" class="headerlink" title="Architecture Overview"></a>Architecture Overview</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">User Space Application</span><br><span class="line">       ↕️ (ioctl/read/write)</span><br><span class="line">   /dev/scst_user</span><br><span class="line">       ↕️</span><br><span class="line">scst_user kernel module</span><br><span class="line">       ↕️</span><br><span class="line">ucmd_hash (command tracking)</span><br><span class="line">ready_cmd_list (commands ready for processing)</span><br><span class="line">       ↕️</span><br><span class="line">SCST core → Target drivers → Initiators</span><br></pre></td></tr></table></figure>
+
+<p>Key data structures:</p>
+<ul>
+<li><strong><code>ucmd_hash</code></strong>: Hash table tracking all active commands</li>
+<li><strong><code>ready_cmd_list</code></strong>: Queue of commands ready for user-space processing</li>
+<li><strong><code>cleanup_cmpl</code></strong>: Completion for device cleanup synchronization</li>
+</ul>
+<hr>
+<h2 id="The-Issue-Kernel-Soft-Lockup-During-Device-Cleanup"><a href="#The-Issue-Kernel-Soft-Lockup-During-Device-Cleanup" class="headerlink" title="The Issue: Kernel Soft Lockup During Device Cleanup"></a>The Issue: Kernel Soft Lockup During Device Cleanup</h2><h3 id="Symptom"><a href="#Symptom" class="headerlink" title="Symptom"></a>Symptom</h3><p>Multiple <code>scst_usr_release</code> kernel threads stuck in D state (uninterruptible sleep):</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[Thu Jan 23 02:37:11 2025] task:scst_usr_releas state:D stack:    0 pid:334614</span><br><span class="line">[Thu Jan 23 02:37:11 2025] Call Trace:</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  __schedule+0x23d/0x590</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  schedule+0x4e/0xb0</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  schedule_timeout+0xfb/0x140</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  wait_for_completion+0x24/0x30</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  dev_user_exit_dev.isra.0+0x16a/0x1e0 [scst_user]</span><br></pre></td></tr></table></figure>
+
+<p>The threads are waiting for <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code> which never gets signaled because the cleanup thread is stuck in an infinite loop.</p>
+<hr>
+<h2 id="Root-Cause-Analysis"><a href="#Root-Cause-Analysis" class="headerlink" title="Root Cause Analysis"></a>Root Cause Analysis</h2><h3 id="The-Cleanup-Flow"><a href="#The-Cleanup-Flow" class="headerlink" title="The Cleanup Flow"></a>The Cleanup Flow</h3><p>When a SCST user device is being torn down, this sequence occurs:</p>
+<ol>
+<li><p><strong><code>dev_user_exit_dev()</code></strong> (scst_user.c:3747)</p>
+<ul>
+<li>Unregisters device from SCST core</li>
+<li>Sets <code>dev-&gt;cleanup_done = 1</code></li>
+<li><strong>Waits</strong> for <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code> at line 3779</li>
+</ul>
+</li>
+<li><p><strong><code>dev_user_process_cleanup()</code></strong> (scst_user.c:3851) - runs in cleanup thread</p>
+<ul>
+<li>Processes remaining commands</li>
+<li>Eventually should call <code>complete_all(&amp;dev-&gt;cleanup_cmpl)</code> at line 3898</li>
+<li><strong>This is where the infinite loop occurs</strong></li>
+</ul>
+</li>
+</ol>
+<h3 id="The-Infinite-Loop-Logic"><a href="#The-Infinite-Loop-Logic" class="headerlink" title="The Infinite Loop Logic"></a>The Infinite Loop Logic</h3><p>Let’s examine the problematic code in <code>dev_user_process_cleanup()</code>:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">    <span class="type">int</span> rc1;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Count commands in ucmd_hash and try to unjam them</span></span><br><span class="line">    rc1 = dev_user_unjam_dev(dev);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Exit condition: no commands AND no ready commands AND cleanup done</span></span><br><span class="line">    <span class="keyword">if</span> (rc1 == <span class="number">0</span> &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done)</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">    spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Try to get next ready command</span></span><br><span class="line">    rc = dev_user_get_next_cmd(dev, &amp;ucmd, <span class="literal">false</span>);</span><br><span class="line">    <span class="keyword">if</span> (rc == <span class="number">0</span>)</span><br><span class="line">        dev_user_unjam_cmd(ucmd, <span class="number">1</span>, <span class="literal">NULL</span>);</span><br><span class="line"></span><br><span class="line">    spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (rc == -EAGAIN) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!dev-&gt;cleanup_done) &#123;</span><br><span class="line">            <span class="keyword">goto</span> out;  <span class="comment">// Normal early exit</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// DEADLOCK: rc1 != 0 &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done</span></span><br><span class="line">        <span class="comment">// Commands exist but can&#x27;t be retrieved!</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">complete_all(&amp;dev-&gt;cleanup_cmpl);  <span class="comment">// Never reached in deadlock</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="The-Deadlock-Condition"><a href="#The-Deadlock-Condition" class="headerlink" title="The Deadlock Condition"></a>The Deadlock Condition</h3><p>The infinite loop occurs when <strong>all three conditions</strong> are simultaneously true:</p>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Meaning</th>
+<th>Variable</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>rc1 != 0</code></td>
+<td>Commands still exist in <code>ucmd_hash</code></td>
+<td>Non-zero count from <code>dev_user_unjam_dev()</code></td>
+</tr>
+<tr>
+<td><code>rc == -EAGAIN</code></td>
+<td>No commands in <code>ready_cmd_list</code></td>
+<td>From <code>dev_user_get_next_cmd()</code></td>
+</tr>
+<tr>
+<td><code>dev-&gt;cleanup_done == 1</code></td>
+<td>Device teardown initiated</td>
+<td>Set by <code>dev_user_exit_dev()</code></td>
+</tr>
+</tbody></table>
+<h3 id="Why-Commands-Get-Stuck"><a href="#Why-Commands-Get-Stuck" class="headerlink" title="Why Commands Get Stuck"></a>Why Commands Get Stuck</h3><p>Looking at <code>dev_user_unjam_dev()</code> (scst_user.c:2680):</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_unjam_dev</span><span class="params">(<span class="keyword">struct</span> scst_user_dev *dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> i, res = <span class="number">0</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">ucmd</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line">repeat:</span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> *<span class="title">head</span> =</span> &amp;dev-&gt;ucmd_hash[i];</span><br><span class="line"></span><br><span class="line">        list_for_each_entry(ucmd, head, hash_list_entry) &#123;</span><br><span class="line">            res++;  <span class="comment">// Count EVERY command in hash</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (!ucmd-&gt;sent_to_user)</span><br><span class="line">                <span class="keyword">continue</span>;  <span class="comment">// Skip but still counted!</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (ucmd_get_check(ucmd))</span><br><span class="line">                <span class="keyword">continue</span>;  <span class="comment">// Reference check failed, still counted!</span></span><br><span class="line"></span><br><span class="line">            <span class="comment">// Try to unjam...</span></span><br><span class="line">            dev_user_unjam_cmd(ucmd, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">            <span class="comment">// ...</span></span><br><span class="line">            <span class="keyword">goto</span> repeat;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res;  <span class="comment">// Returns count of commands in hash</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Zombie commands</strong> can remain in <code>ucmd_hash</code> but not be unjammable if:</p>
+<ul>
+<li><code>ucmd-&gt;sent_to_user == 0</code> - Never delivered to user space</li>
+<li><code>ucmd_get_check(ucmd)</code> fails - Reference count is 0 (being destroyed)</li>
+<li>Command is in an intermediate state that <code>dev_user_unjam_cmd()</code> can’t handle</li>
+</ul>
+<h3 id="Command-State-Machine"><a href="#Command-State-Machine" class="headerlink" title="Command State Machine"></a>Command State Machine</h3><p>Commands go through these states:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">UCMD_STATE_PARSING</span><br><span class="line">    ↓</span><br><span class="line">UCMD_STATE_BUF_ALLOCING</span><br><span class="line">    ↓</span><br><span class="line">UCMD_STATE_EXECING  ←  Zombie commands can get stuck here</span><br><span class="line">    ↓</span><br><span class="line">UCMD_STATE_ON_FREEING</span><br><span class="line">    ↓</span><br><span class="line">[freed from ucmd_hash]</span><br></pre></td></tr></table></figure>
+
+<p>If a command’s reference count reaches 0 while still in <code>ucmd_hash</code>, it becomes a zombie:</p>
+<ul>
+<li><code>ucmd_get_check()</code> fails (atomic_inc_return returns 1 from 0)</li>
+<li>Command can’t be retrieved from ready list (already removed)</li>
+<li>Command can’t be unjammed (reference check fails)</li>
+<li><strong>But <code>dev_user_unjam_dev()</code> still counts it in <code>res++</code></strong></li>
+</ul>
+<h3 id="The-Race-Condition"><a href="#The-Race-Condition" class="headerlink" title="The Race Condition"></a>The Race Condition</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">Thread 1: dev_user_exit_dev()          Thread 2: dev_user_process_cleanup()</span><br><span class="line">─────────────────────────────           ────────────────────────────────</span><br><span class="line">unregister device</span><br><span class="line">                                        loop iteration:</span><br><span class="line">                                          rc1 = dev_user_unjam_dev()</span><br><span class="line">                                          → finds 2 zombie commands</span><br><span class="line">                                          → returns rc1 = 2</span><br><span class="line">set cleanup_done = 1</span><br><span class="line">                                          rc = dev_user_get_next_cmd()</span><br><span class="line">                                          → no ready commands</span><br><span class="line">                                          → returns rc = -EAGAIN</span><br><span class="line"></span><br><span class="line">                                        Check: rc1=2 &amp;&amp; rc=-EAGAIN &amp;&amp; cleanup_done=1</span><br><span class="line">                                        → INFINITE LOOP!</span><br><span class="line"></span><br><span class="line">wait_for_completion(&amp;cleanup_cmpl)</span><br><span class="line">  → Blocks forever                      complete_all() never called</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="The-Original-Workaround-Panic"><a href="#The-Original-Workaround-Panic" class="headerlink" title="The Original Workaround: Panic"></a>The Original Workaround: Panic</h2><p>The initial workaround was to panic after 10,000 iterations:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">loop_count++;</span><br><span class="line"><span class="keyword">if</span> (unlikely(loop_count &gt; <span class="number">10000</span>)) &#123;</span><br><span class="line">    panic(<span class="string">&quot;SCST panic: DeadLoop error occurred!&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Why-This-“Worked”"><a href="#Why-This-“Worked”" class="headerlink" title="Why This “Worked”"></a>Why This “Worked”</h3><ul>
+<li>Prevents soft lockup detector from triggering</li>
+<li>Provides clear evidence via kernel panic</li>
+<li>Forces immediate attention to the problem</li>
+</ul>
+<h3 id="Why-This-Is-Bad"><a href="#Why-This-Is-Bad" class="headerlink" title="Why This Is Bad"></a>Why This Is Bad</h3><ul>
+<li>❌ Crashes the entire system</li>
+<li>❌ Loses all in-flight I&#x2F;O across all devices</li>
+<li>❌ No recovery possible</li>
+<li>❌ Doesn’t fix the root cause</li>
+<li>❌ No diagnostic information about stuck commands</li>
+</ul>
+<hr>
+<h2 id="The-Proper-Solution"><a href="#The-Proper-Solution" class="headerlink" title="The Proper Solution"></a>The Proper Solution</h2><h3 id="Multi-Layered-Approach"><a href="#Multi-Layered-Approach" class="headerlink" title="Multi-Layered Approach"></a>Multi-Layered Approach</h3><ol>
+<li><strong>Diagnostic Layer</strong> - Identify stuck commands</li>
+<li><strong>Timeout Layer</strong> - Detect prolonged loops</li>
+<li><strong>Force Cleanup Layer</strong> - Break the deadlock</li>
+<li><strong>Graceful Degradation</strong> - Continue cleanup after recovery</li>
+</ol>
+<h3 id="Implementation"><a href="#Implementation" class="headerlink" title="Implementation"></a>Implementation</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_process_cleanup</span><span class="params">(<span class="keyword">struct</span> scst_user_dev *dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">ucmd</span>;</span></span><br><span class="line">    <span class="type">int</span> rc = <span class="number">0</span>, res = <span class="number">1</span>;</span><br><span class="line">    <span class="type">int</span> loop_count = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> force_cleanup_threshold = <span class="number">1000</span>;  <span class="comment">/* ~1 second with msleep(1) */</span></span><br><span class="line">    <span class="type">int</span> diagnostic_threshold = <span class="number">100</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... initialization ...</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">        <span class="type">int</span> rc1;</span><br><span class="line"></span><br><span class="line">        rc1 = dev_user_unjam_dev(dev);</span><br><span class="line">        <span class="keyword">if</span> (rc1 == <span class="number">0</span> &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done)</span><br><span class="line">            <span class="keyword">break</span>;  <span class="comment">// Normal exit</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// ... command processing ...</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (rc == -EAGAIN) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!dev-&gt;cleanup_done) &#123;</span><br><span class="line">                <span class="keyword">goto</span> out;  <span class="comment">// Normal early exit</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            loop_count++;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* DIAGNOSTIC LAYER: Print diagnostics after 100 iterations */</span></span><br><span class="line">            <span class="keyword">if</span> (unlikely(loop_count == diagnostic_threshold)) &#123;</span><br><span class="line">                PRINT_WARNING(<span class="string">&quot;Cleanup loop detected for dev %p after %d iterations, &quot;</span></span><br><span class="line">                              <span class="string">&quot;rc1=%d (stuck commands), rc=%d, cleanup_done=%d&quot;</span>,</span><br><span class="line">                              dev, loop_count, rc1, rc, dev-&gt;cleanup_done);</span><br><span class="line"></span><br><span class="line">                <span class="comment">// Log all stuck commands with their states</span></span><br><span class="line">                spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">                <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> *<span class="title">head</span> =</span> &amp;dev-&gt;ucmd_hash[i];</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">stuck_ucmd</span>;</span></span><br><span class="line"></span><br><span class="line">                    list_for_each_entry(stuck_ucmd, head, hash_list_entry) &#123;</span><br><span class="line">                        PRINT_WARNING(<span class="string">&quot;Stuck ucmd %p: state=%x, sent_to_user=%d, &quot;</span></span><br><span class="line">                                      <span class="string">&quot;jammed=%d, ref=%d, scst_cmd=%p&quot;</span>,</span><br><span class="line">                                      stuck_ucmd, stuck_ucmd-&gt;state,</span><br><span class="line">                                      stuck_ucmd-&gt;sent_to_user,</span><br><span class="line">                                      stuck_ucmd-&gt;jammed,</span><br><span class="line">                                      <span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref),</span><br><span class="line">                                      stuck_ucmd-&gt;cmd);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* FORCE CLEANUP LAYER: Break deadlock after 1000 iterations */</span></span><br><span class="line">            <span class="keyword">if</span> (unlikely(loop_count &gt;= force_cleanup_threshold)) &#123;</span><br><span class="line">                PRINT_ERROR(<span class="string">&quot;Force cleanup triggered after %d iterations for dev %p. &quot;</span></span><br><span class="line">                            <span class="string">&quot;Breaking deadlock by forcefully releasing %d stuck commands.&quot;</span>,</span><br><span class="line">                            loop_count, dev, rc1);</span><br><span class="line"></span><br><span class="line">                spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">                <span class="comment">// Forcefully release all stuck commands</span></span><br><span class="line">                <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> *<span class="title">head</span> =</span> &amp;dev-&gt;ucmd_hash[i];</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">stuck_ucmd</span>, *<span class="title">tmp</span>;</span></span><br><span class="line"></span><br><span class="line">                    list_for_each_entry_safe(stuck_ucmd, tmp, head, hash_list_entry) &#123;</span><br><span class="line">                        PRINT_ERROR(<span class="string">&quot;Force releasing stuck ucmd %p (state %x, ref %d)&quot;</span>,</span><br><span class="line">                                    stuck_ucmd, stuck_ucmd-&gt;state,</span><br><span class="line">                                    <span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref));</span><br><span class="line"></span><br><span class="line">                        <span class="comment">// Remove from hash</span></span><br><span class="line">                        list_del(&amp;stuck_ucmd-&gt;hash_list_entry);</span><br><span class="line"></span><br><span class="line">                        <span class="comment">// Force reference count to 1 then free</span></span><br><span class="line">                        <span class="keyword">while</span> (<span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref) &gt; <span class="number">1</span>)</span><br><span class="line">                            ucmd_put(stuck_ucmd);</span><br><span class="line"></span><br><span class="line">                        <span class="keyword">if</span> (<span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref) == <span class="number">1</span>)</span><br><span class="line">                            ucmd_put(stuck_ucmd);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">                spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">                <span class="keyword">break</span>;  <span class="comment">// Exit loop after force cleanup</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* CPU THROTTLING: Prevent tight spinning */</span></span><br><span class="line">            <span class="keyword">if</span> (loop_count &gt; <span class="number">10</span>)</span><br><span class="line">                msleep(<span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    dev_user_check_lost_ucmds(dev);</span><br><span class="line">    complete_all(&amp;dev-&gt;cleanup_cmpl);  <span class="comment">// Always reached now!</span></span><br><span class="line">    res = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">out:</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Key-Improvements"><a href="#Key-Improvements" class="headerlink" title="Key Improvements"></a>Key Improvements</h3><h4 id="1-Diagnostic-Logging-100-iterations"><a href="#1-Diagnostic-Logging-100-iterations" class="headerlink" title="1. Diagnostic Logging (100 iterations)"></a>1. Diagnostic Logging (100 iterations)</h4><p>Captures the state when the loop is detected:</p>
+<ul>
+<li>Device pointer and iteration count</li>
+<li>Return codes (<code>rc1</code>, <code>rc</code>, <code>cleanup_done</code>)</li>
+<li><strong>Every stuck command’s details:</strong><ul>
+<li>State (parsing, executing, freeing, etc.)</li>
+<li>Whether sent to user space</li>
+<li>Jammed flag</li>
+<li>Reference count</li>
+<li>Associated SCST command pointer</li>
+</ul>
+</li>
+</ul>
+<p>This provides actionable debugging information instead of just panicking.</p>
+<h4 id="2-Force-Cleanup-1000-iterations-≈-1-second"><a href="#2-Force-Cleanup-1000-iterations-≈-1-second" class="headerlink" title="2. Force Cleanup (1000 iterations ≈ 1 second)"></a>2. Force Cleanup (1000 iterations ≈ 1 second)</h4><p>After a reasonable timeout:</p>
+<ul>
+<li>Removes all commands from <code>ucmd_hash</code></li>
+<li>Forces reference counts down to prevent leaks</li>
+<li>Frees stuck commands</li>
+<li><strong>Breaks the loop</strong>, allowing <code>complete_all()</code> to be called</li>
+</ul>
+<h4 id="3-CPU-Throttling"><a href="#3-CPU-Throttling" class="headerlink" title="3. CPU Throttling"></a>3. CPU Throttling</h4><p>After 10 iterations, adds <code>msleep(1)</code> to:</p>
+<ul>
+<li>Prevent CPU spinning at 100%</li>
+<li>Allow other threads to run</li>
+<li>Reduce system load during cleanup</li>
+</ul>
+<h4 id="4-Guaranteed-Progress"><a href="#4-Guaranteed-Progress" class="headerlink" title="4. Guaranteed Progress"></a>4. Guaranteed Progress</h4><p>The loop <strong>will terminate</strong> either by:</p>
+<ul>
+<li>Normal completion (all commands cleaned up)</li>
+<li>Force cleanup after timeout</li>
+<li>Early exit if cleanup not yet initiated</li>
+</ul>
+<p><strong>Unlike the panic approach</strong>, this allows:</p>
+<ul>
+<li>System to continue running</li>
+<li>Other devices to function normally</li>
+<li>Diagnostic data to be collected</li>
+<li>Graceful degradation instead of catastrophic failure</li>
+</ul>
+<hr>
+<h2 id="Testing-and-Validation"><a href="#Testing-and-Validation" class="headerlink" title="Testing and Validation"></a>Testing and Validation</h2><h3 id="Reproduction"><a href="#Reproduction" class="headerlink" title="Reproduction"></a>Reproduction</h3><p>The issue can be reproduced by:</p>
+<ol>
+<li>Creating a SCST user-space device</li>
+<li>Sending I&#x2F;O commands</li>
+<li>Killing the user-space handler process abruptly</li>
+<li>Attempting to unload the device</li>
+</ol>
+<p>This leaves commands in intermediate states, triggering the deadlock.</p>
+<h3 id="Expected-Behavior-After-Fix"><a href="#Expected-Behavior-After-Fix" class="headerlink" title="Expected Behavior After Fix"></a>Expected Behavior After Fix</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"># dmesg output during cleanup with stuck commands</span><br><span class="line"></span><br><span class="line">[  123.456] scst_user: Cleanup loop detected for dev ffff888123456789 after 100 iterations,</span><br><span class="line">           rc1=2 (stuck commands), rc=-11, cleanup_done=1</span><br><span class="line">[  123.457] scst_user: Stuck ucmd ffff888abcd1234: state=3, sent_to_user=1,</span><br><span class="line">           jammed=0, ref=0, scst_cmd=ffff888def5678</span><br><span class="line">[  123.458] scst_user: Stuck ucmd ffff888abcd5678: state=3, sent_to_user=0,</span><br><span class="line">           jammed=0, ref=0, scst_cmd=0000000000000000</span><br><span class="line">[  124.456] scst_user: Force cleanup triggered after 1000 iterations for dev ffff888123456789.</span><br><span class="line">           Breaking deadlock by forcefully releasing 2 stuck commands.</span><br><span class="line">[  124.457] scst_user: Force releasing stuck ucmd ffff888abcd1234 (state 3, ref 0)</span><br><span class="line">[  124.458] scst_user: Force releasing stuck ucmd ffff888abcd5678 (state 3, ref 0)</span><br><span class="line">[  124.459] scst_user: Cleanuping done (dev ffff888123456789)</span><br></pre></td></tr></table></figure>
+
+<p>Device cleanup completes successfully without system crash!</p>
+<hr>
+<h2 id="Alternative-Solutions-Considered"><a href="#Alternative-Solutions-Considered" class="headerlink" title="Alternative Solutions Considered"></a>Alternative Solutions Considered</h2><h3 id="Option-1-Fix-the-State-Machine"><a href="#Option-1-Fix-the-State-Machine" class="headerlink" title="Option 1: Fix the State Machine"></a>Option 1: Fix the State Machine</h3><p>Prevent commands from becoming zombies in the first place by ensuring proper reference counting and state transitions.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Addresses root cause</li>
+<li>No workarounds needed</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Requires extensive refactoring</li>
+<li>High risk of introducing new bugs</li>
+<li>Difficult to guarantee all edge cases covered</li>
+</ul>
+<p><strong>Verdict:</strong> Long-term goal, but needs immediate fix first</p>
+<h3 id="Option-2-Timeout-with-Warning-Only"><a href="#Option-2-Timeout-with-Warning-Only" class="headerlink" title="Option 2: Timeout with Warning Only"></a>Option 2: Timeout with Warning Only</h3><p>Log an error but don’t force cleanup, just break the loop.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Simple implementation</li>
+<li>Non-intrusive</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>May leak memory (stuck commands not freed)</li>
+<li>Could accumulate over multiple cleanup attempts</li>
+<li>No guarantee of forward progress</li>
+</ul>
+<p><strong>Verdict:</strong> Too risky for resource leaks</p>
+<h3 id="Option-3-The-Implemented-Hybrid-Approach"><a href="#Option-3-The-Implemented-Hybrid-Approach" class="headerlink" title="Option 3: The Implemented Hybrid Approach"></a>Option 3: The Implemented Hybrid Approach</h3><p>Diagnostics + Force cleanup + Graceful degradation</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>✅ Prevents system crash</li>
+<li>✅ Provides debugging information</li>
+<li>✅ Guarantees cleanup completion</li>
+<li>✅ Frees stuck resources</li>
+<li>✅ Minimal code changes</li>
+<li>✅ Low risk of side effects</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Force cleanup may leak kernel memory in pathological cases</li>
+<li>Doesn’t fix underlying race conditions</li>
+</ul>
+<p><strong>Verdict:</strong> Best balance of safety, effectiveness, and maintainability</p>
+<hr>
+<h2 id="Lessons-Learned"><a href="#Lessons-Learned" class="headerlink" title="Lessons Learned"></a>Lessons Learned</h2><h3 id="1-Infinite-Loops-in-Kernel-Space-Are-Deadly"><a href="#1-Infinite-Loops-in-Kernel-Space-Are-Deadly" class="headerlink" title="1. Infinite Loops in Kernel Space Are Deadly"></a>1. Infinite Loops in Kernel Space Are Deadly</h3><p>Unlike user space, kernel infinite loops can:</p>
+<ul>
+<li>Trigger soft lockup detection</li>
+<li>Hang the entire system</li>
+<li>Require hard reboot</li>
+<li>Lose all in-flight operations</li>
+</ul>
+<p><strong>Always</strong> have an escape hatch!</p>
+<h3 id="2-Reference-Counting-Is-Hard"><a href="#2-Reference-Counting-Is-Hard" class="headerlink" title="2. Reference Counting Is Hard"></a>2. Reference Counting Is Hard</h3><p>The zombie command issue stems from a classic reference counting problem:</p>
+<ul>
+<li>Commands can reach refcount 0 while still in data structures</li>
+<li><code>ucmd_get_check()</code> tries to increment from 0 → fails</li>
+<li>Command is un-reachable but still “exists”</li>
+</ul>
+<p><strong>Solution:</strong> Ensure removal from data structures happens atomically with final refcount decrement.</p>
+<h3 id="3-Completions-Need-Guarantees"><a href="#3-Completions-Need-Guarantees" class="headerlink" title="3. Completions Need Guarantees"></a>3. Completions Need Guarantees</h3><p>The <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code> in <code>dev_user_exit_dev()</code> will block <strong>forever</strong> if <code>complete_all()</code> is never called.</p>
+<p><strong>Always</strong> ensure completion paths are reachable, even in error scenarios.</p>
+<h3 id="4-Diagnostics-Are-Crucial"><a href="#4-Diagnostics-Are-Crucial" class="headerlink" title="4. Diagnostics Are Crucial"></a>4. Diagnostics Are Crucial</h3><p>The panic approach provided no information about:</p>
+<ul>
+<li>What commands were stuck</li>
+<li>Why they were stuck</li>
+<li>How to prevent it</li>
+</ul>
+<p>The new approach logs:</p>
+<ul>
+<li>Command states</li>
+<li>Reference counts</li>
+<li>Flags</li>
+</ul>
+<p>This enables root cause analysis and eventual proper fix.</p>
+<h3 id="5-Graceful-Degradation-Catastrophic-Failure"><a href="#5-Graceful-Degradation-Catastrophic-Failure" class="headerlink" title="5. Graceful Degradation &gt; Catastrophic Failure"></a>5. Graceful Degradation &gt; Catastrophic Failure</h3><p>A storage system that crashes the entire server on cleanup failure is worse than one that:</p>
+<ul>
+<li>Logs errors</li>
+<li>Forces cleanup</li>
+<li>Continues operation</li>
+</ul>
+<p>Users prefer logs and potential minor resource leaks over complete system outages.</p>
+<hr>
+<h2 id="Future-Work"><a href="#Future-Work" class="headerlink" title="Future Work"></a>Future Work</h2><h3 id="Short-Term"><a href="#Short-Term" class="headerlink" title="Short Term"></a>Short Term</h3><ul>
+<li><input checked="" disabled="" type="checkbox"> Implement force cleanup (completed in this fix)</li>
+<li><input disabled="" type="checkbox"> Add metrics for stuck command frequency</li>
+<li><input disabled="" type="checkbox"> Create reproducer test case</li>
+<li><input disabled="" type="checkbox"> Upstream the fix to SCST maintainers</li>
+</ul>
+<h3 id="Long-Term"><a href="#Long-Term" class="headerlink" title="Long Term"></a>Long Term</h3><ul>
+<li><input disabled="" type="checkbox"> Refactor command lifecycle to eliminate zombie state possibility</li>
+<li><input disabled="" type="checkbox"> Implement per-command timeout tracking</li>
+<li><input disabled="" type="checkbox"> Add lockdep annotations for lock ordering</li>
+<li><input disabled="" type="checkbox"> Redesign cleanup sequence to avoid wait_for_completion</li>
+</ul>
+<hr>
+<h2 id="Conclusion"><a href="#Conclusion" class="headerlink" title="Conclusion"></a>Conclusion</h2><p>The SCST infinite loop deadlock is a textbook example of kernel synchronization gone wrong:</p>
+<ul>
+<li>Complex state machine with multiple threads</li>
+<li>Reference counting bugs creating zombie objects</li>
+<li>Infinite loop with unreachable exit condition</li>
+<li>Blocking wait for completion that never gets signaled</li>
+</ul>
+<p>The fix demonstrates defensive programming principles:</p>
+<ol>
+<li><strong>Detect</strong> - Identify when abnormal conditions occur</li>
+<li><strong>Diagnose</strong> - Log detailed state for debugging</li>
+<li><strong>Recover</strong> - Take corrective action to restore progress</li>
+<li><strong>Degrade Gracefully</strong> - Prefer operation with warnings over complete failure</li>
+</ol>
+<p>This approach transforms a system-crashing bug into a manageable edge case with clear diagnostics and automatic recovery.</p>
+<h3 id="Code-Locations"><a href="#Code-Locations" class="headerlink" title="Code Locations"></a>Code Locations</h3><ul>
+<li><strong>File:</strong> <code>scst/src/dev_handlers/scst_user.c</code></li>
+<li><strong>Function:</strong> <code>dev_user_process_cleanup()</code> (line 3851)</li>
+<li><strong>Related Functions:</strong><ul>
+<li><code>dev_user_unjam_dev()</code> (line 2680)</li>
+<li><code>dev_user_exit_dev()</code> (line 3747)</li>
+<li><code>dev_user_get_next_cmd()</code> (line 2174)</li>
+</ul>
+</li>
+</ul>
+<h3 id="References"><a href="#References" class="headerlink" title="References"></a>References</h3><ul>
+<li>SCST Project: <a target="_blank" rel="noopener" href="http://scst.sourceforge.net/">http://scst.sourceforge.net/</a></li>
+<li>Issue Tracker: <a target="_blank" rel="noopener" href="https://github.corp.ebay.com/tess-contrib/scst/issues/5">https://github.corp.ebay.com/tess-contrib/scst/issues/5</a></li>
+<li>Fix Commit: (will be updated after merge)</li>
+</ul>
+<hr>
+<p><strong>Tags:</strong> #kernel #deadlock #scst #storage #debugging #linux #reference-counting #synchronization</p>
+
       
     </div>
 
@@ -2515,96 +2886,6 @@ if err := syscall.Exec(args\[0\], args, env); err \!= nil &#123;
 <p>Identify the VM (container ID)<br>Locate the actual emulator to use<br>Set up networking by retrieving the appropriate file descriptors<br>Configure logging<br>Set CPU affinity (if specified)<br>This design allows Virtlet to remain in control of the VM configuration while delegating the actual execution and network setup to vmwrapper, which runs in a separate process.</p>
 <h2 id="Function-Relationship"><a href="#Function-Relationship" class="headerlink" title="Function Relationship"></a>Function Relationship</h2><p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAwAAAAGGCAYAAADM9+ZiAABk/UlEQVR4XuzdB3xb1dk/cEshbAqljDJKU0gbcBNZ1pXtmDDMpi2zNPACBcIoo2/ZFHj7QjFvIZLDLHSxW0YLoYw/o5SydwlOYjmDQEhCAhlAUsLO1v/3XJ2jXD+SbMnWuLJ/38/n5Jz73HOvpNi+Oo9077k1NURERERE1Gcf1e/WXpESHvVL/VyIiIiIiKjEMgbm5SpMAIiIiIiIyi9jYF6uwgSAiIiIiKj8Mgbm5SpMAIiIiIiIyi9jYF6uwgSAiIiIiKj8Mgbm5SpMAIiIiIiIyi9jYN6LsmTvgzJiPRYmAERERERE5ZcxMEdJJpMZbalXTJzcJb7k0KPd9idnnJOxD29Z88mnGTEmAEREREREFZAxMDcluWpVRiIgscUj92lf/vRz7SvnzksnAEtPON1dv+wf/0ptE9l97TYoTACIiIiIiHwiY2DuHfDn+CZAytIxZ2QkAMuff7lL35UzZ7n1mmXLMvbPBICIiIiIqAIyBuYycH9ndvuyhx9zB/IfH3Nyl0G9LdkSgGWPP7m2b2T39uX/ejaVAHz6ecZjMAEgIvKp5ubmDU466aTkokWLfF8cx0nq509ERN3LGJirwb73k39vnx4TAFNLWfM5EwAioqohg2o90PZz0c+fiIi6lzEwL1dhAkBE5E9MAIiI+reMgXm5ChMAIiJ/YgJARNS/ZQzMy1WYABAR+VNvEoD29vbkk08+6Z6TL8sLFy7M6GOL9Jk5c2ZGvLdFP38iIupexsAcZeno49162T+fbv/00ivc9pKDRrd/fPix7SsmTEr3WzFholvL9KBSLx61f/vilh+67eX/bl87G9Cs2RmPwQSAiMinciUAu+22W3rgLn3mzJmTPOyww9y2JAAS/9WvfuW24/F48sQTT0yef/756f5nnXVWctKkSW574sSJ6fioUaPSbalffvnldPuQQw5JnnPOOcmDDjooeeihh2Y8Jyl4ygH9GoiIKLeMgTnK0iNPSA3s1YW/X955b5cEwO2zZk26/ckZ57UvPfZn7Ws+XpreXu8jXZgAEBH5U64EQIoM+u1g3du2CYDdVhKA/fbbL73drFmz3FoSABs78MADk3/7298yHkP2If293xJIAqD72eJ53o+Gw+Efel8LERFlyhiYoyw9ekx6AG9jK2fPdT/pl5t9LfnhjzO2kbJmxQp3zv9PfnU5+vwklQAgJt8e6L5MAIiIfKq7BEDKtGnTMmLZyltvvZURs8WbCEyZMiVjvS0zZszIiOmS7fnrGBERrZUxMC9XYQJARORPPSUAvSm/+c1vkmPGjMmIF6Po5y8ikciHOkZERCkZA/NyFSYARET+VIoEoJRFP38Lr+NLHSMiIiYARESkYOD8kR5k+7XItQf6+XvxdCAiokwZA/NyFSYARET+VQ3fArz++uvuBcP6uWvo87KOERENZBkD8zKVRSN221E/FyIiIiIiIiIior5xHGeNjhERERERERERERERUX/AbwGIiIiIiAaYSCRypY4REREREVE/lc+sQUREREREREREREREVI34LQARERER0QCCBOAZHSMiIiIiqkqjR48epGNERERERFSFotHojpFIZG/TPsJxnJUo/0RZIae1oPwb60817VWhUGgj1A+ifIzyicSx/ikpDQ0Ne8p+0H5Vaqy71dS/RpmC+Djpv/bR+5f+/NqIiIiIqJ+QBAAD12Pq6+ujJhTA8mQM1k+sq6vbTgImATgDZblJANyBLur3bFsSAOzj22YfNbW1tetK3dzcvIHpa7dZafv0N3hti3WMiIiIiGjAwcB4gY71V5II6RgREREREfVTPA2IiIiIiKgHGDRfrmPVaujQoevpGBERERERERERERER9QeO46zSMSIiIiKiXmlpaVlHxyy7zs7b752/v7Gx8Ru2TaXF6wCIiIiIqGi8g0s53xzL0yQWiURGop5uB/1on712q5qaurq675m4bB9E/RvveiIiIiIi8iEZwDc3N29u28OGDdtEdQkiGXjXrF8yZMiQ9aPRaEs4HP6u9LcJBC9WJSIiIiIiKhIkWlfrGBERERFR3kaNGrVJqYo5lWiwfkzqPV4HQEREREQ0gNTX19fpGBERERGR70Sj0UN1jHoHScDJOkZERERE5CsYtJ6hY9Q7PA2IiIiIiEqiu4Em1q3Qse4wASieSCTSpmNERERERH1mEwDUq1EeQrncLEei0egPUV+Pwei5GNwfHQ6Hh6B9PWIndN1LChMAIiIiIiKfM/P7X4CB/Y0oz2OQv58nKXjO1H/EulclATDLCc8u0pgAEBERERENIEwAiisajd6kY0REREREvsEEoLjktCwdIyIiIiLyDSYAxdXdBdpERERERBUXiUR4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45xkl0eNGrUJtj2xJstgORf7WrK0pyMZ2BxvHqPq6uq+Z2IrTZ0ekOFN5ftY/j3KS3Z71BHHDOjxfF5B+48o79htTB83AfC0bfxqeVzUu+GxT0N9polPtH2sSD/+BgA/yySSLLfIMpI7d1B+5JFHJk888cSMgf+5556b3HvvvZP4ebjLkih492vb+D9122eeeWbWBMA+9nXXXddtAqBfQynZ37/eyva742elvFaBCUDp4bj0oqkPsDH83e0nx2qU39pJA+xxD/WmnvYsU5+N95etpI2/6QZs/wRiK1HSd4EeMmSI+8EP9rmv2eYPdp1jJjNAPQ/P4ynTdo/fRESUB/MpewYcxDfWMXtA1uwn9DgAj/DGd9lll29LAlDj+RQdfXZe2yNFbsKjY3pfXtn69wRvMMOlVt9SuGQANnz4cHvHT5fjueFYTyJmxh77hoht9+/ao6Zm22237XZ6QsckQip2qY5VI3nz1wNsvxf9GvxM/n91bKBiAlB5OA7epmOlxN9/IiIiH2ICUHrVMggq5af/ggkAERERkQ8wASARjHV8oWPFxgSgeLKdHkpERESUl2pLAG6//faqTAAwYHtBx3yjiHf77Q4TACIiIiKfwOD0eSQCn6N84fPyun7u1HeDxk05SsdKgQkAEREREQ0oTi+uBcA2t8p2pSp1u+6VEStW0a+FCQARERERDTjZBsa5SF99ClQxy8kPz8yIFbPo18oEgIpNfsfMDHh6+ulAQ0PDno2Njd7psrf0dhCRSORU0/TeG0fua7O5WXbJvWfsDHeee94MWtujJiD3q/EsExERUTVqbW3NeaO5vtAD41zkfgp6UF1txft6mABQsdm/JQzkP0e5CstTUUZLkQQAg/bN1CY6UfDu408ok+wy6htQVtt+cq8bJBF7mr7utNKhUGiYTGON5WNtPyIiIqpiue7DUQwysHB6uJ9FKRMAmfJTx0pRvK+HCQD1F0gE9tExIiIi6gfq6urqdayY5M6s2W5+Z5UyASi0TJs2LSOWT/G+HiYARERERORrkUjkCR0rBcdxXkRZpePZEoDx48en2++9917y9ddfT958883J3/3ud+n4hRdemO573333ue1f/vKXbm2vK2hra3PrF154ITl9+nS3/cYbbyTvv//+5KOPPpruJ9vNnTs3+dBDD7nLL730UvLvf/+7277tttvS9dtvv51+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"></p>
 
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/14/2026-04-14-linux-proc-part5-sched-diagnostics/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/04/14/2026-04-14-linux-proc-part5-sched-diagnostics/" class="post-title-link" itemprop="url">Linux 进程管理深度剖析（五）：调度诊断与性能分析实战</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-      
-
-      <time title="Created: 2026-04-14 15:50:00 / Modified: 11:56:04" itemprop="dateCreated datePublished" datetime="2026-04-14T15:50:00+08:00">2026-04-14</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
-        </span>
-          , 
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/Linux-Kernel/Process-Management/" itemprop="url" rel="index"><span itemprop="name">Process Management</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>进程调度是 Linux 内核中最复杂也最关键的子系统之一。在生产环境中，”CPU 使用率 100% 但响应很慢”、”任务唤醒后等了几十毫秒才运行”、”某个进程长期卡在 D 状态”——这些问题的根因往往深藏在调度层。本文是本系列第五篇，聚焦于调度诊断的完整方法论：从 <code>/proc</code> 接口读取原始数据，到 <code>perf sched</code> 分析调度延迟，再到 bpftrace 精确追踪内核路径，最后结合四个典型生产案例给出可落地的排查流程与修复建议。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2026/04/14/2026-04-14-linux-proc-part5-sched-diagnostics/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
       
     </div>
 

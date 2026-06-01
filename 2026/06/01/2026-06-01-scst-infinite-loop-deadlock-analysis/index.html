@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="SCST Infinite Loop Deadlock: Root Cause Analysis and FixExecutive SummaryThis post provides a deep technical analysis of a critical infinite loop bug in the SCST (SCSI Target) kernel module that cause">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Deep Dive: SCST Kernel Module Infinite Loop and Deadlock Analysis">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="SCST Infinite Loop Deadlock: Root Cause Analysis and FixExecutive SummaryThis post provides a deep technical analysis of a critical infinite loop bug in the SCST (SCSI Target) kernel module that cause">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-01T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-01T09:46:15.086Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="linux">
+<meta property="article:tag" content="debugging">
+<meta property="article:tag" content="kernel">
+<meta property="article:tag" content="scst">
+<meta property="article:tag" content="deadlock">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/","path":"2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/","title":"Deep Dive: SCST Kernel Module Infinite Loop and Deadlock Analysis"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Deep Dive: SCST Kernel Module Infinite Loop and Deadlock Analysis | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#SCST-Infinite-Loop-Deadlock-Root-Cause-Analysis-and-Fix"><span class="nav-number">1.</span> <span class="nav-text">SCST Infinite Loop Deadlock: Root Cause Analysis and Fix</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Executive-Summary"><span class="nav-number">1.1.</span> <span class="nav-text">Executive Summary</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Background-The-SCST-User-Space-Device-Handler"><span class="nav-number">1.2.</span> <span class="nav-text">Background: The SCST User-Space Device Handler</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Architecture-Overview"><span class="nav-number">1.2.1.</span> <span class="nav-text">Architecture Overview</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#The-Issue-Kernel-Soft-Lockup-During-Device-Cleanup"><span class="nav-number">1.3.</span> <span class="nav-text">The Issue: Kernel Soft Lockup During Device Cleanup</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Symptom"><span class="nav-number">1.3.1.</span> <span class="nav-text">Symptom</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Root-Cause-Analysis"><span class="nav-number">1.4.</span> <span class="nav-text">Root Cause Analysis</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#The-Cleanup-Flow"><span class="nav-number">1.4.1.</span> <span class="nav-text">The Cleanup Flow</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#The-Infinite-Loop-Logic"><span class="nav-number">1.4.2.</span> <span class="nav-text">The Infinite Loop Logic</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#The-Deadlock-Condition"><span class="nav-number">1.4.3.</span> <span class="nav-text">The Deadlock Condition</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Why-Commands-Get-Stuck"><span class="nav-number">1.4.4.</span> <span class="nav-text">Why Commands Get Stuck</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Command-State-Machine"><span class="nav-number">1.4.5.</span> <span class="nav-text">Command State Machine</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#The-Race-Condition"><span class="nav-number">1.4.6.</span> <span class="nav-text">The Race Condition</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#The-Original-Workaround-Panic"><span class="nav-number">1.5.</span> <span class="nav-text">The Original Workaround: Panic</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Why-This-%E2%80%9CWorked%E2%80%9D"><span class="nav-number">1.5.1.</span> <span class="nav-text">Why This “Worked”</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Why-This-Is-Bad"><span class="nav-number">1.5.2.</span> <span class="nav-text">Why This Is Bad</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#The-Proper-Solution"><span class="nav-number">1.6.</span> <span class="nav-text">The Proper Solution</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Multi-Layered-Approach"><span class="nav-number">1.6.1.</span> <span class="nav-text">Multi-Layered Approach</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Implementation"><span class="nav-number">1.6.2.</span> <span class="nav-text">Implementation</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Key-Improvements"><span class="nav-number">1.6.3.</span> <span class="nav-text">Key Improvements</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-Diagnostic-Logging-100-iterations"><span class="nav-number">1.6.3.1.</span> <span class="nav-text">1. Diagnostic Logging (100 iterations)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-Force-Cleanup-1000-iterations-%E2%89%88-1-second"><span class="nav-number">1.6.3.2.</span> <span class="nav-text">2. Force Cleanup (1000 iterations ≈ 1 second)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-CPU-Throttling"><span class="nav-number">1.6.3.3.</span> <span class="nav-text">3. CPU Throttling</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#4-Guaranteed-Progress"><span class="nav-number">1.6.3.4.</span> <span class="nav-text">4. Guaranteed Progress</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Testing-and-Validation"><span class="nav-number">1.7.</span> <span class="nav-text">Testing and Validation</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Reproduction"><span class="nav-number">1.7.1.</span> <span class="nav-text">Reproduction</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Expected-Behavior-After-Fix"><span class="nav-number">1.7.2.</span> <span class="nav-text">Expected Behavior After Fix</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Alternative-Solutions-Considered"><span class="nav-number">1.8.</span> <span class="nav-text">Alternative Solutions Considered</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Option-1-Fix-the-State-Machine"><span class="nav-number">1.8.1.</span> <span class="nav-text">Option 1: Fix the State Machine</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Option-2-Timeout-with-Warning-Only"><span class="nav-number">1.8.2.</span> <span class="nav-text">Option 2: Timeout with Warning Only</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Option-3-The-Implemented-Hybrid-Approach"><span class="nav-number">1.8.3.</span> <span class="nav-text">Option 3: The Implemented Hybrid Approach</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Lessons-Learned"><span class="nav-number">1.9.</span> <span class="nav-text">Lessons Learned</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Infinite-Loops-in-Kernel-Space-Are-Deadly"><span class="nav-number">1.9.1.</span> <span class="nav-text">1. Infinite Loops in Kernel Space Are Deadly</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Reference-Counting-Is-Hard"><span class="nav-number">1.9.2.</span> <span class="nav-text">2. Reference Counting Is Hard</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Completions-Need-Guarantees"><span class="nav-number">1.9.3.</span> <span class="nav-text">3. Completions Need Guarantees</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-Diagnostics-Are-Crucial"><span class="nav-number">1.9.4.</span> <span class="nav-text">4. Diagnostics Are Crucial</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-Graceful-Degradation-Catastrophic-Failure"><span class="nav-number">1.9.5.</span> <span class="nav-text">5. Graceful Degradation &gt; Catastrophic Failure</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Future-Work"><span class="nav-number">1.10.</span> <span class="nav-text">Future Work</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Short-Term"><span class="nav-number">1.10.1.</span> <span class="nav-text">Short Term</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Long-Term"><span class="nav-number">1.10.2.</span> <span class="nav-text">Long Term</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Conclusion"><span class="nav-number">1.11.</span> <span class="nav-text">Conclusion</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Code-Locations"><span class="nav-number">1.11.1.</span> <span class="nav-text">Code Locations</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#References"><span class="nav-number">1.11.2.</span> <span class="nav-text">References</span></a></li></ol></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">106</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">35</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">254</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Deep Dive: SCST Kernel Module Infinite Loop and Deadlock Analysis | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Deep Dive: SCST Kernel Module Infinite Loop and Deadlock Analysis
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-01 10:00:00 / Modified: 17:46:15" itemprop="dateCreated datePublished" datetime="2026-06-01T10:00:00+08:00">2026-06-01</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="SCST-Infinite-Loop-Deadlock-Root-Cause-Analysis-and-Fix"><a href="#SCST-Infinite-Loop-Deadlock-Root-Cause-Analysis-and-Fix" class="headerlink" title="SCST Infinite Loop Deadlock: Root Cause Analysis and Fix"></a>SCST Infinite Loop Deadlock: Root Cause Analysis and Fix</h1><h2 id="Executive-Summary"><a href="#Executive-Summary" class="headerlink" title="Executive Summary"></a>Executive Summary</h2><p>This post provides a deep technical analysis of a critical infinite loop bug in the SCST (SCSI Target) kernel module that caused complete system hangs during device cleanup. The issue manifested as kernel tasks stuck in uninterruptible sleep (D state), eventually triggering soft lockup detection and system instability.</p>
+<p><strong>The Problem:</strong> During device shutdown, the cleanup routine enters an infinite loop when zombie commands remain in the hash table but not in the ready queue, creating a deadlock condition.</p>
+<p><strong>The Solution:</strong> Implemented comprehensive diagnostics, force cleanup mechanism with timeout handling, and proper command lifecycle management to break the deadlock.</p>
+<hr>
+<h2 id="Background-The-SCST-User-Space-Device-Handler"><a href="#Background-The-SCST-User-Space-Device-Handler" class="headerlink" title="Background: The SCST User-Space Device Handler"></a>Background: The SCST User-Space Device Handler</h2><p>SCST is a professional, clustered, high-performance storage target subsystem for Linux. The <code>scst_user</code> module allows user-space applications to implement SCSI target devices via a character device interface.</p>
+<h3 id="Architecture-Overview"><a href="#Architecture-Overview" class="headerlink" title="Architecture Overview"></a>Architecture Overview</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">User Space Application</span><br><span class="line">       ↕️ (ioctl/read/write)</span><br><span class="line">   /dev/scst_user</span><br><span class="line">       ↕️</span><br><span class="line">scst_user kernel module</span><br><span class="line">       ↕️</span><br><span class="line">ucmd_hash (command tracking)</span><br><span class="line">ready_cmd_list (commands ready for processing)</span><br><span class="line">       ↕️</span><br><span class="line">SCST core → Target drivers → Initiators</span><br></pre></td></tr></table></figure>
+
+<p>Key data structures:</p>
+<ul>
+<li><strong><code>ucmd_hash</code></strong>: Hash table tracking all active commands</li>
+<li><strong><code>ready_cmd_list</code></strong>: Queue of commands ready for user-space processing</li>
+<li><strong><code>cleanup_cmpl</code></strong>: Completion for device cleanup synchronization</li>
+</ul>
+<hr>
+<h2 id="The-Issue-Kernel-Soft-Lockup-During-Device-Cleanup"><a href="#The-Issue-Kernel-Soft-Lockup-During-Device-Cleanup" class="headerlink" title="The Issue: Kernel Soft Lockup During Device Cleanup"></a>The Issue: Kernel Soft Lockup During Device Cleanup</h2><h3 id="Symptom"><a href="#Symptom" class="headerlink" title="Symptom"></a>Symptom</h3><p>Multiple <code>scst_usr_release</code> kernel threads stuck in D state (uninterruptible sleep):</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[Thu Jan 23 02:37:11 2025] task:scst_usr_releas state:D stack:    0 pid:334614</span><br><span class="line">[Thu Jan 23 02:37:11 2025] Call Trace:</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  __schedule+0x23d/0x590</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  schedule+0x4e/0xb0</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  schedule_timeout+0xfb/0x140</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  wait_for_completion+0x24/0x30</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  dev_user_exit_dev.isra.0+0x16a/0x1e0 [scst_user]</span><br></pre></td></tr></table></figure>
+
+<p>The threads are waiting for <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code> which never gets signaled because the cleanup thread is stuck in an infinite loop.</p>
+<hr>
+<h2 id="Root-Cause-Analysis"><a href="#Root-Cause-Analysis" class="headerlink" title="Root Cause Analysis"></a>Root Cause Analysis</h2><h3 id="The-Cleanup-Flow"><a href="#The-Cleanup-Flow" class="headerlink" title="The Cleanup Flow"></a>The Cleanup Flow</h3><p>When a SCST user device is being torn down, this sequence occurs:</p>
+<ol>
+<li><p><strong><code>dev_user_exit_dev()</code></strong> (scst_user.c:3747)</p>
+<ul>
+<li>Unregisters device from SCST core</li>
+<li>Sets <code>dev-&gt;cleanup_done = 1</code></li>
+<li><strong>Waits</strong> for <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code> at line 3779</li>
+</ul>
+</li>
+<li><p><strong><code>dev_user_process_cleanup()</code></strong> (scst_user.c:3851) - runs in cleanup thread</p>
+<ul>
+<li>Processes remaining commands</li>
+<li>Eventually should call <code>complete_all(&amp;dev-&gt;cleanup_cmpl)</code> at line 3898</li>
+<li><strong>This is where the infinite loop occurs</strong></li>
+</ul>
+</li>
+</ol>
+<h3 id="The-Infinite-Loop-Logic"><a href="#The-Infinite-Loop-Logic" class="headerlink" title="The Infinite Loop Logic"></a>The Infinite Loop Logic</h3><p>Let’s examine the problematic code in <code>dev_user_process_cleanup()</code>:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">    <span class="type">int</span> rc1;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Count commands in ucmd_hash and try to unjam them</span></span><br><span class="line">    rc1 = dev_user_unjam_dev(dev);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Exit condition: no commands AND no ready commands AND cleanup done</span></span><br><span class="line">    <span class="keyword">if</span> (rc1 == <span class="number">0</span> &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done)</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">    spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Try to get next ready command</span></span><br><span class="line">    rc = dev_user_get_next_cmd(dev, &amp;ucmd, <span class="literal">false</span>);</span><br><span class="line">    <span class="keyword">if</span> (rc == <span class="number">0</span>)</span><br><span class="line">        dev_user_unjam_cmd(ucmd, <span class="number">1</span>, <span class="literal">NULL</span>);</span><br><span class="line"></span><br><span class="line">    spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (rc == -EAGAIN) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!dev-&gt;cleanup_done) &#123;</span><br><span class="line">            <span class="keyword">goto</span> out;  <span class="comment">// Normal early exit</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// DEADLOCK: rc1 != 0 &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done</span></span><br><span class="line">        <span class="comment">// Commands exist but can&#x27;t be retrieved!</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">complete_all(&amp;dev-&gt;cleanup_cmpl);  <span class="comment">// Never reached in deadlock</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="The-Deadlock-Condition"><a href="#The-Deadlock-Condition" class="headerlink" title="The Deadlock Condition"></a>The Deadlock Condition</h3><p>The infinite loop occurs when <strong>all three conditions</strong> are simultaneously true:</p>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Meaning</th>
+<th>Variable</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>rc1 != 0</code></td>
+<td>Commands still exist in <code>ucmd_hash</code></td>
+<td>Non-zero count from <code>dev_user_unjam_dev()</code></td>
+</tr>
+<tr>
+<td><code>rc == -EAGAIN</code></td>
+<td>No commands in <code>ready_cmd_list</code></td>
+<td>From <code>dev_user_get_next_cmd()</code></td>
+</tr>
+<tr>
+<td><code>dev-&gt;cleanup_done == 1</code></td>
+<td>Device teardown initiated</td>
+<td>Set by <code>dev_user_exit_dev()</code></td>
+</tr>
+</tbody></table>
+<h3 id="Why-Commands-Get-Stuck"><a href="#Why-Commands-Get-Stuck" class="headerlink" title="Why Commands Get Stuck"></a>Why Commands Get Stuck</h3><p>Looking at <code>dev_user_unjam_dev()</code> (scst_user.c:2680):</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_unjam_dev</span><span class="params">(<span class="keyword">struct</span> scst_user_dev *dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> i, res = <span class="number">0</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">ucmd</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line">repeat:</span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> *<span class="title">head</span> =</span> &amp;dev-&gt;ucmd_hash[i];</span><br><span class="line"></span><br><span class="line">        list_for_each_entry(ucmd, head, hash_list_entry) &#123;</span><br><span class="line">            res++;  <span class="comment">// Count EVERY command in hash</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (!ucmd-&gt;sent_to_user)</span><br><span class="line">                <span class="keyword">continue</span>;  <span class="comment">// Skip but still counted!</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (ucmd_get_check(ucmd))</span><br><span class="line">                <span class="keyword">continue</span>;  <span class="comment">// Reference check failed, still counted!</span></span><br><span class="line"></span><br><span class="line">            <span class="comment">// Try to unjam...</span></span><br><span class="line">            dev_user_unjam_cmd(ucmd, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">            <span class="comment">// ...</span></span><br><span class="line">            <span class="keyword">goto</span> repeat;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res;  <span class="comment">// Returns count of commands in hash</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Zombie commands</strong> can remain in <code>ucmd_hash</code> but not be unjammable if:</p>
+<ul>
+<li><code>ucmd-&gt;sent_to_user == 0</code> - Never delivered to user space</li>
+<li><code>ucmd_get_check(ucmd)</code> fails - Reference count is 0 (being destroyed)</li>
+<li>Command is in an intermediate state that <code>dev_user_unjam_cmd()</code> can’t handle</li>
+</ul>
+<h3 id="Command-State-Machine"><a href="#Command-State-Machine" class="headerlink" title="Command State Machine"></a>Command State Machine</h3><p>Commands go through these states:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">UCMD_STATE_PARSING</span><br><span class="line">    ↓</span><br><span class="line">UCMD_STATE_BUF_ALLOCING</span><br><span class="line">    ↓</span><br><span class="line">UCMD_STATE_EXECING  ←  Zombie commands can get stuck here</span><br><span class="line">    ↓</span><br><span class="line">UCMD_STATE_ON_FREEING</span><br><span class="line">    ↓</span><br><span class="line">[freed from ucmd_hash]</span><br></pre></td></tr></table></figure>
+
+<p>If a command’s reference count reaches 0 while still in <code>ucmd_hash</code>, it becomes a zombie:</p>
+<ul>
+<li><code>ucmd_get_check()</code> fails (atomic_inc_return returns 1 from 0)</li>
+<li>Command can’t be retrieved from ready list (already removed)</li>
+<li>Command can’t be unjammed (reference check fails)</li>
+<li><strong>But <code>dev_user_unjam_dev()</code> still counts it in <code>res++</code></strong></li>
+</ul>
+<h3 id="The-Race-Condition"><a href="#The-Race-Condition" class="headerlink" title="The Race Condition"></a>The Race Condition</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">Thread 1: dev_user_exit_dev()          Thread 2: dev_user_process_cleanup()</span><br><span class="line">─────────────────────────────           ────────────────────────────────</span><br><span class="line">unregister device</span><br><span class="line">                                        loop iteration:</span><br><span class="line">                                          rc1 = dev_user_unjam_dev()</span><br><span class="line">                                          → finds 2 zombie commands</span><br><span class="line">                                          → returns rc1 = 2</span><br><span class="line">set cleanup_done = 1</span><br><span class="line">                                          rc = dev_user_get_next_cmd()</span><br><span class="line">                                          → no ready commands</span><br><span class="line">                                          → returns rc = -EAGAIN</span><br><span class="line"></span><br><span class="line">                                        Check: rc1=2 &amp;&amp; rc=-EAGAIN &amp;&amp; cleanup_done=1</span><br><span class="line">                                        → INFINITE LOOP!</span><br><span class="line"></span><br><span class="line">wait_for_completion(&amp;cleanup_cmpl)</span><br><span class="line">  → Blocks forever                      complete_all() never called</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="The-Original-Workaround-Panic"><a href="#The-Original-Workaround-Panic" class="headerlink" title="The Original Workaround: Panic"></a>The Original Workaround: Panic</h2><p>The initial workaround was to panic after 10,000 iterations:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">loop_count++;</span><br><span class="line"><span class="keyword">if</span> (unlikely(loop_count &gt; <span class="number">10000</span>)) &#123;</span><br><span class="line">    panic(<span class="string">&quot;SCST panic: DeadLoop error occurred!&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Why-This-“Worked”"><a href="#Why-This-“Worked”" class="headerlink" title="Why This “Worked”"></a>Why This “Worked”</h3><ul>
+<li>Prevents soft lockup detector from triggering</li>
+<li>Provides clear evidence via kernel panic</li>
+<li>Forces immediate attention to the problem</li>
+</ul>
+<h3 id="Why-This-Is-Bad"><a href="#Why-This-Is-Bad" class="headerlink" title="Why This Is Bad"></a>Why This Is Bad</h3><ul>
+<li>❌ Crashes the entire system</li>
+<li>❌ Loses all in-flight I&#x2F;O across all devices</li>
+<li>❌ No recovery possible</li>
+<li>❌ Doesn’t fix the root cause</li>
+<li>❌ No diagnostic information about stuck commands</li>
+</ul>
+<hr>
+<h2 id="The-Proper-Solution"><a href="#The-Proper-Solution" class="headerlink" title="The Proper Solution"></a>The Proper Solution</h2><h3 id="Multi-Layered-Approach"><a href="#Multi-Layered-Approach" class="headerlink" title="Multi-Layered Approach"></a>Multi-Layered Approach</h3><ol>
+<li><strong>Diagnostic Layer</strong> - Identify stuck commands</li>
+<li><strong>Timeout Layer</strong> - Detect prolonged loops</li>
+<li><strong>Force Cleanup Layer</strong> - Break the deadlock</li>
+<li><strong>Graceful Degradation</strong> - Continue cleanup after recovery</li>
+</ol>
+<h3 id="Implementation"><a href="#Implementation" class="headerlink" title="Implementation"></a>Implementation</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_process_cleanup</span><span class="params">(<span class="keyword">struct</span> scst_user_dev *dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">ucmd</span>;</span></span><br><span class="line">    <span class="type">int</span> rc = <span class="number">0</span>, res = <span class="number">1</span>;</span><br><span class="line">    <span class="type">int</span> loop_count = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> force_cleanup_threshold = <span class="number">1000</span>;  <span class="comment">/* ~1 second with msleep(1) */</span></span><br><span class="line">    <span class="type">int</span> diagnostic_threshold = <span class="number">100</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... initialization ...</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">        <span class="type">int</span> rc1;</span><br><span class="line"></span><br><span class="line">        rc1 = dev_user_unjam_dev(dev);</span><br><span class="line">        <span class="keyword">if</span> (rc1 == <span class="number">0</span> &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done)</span><br><span class="line">            <span class="keyword">break</span>;  <span class="comment">// Normal exit</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// ... command processing ...</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (rc == -EAGAIN) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!dev-&gt;cleanup_done) &#123;</span><br><span class="line">                <span class="keyword">goto</span> out;  <span class="comment">// Normal early exit</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            loop_count++;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* DIAGNOSTIC LAYER: Print diagnostics after 100 iterations */</span></span><br><span class="line">            <span class="keyword">if</span> (unlikely(loop_count == diagnostic_threshold)) &#123;</span><br><span class="line">                PRINT_WARNING(<span class="string">&quot;Cleanup loop detected for dev %p after %d iterations, &quot;</span></span><br><span class="line">                              <span class="string">&quot;rc1=%d (stuck commands), rc=%d, cleanup_done=%d&quot;</span>,</span><br><span class="line">                              dev, loop_count, rc1, rc, dev-&gt;cleanup_done);</span><br><span class="line"></span><br><span class="line">                <span class="comment">// Log all stuck commands with their states</span></span><br><span class="line">                spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">                <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> *<span class="title">head</span> =</span> &amp;dev-&gt;ucmd_hash[i];</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">stuck_ucmd</span>;</span></span><br><span class="line"></span><br><span class="line">                    list_for_each_entry(stuck_ucmd, head, hash_list_entry) &#123;</span><br><span class="line">                        PRINT_WARNING(<span class="string">&quot;Stuck ucmd %p: state=%x, sent_to_user=%d, &quot;</span></span><br><span class="line">                                      <span class="string">&quot;jammed=%d, ref=%d, scst_cmd=%p&quot;</span>,</span><br><span class="line">                                      stuck_ucmd, stuck_ucmd-&gt;state,</span><br><span class="line">                                      stuck_ucmd-&gt;sent_to_user,</span><br><span class="line">                                      stuck_ucmd-&gt;jammed,</span><br><span class="line">                                      <span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref),</span><br><span class="line">                                      stuck_ucmd-&gt;cmd);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* FORCE CLEANUP LAYER: Break deadlock after 1000 iterations */</span></span><br><span class="line">            <span class="keyword">if</span> (unlikely(loop_count &gt;= force_cleanup_threshold)) &#123;</span><br><span class="line">                PRINT_ERROR(<span class="string">&quot;Force cleanup triggered after %d iterations for dev %p. &quot;</span></span><br><span class="line">                            <span class="string">&quot;Breaking deadlock by forcefully releasing %d stuck commands.&quot;</span>,</span><br><span class="line">                            loop_count, dev, rc1);</span><br><span class="line"></span><br><span class="line">                spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">                <span class="comment">// Forcefully release all stuck commands</span></span><br><span class="line">                <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> *<span class="title">head</span> =</span> &amp;dev-&gt;ucmd_hash[i];</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">stuck_ucmd</span>, *<span class="title">tmp</span>;</span></span><br><span class="line"></span><br><span class="line">                    list_for_each_entry_safe(stuck_ucmd, tmp, head, hash_list_entry) &#123;</span><br><span class="line">                        PRINT_ERROR(<span class="string">&quot;Force releasing stuck ucmd %p (state %x, ref %d)&quot;</span>,</span><br><span class="line">                                    stuck_ucmd, stuck_ucmd-&gt;state,</span><br><span class="line">                                    <span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref));</span><br><span class="line"></span><br><span class="line">                        <span class="comment">// Remove from hash</span></span><br><span class="line">                        list_del(&amp;stuck_ucmd-&gt;hash_list_entry);</span><br><span class="line"></span><br><span class="line">                        <span class="comment">// Force reference count to 1 then free</span></span><br><span class="line">                        <span class="keyword">while</span> (<span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref) &gt; <span class="number">1</span>)</span><br><span class="line">                            ucmd_put(stuck_ucmd);</span><br><span class="line"></span><br><span class="line">                        <span class="keyword">if</span> (<span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref) == <span class="number">1</span>)</span><br><span class="line">                            ucmd_put(stuck_ucmd);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">                spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">                <span class="keyword">break</span>;  <span class="comment">// Exit loop after force cleanup</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* CPU THROTTLING: Prevent tight spinning */</span></span><br><span class="line">            <span class="keyword">if</span> (loop_count &gt; <span class="number">10</span>)</span><br><span class="line">                msleep(<span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    dev_user_check_lost_ucmds(dev);</span><br><span class="line">    complete_all(&amp;dev-&gt;cleanup_cmpl);  <span class="comment">// Always reached now!</span></span><br><span class="line">    res = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">out:</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Key-Improvements"><a href="#Key-Improvements" class="headerlink" title="Key Improvements"></a>Key Improvements</h3><h4 id="1-Diagnostic-Logging-100-iterations"><a href="#1-Diagnostic-Logging-100-iterations" class="headerlink" title="1. Diagnostic Logging (100 iterations)"></a>1. Diagnostic Logging (100 iterations)</h4><p>Captures the state when the loop is detected:</p>
+<ul>
+<li>Device pointer and iteration count</li>
+<li>Return codes (<code>rc1</code>, <code>rc</code>, <code>cleanup_done</code>)</li>
+<li><strong>Every stuck command’s details:</strong><ul>
+<li>State (parsing, executing, freeing, etc.)</li>
+<li>Whether sent to user space</li>
+<li>Jammed flag</li>
+<li>Reference count</li>
+<li>Associated SCST command pointer</li>
+</ul>
+</li>
+</ul>
+<p>This provides actionable debugging information instead of just panicking.</p>
+<h4 id="2-Force-Cleanup-1000-iterations-≈-1-second"><a href="#2-Force-Cleanup-1000-iterations-≈-1-second" class="headerlink" title="2. Force Cleanup (1000 iterations ≈ 1 second)"></a>2. Force Cleanup (1000 iterations ≈ 1 second)</h4><p>After a reasonable timeout:</p>
+<ul>
+<li>Removes all commands from <code>ucmd_hash</code></li>
+<li>Forces reference counts down to prevent leaks</li>
+<li>Frees stuck commands</li>
+<li><strong>Breaks the loop</strong>, allowing <code>complete_all()</code> to be called</li>
+</ul>
+<h4 id="3-CPU-Throttling"><a href="#3-CPU-Throttling" class="headerlink" title="3. CPU Throttling"></a>3. CPU Throttling</h4><p>After 10 iterations, adds <code>msleep(1)</code> to:</p>
+<ul>
+<li>Prevent CPU spinning at 100%</li>
+<li>Allow other threads to run</li>
+<li>Reduce system load during cleanup</li>
+</ul>
+<h4 id="4-Guaranteed-Progress"><a href="#4-Guaranteed-Progress" class="headerlink" title="4. Guaranteed Progress"></a>4. Guaranteed Progress</h4><p>The loop <strong>will terminate</strong> either by:</p>
+<ul>
+<li>Normal completion (all commands cleaned up)</li>
+<li>Force cleanup after timeout</li>
+<li>Early exit if cleanup not yet initiated</li>
+</ul>
+<p><strong>Unlike the panic approach</strong>, this allows:</p>
+<ul>
+<li>System to continue running</li>
+<li>Other devices to function normally</li>
+<li>Diagnostic data to be collected</li>
+<li>Graceful degradation instead of catastrophic failure</li>
+</ul>
+<hr>
+<h2 id="Testing-and-Validation"><a href="#Testing-and-Validation" class="headerlink" title="Testing and Validation"></a>Testing and Validation</h2><h3 id="Reproduction"><a href="#Reproduction" class="headerlink" title="Reproduction"></a>Reproduction</h3><p>The issue can be reproduced by:</p>
+<ol>
+<li>Creating a SCST user-space device</li>
+<li>Sending I&#x2F;O commands</li>
+<li>Killing the user-space handler process abruptly</li>
+<li>Attempting to unload the device</li>
+</ol>
+<p>This leaves commands in intermediate states, triggering the deadlock.</p>
+<h3 id="Expected-Behavior-After-Fix"><a href="#Expected-Behavior-After-Fix" class="headerlink" title="Expected Behavior After Fix"></a>Expected Behavior After Fix</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"># dmesg output during cleanup with stuck commands</span><br><span class="line"></span><br><span class="line">[  123.456] scst_user: Cleanup loop detected for dev ffff888123456789 after 100 iterations,</span><br><span class="line">           rc1=2 (stuck commands), rc=-11, cleanup_done=1</span><br><span class="line">[  123.457] scst_user: Stuck ucmd ffff888abcd1234: state=3, sent_to_user=1,</span><br><span class="line">           jammed=0, ref=0, scst_cmd=ffff888def5678</span><br><span class="line">[  123.458] scst_user: Stuck ucmd ffff888abcd5678: state=3, sent_to_user=0,</span><br><span class="line">           jammed=0, ref=0, scst_cmd=0000000000000000</span><br><span class="line">[  124.456] scst_user: Force cleanup triggered after 1000 iterations for dev ffff888123456789.</span><br><span class="line">           Breaking deadlock by forcefully releasing 2 stuck commands.</span><br><span class="line">[  124.457] scst_user: Force releasing stuck ucmd ffff888abcd1234 (state 3, ref 0)</span><br><span class="line">[  124.458] scst_user: Force releasing stuck ucmd ffff888abcd5678 (state 3, ref 0)</span><br><span class="line">[  124.459] scst_user: Cleanuping done (dev ffff888123456789)</span><br></pre></td></tr></table></figure>
+
+<p>Device cleanup completes successfully without system crash!</p>
+<hr>
+<h2 id="Alternative-Solutions-Considered"><a href="#Alternative-Solutions-Considered" class="headerlink" title="Alternative Solutions Considered"></a>Alternative Solutions Considered</h2><h3 id="Option-1-Fix-the-State-Machine"><a href="#Option-1-Fix-the-State-Machine" class="headerlink" title="Option 1: Fix the State Machine"></a>Option 1: Fix the State Machine</h3><p>Prevent commands from becoming zombies in the first place by ensuring proper reference counting and state transitions.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Addresses root cause</li>
+<li>No workarounds needed</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Requires extensive refactoring</li>
+<li>High risk of introducing new bugs</li>
+<li>Difficult to guarantee all edge cases covered</li>
+</ul>
+<p><strong>Verdict:</strong> Long-term goal, but needs immediate fix first</p>
+<h3 id="Option-2-Timeout-with-Warning-Only"><a href="#Option-2-Timeout-with-Warning-Only" class="headerlink" title="Option 2: Timeout with Warning Only"></a>Option 2: Timeout with Warning Only</h3><p>Log an error but don’t force cleanup, just break the loop.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Simple implementation</li>
+<li>Non-intrusive</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>May leak memory (stuck commands not freed)</li>
+<li>Could accumulate over multiple cleanup attempts</li>
+<li>No guarantee of forward progress</li>
+</ul>
+<p><strong>Verdict:</strong> Too risky for resource leaks</p>
+<h3 id="Option-3-The-Implemented-Hybrid-Approach"><a href="#Option-3-The-Implemented-Hybrid-Approach" class="headerlink" title="Option 3: The Implemented Hybrid Approach"></a>Option 3: The Implemented Hybrid Approach</h3><p>Diagnostics + Force cleanup + Graceful degradation</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>✅ Prevents system crash</li>
+<li>✅ Provides debugging information</li>
+<li>✅ Guarantees cleanup completion</li>
+<li>✅ Frees stuck resources</li>
+<li>✅ Minimal code changes</li>
+<li>✅ Low risk of side effects</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Force cleanup may leak kernel memory in pathological cases</li>
+<li>Doesn’t fix underlying race conditions</li>
+</ul>
+<p><strong>Verdict:</strong> Best balance of safety, effectiveness, and maintainability</p>
+<hr>
+<h2 id="Lessons-Learned"><a href="#Lessons-Learned" class="headerlink" title="Lessons Learned"></a>Lessons Learned</h2><h3 id="1-Infinite-Loops-in-Kernel-Space-Are-Deadly"><a href="#1-Infinite-Loops-in-Kernel-Space-Are-Deadly" class="headerlink" title="1. Infinite Loops in Kernel Space Are Deadly"></a>1. Infinite Loops in Kernel Space Are Deadly</h3><p>Unlike user space, kernel infinite loops can:</p>
+<ul>
+<li>Trigger soft lockup detection</li>
+<li>Hang the entire system</li>
+<li>Require hard reboot</li>
+<li>Lose all in-flight operations</li>
+</ul>
+<p><strong>Always</strong> have an escape hatch!</p>
+<h3 id="2-Reference-Counting-Is-Hard"><a href="#2-Reference-Counting-Is-Hard" class="headerlink" title="2. Reference Counting Is Hard"></a>2. Reference Counting Is Hard</h3><p>The zombie command issue stems from a classic reference counting problem:</p>
+<ul>
+<li>Commands can reach refcount 0 while still in data structures</li>
+<li><code>ucmd_get_check()</code> tries to increment from 0 → fails</li>
+<li>Command is un-reachable but still “exists”</li>
+</ul>
+<p><strong>Solution:</strong> Ensure removal from data structures happens atomically with final refcount decrement.</p>
+<h3 id="3-Completions-Need-Guarantees"><a href="#3-Completions-Need-Guarantees" class="headerlink" title="3. Completions Need Guarantees"></a>3. Completions Need Guarantees</h3><p>The <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code> in <code>dev_user_exit_dev()</code> will block <strong>forever</strong> if <code>complete_all()</code> is never called.</p>
+<p><strong>Always</strong> ensure completion paths are reachable, even in error scenarios.</p>
+<h3 id="4-Diagnostics-Are-Crucial"><a href="#4-Diagnostics-Are-Crucial" class="headerlink" title="4. Diagnostics Are Crucial"></a>4. Diagnostics Are Crucial</h3><p>The panic approach provided no information about:</p>
+<ul>
+<li>What commands were stuck</li>
+<li>Why they were stuck</li>
+<li>How to prevent it</li>
+</ul>
+<p>The new approach logs:</p>
+<ul>
+<li>Command states</li>
+<li>Reference counts</li>
+<li>Flags</li>
+</ul>
+<p>This enables root cause analysis and eventual proper fix.</p>
+<h3 id="5-Graceful-Degradation-Catastrophic-Failure"><a href="#5-Graceful-Degradation-Catastrophic-Failure" class="headerlink" title="5. Graceful Degradation &gt; Catastrophic Failure"></a>5. Graceful Degradation &gt; Catastrophic Failure</h3><p>A storage system that crashes the entire server on cleanup failure is worse than one that:</p>
+<ul>
+<li>Logs errors</li>
+<li>Forces cleanup</li>
+<li>Continues operation</li>
+</ul>
+<p>Users prefer logs and potential minor resource leaks over complete system outages.</p>
+<hr>
+<h2 id="Future-Work"><a href="#Future-Work" class="headerlink" title="Future Work"></a>Future Work</h2><h3 id="Short-Term"><a href="#Short-Term" class="headerlink" title="Short Term"></a>Short Term</h3><ul>
+<li><input checked="" disabled="" type="checkbox"> Implement force cleanup (completed in this fix)</li>
+<li><input disabled="" type="checkbox"> Add metrics for stuck command frequency</li>
+<li><input disabled="" type="checkbox"> Create reproducer test case</li>
+<li><input disabled="" type="checkbox"> Upstream the fix to SCST maintainers</li>
+</ul>
+<h3 id="Long-Term"><a href="#Long-Term" class="headerlink" title="Long Term"></a>Long Term</h3><ul>
+<li><input disabled="" type="checkbox"> Refactor command lifecycle to eliminate zombie state possibility</li>
+<li><input disabled="" type="checkbox"> Implement per-command timeout tracking</li>
+<li><input disabled="" type="checkbox"> Add lockdep annotations for lock ordering</li>
+<li><input disabled="" type="checkbox"> Redesign cleanup sequence to avoid wait_for_completion</li>
+</ul>
+<hr>
+<h2 id="Conclusion"><a href="#Conclusion" class="headerlink" title="Conclusion"></a>Conclusion</h2><p>The SCST infinite loop deadlock is a textbook example of kernel synchronization gone wrong:</p>
+<ul>
+<li>Complex state machine with multiple threads</li>
+<li>Reference counting bugs creating zombie objects</li>
+<li>Infinite loop with unreachable exit condition</li>
+<li>Blocking wait for completion that never gets signaled</li>
+</ul>
+<p>The fix demonstrates defensive programming principles:</p>
+<ol>
+<li><strong>Detect</strong> - Identify when abnormal conditions occur</li>
+<li><strong>Diagnose</strong> - Log detailed state for debugging</li>
+<li><strong>Recover</strong> - Take corrective action to restore progress</li>
+<li><strong>Degrade Gracefully</strong> - Prefer operation with warnings over complete failure</li>
+</ol>
+<p>This approach transforms a system-crashing bug into a manageable edge case with clear diagnostics and automatic recovery.</p>
+<h3 id="Code-Locations"><a href="#Code-Locations" class="headerlink" title="Code Locations"></a>Code Locations</h3><ul>
+<li><strong>File:</strong> <code>scst/src/dev_handlers/scst_user.c</code></li>
+<li><strong>Function:</strong> <code>dev_user_process_cleanup()</code> (line 3851)</li>
+<li><strong>Related Functions:</strong><ul>
+<li><code>dev_user_unjam_dev()</code> (line 2680)</li>
+<li><code>dev_user_exit_dev()</code> (line 3747)</li>
+<li><code>dev_user_get_next_cmd()</code> (line 2174)</li>
+</ul>
+</li>
+</ul>
+<h3 id="References"><a href="#References" class="headerlink" title="References"></a>References</h3><ul>
+<li>SCST Project: <a target="_blank" rel="noopener" href="http://scst.sourceforge.net/">http://scst.sourceforge.net/</a></li>
+<li>Issue Tracker: <a target="_blank" rel="noopener" href="https://github.corp.ebay.com/tess-contrib/scst/issues/5">https://github.corp.ebay.com/tess-contrib/scst/issues/5</a></li>
+<li>Fix Commit: (will be updated after merge)</li>
+</ul>
+<hr>
+<p><strong>Tags:</strong> #kernel #deadlock #scst #storage #debugging #linux #reference-counting #synchronization</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/linux/" rel="tag"># linux</a>
+              <a href="/tags/debugging/" rel="tag"># debugging</a>
+              <a href="/tags/kernel/" rel="tag"># kernel</a>
+              <a href="/tags/scst/" rel="tag"># scst</a>
+              <a href="/tags/deadlock/" rel="tag"># deadlock</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/05/06/2026-05-06-vllm-kubernetes-training-inference-separation/" rel="prev" title="业界如何在 Kubernetes 上跑 vLLM：训练与推理分离的实践">
+                  <i class="fa fa-angle-left"></i> 业界如何在 Kubernetes 上跑 vLLM：训练与推理分离的实践
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
