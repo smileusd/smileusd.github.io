@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="概述SCST (SCSI Target Subsystem for Linux) 是Linux内核中用于构建SCSI目标设备（Target）的高性能框架。它允许Linux系统将本地存储资源通过各种SCSI传输协议（如iSCSI、FC、SRP等）导出给远程主机使用。本文将深入解析SCST的核心概念、架构设计和关键数据结构。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="SCST基础概念深度解析">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/02/2026-06-02-scst-basic-concepts-deep-dive/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="概述SCST (SCSI Target Subsystem for Linux) 是Linux内核中用于构建SCSI目标设备（Target）的高性能框架。它允许Linux系统将本地存储资源通过各种SCSI传输协议（如iSCSI、FC、SRP等）导出给远程主机使用。本文将深入解析SCST的核心概念、架构设计和关键数据结构。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-02T06:30:00.000Z">
+<meta property="article:modified_time" content="2026-06-02T04:07:42.119Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="kernel">
+<meta property="article:tag" content="scst">
+<meta property="article:tag" content="storage">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/02/2026-06-02-scst-basic-concepts-deep-dive/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/02/2026-06-02-scst-basic-concepts-deep-dive/","path":"2026/06/02/2026-06-02-scst-basic-concepts-deep-dive/","title":"SCST基础概念深度解析"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>SCST基础概念深度解析 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A6%82%E8%BF%B0"><span class="nav-number">1.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SCST%E6%9E%B6%E6%9E%84%E6%A6%82%E8%A7%88"><span class="nav-number">2.</span> <span class="nav-text">SCST架构概览</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%89%E5%B1%82%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3"><span class="nav-number">2.1.</span> <span class="nav-text">三层架构详解</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">3.</span> <span class="nav-text">核心数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-scst-cmd-SCSI%E5%91%BD%E4%BB%A4%E7%BB%93%E6%9E%84"><span class="nav-number">3.1.</span> <span class="nav-text">1. scst_cmd - SCSI命令结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-scst-tgt-Target%E7%BB%93%E6%9E%84"><span class="nav-number">3.2.</span> <span class="nav-text">2. scst_tgt - Target结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-scst-session-%E4%BC%9A%E8%AF%9D%E7%BB%93%E6%9E%84"><span class="nav-number">3.3.</span> <span class="nav-text">3. scst_session - 会话结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-scst-dev-%E8%AE%BE%E5%A4%87%E7%BB%93%E6%9E%84"><span class="nav-number">3.4.</span> <span class="nav-text">4. scst_dev - 设备结构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%91%BD%E4%BB%A4%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-number">4.</span> <span class="nav-text">命令状态机</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%89%A7%E8%A1%8C%E4%B8%8A%E4%B8%8B%E6%96%87%EF%BC%88Execution-Context%EF%BC%89"><span class="nav-number">5.</span> <span class="nav-text">执行上下文（Execution Context）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86-SGV-Pool"><span class="nav-number">6.</span> <span class="nav-text">内存管理 - SGV Pool</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Target%E9%A9%B1%E5%8A%A8%E6%8E%A5%E5%8F%A3"><span class="nav-number">7.</span> <span class="nav-text">Target驱动接口</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%BE%E5%A4%87%E5%A4%84%E7%90%86%E5%99%A8%E6%8E%A5%E5%8F%A3"><span class="nav-number">8.</span> <span class="nav-text">设备处理器接口</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96%E8%AE%BE%E8%AE%A1"><span class="nav-number">9.</span> <span class="nav-text">性能优化设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Per-CPU%E5%91%BD%E4%BB%A4%E9%98%9F%E5%88%97"><span class="nav-number">9.1.</span> <span class="nav-text">1. Per-CPU命令队列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%91%BD%E4%BB%A4%E5%BC%95%E7%94%A8%E8%AE%A1%E6%95%B0"><span class="nav-number">9.2.</span> <span class="nav-text">2. 命令引用计数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E9%9B%B6%E6%8B%B7%E8%B4%9D%E6%95%B0%E6%8D%AE%E4%BC%A0%E8%BE%93"><span class="nav-number">9.3.</span> <span class="nav-text">3. 零拷贝数据传输</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">10.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">11.</span> <span class="nav-text">参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">108</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">36</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">255</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/02/2026-06-02-scst-basic-concepts-deep-dive/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="SCST基础概念深度解析 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          SCST基础概念深度解析
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-02 14:30:00 / Modified: 12:07:42" itemprop="dateCreated datePublished" datetime="2026-06-02T14:30:00+08:00">2026-06-02</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux-Kernel</span></a>
+        </span>
+          , 
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>SCST (SCSI Target Subsystem for Linux) 是Linux内核中用于构建SCSI目标设备（Target）的高性能框架。它允许Linux系统将本地存储资源通过各种SCSI传输协议（如iSCSI、FC、SRP等）导出给远程主机使用。本文将深入解析SCST的核心概念、架构设计和关键数据结构。</p>
+<span id="more"></span>
+
+<h2 id="SCST架构概览"><a href="#SCST架构概览" class="headerlink" title="SCST架构概览"></a>SCST架构概览</h2><p>SCST采用分层架构设计，主要包含三个核心层次：</p>
+<pre class="mermaid">graph TB
+    subgraph "Target Drivers Layer"
+        A[iSCSI Target]
+        B[FC Target]
+        C[SRP Target]
+        D[User Space Target]
+    end
+
+    subgraph "SCST Core Layer"
+        E[Command Processing]
+        F[Session Management]
+        G[Device Management]
+        H[Memory Management]
+    end
+
+    subgraph "Device Handlers Layer"
+        I[VDISK Handler]
+        J[SCST_USER Handler]
+        K[Pass-through Handler]
+        L[CDROM Handler]
+    end
+
+    subgraph "Backend Storage"
+        M[Block Devices]
+        N[Files]
+        O[User Space Programs]
+    end
+
+    A --> E
+    B --> E
+    C --> E
+    D --> E
+
+    E --> I
+    E --> J
+    E --> K
+    E --> L
+
+    I --> M
+    I --> N
+    J --> O
+    K --> M
+    L --> M</pre>
+
+<h3 id="三层架构详解"><a href="#三层架构详解" class="headerlink" title="三层架构详解"></a>三层架构详解</h3><ol>
+<li><p><strong>Target Drivers Layer (目标驱动层)</strong></p>
+<ul>
+<li>负责具体传输协议的实现（iSCSI、FC、SRP等）</li>
+<li>处理协议特定的连接管理和数据传输</li>
+<li>将接收到的SCSI命令转换为SCST内部格式</li>
+</ul>
+</li>
+<li><p><strong>SCST Core Layer (核心层)</strong></p>
+<ul>
+<li>命令处理引擎：管理命令的完整生命周期</li>
+<li>会话管理：维护initiator与target之间的会话</li>
+<li>设备管理：管理导出的SCSI设备</li>
+<li>内存管理：高效的scatter-gather缓冲区管理</li>
+</ul>
+</li>
+<li><p><strong>Device Handlers Layer (设备处理层)</strong></p>
+<ul>
+<li>实现具体的SCSI设备类型逻辑</li>
+<li>VDISK：将文件或块设备模拟为SCSI磁盘</li>
+<li>SCST_USER：允许用户空间程序实现SCSI设备</li>
+<li>Pass-through：直接将命令传递给后端SCSI设备</li>
+</ul>
+</li>
+</ol>
+<h2 id="核心数据结构"><a href="#核心数据结构" class="headerlink" title="核心数据结构"></a>核心数据结构</h2><h3 id="1-scst-cmd-SCSI命令结构"><a href="#1-scst-cmd-SCSI命令结构" class="headerlink" title="1. scst_cmd - SCSI命令结构"></a>1. scst_cmd - SCSI命令结构</h3><p><code>scst_cmd</code>是SCST中最核心的数据结构，代表一个正在处理的SCSI命令：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">scst_cmd</span> &#123;</span></span><br><span class="line">    <span class="comment">/* 命令链表入口，用于各种队列 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">cmd_list_entry</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 指向命令处理线程池 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_cmd_threads</span> *<span class="title">cmd_threads</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 分配的处理线程（提升CPU亲和性） */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_cmd_thread_t</span> *<span class="title">cmd_thr</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 所属会话 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_session</span> *<span class="title">sess</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 引用计数，用于生命周期管理 */</span></span><br><span class="line">    <span class="type">atomic_t</span> cmd_ref;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 命令状态，SCST_CMD_STATE_* 常量之一 */</span></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">scst_cmd_state</span> <span class="title">state</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 上次状态更新时间（100纳秒单位） */</span></span><br><span class="line">    <span class="type">ktime_t</span> last_state_update;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 命令标志位 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> sent_for_exec:<span class="number">1</span>;      <span class="comment">/* 已发送执行 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> sn_set:<span class="number">1</span>;              <span class="comment">/* 序列号已设置 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> completed:<span class="number">1</span>;           <span class="comment">/* 命令已完成 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> atomic:<span class="number">1</span>;              <span class="comment">/* 原子上下文处理 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> internal:<span class="number">1</span>;            <span class="comment">/* 内部生成命令 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* SCSI CDB（命令描述块） */</span></span><br><span class="line">    <span class="type">uint8_t</span> cdb[SCST_MAX_CDB_SIZE];</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> cdb_len;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 数据方向：READ、WRITE、NONE */</span></span><br><span class="line">    scst_data_direction data_direction;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 数据缓冲区（scatter-gather list） */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scatterlist</span> *<span class="title">sg</span>;</span></span><br><span class="line">    <span class="type">int</span> sg_cnt;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> bufflen;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 关联的目标设备 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_tgt_dev</span> *<span class="title">tgt_dev</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* SCSI状态和sense数据 */</span></span><br><span class="line">    <span class="type">uint8_t</span> status;</span><br><span class="line">    <span class="type">uint8_t</span> msg_status;</span><br><span class="line">    <span class="type">uint8_t</span> sense[SCST_SENSE_BUFFERSIZE];</span><br><span class="line">    <span class="type">int</span> sense_valid_len;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键字段说明：</strong></p>
+<ul>
+<li><code>state</code>：命令当前所处的状态机状态，驱动整个命令处理流程</li>
+<li><code>cmd_ref</code>：引用计数器，防止命令在异步处理过程中被过早释放</li>
+<li><code>sg/sg_cnt</code>：scatter-gather列表，支持高效的零拷贝数据传输</li>
+<li><code>tgt_dev</code>：关联的目标设备，连接命令与具体的后端设备</li>
+</ul>
+<h3 id="2-scst-tgt-Target结构"><a href="#2-scst-tgt-Target结构" class="headerlink" title="2. scst_tgt - Target结构"></a>2. scst_tgt - Target结构</h3><p><code>scst_tgt</code>代表一个SCSI Target端口：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">scst_tgt</span> &#123;</span></span><br><span class="line">    <span class="comment">/* 该target下的会话列表，受scst_mutex保护 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">sess_list</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 在sysfs中注册的会话列表 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">sysfs_sess_list</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 在template的tgts_list中的链表入口 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">tgt_list_entry</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 对应的target template */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_tgt_template</span> *<span class="title">tgtt</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 默认访问控制组 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_acg</span> *<span class="title">default_acg</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Target ACG组列表 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">tgt_acg_list</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Target名称 */</span></span><br><span class="line">    <span class="type">char</span> *tgt_name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* SG表大小限制 */</span></span><br><span class="line">    <span class="type">int</span> sg_tablesize;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Target驱动私有数据 */</span></span><br><span class="line">    <span class="type">void</span> *tgt_priv;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* DIF（数据完整性字段）支持标志 */</span></span><br><span class="line">    <span class="type">unsigned</span> tgt_dif_supported:<span class="number">1</span>;</span><br><span class="line">    <span class="type">unsigned</span> tgt_hw_dif_type1_supported:<span class="number">1</span>;</span><br><span class="line">    <span class="type">unsigned</span> tgt_hw_dif_type2_supported:<span class="number">1</span>;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>设计要点：</strong></p>
+<ul>
+<li>一个target可以有多个session（多个initiator连接）</li>
+<li>通过ACG（Access Control Group）实现细粒度的访问控制</li>
+<li><code>sg_tablesize</code>限制单个I&#x2F;O的scatter-gather条目数量</li>
+</ul>
+<h3 id="3-scst-session-会话结构"><a href="#3-scst-session-会话结构" class="headerlink" title="3. scst_session - 会话结构"></a>3. scst_session - 会话结构</h3><p><code>scst_session</code>代表initiator与target之间的一个会话：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">scst_session</span> &#123;</span></span><br><span class="line">    <span class="comment">/* 初始化阶段，SCST_SESS_IPH_* 常量 */</span></span><br><span class="line">    <span class="type">int</span> init_phase;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 所属target */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_tgt</span> *<span class="title">tgt</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Target驱动私有数据 */</span></span><br><span class="line">    <span class="type">void</span> *sess_tgt_priv;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 会话异步标志 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> sess_aflags;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 保护sess_tgt_dev_list修改的互斥锁 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">mutex</span> <span class="title">tgt_dev_list_mutex</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 该会话的tgt_dev哈希表 */</span></span><br><span class="line">    <span class="meta">#<span class="keyword">define</span> SESS_TGT_DEV_LIST_HASH_SIZE (1 &lt;&lt; 5)</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">sess_tgt_dev_list</span>[<span class="title">SESS_TGT_DEV_LIST_HASH_SIZE</span>];</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 会话中的命令列表，受sess_list_lock保护 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">sess_cmd_list</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Initiator名称 */</span></span><br><span class="line">    <span class="type">char</span> *initiator_name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 会话ID */</span></span><br><span class="line">    <span class="type">uint64_t</span> sid;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 命令序列号跟踪 */</span></span><br><span class="line">    <span class="type">atomic_t</span> num_cmds;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 引用计数 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">kref</span> <span class="title">sess_kref</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>会话生命周期：</strong></p>
+<ol>
+<li><code>scst_register_session()</code> - 注册会话</li>
+<li>命令处理阶段 - initiator通过会话发送命令</li>
+<li><code>scst_unregister_session()</code> - 注销会话，清理资源</li>
+</ol>
+<h3 id="4-scst-dev-设备结构"><a href="#4-scst-dev-设备结构" class="headerlink" title="4. scst_dev - 设备结构"></a>4. scst_dev - 设备结构</h3><p><code>scst_dev</code>代表一个SCSI逻辑设备：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">scst_dev</span> &#123;</span></span><br><span class="line">    <span class="comment">/* 设备处理器 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_dev_type</span> *<span class="title">handler</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 设备名称 */</span></span><br><span class="line">    <span class="type">char</span> *virt_name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 设备私有数据 */</span></span><br><span class="line">    <span class="type">void</span> *dh_priv;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 设备类型（DISK、TAPE、CDROM等） */</span></span><br><span class="line">    <span class="type">int</span> type;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 设备块大小 */</span></span><br><span class="line">    <span class="type">int</span> block_size;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 设备总大小（扇区数） */</span></span><br><span class="line">    <span class="type">uint64_t</span> nblocks;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* SCSI设备标识符 */</span></span><br><span class="line">    <span class="type">uint8_t</span> t10_dev_id[<span class="number">20</span>];</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 设备标志位 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> dev_thin_provisioned:<span class="number">1</span>;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> dev_dif_type:<span class="number">3</span>;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> dev_dif_mode:<span class="number">2</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 命令线程池 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_cmd_threads</span> <span class="title">cmd_threads</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 正在执行的命令计数 */</span></span><br><span class="line">    <span class="type">atomic_t</span> on_dev_cmd_count;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>设备类型：</strong></p>
+<ul>
+<li><code>TYPE_DISK</code> (0) - 直接访问块设备</li>
+<li><code>TYPE_TAPE</code> (1) - 顺序访问设备</li>
+<li><code>TYPE_CDROM</code> (5) - CD-ROM设备</li>
+<li><code>TYPE_PROCESSOR</code> (3) - 处理器设备</li>
+</ul>
+<h2 id="命令状态机"><a href="#命令状态机" class="headerlink" title="命令状态机"></a>命令状态机</h2><p>SCST使用复杂的状态机来管理命令处理流程。状态分为”主动状态”（active states）和”被动状态”（passive states）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">scst_cmd_state</span> &#123;</span></span><br><span class="line">    <span class="comment">/* 主动状态 - SCST主动推进命令处理 */</span></span><br><span class="line">    SCST_CMD_STATE_PARSE = <span class="number">0</span>,           <span class="comment">/* 解析命令 */</span></span><br><span class="line">    SCST_CMD_STATE_PREPARE_SPACE,       <span class="comment">/* 分配数据缓冲区 */</span></span><br><span class="line">    SCST_CMD_STATE_PREPROCESSING_DONE,  <span class="comment">/* 预处理完成 */</span></span><br><span class="line">    SCST_CMD_STATE_RDY_TO_XFER,        <span class="comment">/* 准备接收数据 */</span></span><br><span class="line">    SCST_CMD_STATE_TGT_PRE_EXEC,       <span class="comment">/* Target驱动预执行 */</span></span><br><span class="line">    SCST_CMD_STATE_EXEC_CHECK_SN,      <span class="comment">/* 执行序列号检查 */</span></span><br><span class="line">    SCST_CMD_STATE_PRE_DEV_DONE,       <span class="comment">/* 设备完成前检查 */</span></span><br><span class="line">    SCST_CMD_STATE_DEV_DONE,           <span class="comment">/* 设备处理完成 */</span></span><br><span class="line">    SCST_CMD_STATE_PRE_XMIT_RESP,      <span class="comment">/* 发送响应前检查 */</span></span><br><span class="line">    SCST_CMD_STATE_XMIT_RESP,          <span class="comment">/* 发送响应 */</span></span><br><span class="line">    SCST_CMD_STATE_FINISHED,           <span class="comment">/* 命令完成 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 被动状态 - 等待外部事件 */</span></span><br><span class="line">    SCST_CMD_STATE_INIT_WAIT,          <span class="comment">/* 等待初始化 */</span></span><br><span class="line">    SCST_CMD_STATE_INIT,               <span class="comment">/* LUN转换 */</span></span><br><span class="line">    SCST_CMD_STATE_DATA_WAIT,          <span class="comment">/* 等待数据从initiator */</span></span><br><span class="line">    SCST_CMD_STATE_EXEC_WAIT,          <span class="comment">/* 等待CDB执行完成 */</span></span><br><span class="line">    SCST_CMD_STATE_XMIT_WAIT,          <span class="comment">/* 等待响应传输完成 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>状态转换示例（READ命令）：</strong></p>
+<pre class="mermaid">stateDiagram-v2
+    [*] --> INIT_WAIT: 命令到达
+    INIT_WAIT --> INIT: scst_cmd_init_done()
+    INIT --> PARSE: LUN解析完成
+    PARSE --> PREPARE_SPACE: CDB解析完成
+    PREPARE_SPACE --> TGT_PRE_EXEC: 缓冲区分配完成
+    TGT_PRE_EXEC --> EXEC_CHECK_SN: 预执行完成
+    EXEC_CHECK_SN --> REAL_EXEC: 序列号检查通过
+    REAL_EXEC --> EXEC_WAIT: 提交I/O
+    EXEC_WAIT --> DEV_DONE: I/O完成
+    DEV_DONE --> PRE_XMIT_RESP: 设备处理完成
+    PRE_XMIT_RESP --> XMIT_RESP: 检查通过
+    XMIT_RESP --> XMIT_WAIT: 开始传输
+    XMIT_WAIT --> FINISHED: 传输完成
+    FINISHED --> [*]</pre>
+
+<h2 id="执行上下文（Execution-Context）"><a href="#执行上下文（Execution-Context）" class="headerlink" title="执行上下文（Execution Context）"></a>执行上下文（Execution Context）</h2><p>SCST支持三种执行上下文，以平衡性能和灵活性：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">scst_exec_context</span> &#123;</span></span><br><span class="line">    SCST_CONTEXT_DIRECT,        <span class="comment">/* 直接在调用者上下文执行（中断或进程） */</span></span><br><span class="line">    SCST_CONTEXT_TASKLET,       <span class="comment">/* 在tasklet上下文执行 */</span></span><br><span class="line">    SCST_CONTEXT_THREAD         <span class="comment">/* 在内核线程上下文执行 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>上下文选择策略：</strong></p>
+<ol>
+<li><p><strong>DIRECT</strong> - 最快，但有限制：</p>
+<ul>
+<li>不能睡眠</li>
+<li>不能执行可能阻塞的操作</li>
+<li>适合简单的命令处理路径</li>
+</ul>
+</li>
+<li><p><strong>TASKLET</strong> - 软中断上下文：</p>
+<ul>
+<li>延迟执行但仍在中断上下文</li>
+<li>不能睡眠</li>
+<li>适合需要延迟但不阻塞的操作</li>
+</ul>
+</li>
+<li><p><strong>THREAD</strong> - 最灵活：</p>
+<ul>
+<li>可以睡眠和执行阻塞操作</li>
+<li>可以进行复杂的I&#x2F;O操作</li>
+<li>性能开销最大</li>
+</ul>
+</li>
+</ol>
+<p><strong>示例代码：</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 设备处理器可以返回SCST_CMD_STATE_NEED_THREAD_CTX */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">vdisk_parse</span><span class="params">(<span class="keyword">struct</span> scst_cmd *cmd)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_vdisk_dev</span> *<span class="title">virt_dev</span> =</span> cmd-&gt;dev-&gt;dh_priv;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 如果在原子上下文但需要睡眠 */</span></span><br><span class="line">    <span class="keyword">if</span> (cmd-&gt;atomic &amp;&amp; need_sleep_operation) &#123;</span><br><span class="line">        <span class="keyword">return</span> SCST_CMD_STATE_NEED_THREAD_CTX;  <span class="comment">/* 切换到线程上下文 */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 正常处理 */</span></span><br><span class="line">    <span class="keyword">return</span> SCST_CMD_STATE_DEFAULT;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="内存管理-SGV-Pool"><a href="#内存管理-SGV-Pool" class="headerlink" title="内存管理 - SGV Pool"></a>内存管理 - SGV Pool</h2><p>SCST使用SGV（Scatter-Gather Vector）池来高效管理内存：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sgv_pool</span> &#123;</span></span><br><span class="line">    <span class="comment">/* 回收列表，按大小分类 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">recycling_lists</span>[<span class="title">SGV_POOL_MAX_CACHES</span>];</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 池锁 */</span></span><br><span class="line">    <span class="type">spinlock_t</span> sgv_pool_lock;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 最大缓存级别 */</span></span><br><span class="line">    <span class="type">int</span> max_caches;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 统计信息 */</span></span><br><span class="line">    <span class="type">atomic_t</span> alloc_count;</span><br><span class="line">    <span class="type">atomic_t</span> hit_count;</span><br><span class="line">    <span class="type">atomic_t</span> miss_count;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>工作原理：</strong></p>
+<ol>
+<li><p><strong>分配时</strong>：</p>
+<ul>
+<li>首先尝试从相应大小的缓存中获取</li>
+<li>如果缓存为空，则分配新的sgv_pool_obj</li>
+<li>更新hit&#x2F;miss统计</li>
+</ul>
+</li>
+<li><p><strong>释放时</strong>：</p>
+<ul>
+<li>将sgv_pool_obj放回相应的recycling_list</li>
+<li>避免频繁的内存分配&#x2F;释放</li>
+</ul>
+</li>
+<li><p><strong>刷新时</strong>（我们刚修复的死锁问题相关）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">sgv_pool_flush</span><span class="params">(<span class="keyword">struct</span> sgv_pool *pool)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; pool-&gt;max_caches; i++) &#123;</span><br><span class="line">        spin_lock_bh(&amp;pool-&gt;sgv_pool_lock);</span><br><span class="line">        <span class="keyword">while</span> (!list_empty(&amp;pool-&gt;recycling_lists[i])) &#123;</span><br><span class="line">            obj = list_first_entry(&amp;pool-&gt;recycling_lists[i],</span><br><span class="line">                                 <span class="keyword">struct</span> sgv_pool_obj, recycling_list_entry);</span><br><span class="line">            __sgv_purge_from_cache(obj);</span><br><span class="line">            spin_unlock_bh(&amp;pool-&gt;sgv_pool_lock);</span><br><span class="line">            sgv_dtor_and_free(obj);</span><br><span class="line">            spin_lock_bh(&amp;pool-&gt;sgv_pool_lock);</span><br><span class="line">        &#125;</span><br><span class="line">        spin_unlock_bh(&amp;pool-&gt;sgv_pool_lock);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="Target驱动接口"><a href="#Target驱动接口" class="headerlink" title="Target驱动接口"></a>Target驱动接口</h2><p>Target驱动通过<code>scst_tgt_template</code>结构向SCST注册：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">scst_tgt_template</span> &#123;</span></span><br><span class="line">    <span class="comment">/* Target驱动名称 */</span></span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 启用回调 */</span></span><br><span class="line">    <span class="type">int</span> (*enable_target)(<span class="keyword">struct</span> scst_tgt *tgt, <span class="type">bool</span> enable);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 检查initiator是否允许访问 */</span></span><br><span class="line">    <span class="type">int</span> (*is_target_enabled)(<span class="keyword">struct</span> scst_tgt *tgt,</span><br><span class="line">                           <span class="type">const</span> <span class="type">uint8_t</span> *lun, <span class="type">int</span> lun_len);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 数据传输准备 */</span></span><br><span class="line">    <span class="type">int</span> (*rdy_to_xfer)(<span class="keyword">struct</span> scst_cmd *cmd);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 发送响应 */</span></span><br><span class="line">    <span class="type">int</span> (*xmit_response)(<span class="keyword">struct</span> scst_cmd *cmd);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 任务管理 */</span></span><br><span class="line">    <span class="type">void</span> (*on_hw_pending_cmd_timeout)(<span class="keyword">struct</span> scst_cmd *cmd);</span><br><span class="line">    <span class="type">void</span> (*on_abort_cmd)(<span class="keyword">struct</span> scst_cmd *cmd);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 会话管理 */</span></span><br><span class="line">    <span class="type">int</span> (*report_aen)(<span class="keyword">struct</span> scst_session *sess,</span><br><span class="line">                     <span class="type">const</span> <span class="keyword">struct</span> scst_aen *aen);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 特性标志 */</span></span><br><span class="line">    <span class="type">unsigned</span> use_clustering:<span class="number">1</span>;</span><br><span class="line">    <span class="type">unsigned</span> mq_supported:<span class="number">1</span>;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键回调：</strong></p>
+<ul>
+<li><code>xmit_response()</code> - 将SCSI响应发送给initiator</li>
+<li><code>rdy_to_xfer()</code> - 通知initiator可以发送WRITE数据</li>
+<li><code>on_abort_cmd()</code> - 处理命令中止请求</li>
+</ul>
+<h2 id="设备处理器接口"><a href="#设备处理器接口" class="headerlink" title="设备处理器接口"></a>设备处理器接口</h2><p>设备处理器通过<code>scst_dev_type</code>结构注册：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">scst_dev_type</span> &#123;</span></span><br><span class="line">    <span class="comment">/* 设备类型名称 */</span></span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* SCSI设备类型代码 */</span></span><br><span class="line">    <span class="type">int</span> type;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 命令解析 */</span></span><br><span class="line">    <span class="type">int</span> (*parse)(<span class="keyword">struct</span> scst_cmd *cmd);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 命令执行 */</span></span><br><span class="line">    <span class="type">int</span> (*exec)(<span class="keyword">struct</span> scst_cmd *cmd);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 执行完成回调 */</span></span><br><span class="line">    <span class="type">void</span> (*dev_done)(<span class="keyword">struct</span> scst_cmd *cmd);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 任务管理 */</span></span><br><span class="line">    <span class="type">void</span> (*task_mgmt_fn_done)(<span class="keyword">struct</span> scst_mgmt_cmd *mcmd);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 设备容量查询 */</span></span><br><span class="line">    <span class="type">void</span> (*get_block_size)(<span class="keyword">struct</span> scst_device *dev,</span><br><span class="line">                          <span class="type">unsigned</span> <span class="type">int</span> *block_size);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 特性标志 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> exec_sync:<span class="number">1</span>;          <span class="comment">/* 同步执行 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> pass_through:<span class="number">1</span>;       <span class="comment">/* 透传模式 */</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> cluster_support:<span class="number">1</span>;    <span class="comment">/* 集群支持 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h2 id="性能优化设计"><a href="#性能优化设计" class="headerlink" title="性能优化设计"></a>性能优化设计</h2><h3 id="1-Per-CPU命令队列"><a href="#1-Per-CPU命令队列" class="headerlink" title="1. Per-CPU命令队列"></a>1. Per-CPU命令队列</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">scst_cmd_threads</span> &#123;</span></span><br><span class="line">    <span class="comment">/* 每CPU的命令队列 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_percpu_info</span> *<span class="title">percpu_infos</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 活跃命令列表 */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">active_cmd_list</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 等待队列 */</span></span><br><span class="line">    <span class="type">wait_queue_head_t</span> cmd_list_waitQ;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>优势：</strong></p>
+<ul>
+<li>减少锁竞争</li>
+<li>提升CPU缓存命中率</li>
+<li>支持NUMA架构</li>
+</ul>
+<h3 id="2-命令引用计数"><a href="#2-命令引用计数" class="headerlink" title="2. 命令引用计数"></a>2. 命令引用计数</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title function_">cmd_get</span><span class="params">(<span class="keyword">struct</span> scst_cmd *cmd)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">atomic_inc</span>(&amp;cmd-&gt;cmd_ref);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title function_">cmd_put</span><span class="params">(<span class="keyword">struct</span> scst_cmd *cmd)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (atomic_dec_and_test(&amp;cmd-&gt;cmd_ref))</span><br><span class="line">        scst_cmd_free(cmd);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>作用：</strong></p>
+<ul>
+<li>防止命令在异步处理中被过早释放</li>
+<li>支持多个模块同时引用同一命令</li>
+</ul>
+<h3 id="3-零拷贝数据传输"><a href="#3-零拷贝数据传输" class="headerlink" title="3. 零拷贝数据传输"></a>3. 零拷贝数据传输</h3><p>使用scatter-gather列表直接映射用户页或块设备页：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 直接映射块设备页 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">scst_map_sg</span><span class="params">(<span class="keyword">struct</span> scst_cmd *cmd, <span class="keyword">struct</span> bio *bio)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bio_vec</span> <span class="title">bvec</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">bvec_iter</span> <span class="title">iter</span>;</span></span><br><span class="line">    <span class="type">int</span> i = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    bio_for_each_segment(bvec, bio, iter) &#123;</span><br><span class="line">        sg_set_page(&amp;cmd-&gt;sg[i++], bvec.bv_page,</span><br><span class="line">                   bvec.bv_len, bvec.bv_offset);</span><br><span class="line">    &#125;</span><br><span class="line">    cmd-&gt;sg_cnt = i;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>SCST通过精心设计的分层架构、高效的数据结构和灵活的状态机，提供了一个高性能、可扩展的SCSI Target框架：</p>
+<ol>
+<li><strong>分层设计</strong> - 清晰分离传输协议、核心逻辑和设备处理</li>
+<li><strong>状态机驱动</strong> - 精确控制命令处理流程</li>
+<li><strong>多上下文支持</strong> - 平衡性能与灵活性</li>
+<li><strong>高效内存管理</strong> - SGV池减少分配开销</li>
+<li><strong>可扩展接口</strong> - 支持各种传输协议和设备类型</li>
+</ol>
+<p>理解这些基础概念是深入研究SCST实现和进行性能优化的关键。在下一篇文章中，我们将详细分析SCST的命令处理流程和状态转换机制。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>SCST源代码：<code>scst/include/scst.h</code></li>
+<li>SCST核心实现：<code>scst/src/scst_main.c</code></li>
+<li>Linux SCSI子系统文档：<code>Documentation/scsi/</code></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kernel/" rel="tag"># kernel</a>
+              <a href="/tags/scst/" rel="tag"># scst</a>
+              <a href="/tags/storage/" rel="tag"># storage</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/" rel="prev" title="Deep Dive: SCST Kernel Module Infinite Loop and Deadlock Analysis">
+                  <i class="fa fa-angle-left"></i> Deep Dive: SCST Kernel Module Infinite Loop and Deadlock Analysis
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/02/2026-06-02-scst-command-processing-workflow/" rel="next" title="SCST命令处理流程详解">
+                  SCST命令处理流程详解 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
