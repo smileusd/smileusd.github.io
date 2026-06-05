@@ -112,7 +112,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">110</span>
+          <span class="site-state-item-count">109</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
@@ -217,235 +217,6 @@
             </div>
           <!--/noindex-->
         
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/05/2026-06-05-scst-sgv-pool-root-cause/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/06/05/2026-06-05-scst-sgv-pool-root-cause/" class="post-title-link" itemprop="url">SCST Infinite Loop: The Real Root Cause Was a Missing SGV Pool Flush</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-      
-
-      <time title="Created: 2026-06-05 10:00:00 / Modified: 15:14:30" itemprop="dateCreated datePublished" datetime="2026-06-05T10:00:00+08:00">2026-06-05</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
-        </span>
-          , 
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/Linux-Kernel/Storage/" itemprop="url" rel="index"><span itemprop="name">Storage</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h1 id="SCST-Infinite-Loop-The-Real-Root-Cause-Was-a-Missing-SGV-Pool-Flush"><a href="#SCST-Infinite-Loop-The-Real-Root-Cause-Was-a-Missing-SGV-Pool-Flush" class="headerlink" title="SCST Infinite Loop: The Real Root Cause Was a Missing SGV Pool Flush"></a>SCST Infinite Loop: The Real Root Cause Was a Missing SGV Pool Flush</h1><h2 id="Background"><a href="#Background" class="headerlink" title="Background"></a>Background</h2><p>In <a href="/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/">the previous post</a> we<br>analyzed an infinite loop in the SCST kernel module’s device cleanup path and produced a<br>working workaround (diagnostics + force-cleanup after 1,000 iterations). This post<br>documents what instrumentation revealed about the <strong>actual root cause</strong> and shows that<br>the real fix is just two lines of code.</p>
-<hr>
-<h2 id="What-Instrumentation-Revealed"><a href="#What-Instrumentation-Revealed" class="headerlink" title="What Instrumentation Revealed"></a>What Instrumentation Revealed</h2><p>After adding per-ucmd logging inside <code>dev_user_unjam_dev()</code>, the picture became clear:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[Sun Mar  2 17:00:52 2025] ucmd 00000000ff3afdd1, state 7, scst_cmd 0000000000000000, ucmd_ref: 1</span><br><span class="line">[Sun Mar  2 17:00:52 2025] dev_user_process_cleanup rc -EAGAIN cleanup done</span><br><span class="line">[Sun Mar  2 17:00:52 2025] ucmd 00000000ff3afdd1, state 7, scst_cmd 0000000000000000, ucmd_ref: 1</span><br><span class="line">[Sun Mar  2 17:00:52 2025] dev_user_process_cleanup rc -EAGAIN cleanup done</span><br><span class="line">...</span><br><span class="line">[Sun Mar  2 17:00:53 2025] try to set ucmd_ref as 0 when test_value_2=21 exceed 20</span><br><span class="line">[Sun Mar  2 17:00:53 2025] dev_user_process_cleanup rc -EAGAIN cleanup done</span><br><span class="line">[Sun Mar  2 17:00:53 2025] ucmd 00000000ff3afdd1, state 7, scst_cmd 0000000000000000, ucmd_ref: 0</span><br><span class="line">[Sun Mar  2 17:00:53 2025] dev_user_process_cleanup rc -EAGAIN cleanup done</span><br></pre></td></tr></table></figure>
-
-<p>Three facts stand out:</p>
-<ol>
-<li><strong>Always the same ucmd pointer</strong> — <code>00000000ff3afdd1</code> — across all 2 million iterations<br>per second. It never changes.</li>
-<li><strong>state &#x3D; 7 &#x3D; <code>UCMD_STATE_ON_FREE_SKIPPED</code></strong>, <code>scst_cmd = NULL</code>, <code>ucmd_ref = 1</code>.</li>
-<li><strong>Forcing <code>ucmd_ref</code> to 0 does not break the loop.</strong> Even after the test code set the<br>atomic to zero, the ucmd pointer remained in <code>ucmd_hash</code> and the loop continued.</li>
-</ol>
-<p>That third observation is the most important: it proves that the issue is <strong>not</strong> a<br>reference-count value problem. The ucmd is stuck in the hash because<br><code>dev_user_free_ucmd()</code> — the function that calls <code>cmd_remove_hash()</code> — was <strong>never<br>invoked</strong>. Setting a raw atomic to zero bypasses <code>ucmd_put()</code> and its<br><code>atomic_dec_and_test()</code> trigger, so nothing ever removes the entry from the list.</p>
-<hr>
-<h2 id="State-7-UCMD-STATE-ON-FREE-SKIPPED"><a href="#State-7-UCMD-STATE-ON-FREE-SKIPPED" class="headerlink" title="State 7: UCMD_STATE_ON_FREE_SKIPPED"></a>State 7: UCMD_STATE_ON_FREE_SKIPPED</h2><p>There is exactly one place in the codebase that sets this state:</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* scst_user.c — dev_user_on_free_cmd() */</span></span><br><span class="line"><span class="keyword">if</span> (ucmd-&gt;dev-&gt;on_free_cmd_type == SCST_USER_ON_FREE_CMD_IGNORE) &#123;</span><br><span class="line">    ucmd-&gt;state = UCMD_STATE_ON_FREE_SKIPPED;</span><br><span class="line">    <span class="comment">/* The state assignment must be before freeing sgv! */</span></span><br><span class="line">    <span class="keyword">goto</span> out_reply;</span><br><span class="line">&#125;</span><br><span class="line">...</span><br><span class="line">out_reply:</span><br><span class="line">    dev_user_process_reply_on_free(ucmd);</span><br></pre></td></tr></table></figure>
-
-<p><code>dev_user_process_reply_on_free</code> is:</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_process_reply_on_free</span><span class="params">(<span class="keyword">struct</span> scst_user_cmd *ucmd)</span></span><br><span class="line">&#123;</span><br><span class="line">    dev_user_free_sgv(ucmd);   <span class="comment">/* free the scatter-gather buffer */</span></span><br><span class="line">    ucmd_put(ucmd);            <span class="comment">/* drop one reference */</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>At first glance this looks correct: free the SGV memory, drop the reference, done. So why<br>does the ucmd stay in the hash?</p>
-<hr>
-<h2 id="The-SGV-Pool-Is-a-Cache-Not-a-Direct-Free"><a href="#The-SGV-Pool-Is-a-Cache-Not-a-Direct-Free" class="headerlink" title="The SGV Pool Is a Cache, Not a Direct Free"></a>The SGV Pool Is a Cache, Not a Direct Free</h2><p>The answer is in <code>dev_user_free_sgv()</code>:</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">dev_user_free_sgv</span><span class="params">(<span class="keyword">struct</span> scst_user_cmd *ucmd)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (ucmd-&gt;sgv) &#123;</span><br><span class="line">        sgv_pool_free(ucmd-&gt;sgv, &amp;ucmd-&gt;dev-&gt;udev_mem_lim);</span><br><span class="line">        ucmd-&gt;sgv = <span class="literal">NULL</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (ucmd-&gt;data_pages) &#123;</span><br><span class="line">        ucmd_get(ucmd);</span><br><span class="line">        __dev_user_free_sg_entries(ucmd);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>The call is <code>sgv_pool_free()</code>, not a direct page free. The SGV (scatter-gather vector)<br>pool is a <strong>performance cache</strong>: it holds recently freed SG buffers so that future<br>commands can reuse them without going to the page allocator. When <code>sgv_pool_free()</code> is<br>called:</p>
-<ul>
-<li>The SGV object is placed on the pool’s <strong>LRU cache</strong>.</li>
-<li>The allocator’s free callback — <code>dev_user_free_sg_entries()</code> — is <strong>not called</strong>.</li>
-<li>The pages are <strong>not freed</strong>.</li>
-<li>The <code>ucmd_get()</code> reference taken in <code>dev_user_alloc_pages()</code> is <strong>not released</strong>.</li>
-</ul>
-<p><code>dev_user_free_sg_entries()</code> (and therefore its <code>ucmd_put()</code>) only fires when the pool<br><strong>evicts</strong> a cached object, either because the pool is purged or because<br><code>sgv_pool_flush()</code> is called explicitly.</p>
-<hr>
-<h2 id="The-Complete-Reference-Count-Trace"><a href="#The-Complete-Reference-Count-Trace" class="headerlink" title="The Complete Reference Count Trace"></a>The Complete Reference Count Trace</h2><p>Here is the exact reference sequence for a command being unjammed during device teardown:</p>
-<table>
-<thead>
-<tr>
-<th>Event</th>
-<th>Operation</th>
-<th>ucmd_ref</th>
-</tr>
-</thead>
-<tbody><tr>
-<td><code>dev_user_alloc_ucmd()</code></td>
-<td><code>atomic_set(&amp;ucmd_ref, 1)</code></td>
-<td><strong>1</strong></td>
-</tr>
-<tr>
-<td><code>dev_user_alloc_pages()</code> first page</td>
-<td><code>ucmd_get()</code></td>
-<td><strong>2</strong></td>
-</tr>
-<tr>
-<td><code>dev_user_unjam_dev()</code>: <code>ucmd_get_check()</code></td>
-<td><code>atomic_inc_return()</code> → 3, ≠ 1 → not zombie</td>
-<td><strong>3</strong></td>
-</tr>
-<tr>
-<td><code>dev_user_unjam_cmd()</code> → <code>scst_cmd_done()</code> → <code>dev_user_on_free_cmd()</code> → <code>dev_user_process_reply_on_free()</code>: <code>dev_user_free_sgv()</code> → <code>sgv_pool_free()</code></td>
-<td>SGV goes to pool cache; <code>dev_user_free_sg_entries()</code> <strong>not called</strong>; alloc_pages ref <strong>not released</strong></td>
-<td><strong>3</strong></td>
-</tr>
-<tr>
-<td><code>dev_user_process_reply_on_free()</code>: <code>ucmd_put()</code></td>
-<td><code>atomic_dec_and_test()</code> → 2, ≠ 0</td>
-<td><strong>2</strong></td>
-</tr>
-<tr>
-<td>Back in <code>dev_user_unjam_dev()</code>: <code>ucmd_put()</code> for <code>ucmd_get_check</code> ref</td>
-<td><code>atomic_dec_and_test()</code> → 1, ≠ 0</td>
-<td><strong>1</strong></td>
-</tr>
-</tbody></table>
-<p><code>atomic_dec_and_test()</code> returns true — and therefore calls <code>dev_user_free_ucmd()</code> →<br><code>cmd_remove_hash()</code> — <strong>only when the result is 0</strong>. It never reaches 0 because the<br>alloc_pages reference (held by <code>dev_user_alloc_pages()</code> via <code>ucmd_get()</code>) is never<br>released. <code>dev_user_free_sg_entries()</code> never fires. The ucmd stays in the hash forever.</p>
-<hr>
-<h2 id="Why-the-Loop-Runs-at-2-Million-Iterations-per-Second"><a href="#Why-the-Loop-Runs-at-2-Million-Iterations-per-Second" class="headerlink" title="Why the Loop Runs at 2 Million Iterations per Second"></a>Why the Loop Runs at 2 Million Iterations per Second</h2><p>After the unjam pass the ucmd has:</p>
-<ul>
-<li><code>sent_to_user = 0</code> (reset by <code>dev_user_unjam_cmd()</code> before calling <code>scst_cmd_done</code>)</li>
-<li><code>state = UCMD_STATE_ON_FREE_SKIPPED</code></li>
-<li><code>cmd = NULL</code></li>
-<li>not in <code>ready_cmd_list</code></li>
-</ul>
-<p>On every subsequent call to <code>dev_user_unjam_dev()</code>:</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">list_for_each_entry(ucmd, head, hash_list_entry) &#123;</span><br><span class="line">    res++;                          <span class="comment">/* ← always counted */</span></span><br><span class="line">    <span class="keyword">if</span> (!ucmd-&gt;sent_to_user)</span><br><span class="line">        <span class="keyword">continue</span>;                   <span class="comment">/* ← always skipped */</span></span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><code>res</code> is incremented (non-zero) but the command is not unjammed. <code>dev_user_get_next_cmd()</code><br>returns <code>-EAGAIN</code> because the ucmd is not in <code>ready_cmd_list</code>. With<br><code>dev-&gt;cleanup_done = 1</code>, the outer loop in <code>dev_user_process_cleanup()</code> has no exit:</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">    rc1 = dev_user_unjam_dev(dev);          <span class="comment">/* rc1 &gt; 0 always */</span></span><br><span class="line">    <span class="keyword">if</span> (rc1 == <span class="number">0</span> &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done)</span><br><span class="line">        <span class="keyword">break</span>;                              <span class="comment">/* never reached */</span></span><br><span class="line"></span><br><span class="line">    rc = dev_user_get_next_cmd(...);        <span class="comment">/* rc = -EAGAIN always */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done) &#123;</span><br><span class="line">        loop_count++;</span><br><span class="line">        <span class="keyword">if</span> (loop_count &gt; <span class="number">10000</span>)</span><br><span class="line">            panic(...);                     <span class="comment">/* workaround */</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>Both <code>dev_user_unjam_dev()</code> and <code>dev_user_get_next_cmd()</code> acquire and release a spinlock<br>and complete in under a microsecond. Result: ~2 million iterations per second, 100% CPU<br>on one core, kernel soft-lockup detector fires within seconds.</p>
-<hr>
-<h2 id="Why-the-Previous-Analysis-Was-Incomplete"><a href="#Why-the-Previous-Analysis-Was-Incomplete" class="headerlink" title="Why the Previous Analysis Was Incomplete"></a>Why the Previous Analysis Was Incomplete</h2><p>The earlier post described the problem as “zombie commands (refcount&#x3D;0) that<br><code>dev_user_unjam_dev()</code> still counts in <code>res++</code>“. That is a real code smell — counting<br>before checking — but <strong>it is not the root cause in this case</strong>.</p>
-<p>The stuck ucmd has <code>ref=1</code>, not <code>ref=0</code>. <code>ucmd_get_check()</code> succeeds (ref goes 1→2→1),<br>meaning the command is not a zombie. The unjam loop simply skips it because<br><code>sent_to_user=0</code>. The ref never reaches 0 because the SGV pool holds onto the buffer<br>without calling the free callback.</p>
-<hr>
-<h2 id="The-Fix-Two-Lines-After-the-Unjam-Loop"><a href="#The-Fix-Two-Lines-After-the-Unjam-Loop" class="headerlink" title="The Fix: Two Lines After the Unjam Loop"></a>The Fix: Two Lines After the Unjam Loop</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_unjam_dev</span><span class="params">(<span class="keyword">struct</span> scst_user_dev *dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">/* ... */</span></span><br><span class="line">    sgv_pool_flush(dev-&gt;pool);       <span class="comment">/* existing flush — BEFORE unjamming */</span></span><br><span class="line">    sgv_pool_flush(dev-&gt;pool_clust);</span><br><span class="line"></span><br><span class="line">    spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">    <span class="comment">/* ... unjam loop ... */</span></span><br><span class="line">    spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* NEW: flush again AFTER unjamming */</span></span><br><span class="line">    sgv_pool_flush(dev-&gt;pool);</span><br><span class="line">    sgv_pool_flush(dev-&gt;pool_clust);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><strong>Why this works:</strong></p>
-<p><code>sgv_pool_flush()</code> forces the pool to evict all cached objects. For each evicted object,<br>the registered free callback fires:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">sgv_pool_flush()</span><br><span class="line">  → dev_user_free_sg_entries()     ← the allocator callback</span><br><span class="line">      → __dev_user_free_sg_entries()</span><br><span class="line">          → dev_user_unmap_buf()</span><br><span class="line">          → ucmd_put()             ← releases the alloc_pages ref</span><br><span class="line">              → atomic_dec_and_test() → 0 → dev_user_free_ucmd()</span><br><span class="line">                  → cmd_remove_hash()   ← ucmd removed from hash</span><br></pre></td></tr></table></figure>
-
-<p>On the next call to <code>dev_user_unjam_dev()</code>, the hash is empty, <code>res=0</code>, and<br><code>dev_user_process_cleanup()</code> breaks out of its loop normally.</p>
-<p><strong>Why the pre-loop flush was not enough:</strong></p>
-<p>The existing flush at the top of <code>dev_user_unjam_dev()</code> runs before the spinlock is<br>acquired, before any command is unjammed. SGV objects are only placed into the cache<br><strong>during</strong> unjamming (step 2 in the trace above). Those objects are invisible to the<br>pre-loop flush.</p>
-<hr>
-<h2 id="Additional-Cleanup-Replace-panic-with-schedule"><a href="#Additional-Cleanup-Replace-panic-with-schedule" class="headerlink" title="Additional Cleanup: Replace panic() with schedule()"></a>Additional Cleanup: Replace panic() with schedule()</h2><p>The panic workaround is replaced with <code>schedule()</code> in the cleanup loop:</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* Before */</span></span><br><span class="line"><span class="keyword">if</span> (unlikely(loop_count &gt; <span class="number">10000</span>))</span><br><span class="line">    panic(<span class="string">&quot;SCST panic: DeadLoop error occurred!&quot;</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* After */</span></span><br><span class="line">schedule();   <span class="comment">/* yield CPU; let SGV free callbacks complete */</span></span><br></pre></td></tr></table></figure>
-
-<p>With the SGV flush fix in place, the loop terminates within 2–3 iterations. The<br><code>schedule()</code> call is a belt-and-suspenders yield that ensures any async callbacks<br>triggered by the flush have CPU time to run before the next iteration.</p>
-<hr>
-<h2 id="Lessons"><a href="#Lessons" class="headerlink" title="Lessons"></a>Lessons</h2><h3 id="1-Pool-caches-hide-reference-lifetimes"><a href="#1-Pool-caches-hide-reference-lifetimes" class="headerlink" title="1. Pool caches hide reference lifetimes"></a>1. Pool caches hide reference lifetimes</h3><p>The SGV pool is an optimization that decouples <code>sgv_pool_free()</code> from the actual page<br>release. Code that relies on “free → callback → ucmd_put” must account for the<br>possibility that the callback fires asynchronously (on eviction), not synchronously (on<br>free).</p>
-<h3 id="2-Instrumentation-before-conclusion"><a href="#2-Instrumentation-before-conclusion" class="headerlink" title="2. Instrumentation before conclusion"></a>2. Instrumentation before conclusion</h3><p>The earlier analysis correctly identified the symptoms (infinite loop, stuck ucmd) and<br>the code smell (counting before checking in <code>dev_user_unjam_dev</code>). But the true cause<br>required observing the actual <code>ucmd_ref</code> value at runtime. Adding that single log line<br>— showing <code>ref=1</code> instead of the assumed <code>ref=0</code> — immediately pointed to a missing<br><code>ucmd_put</code>, which led straight to the SGV pool caching behavior.</p>
-<h3 id="3-Setting-an-atomic-to-zero-is-not-the-same-as-ucmd-put"><a href="#3-Setting-an-atomic-to-zero-is-not-the-same-as-ucmd-put" class="headerlink" title="3. Setting an atomic to zero is not the same as ucmd_put"></a>3. Setting an atomic to zero is not the same as ucmd_put</h3><p>The test that forced <code>ucmd_ref</code> to 0 and observed the loop continuing was the key<br>falsification experiment. It proved that the issue was not about the reference <em>value</em><br>but about the <em>path</em> that calls <code>dev_user_free_ucmd()</code>. No matter what the counter<br>shows, nothing removes the ucmd from the hash unless <code>atomic_dec_and_test()</code> returns<br>true inside <code>ucmd_put()</code>.</p>
-<h3 id="4-Minimal-fixes-beat-complex-ones"><a href="#4-Minimal-fixes-beat-complex-ones" class="headerlink" title="4. Minimal fixes beat complex ones"></a>4. Minimal fixes beat complex ones</h3><p>The final fix is two <code>sgv_pool_flush()</code> calls added after the loop — about 5 lines<br>including the comment. The previous workaround was 80+ lines of diagnostic logging,<br>force-cleanup, and msleep throttling, none of which addressed the root cause.</p>
-<hr>
-<h2 id="Summary"><a href="#Summary" class="headerlink" title="Summary"></a>Summary</h2><table>
-<thead>
-<tr>
-<th></th>
-<th>Detail</th>
-</tr>
-</thead>
-<tbody><tr>
-<td><strong>Symptom</strong></td>
-<td><code>dev_user_process_cleanup()</code> loops at 2M iterations&#x2F;second; soft lockup</td>
-</tr>
-<tr>
-<td><strong>Stuck ucmd</strong></td>
-<td><code>state=7 (ON_FREE_SKIPPED)</code>, <code>scst_cmd=NULL</code>, <code>ref=1</code>, not in ready list</td>
-</tr>
-<tr>
-<td><strong>Root cause</strong></td>
-<td><code>sgv_pool_free()</code> caches the SGV object instead of freeing it; <code>dev_user_free_sg_entries()</code> never fires; alloc_pages <code>ucmd_get()</code> reference never released</td>
-</tr>
-<tr>
-<td><strong>Why flush order matters</strong></td>
-<td>Pre-loop flush runs before unjamming; SGV objects cached <em>during</em> unjamming are never evicted</td>
-</tr>
-<tr>
-<td><strong>Fix</strong></td>
-<td>Add <code>sgv_pool_flush()</code> for both pools <em>after</em> the unjam loop in <code>dev_user_unjam_dev()</code></td>
-</tr>
-<tr>
-<td><strong>Fix size</strong></td>
-<td>2 function calls</td>
-</tr>
-</tbody></table>
-<hr>
-<p><strong>Tags:</strong> #kernel #scst #storage #debugging #linux #memory-management #sgv-pool #reference-counting</p>
-
       
     </div>
 
@@ -756,7 +527,7 @@
     </span>
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/" class="post-title-link" itemprop="url">Deep Dive: SCST Kernel Module Infinite Loop and Deadlock Analysis</a>
+          <a href="/2026/06/01/2026-06-01-scst-infinite-loop-deadlock-analysis/" class="post-title-link" itemprop="url">SCST Infinite Loop: Full Root Cause Analysis and Fix</a>
         </h2>
 
         <div class="post-meta-container">
@@ -766,9 +537,15 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
-      
 
-      <time title="Created: 2026-06-01 10:00:00 / Modified: 17:46:15" itemprop="dateCreated datePublished" datetime="2026-06-01T10:00:00+08:00">2026-06-01</time>
+      <time title="Created: 2026-06-01 10:00:00" itemprop="dateCreated datePublished" datetime="2026-06-01T10:00:00+08:00">2026-06-01</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-05 15:27:29" itemprop="dateModified" datetime="2026-06-05T15:27:29+08:00">2026-06-05</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -794,295 +571,206 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <h1 id="SCST-Infinite-Loop-Deadlock-Root-Cause-Analysis-and-Fix"><a href="#SCST-Infinite-Loop-Deadlock-Root-Cause-Analysis-and-Fix" class="headerlink" title="SCST Infinite Loop Deadlock: Root Cause Analysis and Fix"></a>SCST Infinite Loop Deadlock: Root Cause Analysis and Fix</h1><h2 id="Executive-Summary"><a href="#Executive-Summary" class="headerlink" title="Executive Summary"></a>Executive Summary</h2><p>This post provides a deep technical analysis of a critical infinite loop bug in the SCST (SCSI Target) kernel module that caused complete system hangs during device cleanup. The issue manifested as kernel tasks stuck in uninterruptible sleep (D state), eventually triggering soft lockup detection and system instability.</p>
-<p><strong>The Problem:</strong> During device shutdown, the cleanup routine enters an infinite loop when zombie commands remain in the hash table but not in the ready queue, creating a deadlock condition.</p>
-<p><strong>The Solution:</strong> Implemented comprehensive diagnostics, force cleanup mechanism with timeout handling, and proper command lifecycle management to break the deadlock.</p>
+          <h1 id="SCST-Infinite-Loop-Full-Root-Cause-Analysis-and-Fix"><a href="#SCST-Infinite-Loop-Full-Root-Cause-Analysis-and-Fix" class="headerlink" title="SCST Infinite Loop: Full Root Cause Analysis and Fix"></a>SCST Infinite Loop: Full Root Cause Analysis and Fix</h1><h2 id="Executive-Summary"><a href="#Executive-Summary" class="headerlink" title="Executive Summary"></a>Executive Summary</h2><p>This post documents the complete investigation of a critical infinite loop bug in the<br>SCST (SCSI Target) kernel module that caused complete system hangs during device cleanup.<br>The investigation went through two phases: an initial analysis that identified the<br>symptoms and produced a working workaround, followed by instrumentation that revealed the<br>true root cause — a missing SGV pool flush — and replaced 80+ lines of workaround code<br>with two function calls.</p>
+<p><strong>The Symptom:</strong> During device shutdown, <code>dev_user_process_cleanup()</code> spins at ~2 million<br>iterations per second, pinning one CPU core and triggering the kernel soft-lockup detector<br>within seconds.</p>
+<p><strong>The Initial Diagnosis (incorrect):</strong> Zombie commands with refcount&#x3D;0 stuck in<br><code>ucmd_hash</code> that <code>dev_user_unjam_dev()</code> counts but cannot unjam.</p>
+<p><strong>The Real Root Cause:</strong> A command in state <code>UCMD_STATE_ON_FREE_SKIPPED</code> (state 7)<br>remains in <code>ucmd_hash</code> with <code>ref=1</code> indefinitely because <code>sgv_pool_free()</code> caches the<br>scatter-gather buffer instead of freeing it, so the allocator’s <code>ucmd_put()</code> callback<br>never fires and the reference count never reaches zero.</p>
+<p><strong>The Fix:</strong> Two <code>sgv_pool_flush()</code> calls added <em>after</em> the unjam loop in<br><code>dev_user_unjam_dev()</code>.</p>
 <hr>
-<h2 id="Background-The-SCST-User-Space-Device-Handler"><a href="#Background-The-SCST-User-Space-Device-Handler" class="headerlink" title="Background: The SCST User-Space Device Handler"></a>Background: The SCST User-Space Device Handler</h2><p>SCST is a professional, clustered, high-performance storage target subsystem for Linux. The <code>scst_user</code> module allows user-space applications to implement SCSI target devices via a character device interface.</p>
-<h3 id="Architecture-Overview"><a href="#Architecture-Overview" class="headerlink" title="Architecture Overview"></a>Architecture Overview</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">User Space Application</span><br><span class="line">       ↕️ (ioctl/read/write)</span><br><span class="line">   /dev/scst_user</span><br><span class="line">       ↕️</span><br><span class="line">scst_user kernel module</span><br><span class="line">       ↕️</span><br><span class="line">ucmd_hash (command tracking)</span><br><span class="line">ready_cmd_list (commands ready for processing)</span><br><span class="line">       ↕️</span><br><span class="line">SCST core → Target drivers → Initiators</span><br></pre></td></tr></table></figure>
+<h2 id="Background-The-SCST-User-Space-Device-Handler"><a href="#Background-The-SCST-User-Space-Device-Handler" class="headerlink" title="Background: The SCST User-Space Device Handler"></a>Background: The SCST User-Space Device Handler</h2><p>SCST is a professional, clustered, high-performance storage target subsystem for Linux.<br>The <code>scst_user</code> module allows user-space applications to implement SCSI target devices<br>via a character device interface.</p>
+<h3 id="Architecture-Overview"><a href="#Architecture-Overview" class="headerlink" title="Architecture Overview"></a>Architecture Overview</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">User Space Application</span><br><span class="line">       ↕ (ioctl/read/write)</span><br><span class="line">   /dev/scst_user</span><br><span class="line">       ↕</span><br><span class="line">scst_user kernel module</span><br><span class="line">       ↕</span><br><span class="line">ucmd_hash (command tracking)</span><br><span class="line">ready_cmd_list (commands ready for processing)</span><br><span class="line">       ↕</span><br><span class="line">SCST core → Target drivers → Initiators</span><br></pre></td></tr></table></figure>
 
 <p>Key data structures:</p>
 <ul>
-<li><strong><code>ucmd_hash</code></strong>: Hash table tracking all active commands</li>
+<li><strong><code>ucmd_hash</code></strong>: Hash table tracking all active <code>scst_user_cmd</code> objects</li>
 <li><strong><code>ready_cmd_list</code></strong>: Queue of commands ready for user-space processing</li>
 <li><strong><code>cleanup_cmpl</code></strong>: Completion for device cleanup synchronization</li>
+<li><strong><code>ucmd_ref</code></strong>: Per-command reference count; <code>dev_user_free_ucmd()</code> →<br><code>cmd_remove_hash()</code> fires only when <code>atomic_dec_and_test()</code> returns true (ref → 0)</li>
 </ul>
+<h3 id="Command-Lifecycle"><a href="#Command-Lifecycle" class="headerlink" title="Command Lifecycle"></a>Command Lifecycle</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">dev_user_alloc_ucmd()        ucmd_ref = 1</span><br><span class="line">dev_user_alloc_pages()       ucmd_ref++ (ucmd_get) for each SG allocation</span><br><span class="line">sent to user space           sent_to_user = 1</span><br><span class="line">reply from user space        processing begins</span><br><span class="line">dev_user_on_free_cmd()       SGV freed, one ucmd_put()</span><br><span class="line">dev_user_free_ucmd()         ref reaches 0 → cmd_remove_hash()</span><br></pre></td></tr></table></figure>
+
 <hr>
-<h2 id="The-Issue-Kernel-Soft-Lockup-During-Device-Cleanup"><a href="#The-Issue-Kernel-Soft-Lockup-During-Device-Cleanup" class="headerlink" title="The Issue: Kernel Soft Lockup During Device Cleanup"></a>The Issue: Kernel Soft Lockup During Device Cleanup</h2><h3 id="Symptom"><a href="#Symptom" class="headerlink" title="Symptom"></a>Symptom</h3><p>Multiple <code>scst_usr_release</code> kernel threads stuck in D state (uninterruptible sleep):</p>
+<h2 id="The-Symptom-Kernel-Soft-Lockup-During-Device-Cleanup"><a href="#The-Symptom-Kernel-Soft-Lockup-During-Device-Cleanup" class="headerlink" title="The Symptom: Kernel Soft Lockup During Device Cleanup"></a>The Symptom: Kernel Soft Lockup During Device Cleanup</h2><p>Multiple <code>scst_usr_release</code> kernel threads stuck in D state (uninterruptible sleep):</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[Thu Jan 23 02:37:11 2025] task:scst_usr_releas state:D stack:    0 pid:334614</span><br><span class="line">[Thu Jan 23 02:37:11 2025] Call Trace:</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  __schedule+0x23d/0x590</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  schedule+0x4e/0xb0</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  schedule_timeout+0xfb/0x140</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  wait_for_completion+0x24/0x30</span><br><span class="line">[Thu Jan 23 02:37:11 2025]  dev_user_exit_dev.isra.0+0x16a/0x1e0 [scst_user]</span><br></pre></td></tr></table></figure>
 
-<p>The threads are waiting for <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code> which never gets signaled because the cleanup thread is stuck in an infinite loop.</p>
+<p>The threads wait on <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code>, which is never signaled<br>because the cleanup thread is spinning in an infinite loop and never reaches<br><code>complete_all(&amp;dev-&gt;cleanup_cmpl)</code>.</p>
 <hr>
-<h2 id="Root-Cause-Analysis"><a href="#Root-Cause-Analysis" class="headerlink" title="Root Cause Analysis"></a>Root Cause Analysis</h2><h3 id="The-Cleanup-Flow"><a href="#The-Cleanup-Flow" class="headerlink" title="The Cleanup Flow"></a>The Cleanup Flow</h3><p>When a SCST user device is being torn down, this sequence occurs:</p>
+<h2 id="The-Cleanup-Flow"><a href="#The-Cleanup-Flow" class="headerlink" title="The Cleanup Flow"></a>The Cleanup Flow</h2><p>When a SCST user device is torn down, two functions interact:</p>
 <ol>
-<li><p><strong><code>dev_user_exit_dev()</code></strong> (scst_user.c:3747)</p>
-<ul>
-<li>Unregisters device from SCST core</li>
-<li>Sets <code>dev-&gt;cleanup_done = 1</code></li>
-<li><strong>Waits</strong> for <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code> at line 3779</li>
-</ul>
+<li><p><strong><code>dev_user_exit_dev()</code></strong> — unregisters the device, sets <code>dev-&gt;cleanup_done = 1</code>,<br>then <strong>blocks</strong> on <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code>.</p>
 </li>
-<li><p><strong><code>dev_user_process_cleanup()</code></strong> (scst_user.c:3851) - runs in cleanup thread</p>
-<ul>
-<li>Processes remaining commands</li>
-<li>Eventually should call <code>complete_all(&amp;dev-&gt;cleanup_cmpl)</code> at line 3898</li>
-<li><strong>This is where the infinite loop occurs</strong></li>
-</ul>
+<li><p><strong><code>dev_user_process_cleanup()</code></strong> — runs in a separate thread, processes remaining<br>commands, and must call <code>complete_all(&amp;dev-&gt;cleanup_cmpl)</code> to unblock step 1.</p>
 </li>
 </ol>
-<h3 id="The-Infinite-Loop-Logic"><a href="#The-Infinite-Loop-Logic" class="headerlink" title="The Infinite Loop Logic"></a>The Infinite Loop Logic</h3><p>Let’s examine the problematic code in <code>dev_user_process_cleanup()</code>:</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">    <span class="type">int</span> rc1;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Count commands in ucmd_hash and try to unjam them</span></span><br><span class="line">    rc1 = dev_user_unjam_dev(dev);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Exit condition: no commands AND no ready commands AND cleanup done</span></span><br><span class="line">    <span class="keyword">if</span> (rc1 == <span class="number">0</span> &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done)</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">    spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Try to get next ready command</span></span><br><span class="line">    rc = dev_user_get_next_cmd(dev, &amp;ucmd, <span class="literal">false</span>);</span><br><span class="line">    <span class="keyword">if</span> (rc == <span class="number">0</span>)</span><br><span class="line">        dev_user_unjam_cmd(ucmd, <span class="number">1</span>, <span class="literal">NULL</span>);</span><br><span class="line"></span><br><span class="line">    spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (rc == -EAGAIN) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!dev-&gt;cleanup_done) &#123;</span><br><span class="line">            <span class="keyword">goto</span> out;  <span class="comment">// Normal early exit</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// DEADLOCK: rc1 != 0 &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done</span></span><br><span class="line">        <span class="comment">// Commands exist but can&#x27;t be retrieved!</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">complete_all(&amp;dev-&gt;cleanup_cmpl);  <span class="comment">// Never reached in deadlock</span></span><br></pre></td></tr></table></figure>
+<p>The exit condition in <code>dev_user_process_cleanup()</code> is:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">    rc1 = dev_user_unjam_dev(dev);   <span class="comment">/* count + unjam commands in hash */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (rc1 == <span class="number">0</span> &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done)</span><br><span class="line">        <span class="keyword">break</span>;   <span class="comment">/* normal exit: hash empty, no ready commands, teardown done */</span></span><br><span class="line"></span><br><span class="line">    spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">    rc = dev_user_get_next_cmd(dev, &amp;ucmd, <span class="literal">false</span>);</span><br><span class="line">    <span class="keyword">if</span> (rc == <span class="number">0</span>)</span><br><span class="line">        dev_user_unjam_cmd(ucmd, <span class="number">1</span>, <span class="literal">NULL</span>);</span><br><span class="line">    spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done) &#123;</span><br><span class="line">        <span class="comment">/* rc1 != 0: hash not empty</span></span><br><span class="line"><span class="comment">         * rc == -EAGAIN: nothing in ready list</span></span><br><span class="line"><span class="comment">         * cleanup_done: no new commands will arrive</span></span><br><span class="line"><span class="comment">         * → no exit condition is reachable → infinite loop */</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">complete_all(&amp;dev-&gt;cleanup_cmpl);   <span class="comment">/* never reached */</span></span><br></pre></td></tr></table></figure>
 
-<h3 id="The-Deadlock-Condition"><a href="#The-Deadlock-Condition" class="headerlink" title="The Deadlock Condition"></a>The Deadlock Condition</h3><p>The infinite loop occurs when <strong>all three conditions</strong> are simultaneously true:</p>
+<p>The loop has no exit when <code>rc1 &gt; 0</code> and <code>rc == -EAGAIN</code> simultaneously — commands are<br>in the hash but not in the ready list, and no new commands will arrive.</p>
+<hr>
+<h2 id="Phase-1-Initial-Analysis-and-Workaround"><a href="#Phase-1-Initial-Analysis-and-Workaround" class="headerlink" title="Phase 1: Initial Analysis and Workaround"></a>Phase 1: Initial Analysis and Workaround</h2><h3 id="Initial-Hypothesis"><a href="#Initial-Hypothesis" class="headerlink" title="Initial Hypothesis"></a>Initial Hypothesis</h3><p>The first hypothesis was that <strong>zombie commands</strong> — commands whose reference count had<br>reached 0 while still in <code>ucmd_hash</code> — were causing the deadlock. Looking at<br><code>dev_user_unjam_dev()</code>:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">list_for_each_entry(ucmd, head, hash_list_entry) &#123;</span><br><span class="line">    res++;                          <span class="comment">/* counts EVERY entry, including zombies */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!ucmd-&gt;sent_to_user)</span><br><span class="line">        <span class="keyword">continue</span>;                   <span class="comment">/* skip but still counted */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (ucmd_get_check(ucmd))</span><br><span class="line">        <span class="keyword">continue</span>;                   <span class="comment">/* ref == 0 → skip but still counted */</span></span><br><span class="line"></span><br><span class="line">    dev_user_unjam_cmd(ucmd, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">goto</span> repeat;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> res;</span><br></pre></td></tr></table></figure>
+
+<p><code>ucmd_get_check()</code> does <code>atomic_inc_return()</code>: if the result is 1 it means we raced with<br>destruction (ref was 0), and it decrements back and returns failure. A zombie command<br>(ref&#x3D;0) would be counted in <code>res</code> but never unjammed, keeping <code>rc1 &gt; 0</code> forever.</p>
+<p>This analysis was <strong>partially correct</strong> — counting before checking is a real code smell<br>— but it turned out not to be the actual root cause in the observed failure.</p>
+<h3 id="Workaround-Diagnostics-Force-Cleanup"><a href="#Workaround-Diagnostics-Force-Cleanup" class="headerlink" title="Workaround: Diagnostics + Force Cleanup"></a>Workaround: Diagnostics + Force Cleanup</h3><p>While the root cause was being investigated, a workaround was deployed:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done) &#123;</span><br><span class="line">    loop_count++;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* After 100 iterations: log all stuck commands */</span></span><br><span class="line">    <span class="keyword">if</span> (unlikely(loop_count == <span class="number">100</span>)) &#123;</span><br><span class="line">        PRINT_WARNING(<span class="string">&quot;Cleanup loop detected after %d iterations&quot;</span>, loop_count);</span><br><span class="line">        spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">        <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">            list_for_each_entry(stuck_ucmd, &amp;dev-&gt;ucmd_hash[i], hash_list_entry) &#123;</span><br><span class="line">                PRINT_WARNING(<span class="string">&quot;Stuck ucmd %p: state=%x sent_to_user=%d ref=%d cmd=%p&quot;</span>,</span><br><span class="line">                    stuck_ucmd, stuck_ucmd-&gt;state, stuck_ucmd-&gt;sent_to_user,</span><br><span class="line">                    <span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref), stuck_ucmd-&gt;cmd);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* After 1000 iterations (~1s): force-remove all stuck commands */</span></span><br><span class="line">    <span class="keyword">if</span> (unlikely(loop_count &gt;= <span class="number">1000</span>)) &#123;</span><br><span class="line">        spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">        <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">            list_for_each_entry_safe(stuck_ucmd, tmp,</span><br><span class="line">                                     &amp;dev-&gt;ucmd_hash[i], hash_list_entry) &#123;</span><br><span class="line">                list_del(&amp;stuck_ucmd-&gt;hash_list_entry);</span><br><span class="line">                <span class="keyword">while</span> (<span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref) &gt; <span class="number">1</span>)</span><br><span class="line">                    ucmd_put(stuck_ucmd);</span><br><span class="line">                ucmd_put(stuck_ucmd);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (loop_count &gt; <span class="number">10</span>)</span><br><span class="line">        msleep(<span class="number">1</span>);   <span class="comment">/* throttle CPU while waiting */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>This replaced the original workaround of <code>panic(&quot;SCST panic: DeadLoop error occurred!&quot;)</code><br>after 10,000 iterations. The new approach prevented the system crash and collected the<br>diagnostic output that led to finding the real root cause.</p>
+<hr>
+<h2 id="Phase-2-What-Instrumentation-Revealed"><a href="#Phase-2-What-Instrumentation-Revealed" class="headerlink" title="Phase 2: What Instrumentation Revealed"></a>Phase 2: What Instrumentation Revealed</h2><p>The diagnostic logging added in Phase 1 produced this output:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[Sun Mar  2 17:00:52 2025] ucmd 00000000ff3afdd1, state 7, scst_cmd 0000000000000000, ucmd_ref: 1</span><br><span class="line">[Sun Mar  2 17:00:52 2025] dev_user_process_cleanup rc -EAGAIN cleanup done</span><br><span class="line">[Sun Mar  2 17:00:52 2025] ucmd 00000000ff3afdd1, state 7, scst_cmd 0000000000000000, ucmd_ref: 1</span><br><span class="line">[Sun Mar  2 17:00:52 2025] dev_user_process_cleanup rc -EAGAIN cleanup done</span><br><span class="line">...</span><br><span class="line">[Sun Mar  2 17:00:53 2025] try to set ucmd_ref as 0 when test_value_2=21 exceed 20</span><br><span class="line">[Sun Mar  2 17:00:53 2025] dev_user_process_cleanup rc -EAGAIN cleanup done</span><br><span class="line">[Sun Mar  2 17:00:53 2025] ucmd 00000000ff3afdd1, state 7, scst_cmd 0000000000000000, ucmd_ref: 0</span><br><span class="line">[Sun Mar  2 17:00:53 2025] dev_user_process_cleanup rc -EAGAIN cleanup done</span><br></pre></td></tr></table></figure>
+
+<p>Three observations immediately invalidated the initial hypothesis:</p>
+<ol>
+<li><strong>Always the same ucmd pointer</strong> — <code>00000000ff3afdd1</code> — across all iterations. Only<br>one command is stuck.</li>
+<li><strong><code>state = 7 = UCMD_STATE_ON_FREE_SKIPPED</code></strong>, <code>scst_cmd = NULL</code>, <code>ucmd_ref = 1</code>.<br>The ref is <strong>1</strong>, not 0. This is not a zombie.</li>
+<li><strong>Forcing <code>ucmd_ref</code> to 0 did not break the loop.</strong> A test patch set the atomic to<br>zero directly, confirmed by the log showing <code>ucmd_ref: 0</code> — yet the loop continued.</li>
+</ol>
+<p>The third observation is decisive. It proves the issue is <strong>not</strong> a reference-count<br><em>value</em> problem. The ucmd is stuck because <code>dev_user_free_ucmd()</code> — the function<br>containing <code>cmd_remove_hash()</code> — was never invoked. Setting a raw atomic bypasses<br><code>ucmd_put()</code> and its <code>atomic_dec_and_test()</code> trigger; nothing removes the entry from<br>the hash.</p>
+<h3 id="Why-Initial-Analysis-Was-Wrong"><a href="#Why-Initial-Analysis-Was-Wrong" class="headerlink" title="Why Initial Analysis Was Wrong"></a>Why Initial Analysis Was Wrong</h3><p>The first analysis assumed <code>ref=0</code> based on the zombie hypothesis. The logs showed<br><code>ref=1</code>. <code>ucmd_get_check()</code> <em>succeeds</em> on this command (ref goes 1→2 on check, 2→1 on<br>put); the unjam loop skips it only because <code>sent_to_user = 0</code>, not because of a zombie<br>condition. The root cause is elsewhere.</p>
+<hr>
+<h2 id="The-Real-Root-Cause-SGV-Pool-Caching"><a href="#The-Real-Root-Cause-SGV-Pool-Caching" class="headerlink" title="The Real Root Cause: SGV Pool Caching"></a>The Real Root Cause: SGV Pool Caching</h2><h3 id="State-7-UCMD-STATE-ON-FREE-SKIPPED"><a href="#State-7-UCMD-STATE-ON-FREE-SKIPPED" class="headerlink" title="State 7: UCMD_STATE_ON_FREE_SKIPPED"></a>State 7: UCMD_STATE_ON_FREE_SKIPPED</h3><p>There is exactly one place in the codebase that sets this state:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* scst_user.c — dev_user_on_free_cmd() */</span></span><br><span class="line"><span class="keyword">if</span> (ucmd-&gt;dev-&gt;on_free_cmd_type == SCST_USER_ON_FREE_CMD_IGNORE) &#123;</span><br><span class="line">    ucmd-&gt;state = UCMD_STATE_ON_FREE_SKIPPED;</span><br><span class="line">    <span class="comment">/* The state assignment must be before freeing sgv! */</span></span><br><span class="line">    <span class="keyword">goto</span> out_reply;</span><br><span class="line">&#125;</span><br><span class="line">...</span><br><span class="line">out_reply:</span><br><span class="line">    dev_user_process_reply_on_free(ucmd);</span><br></pre></td></tr></table></figure>
+
+<p><code>dev_user_process_reply_on_free</code> is:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_process_reply_on_free</span><span class="params">(<span class="keyword">struct</span> scst_user_cmd *ucmd)</span></span><br><span class="line">&#123;</span><br><span class="line">    dev_user_free_sgv(ucmd);   <span class="comment">/* free the scatter-gather buffer */</span></span><br><span class="line">    ucmd_put(ucmd);            <span class="comment">/* drop one reference */</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>This looks correct: free the SGV memory, drop the reference. So why does the ucmd stay<br>in the hash?</p>
+<h3 id="The-SGV-Pool-Is-a-Cache-Not-a-Direct-Free"><a href="#The-SGV-Pool-Is-a-Cache-Not-a-Direct-Free" class="headerlink" title="The SGV Pool Is a Cache, Not a Direct Free"></a>The SGV Pool Is a Cache, Not a Direct Free</h3><p>The answer is in <code>dev_user_free_sgv()</code>:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">dev_user_free_sgv</span><span class="params">(<span class="keyword">struct</span> scst_user_cmd *ucmd)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (ucmd-&gt;sgv) &#123;</span><br><span class="line">        sgv_pool_free(ucmd-&gt;sgv, &amp;ucmd-&gt;dev-&gt;udev_mem_lim);</span><br><span class="line">        ucmd-&gt;sgv = <span class="literal">NULL</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (ucmd-&gt;data_pages) &#123;</span><br><span class="line">        ucmd_get(ucmd);</span><br><span class="line">        __dev_user_free_sg_entries(ucmd);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>The call is <code>sgv_pool_free()</code>, not a direct page free. The SGV (scatter-gather vector)<br>pool is a <strong>performance cache</strong>: it holds recently freed SG buffers so that future<br>commands can reuse them without going to the page allocator. When <code>sgv_pool_free()</code> is<br>called:</p>
+<ul>
+<li>The SGV object is placed on the pool’s <strong>LRU cache</strong>.</li>
+<li>The allocator’s free callback — <code>dev_user_free_sg_entries()</code> — is <strong>not called</strong>.</li>
+<li>The pages are <strong>not freed</strong>.</li>
+<li>The <code>ucmd_get()</code> reference taken in <code>dev_user_alloc_pages()</code> is <strong>not released</strong>.</li>
+</ul>
+<p><code>dev_user_free_sg_entries()</code> (and therefore its <code>ucmd_put()</code>) only fires when the pool<br><strong>evicts</strong> a cached object — either because the pool is purged or because<br><code>sgv_pool_flush()</code> is called explicitly.</p>
+<h3 id="The-Complete-Reference-Count-Trace"><a href="#The-Complete-Reference-Count-Trace" class="headerlink" title="The Complete Reference Count Trace"></a>The Complete Reference Count Trace</h3><p>Here is the exact reference sequence for a command unjammed during device teardown:</p>
 <table>
 <thead>
 <tr>
-<th>Condition</th>
-<th>Meaning</th>
-<th>Variable</th>
+<th>Event</th>
+<th>Operation</th>
+<th>ucmd_ref</th>
 </tr>
 </thead>
 <tbody><tr>
-<td><code>rc1 != 0</code></td>
-<td>Commands still exist in <code>ucmd_hash</code></td>
-<td>Non-zero count from <code>dev_user_unjam_dev()</code></td>
+<td><code>dev_user_alloc_ucmd()</code></td>
+<td><code>atomic_set(&amp;ucmd_ref, 1)</code></td>
+<td><strong>1</strong></td>
 </tr>
 <tr>
-<td><code>rc == -EAGAIN</code></td>
-<td>No commands in <code>ready_cmd_list</code></td>
-<td>From <code>dev_user_get_next_cmd()</code></td>
+<td><code>dev_user_alloc_pages()</code> first page</td>
+<td><code>ucmd_get()</code></td>
+<td><strong>2</strong></td>
 </tr>
 <tr>
-<td><code>dev-&gt;cleanup_done == 1</code></td>
-<td>Device teardown initiated</td>
-<td>Set by <code>dev_user_exit_dev()</code></td>
+<td><code>dev_user_unjam_dev()</code>: <code>ucmd_get_check()</code></td>
+<td><code>atomic_inc_return()</code> → 3, ≠ 1 → not zombie</td>
+<td><strong>3</strong></td>
+</tr>
+<tr>
+<td><code>dev_user_unjam_cmd()</code> → <code>scst_cmd_done()</code> → <code>dev_user_on_free_cmd()</code> → <code>dev_user_process_reply_on_free()</code>: <code>dev_user_free_sgv()</code> → <code>sgv_pool_free()</code></td>
+<td>SGV goes to pool LRU cache; <code>dev_user_free_sg_entries()</code> <strong>not called</strong>; alloc_pages ref <strong>not released</strong></td>
+<td><strong>3</strong></td>
+</tr>
+<tr>
+<td><code>dev_user_process_reply_on_free()</code>: <code>ucmd_put()</code></td>
+<td><code>atomic_dec_and_test()</code> → 2, ≠ 0</td>
+<td><strong>2</strong></td>
+</tr>
+<tr>
+<td><code>dev_user_unjam_dev()</code>: <code>ucmd_put()</code> for <code>ucmd_get_check</code> ref</td>
+<td><code>atomic_dec_and_test()</code> → 1, ≠ 0</td>
+<td><strong>1</strong></td>
 </tr>
 </tbody></table>
-<h3 id="Why-Commands-Get-Stuck"><a href="#Why-Commands-Get-Stuck" class="headerlink" title="Why Commands Get Stuck"></a>Why Commands Get Stuck</h3><p>Looking at <code>dev_user_unjam_dev()</code> (scst_user.c:2680):</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_unjam_dev</span><span class="params">(<span class="keyword">struct</span> scst_user_dev *dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> i, res = <span class="number">0</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">ucmd</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line">repeat:</span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> *<span class="title">head</span> =</span> &amp;dev-&gt;ucmd_hash[i];</span><br><span class="line"></span><br><span class="line">        list_for_each_entry(ucmd, head, hash_list_entry) &#123;</span><br><span class="line">            res++;  <span class="comment">// Count EVERY command in hash</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (!ucmd-&gt;sent_to_user)</span><br><span class="line">                <span class="keyword">continue</span>;  <span class="comment">// Skip but still counted!</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (ucmd_get_check(ucmd))</span><br><span class="line">                <span class="keyword">continue</span>;  <span class="comment">// Reference check failed, still counted!</span></span><br><span class="line"></span><br><span class="line">            <span class="comment">// Try to unjam...</span></span><br><span class="line">            dev_user_unjam_cmd(ucmd, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">            <span class="comment">// ...</span></span><br><span class="line">            <span class="keyword">goto</span> repeat;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res;  <span class="comment">// Returns count of commands in hash</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>atomic_dec_and_test()</code> calls <code>dev_user_free_ucmd()</code> → <code>cmd_remove_hash()</code> <strong>only when<br>the result is 0</strong>. It never reaches 0 because the alloc_pages reference is never<br>released — <code>dev_user_free_sg_entries()</code> never fires. The ucmd stays in the hash<br>indefinitely.</p>
+<hr>
+<h2 id="Why-the-Loop-Runs-at-2-Million-Iterations-per-Second"><a href="#Why-the-Loop-Runs-at-2-Million-Iterations-per-Second" class="headerlink" title="Why the Loop Runs at 2 Million Iterations per Second"></a>Why the Loop Runs at 2 Million Iterations per Second</h2><p>After the unjam pass, the stuck ucmd has:</p>
+<ul>
+<li><code>sent_to_user = 0</code> (cleared by <code>dev_user_unjam_cmd()</code> before calling <code>scst_cmd_done</code>)</li>
+<li><code>state = UCMD_STATE_ON_FREE_SKIPPED</code></li>
+<li><code>cmd = NULL</code></li>
+<li>not in <code>ready_cmd_list</code></li>
+</ul>
+<p>On every subsequent call to <code>dev_user_unjam_dev()</code>:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">list_for_each_entry(ucmd, head, hash_list_entry) &#123;</span><br><span class="line">    res++;                   <span class="comment">/* ← always incremented: hash is not empty */</span></span><br><span class="line">    <span class="keyword">if</span> (!ucmd-&gt;sent_to_user)</span><br><span class="line">        <span class="keyword">continue</span>;            <span class="comment">/* ← always taken: sent_to_user == 0 */</span></span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p><strong>Zombie commands</strong> can remain in <code>ucmd_hash</code> but not be unjammable if:</p>
-<ul>
-<li><code>ucmd-&gt;sent_to_user == 0</code> - Never delivered to user space</li>
-<li><code>ucmd_get_check(ucmd)</code> fails - Reference count is 0 (being destroyed)</li>
-<li>Command is in an intermediate state that <code>dev_user_unjam_cmd()</code> can’t handle</li>
-</ul>
-<h3 id="Command-State-Machine"><a href="#Command-State-Machine" class="headerlink" title="Command State Machine"></a>Command State Machine</h3><p>Commands go through these states:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">UCMD_STATE_PARSING</span><br><span class="line">    ↓</span><br><span class="line">UCMD_STATE_BUF_ALLOCING</span><br><span class="line">    ↓</span><br><span class="line">UCMD_STATE_EXECING  ←  Zombie commands can get stuck here</span><br><span class="line">    ↓</span><br><span class="line">UCMD_STATE_ON_FREEING</span><br><span class="line">    ↓</span><br><span class="line">[freed from ucmd_hash]</span><br></pre></td></tr></table></figure>
+<p><code>res</code> is non-zero but the command is never unjammed. <code>dev_user_get_next_cmd()</code> returns<br><code>-EAGAIN</code> because the ucmd is not in <code>ready_cmd_list</code>. With <code>cleanup_done = 1</code>, the<br>outer loop’s exit condition (<code>rc1 == 0</code>) can never be reached:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">    rc1 = dev_user_unjam_dev(dev);   <span class="comment">/* rc1 = 1, always */</span></span><br><span class="line">    <span class="keyword">if</span> (rc1 == <span class="number">0</span> &amp;&amp; ...)</span><br><span class="line">        <span class="keyword">break</span>;                        <span class="comment">/* never reached */</span></span><br><span class="line">    rc = dev_user_get_next_cmd(...);  <span class="comment">/* rc = -EAGAIN, always */</span></span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p>If a command’s reference count reaches 0 while still in <code>ucmd_hash</code>, it becomes a zombie:</p>
-<ul>
-<li><code>ucmd_get_check()</code> fails (atomic_inc_return returns 1 from 0)</li>
-<li>Command can’t be retrieved from ready list (already removed)</li>
-<li>Command can’t be unjammed (reference check fails)</li>
-<li><strong>But <code>dev_user_unjam_dev()</code> still counts it in <code>res++</code></strong></li>
-</ul>
-<h3 id="The-Race-Condition"><a href="#The-Race-Condition" class="headerlink" title="The Race Condition"></a>The Race Condition</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">Thread 1: dev_user_exit_dev()          Thread 2: dev_user_process_cleanup()</span><br><span class="line">─────────────────────────────           ────────────────────────────────</span><br><span class="line">unregister device</span><br><span class="line">                                        loop iteration:</span><br><span class="line">                                          rc1 = dev_user_unjam_dev()</span><br><span class="line">                                          → finds 2 zombie commands</span><br><span class="line">                                          → returns rc1 = 2</span><br><span class="line">set cleanup_done = 1</span><br><span class="line">                                          rc = dev_user_get_next_cmd()</span><br><span class="line">                                          → no ready commands</span><br><span class="line">                                          → returns rc = -EAGAIN</span><br><span class="line"></span><br><span class="line">                                        Check: rc1=2 &amp;&amp; rc=-EAGAIN &amp;&amp; cleanup_done=1</span><br><span class="line">                                        → INFINITE LOOP!</span><br><span class="line"></span><br><span class="line">wait_for_completion(&amp;cleanup_cmpl)</span><br><span class="line">  → Blocks forever                      complete_all() never called</span><br></pre></td></tr></table></figure>
+<p>Both <code>dev_user_unjam_dev()</code> and <code>dev_user_get_next_cmd()</code> acquire and release a spinlock<br>in under a microsecond. Result: ~2 million iterations per second, 100% CPU on one core,<br>kernel soft-lockup detector fires within seconds.</p>
+<hr>
+<h2 id="The-Fix-Post-Unjam-SGV-Pool-Flush"><a href="#The-Fix-Post-Unjam-SGV-Pool-Flush" class="headerlink" title="The Fix: Post-Unjam SGV Pool Flush"></a>The Fix: Post-Unjam SGV Pool Flush</h2><h3 id="Why-the-Existing-Pre-Loop-Flush-Was-Not-Enough"><a href="#Why-the-Existing-Pre-Loop-Flush-Was-Not-Enough" class="headerlink" title="Why the Existing Pre-Loop Flush Was Not Enough"></a>Why the Existing Pre-Loop Flush Was Not Enough</h3><p><code>dev_user_unjam_dev()</code> already calls <code>sgv_pool_flush()</code> before acquiring the spinlock:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_unjam_dev</span><span class="params">(<span class="keyword">struct</span> scst_user_dev *dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    sgv_pool_flush(dev-&gt;pool);       <span class="comment">/* flush BEFORE unjamming */</span></span><br><span class="line">    sgv_pool_flush(dev-&gt;pool_clust);</span><br><span class="line"></span><br><span class="line">    spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">    <span class="comment">/* ... unjam loop ... */</span></span><br><span class="line">    spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<hr>
-<h2 id="The-Original-Workaround-Panic"><a href="#The-Original-Workaround-Panic" class="headerlink" title="The Original Workaround: Panic"></a>The Original Workaround: Panic</h2><p>The initial workaround was to panic after 10,000 iterations:</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">loop_count++;</span><br><span class="line"><span class="keyword">if</span> (unlikely(loop_count &gt; <span class="number">10000</span>)) &#123;</span><br><span class="line">    panic(<span class="string">&quot;SCST panic: DeadLoop error occurred!&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>This pre-loop flush runs <strong>before any command is unjammed</strong>. SGV objects are placed into<br>the pool cache <strong>during</strong> unjamming (when <code>scst_cmd_done</code> → <code>dev_user_on_free_cmd</code> →<br><code>dev_user_free_sgv</code> → <code>sgv_pool_free</code> executes). Those objects are invisible to a flush<br>that precedes them.</p>
+<h3 id="The-Two-Line-Fix"><a href="#The-Two-Line-Fix" class="headerlink" title="The Two-Line Fix"></a>The Two-Line Fix</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_unjam_dev</span><span class="params">(<span class="keyword">struct</span> scst_user_dev *dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    sgv_pool_flush(dev-&gt;pool);       <span class="comment">/* existing flush — before unjamming */</span></span><br><span class="line">    sgv_pool_flush(dev-&gt;pool_clust);</span><br><span class="line"></span><br><span class="line">    spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">    <span class="comment">/* ... unjam loop ... */</span></span><br><span class="line">    spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Post-unjam SGV pool flush — this is the actual fix.</span></span><br><span class="line"><span class="comment">     * sgv_pool_free() during unjamming caches the SGV object on the pool LRU;</span></span><br><span class="line"><span class="comment">     * dev_user_free_sg_entries() (and its ucmd_put) fires only on eviction.</span></span><br><span class="line"><span class="comment">     * The pre-loop flush misses objects cached during unjamming.</span></span><br><span class="line"><span class="comment">     * Flushing here evicts them: dev_user_free_sg_entries() → ucmd_put()</span></span><br><span class="line"><span class="comment">     * → atomic_dec_and_test() → 0 → dev_user_free_ucmd() → cmd_remove_hash().</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    sgv_pool_flush(dev-&gt;pool);</span><br><span class="line">    sgv_pool_flush(dev-&gt;pool_clust);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<h3 id="Why-This-“Worked”"><a href="#Why-This-“Worked”" class="headerlink" title="Why This “Worked”"></a>Why This “Worked”</h3><ul>
-<li>Prevents soft lockup detector from triggering</li>
-<li>Provides clear evidence via kernel panic</li>
-<li>Forces immediate attention to the problem</li>
-</ul>
-<h3 id="Why-This-Is-Bad"><a href="#Why-This-Is-Bad" class="headerlink" title="Why This Is Bad"></a>Why This Is Bad</h3><ul>
-<li>❌ Crashes the entire system</li>
-<li>❌ Loses all in-flight I&#x2F;O across all devices</li>
-<li>❌ No recovery possible</li>
-<li>❌ Doesn’t fix the root cause</li>
-<li>❌ No diagnostic information about stuck commands</li>
-</ul>
-<hr>
-<h2 id="The-Proper-Solution"><a href="#The-Proper-Solution" class="headerlink" title="The Proper Solution"></a>The Proper Solution</h2><h3 id="Multi-Layered-Approach"><a href="#Multi-Layered-Approach" class="headerlink" title="Multi-Layered Approach"></a>Multi-Layered Approach</h3><ol>
-<li><strong>Diagnostic Layer</strong> - Identify stuck commands</li>
-<li><strong>Timeout Layer</strong> - Detect prolonged loops</li>
-<li><strong>Force Cleanup Layer</strong> - Break the deadlock</li>
-<li><strong>Graceful Degradation</strong> - Continue cleanup after recovery</li>
-</ol>
-<h3 id="Implementation"><a href="#Implementation" class="headerlink" title="Implementation"></a>Implementation</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">dev_user_process_cleanup</span><span class="params">(<span class="keyword">struct</span> scst_user_dev *dev)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">ucmd</span>;</span></span><br><span class="line">    <span class="type">int</span> rc = <span class="number">0</span>, res = <span class="number">1</span>;</span><br><span class="line">    <span class="type">int</span> loop_count = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> force_cleanup_threshold = <span class="number">1000</span>;  <span class="comment">/* ~1 second with msleep(1) */</span></span><br><span class="line">    <span class="type">int</span> diagnostic_threshold = <span class="number">100</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... initialization ...</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">        <span class="type">int</span> rc1;</span><br><span class="line"></span><br><span class="line">        rc1 = dev_user_unjam_dev(dev);</span><br><span class="line">        <span class="keyword">if</span> (rc1 == <span class="number">0</span> &amp;&amp; rc == -EAGAIN &amp;&amp; dev-&gt;cleanup_done)</span><br><span class="line">            <span class="keyword">break</span>;  <span class="comment">// Normal exit</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// ... command processing ...</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (rc == -EAGAIN) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!dev-&gt;cleanup_done) &#123;</span><br><span class="line">                <span class="keyword">goto</span> out;  <span class="comment">// Normal early exit</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            loop_count++;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* DIAGNOSTIC LAYER: Print diagnostics after 100 iterations */</span></span><br><span class="line">            <span class="keyword">if</span> (unlikely(loop_count == diagnostic_threshold)) &#123;</span><br><span class="line">                PRINT_WARNING(<span class="string">&quot;Cleanup loop detected for dev %p after %d iterations, &quot;</span></span><br><span class="line">                              <span class="string">&quot;rc1=%d (stuck commands), rc=%d, cleanup_done=%d&quot;</span>,</span><br><span class="line">                              dev, loop_count, rc1, rc, dev-&gt;cleanup_done);</span><br><span class="line"></span><br><span class="line">                <span class="comment">// Log all stuck commands with their states</span></span><br><span class="line">                spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">                <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> *<span class="title">head</span> =</span> &amp;dev-&gt;ucmd_hash[i];</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">stuck_ucmd</span>;</span></span><br><span class="line"></span><br><span class="line">                    list_for_each_entry(stuck_ucmd, head, hash_list_entry) &#123;</span><br><span class="line">                        PRINT_WARNING(<span class="string">&quot;Stuck ucmd %p: state=%x, sent_to_user=%d, &quot;</span></span><br><span class="line">                                      <span class="string">&quot;jammed=%d, ref=%d, scst_cmd=%p&quot;</span>,</span><br><span class="line">                                      stuck_ucmd, stuck_ucmd-&gt;state,</span><br><span class="line">                                      stuck_ucmd-&gt;sent_to_user,</span><br><span class="line">                                      stuck_ucmd-&gt;jammed,</span><br><span class="line">                                      <span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref),</span><br><span class="line">                                      stuck_ucmd-&gt;cmd);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* FORCE CLEANUP LAYER: Break deadlock after 1000 iterations */</span></span><br><span class="line">            <span class="keyword">if</span> (unlikely(loop_count &gt;= force_cleanup_threshold)) &#123;</span><br><span class="line">                PRINT_ERROR(<span class="string">&quot;Force cleanup triggered after %d iterations for dev %p. &quot;</span></span><br><span class="line">                            <span class="string">&quot;Breaking deadlock by forcefully releasing %d stuck commands.&quot;</span>,</span><br><span class="line">                            loop_count, dev, rc1);</span><br><span class="line"></span><br><span class="line">                spin_lock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">                <span class="comment">// Forcefully release all stuck commands</span></span><br><span class="line">                <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; ARRAY_SIZE(dev-&gt;ucmd_hash); i++) &#123;</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> *<span class="title">head</span> =</span> &amp;dev-&gt;ucmd_hash[i];</span><br><span class="line">                    <span class="class"><span class="keyword">struct</span> <span class="title">scst_user_cmd</span> *<span class="title">stuck_ucmd</span>, *<span class="title">tmp</span>;</span></span><br><span class="line"></span><br><span class="line">                    list_for_each_entry_safe(stuck_ucmd, tmp, head, hash_list_entry) &#123;</span><br><span class="line">                        PRINT_ERROR(<span class="string">&quot;Force releasing stuck ucmd %p (state %x, ref %d)&quot;</span>,</span><br><span class="line">                                    stuck_ucmd, stuck_ucmd-&gt;state,</span><br><span class="line">                                    <span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref));</span><br><span class="line"></span><br><span class="line">                        <span class="comment">// Remove from hash</span></span><br><span class="line">                        list_del(&amp;stuck_ucmd-&gt;hash_list_entry);</span><br><span class="line"></span><br><span class="line">                        <span class="comment">// Force reference count to 1 then free</span></span><br><span class="line">                        <span class="keyword">while</span> (<span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref) &gt; <span class="number">1</span>)</span><br><span class="line">                            ucmd_put(stuck_ucmd);</span><br><span class="line"></span><br><span class="line">                        <span class="keyword">if</span> (<span class="type">atomic_read</span>(&amp;stuck_ucmd-&gt;ucmd_ref) == <span class="number">1</span>)</span><br><span class="line">                            ucmd_put(stuck_ucmd);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">                spin_unlock_irq(&amp;dev-&gt;udev_cmd_threads.cmd_list_lock);</span><br><span class="line"></span><br><span class="line">                <span class="keyword">break</span>;  <span class="comment">// Exit loop after force cleanup</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">/* CPU THROTTLING: Prevent tight spinning */</span></span><br><span class="line">            <span class="keyword">if</span> (loop_count &gt; <span class="number">10</span>)</span><br><span class="line">                msleep(<span class="number">1</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    dev_user_check_lost_ucmds(dev);</span><br><span class="line">    complete_all(&amp;dev-&gt;cleanup_cmpl);  <span class="comment">// Always reached now!</span></span><br><span class="line">    res = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">out:</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="Call-Chain-After-the-Fix"><a href="#Call-Chain-After-the-Fix" class="headerlink" title="Call Chain After the Fix"></a>Call Chain After the Fix</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">sgv_pool_flush()</span><br><span class="line">  → dev_user_free_sg_entries()       ← allocator callback, finally called</span><br><span class="line">      → __dev_user_free_sg_entries()</span><br><span class="line">          → dev_user_unmap_buf()</span><br><span class="line">          → ucmd_put()               ← releases the alloc_pages ref</span><br><span class="line">              → atomic_dec_and_test() → 0 → dev_user_free_ucmd()</span><br><span class="line">                  → cmd_remove_hash()    ← ucmd removed from hash</span><br></pre></td></tr></table></figure>
 
-<h3 id="Key-Improvements"><a href="#Key-Improvements" class="headerlink" title="Key Improvements"></a>Key Improvements</h3><h4 id="1-Diagnostic-Logging-100-iterations"><a href="#1-Diagnostic-Logging-100-iterations" class="headerlink" title="1. Diagnostic Logging (100 iterations)"></a>1. Diagnostic Logging (100 iterations)</h4><p>Captures the state when the loop is detected:</p>
-<ul>
-<li>Device pointer and iteration count</li>
-<li>Return codes (<code>rc1</code>, <code>rc</code>, <code>cleanup_done</code>)</li>
-<li><strong>Every stuck command’s details:</strong><ul>
-<li>State (parsing, executing, freeing, etc.)</li>
-<li>Whether sent to user space</li>
-<li>Jammed flag</li>
-<li>Reference count</li>
-<li>Associated SCST command pointer</li>
-</ul>
-</li>
-</ul>
-<p>This provides actionable debugging information instead of just panicking.</p>
-<h4 id="2-Force-Cleanup-1000-iterations-≈-1-second"><a href="#2-Force-Cleanup-1000-iterations-≈-1-second" class="headerlink" title="2. Force Cleanup (1000 iterations ≈ 1 second)"></a>2. Force Cleanup (1000 iterations ≈ 1 second)</h4><p>After a reasonable timeout:</p>
-<ul>
-<li>Removes all commands from <code>ucmd_hash</code></li>
-<li>Forces reference counts down to prevent leaks</li>
-<li>Frees stuck commands</li>
-<li><strong>Breaks the loop</strong>, allowing <code>complete_all()</code> to be called</li>
-</ul>
-<h4 id="3-CPU-Throttling"><a href="#3-CPU-Throttling" class="headerlink" title="3. CPU Throttling"></a>3. CPU Throttling</h4><p>After 10 iterations, adds <code>msleep(1)</code> to:</p>
-<ul>
-<li>Prevent CPU spinning at 100%</li>
-<li>Allow other threads to run</li>
-<li>Reduce system load during cleanup</li>
-</ul>
-<h4 id="4-Guaranteed-Progress"><a href="#4-Guaranteed-Progress" class="headerlink" title="4. Guaranteed Progress"></a>4. Guaranteed Progress</h4><p>The loop <strong>will terminate</strong> either by:</p>
-<ul>
-<li>Normal completion (all commands cleaned up)</li>
-<li>Force cleanup after timeout</li>
-<li>Early exit if cleanup not yet initiated</li>
-</ul>
-<p><strong>Unlike the panic approach</strong>, this allows:</p>
-<ul>
-<li>System to continue running</li>
-<li>Other devices to function normally</li>
-<li>Diagnostic data to be collected</li>
-<li>Graceful degradation instead of catastrophic failure</li>
-</ul>
-<hr>
-<h2 id="Testing-and-Validation"><a href="#Testing-and-Validation" class="headerlink" title="Testing and Validation"></a>Testing and Validation</h2><h3 id="Reproduction"><a href="#Reproduction" class="headerlink" title="Reproduction"></a>Reproduction</h3><p>The issue can be reproduced by:</p>
-<ol>
-<li>Creating a SCST user-space device</li>
-<li>Sending I&#x2F;O commands</li>
-<li>Killing the user-space handler process abruptly</li>
-<li>Attempting to unload the device</li>
-</ol>
-<p>This leaves commands in intermediate states, triggering the deadlock.</p>
-<h3 id="Expected-Behavior-After-Fix"><a href="#Expected-Behavior-After-Fix" class="headerlink" title="Expected Behavior After Fix"></a>Expected Behavior After Fix</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"># dmesg output during cleanup with stuck commands</span><br><span class="line"></span><br><span class="line">[  123.456] scst_user: Cleanup loop detected for dev ffff888123456789 after 100 iterations,</span><br><span class="line">           rc1=2 (stuck commands), rc=-11, cleanup_done=1</span><br><span class="line">[  123.457] scst_user: Stuck ucmd ffff888abcd1234: state=3, sent_to_user=1,</span><br><span class="line">           jammed=0, ref=0, scst_cmd=ffff888def5678</span><br><span class="line">[  123.458] scst_user: Stuck ucmd ffff888abcd5678: state=3, sent_to_user=0,</span><br><span class="line">           jammed=0, ref=0, scst_cmd=0000000000000000</span><br><span class="line">[  124.456] scst_user: Force cleanup triggered after 1000 iterations for dev ffff888123456789.</span><br><span class="line">           Breaking deadlock by forcefully releasing 2 stuck commands.</span><br><span class="line">[  124.457] scst_user: Force releasing stuck ucmd ffff888abcd1234 (state 3, ref 0)</span><br><span class="line">[  124.458] scst_user: Force releasing stuck ucmd ffff888abcd5678 (state 3, ref 0)</span><br><span class="line">[  124.459] scst_user: Cleanuping done (dev ffff888123456789)</span><br></pre></td></tr></table></figure>
+<p>On the next call to <code>dev_user_unjam_dev()</code>, the hash is empty, <code>res = 0</code>, and<br><code>dev_user_process_cleanup()</code> breaks out of its loop normally — within 2–3 iterations.</p>
+<h3 id="Replace-panic-with-schedule"><a href="#Replace-panic-with-schedule" class="headerlink" title="Replace panic() with schedule()"></a>Replace panic() with schedule()</h3><p>The <code>panic()</code> workaround (and later the force-cleanup workaround) is replaced with a<br>simple CPU yield:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* Before: crash the system */</span></span><br><span class="line"><span class="keyword">if</span> (unlikely(loop_count &gt; <span class="number">10000</span>))</span><br><span class="line">    panic(<span class="string">&quot;SCST panic: DeadLoop error occurred!&quot;</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* After: yield CPU so SGV callbacks can run */</span></span><br><span class="line">schedule();</span><br></pre></td></tr></table></figure>
 
-<p>Device cleanup completes successfully without system crash!</p>
+<p>With the SGV flush fix in place, <code>schedule()</code> is belt-and-suspenders: it ensures any<br>async callbacks triggered by the flush have CPU time before the next iteration. In<br>practice the loop exits before the yield matters.</p>
 <hr>
-<h2 id="Alternative-Solutions-Considered"><a href="#Alternative-Solutions-Considered" class="headerlink" title="Alternative Solutions Considered"></a>Alternative Solutions Considered</h2><h3 id="Option-1-Fix-the-State-Machine"><a href="#Option-1-Fix-the-State-Machine" class="headerlink" title="Option 1: Fix the State Machine"></a>Option 1: Fix the State Machine</h3><p>Prevent commands from becoming zombies in the first place by ensuring proper reference counting and state transitions.</p>
-<p><strong>Pros:</strong></p>
-<ul>
-<li>Addresses root cause</li>
-<li>No workarounds needed</li>
-</ul>
-<p><strong>Cons:</strong></p>
-<ul>
-<li>Requires extensive refactoring</li>
-<li>High risk of introducing new bugs</li>
-<li>Difficult to guarantee all edge cases covered</li>
-</ul>
-<p><strong>Verdict:</strong> Long-term goal, but needs immediate fix first</p>
-<h3 id="Option-2-Timeout-with-Warning-Only"><a href="#Option-2-Timeout-with-Warning-Only" class="headerlink" title="Option 2: Timeout with Warning Only"></a>Option 2: Timeout with Warning Only</h3><p>Log an error but don’t force cleanup, just break the loop.</p>
-<p><strong>Pros:</strong></p>
-<ul>
-<li>Simple implementation</li>
-<li>Non-intrusive</li>
-</ul>
-<p><strong>Cons:</strong></p>
-<ul>
-<li>May leak memory (stuck commands not freed)</li>
-<li>Could accumulate over multiple cleanup attempts</li>
-<li>No guarantee of forward progress</li>
-</ul>
-<p><strong>Verdict:</strong> Too risky for resource leaks</p>
-<h3 id="Option-3-The-Implemented-Hybrid-Approach"><a href="#Option-3-The-Implemented-Hybrid-Approach" class="headerlink" title="Option 3: The Implemented Hybrid Approach"></a>Option 3: The Implemented Hybrid Approach</h3><p>Diagnostics + Force cleanup + Graceful degradation</p>
-<p><strong>Pros:</strong></p>
-<ul>
-<li>✅ Prevents system crash</li>
-<li>✅ Provides debugging information</li>
-<li>✅ Guarantees cleanup completion</li>
-<li>✅ Frees stuck resources</li>
-<li>✅ Minimal code changes</li>
-<li>✅ Low risk of side effects</li>
-</ul>
-<p><strong>Cons:</strong></p>
-<ul>
-<li>Force cleanup may leak kernel memory in pathological cases</li>
-<li>Doesn’t fix underlying race conditions</li>
-</ul>
-<p><strong>Verdict:</strong> Best balance of safety, effectiveness, and maintainability</p>
+<h2 id="End-to-End-Fix-Summary"><a href="#End-to-End-Fix-Summary" class="headerlink" title="End-to-End Fix Summary"></a>End-to-End Fix Summary</h2><table>
+<thead>
+<tr>
+<th></th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Symptom</strong></td>
+<td><code>dev_user_process_cleanup()</code> loops at ~2M iterations&#x2F;second; soft lockup</td>
+</tr>
+<tr>
+<td><strong>Stuck ucmd</strong></td>
+<td><code>state=7 (ON_FREE_SKIPPED)</code>, <code>scst_cmd=NULL</code>, <code>ref=1</code>, not in ready list</td>
+</tr>
+<tr>
+<td><strong>Why ref stays at 1</strong></td>
+<td><code>sgv_pool_free()</code> caches the SGV object on the pool LRU; <code>dev_user_free_sg_entries()</code> never fires; the <code>ucmd_get()</code> taken in <code>dev_user_alloc_pages()</code> is never matched by a <code>ucmd_put()</code></td>
+</tr>
+<tr>
+<td><strong>Why pre-loop flush failed</strong></td>
+<td>It runs before unjamming; SGV objects are cached <em>during</em> unjamming and are invisible to it</td>
+</tr>
+<tr>
+<td><strong>Fix</strong></td>
+<td>Add <code>sgv_pool_flush()</code> for both pools <em>after</em> the unjam loop in <code>dev_user_unjam_dev()</code></td>
+</tr>
+<tr>
+<td><strong>Fix size</strong></td>
+<td>2 function calls</td>
+</tr>
+<tr>
+<td><strong>Workaround replaced</strong></td>
+<td>80+ lines of diagnostic logging, force-cleanup, and msleep throttling</td>
+</tr>
+</tbody></table>
 <hr>
-<h2 id="Lessons-Learned"><a href="#Lessons-Learned" class="headerlink" title="Lessons Learned"></a>Lessons Learned</h2><h3 id="1-Infinite-Loops-in-Kernel-Space-Are-Deadly"><a href="#1-Infinite-Loops-in-Kernel-Space-Are-Deadly" class="headerlink" title="1. Infinite Loops in Kernel Space Are Deadly"></a>1. Infinite Loops in Kernel Space Are Deadly</h3><p>Unlike user space, kernel infinite loops can:</p>
-<ul>
-<li>Trigger soft lockup detection</li>
-<li>Hang the entire system</li>
-<li>Require hard reboot</li>
-<li>Lose all in-flight operations</li>
-</ul>
-<p><strong>Always</strong> have an escape hatch!</p>
-<h3 id="2-Reference-Counting-Is-Hard"><a href="#2-Reference-Counting-Is-Hard" class="headerlink" title="2. Reference Counting Is Hard"></a>2. Reference Counting Is Hard</h3><p>The zombie command issue stems from a classic reference counting problem:</p>
-<ul>
-<li>Commands can reach refcount 0 while still in data structures</li>
-<li><code>ucmd_get_check()</code> tries to increment from 0 → fails</li>
-<li>Command is un-reachable but still “exists”</li>
-</ul>
-<p><strong>Solution:</strong> Ensure removal from data structures happens atomically with final refcount decrement.</p>
-<h3 id="3-Completions-Need-Guarantees"><a href="#3-Completions-Need-Guarantees" class="headerlink" title="3. Completions Need Guarantees"></a>3. Completions Need Guarantees</h3><p>The <code>wait_for_completion(&amp;dev-&gt;cleanup_cmpl)</code> in <code>dev_user_exit_dev()</code> will block <strong>forever</strong> if <code>complete_all()</code> is never called.</p>
-<p><strong>Always</strong> ensure completion paths are reachable, even in error scenarios.</p>
-<h3 id="4-Diagnostics-Are-Crucial"><a href="#4-Diagnostics-Are-Crucial" class="headerlink" title="4. Diagnostics Are Crucial"></a>4. Diagnostics Are Crucial</h3><p>The panic approach provided no information about:</p>
-<ul>
-<li>What commands were stuck</li>
-<li>Why they were stuck</li>
-<li>How to prevent it</li>
-</ul>
-<p>The new approach logs:</p>
-<ul>
-<li>Command states</li>
-<li>Reference counts</li>
-<li>Flags</li>
-</ul>
-<p>This enables root cause analysis and eventual proper fix.</p>
-<h3 id="5-Graceful-Degradation-Catastrophic-Failure"><a href="#5-Graceful-Degradation-Catastrophic-Failure" class="headerlink" title="5. Graceful Degradation &gt; Catastrophic Failure"></a>5. Graceful Degradation &gt; Catastrophic Failure</h3><p>A storage system that crashes the entire server on cleanup failure is worse than one that:</p>
-<ul>
-<li>Logs errors</li>
-<li>Forces cleanup</li>
-<li>Continues operation</li>
-</ul>
-<p>Users prefer logs and potential minor resource leaks over complete system outages.</p>
+<h2 id="Lessons"><a href="#Lessons" class="headerlink" title="Lessons"></a>Lessons</h2><h3 id="1-Instrumentation-before-conclusion"><a href="#1-Instrumentation-before-conclusion" class="headerlink" title="1. Instrumentation before conclusion"></a>1. Instrumentation before conclusion</h3><p>The initial analysis correctly identified the symptoms and the code smell (counting<br>before checking in <code>dev_user_unjam_dev</code>). But the true cause required observing the<br>actual <code>ucmd_ref</code> value at runtime. A single log line — showing <code>ref=1</code> instead of the<br>assumed <code>ref=0</code> — immediately invalidated the zombie hypothesis and pointed to a<br>missing <code>ucmd_put</code>, which led straight to the SGV pool caching behavior.</p>
+<h3 id="2-Falsification-experiments-are-decisive"><a href="#2-Falsification-experiments-are-decisive" class="headerlink" title="2. Falsification experiments are decisive"></a>2. Falsification experiments are decisive</h3><p>The test that forced <code>ucmd_ref</code> to 0 and observed the loop continuing was the key<br>experiment. It proved the issue was not about the reference <em>value</em> but about the <em>path</em><br>that calls <code>dev_user_free_ucmd()</code>. No matter what the counter shows, nothing removes the<br>ucmd from the hash unless <code>atomic_dec_and_test()</code> returns true inside <code>ucmd_put()</code>.</p>
+<h3 id="3-Pool-caches-hide-reference-lifetimes"><a href="#3-Pool-caches-hide-reference-lifetimes" class="headerlink" title="3. Pool caches hide reference lifetimes"></a>3. Pool caches hide reference lifetimes</h3><p>The SGV pool decouples <code>sgv_pool_free()</code> from the actual page release. Code that relies<br>on “free → callback → ucmd_put” must account for the possibility that the callback fires<br>on eviction (asynchronously), not on free (synchronously). At teardown time, explicit<br><code>sgv_pool_flush()</code> is necessary to force eviction.</p>
+<h3 id="4-Minimal-fixes-beat-complex-workarounds"><a href="#4-Minimal-fixes-beat-complex-workarounds" class="headerlink" title="4. Minimal fixes beat complex workarounds"></a>4. Minimal fixes beat complex workarounds</h3><p>The final fix is two function calls. The workaround it replaced was 80+ lines of<br>diagnostic logging, force-cleanup state machines, and sleep throttling — none of which<br>addressed the root cause and all of which added complexity and potential for new bugs.</p>
+<h3 id="5-Kernel-infinite-loops-require-an-escape-hatch"><a href="#5-Kernel-infinite-loops-require-an-escape-hatch" class="headerlink" title="5. Kernel infinite loops require an escape hatch"></a>5. Kernel infinite loops require an escape hatch</h3><p>Unlike user space, a kernel spin at 2M iterations per second will trigger the soft-lockup<br>detector and can destabilize the entire host. Even while the root cause is being<br>investigated, a bounded fallback (diagnostics + timeout + yield) is preferable to either<br>a bare panic or an unbounded spin.</p>
 <hr>
-<h2 id="Future-Work"><a href="#Future-Work" class="headerlink" title="Future Work"></a>Future Work</h2><h3 id="Short-Term"><a href="#Short-Term" class="headerlink" title="Short Term"></a>Short Term</h3><ul>
-<li><input checked="" disabled="" type="checkbox"> Implement force cleanup (completed in this fix)</li>
-<li><input disabled="" type="checkbox"> Add metrics for stuck command frequency</li>
-<li><input disabled="" type="checkbox"> Create reproducer test case</li>
-<li><input disabled="" type="checkbox"> Upstream the fix to SCST maintainers</li>
-</ul>
-<h3 id="Long-Term"><a href="#Long-Term" class="headerlink" title="Long Term"></a>Long Term</h3><ul>
-<li><input disabled="" type="checkbox"> Refactor command lifecycle to eliminate zombie state possibility</li>
-<li><input disabled="" type="checkbox"> Implement per-command timeout tracking</li>
-<li><input disabled="" type="checkbox"> Add lockdep annotations for lock ordering</li>
-<li><input disabled="" type="checkbox"> Redesign cleanup sequence to avoid wait_for_completion</li>
-</ul>
-<hr>
-<h2 id="Conclusion"><a href="#Conclusion" class="headerlink" title="Conclusion"></a>Conclusion</h2><p>The SCST infinite loop deadlock is a textbook example of kernel synchronization gone wrong:</p>
-<ul>
-<li>Complex state machine with multiple threads</li>
-<li>Reference counting bugs creating zombie objects</li>
-<li>Infinite loop with unreachable exit condition</li>
-<li>Blocking wait for completion that never gets signaled</li>
-</ul>
-<p>The fix demonstrates defensive programming principles:</p>
-<ol>
-<li><strong>Detect</strong> - Identify when abnormal conditions occur</li>
-<li><strong>Diagnose</strong> - Log detailed state for debugging</li>
-<li><strong>Recover</strong> - Take corrective action to restore progress</li>
-<li><strong>Degrade Gracefully</strong> - Prefer operation with warnings over complete failure</li>
-</ol>
-<p>This approach transforms a system-crashing bug into a manageable edge case with clear diagnostics and automatic recovery.</p>
-<h3 id="Code-Locations"><a href="#Code-Locations" class="headerlink" title="Code Locations"></a>Code Locations</h3><ul>
+<h2 id="Code-Locations"><a href="#Code-Locations" class="headerlink" title="Code Locations"></a>Code Locations</h2><ul>
 <li><strong>File:</strong> <code>scst/src/dev_handlers/scst_user.c</code></li>
-<li><strong>Function:</strong> <code>dev_user_process_cleanup()</code> (line 3851)</li>
-<li><strong>Related Functions:</strong><ul>
-<li><code>dev_user_unjam_dev()</code> (line 2680)</li>
-<li><code>dev_user_exit_dev()</code> (line 3747)</li>
-<li><code>dev_user_get_next_cmd()</code> (line 2174)</li>
-</ul>
-</li>
-</ul>
-<h3 id="References"><a href="#References" class="headerlink" title="References"></a>References</h3><ul>
-<li>SCST Project: <a target="_blank" rel="noopener" href="http://scst.sourceforge.net/">http://scst.sourceforge.net/</a></li>
-<li>Issue Tracker: <a target="_blank" rel="noopener" href="https://github.corp.ebay.com/tess-contrib/scst/issues/5">https://github.corp.ebay.com/tess-contrib/scst/issues/5</a></li>
-<li>Fix Commit: (will be updated after merge)</li>
+<li><strong><code>dev_user_unjam_dev()</code></strong> — where the post-loop flush is added</li>
+<li><strong><code>dev_user_process_cleanup()</code></strong> — outer cleanup loop with the exit condition</li>
+<li><strong><code>dev_user_on_free_cmd()</code></strong> — where <code>UCMD_STATE_ON_FREE_SKIPPED</code> is set</li>
+<li><strong><code>dev_user_free_sgv()</code></strong> — where <code>sgv_pool_free()</code> is called instead of a direct free</li>
+<li><strong><code>dev_user_alloc_pages()</code></strong> — where the unmatched <code>ucmd_get()</code> is taken</li>
 </ul>
 <hr>
-<p><strong>Tags:</strong> #kernel #deadlock #scst #storage #debugging #linux #reference-counting #synchronization</p>
+<p><strong>Tags:</strong> #kernel #scst #storage #debugging #linux #memory-management #sgv-pool #reference-counting #deadlock</p>
 
       
     </div>
@@ -2335,6 +2023,362 @@
 <li>binder 又是怎么接住这个对象的？</li>
 </ul>
 <p>下一篇就从源码入口开始，沿着真正的调用链，走一遍 KAI 的一次调度周期。</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/04/23/2026-04-23-kai-scheduler-02-workflow/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/04/23/2026-04-23-kai-scheduler-02-workflow/" class="post-title-link" itemprop="url">KAI Scheduler 深入拆解（二）：从 Pod 到 BindRequest 的控制面工作流</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2026-04-23 10:15:00" itemprop="dateCreated datePublished" datetime="2026-04-23T10:15:00+08:00">2026-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-05-06 16:25:22" itemprop="dateModified" datetime="2026-05-06T16:25:22+08:00">2026-05-06</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>上一篇我把 KAI Scheduler 当成一个平台来读：它不是单个 scheduler 进程，而是一串围绕 CRD、controller 和 scheduling session 组织起来的控制面。</p>
+<p>这一篇开始看它真正的“主干路径”：<strong>一个 workload 进入集群后，到底是怎么一步步变成调度决策，再变成真实节点绑定的？</strong></p>
+<p>如果要先给结论，我会这样概括：</p>
+<blockquote>
+<p>在 KAI 里，提交 workload 并不会立刻进入“给 Pod 选 node”的同步流程，而是先被重写成更适合调度的 workload model，再进入周期性调度循环，最后通过 <code>BindRequest</code> 异步落地。</p>
+</blockquote>
+<p>这条路径一共可以拆成六步：</p>
+<ol>
+<li>workload 进入 Kubernetes</li>
+<li>pod-grouper 抽取 workload 语义，创建 <code>PodGroup</code></li>
+<li>scheduler 在一个 cycle 里对 <code>PodGroup</code> 和 <code>Queue</code> 做 placement 决策</li>
+<li>scheduler 创建 <code>BindRequest</code></li>
+<li>binder reconcile <code>BindRequest</code> 并执行真实绑定</li>
+<li>PodGroup&#x2F;Queue controller 回写状态，形成反馈闭环</li>
+</ol>
+<h2 id="先看整条链路"><a href="#先看整条链路" class="headerlink" title="先看整条链路"></a>先看整条链路</h2><pre class="mermaid">sequenceDiagram
+    participant U as User / Workload Controller
+    participant A as Admission
+    participant PG as Pod Grouper
+    participant PGCRD as PodGroup CRD
+    participant Q as Queue CRD
+    participant S as Scheduler
+    participant BR as BindRequest CRD
+    participant B as Binder
+    participant PGC as PodGroup Controller
+    participant QC as Queue Controller
+    participant PM as Prometheus / Metrics Store
+
+    U->>A: 创建 Pod / Job / Ray / Kubeflow workload
+    A-->>U: 准入校验 / 变更
+    U->>PG: Pod 被 watch 到
+    PG->>PGCRD: 基于 top owner 创建或更新 PodGroup
+    U->>Q: workload 通过 queue 标签归属某个 Queue
+    S->>PGCRD: 在 snapshot 中读取 PodGroup
+    S->>Q: 在 snapshot 中读取 Queue
+    S->>BR: 为选中的 Pod 创建 BindRequest
+    B->>BR: reconcile BindRequest
+    B->>B: 执行 bind / 资源准备 / 回滚
+    B-->>U: Pod 绑定到目标节点
+    PGC->>PGCRD: 回写资源状态与部分运行态
+    QC->>Q: patch Queue 状态
+    QC->>PM: 暴露队列级资源指标
+    PM-->>S: usage DB client 查询历史 usage</pre>
+
+<p>这个 sequence 图里，真正最关键的转折点有两个：</p>
+<ul>
+<li><strong>Pod -&gt; PodGroup</strong>：KAI 把原始 workload 转成更适合调度的抽象。</li>
+<li><strong>Decision -&gt; BindRequest</strong>：KAI 把调度决策和执行绑定解耦。</li>
+</ul>
+<p>只要把这两个转折点读懂，整个系统就顺了。</p>
+<h2 id="第一步：workload-进入集群，但-scheduler-还不会立刻直接处理它"><a href="#第一步：workload-进入集群，但-scheduler-还不会立刻直接处理它" class="headerlink" title="第一步：workload 进入集群，但 scheduler 还不会立刻直接处理它"></a>第一步：workload 进入集群，但 scheduler 还不会立刻直接处理它</h2><p>KAI 支持的工作负载并不只有单 Pod。它非常强调 AI &#x2F; batch &#x2F; distributed workload 的调度语义，所以常见入口包括：</p>
+<ul>
+<li>原生 Pod</li>
+<li>Job &#x2F; CronJob（以及其他 batch 类上层对象）</li>
+<li>Deployment</li>
+<li>MPIJob</li>
+<li>Ray</li>
+<li>Kubeflow 相关 workload</li>
+<li>JobSet</li>
+<li>以及其他带 owner reference 的上层对象</li>
+</ul>
+<p>这些对象刚进入集群时，并不天然具备 KAI 需要的完整调度语义。</p>
+<p>例如，scheduler 真正关心的问题往往是：</p>
+<ul>
+<li>这些 Pod 是否必须一起启动？</li>
+<li>它们属于哪个 queue？</li>
+<li>它们默认优先级和 preemptibility 是什么？</li>
+<li>它们有没有 topology constraint？</li>
+<li>它们是不是多级 subgroup 结构？</li>
+</ul>
+<p>这些信息如果散落在不同 workload 的不同字段里，后续调度逻辑会非常难维护。于是 KAI 先做了一次“语义收敛”。</p>
+<h2 id="第二步：pod-grouper-把-workload-重写成-PodGroup"><a href="#第二步：pod-grouper-把-workload-重写成-PodGroup" class="headerlink" title="第二步：pod-grouper 把 workload 重写成 PodGroup"></a>第二步：pod-grouper 把 workload 重写成 <code>PodGroup</code></h2><p><code>pod-grouper</code> 是整条链路里最容易被低估的组件。</p>
+<p>很多人看 scheduler 时会把 pod-grouper 当成辅助服务，但实际上它承担的是“把 Kubernetes 原生 workload 翻译成 KAI workload model”的职责。</p>
+<h3 id="它在做什么"><a href="#它在做什么" class="headerlink" title="它在做什么"></a>它在做什么</h3><p>pod-grouper 监听 Pod，然后做三件事：</p>
+<ol>
+<li>找到 Pod 的 <strong>top owner</strong></li>
+<li>根据 owner 类型选择合适的 grouping plugin</li>
+<li>生成或更新 <code>PodGroup</code></li>
+</ol>
+<p>文档 <code>docs/developer/pod-grouper.md</code> 给出的核心思路非常清楚：它不是简单按 label 聚合 Pod，而是通过 owner chain 去推断真正的 workload 边界。</p>
+<h3 id="为什么一定要找-top-owner"><a href="#为什么一定要找-top-owner" class="headerlink" title="为什么一定要找 top owner"></a>为什么一定要找 top owner</h3><p>因为很多 Kubernetes workload 都有多层 owner reference。</p>
+<p>例如：</p>
+<ul>
+<li>Pod 的 owner 是 ReplicaSet</li>
+<li>ReplicaSet 的 owner 又是 Deployment</li>
+</ul>
+<p>如果只按 Pod 当前直接 owner 聚合，你得到的是“副本控制器层”的分组，而不是“业务 workload 层”的分组。KAI 的做法是继续往上找，找到最适合代表 workload 语义的对象。</p>
+<p>这一步带来的收益很大：</p>
+<ul>
+<li>同一个 workload 的 Pod 可以稳定归到同一个 <code>PodGroup</code></li>
+<li>不同 workload 类型可以保留各自的分组逻辑</li>
+<li>调度器不需要理解所有 workload CRD 的细节，只需要理解 <code>PodGroup</code></li>
+</ul>
+<h3 id="PodGroup-才是-KAI-真正的-workload-主语"><a href="#PodGroup-才是-KAI-真正的-workload-主语" class="headerlink" title="PodGroup 才是 KAI 真正的 workload 主语"></a><code>PodGroup</code> 才是 KAI 真正的 workload 主语</h3><p>在 <code>pkg/apis/scheduling/v2alpha2/podgroup_types.go</code> 里，<code>PodGroupSpec</code> 已经不仅仅是一个 <code>minMember</code> 包装器，它承载的是 workload 的调度语义：</p>
+<ul>
+<li><code>MinMember</code></li>
+<li><code>MinSubGroup</code></li>
+<li><code>Queue</code></li>
+<li><code>PriorityClassName</code></li>
+<li><code>Preemptibility</code></li>
+<li><code>TopologyConstraint</code></li>
+<li><code>SubGroups</code></li>
+<li><code>MarkUnschedulable</code></li>
+<li><code>SchedulingBackoff</code></li>
+</ul>
+<p>这里最重要的不是字段多，而是字段的组合方式。</p>
+<p>这意味着 KAI 在表达的是：</p>
+<ul>
+<li>这是一个 gang 还是普通任务？</li>
+<li>这是平面 workload 还是层级 workload？</li>
+<li>它属于哪个资源队列？</li>
+<li>它可以被抢占吗？</li>
+<li>它有机架、zone、拓扑域要求吗？</li>
+</ul>
+<p>也就是说，从这一步开始，系统不再是“对一堆 Pod 做 placement”，而是“对带有完整调度语义的 workload group 做 placement”。</p>
+<h2 id="第三步：Queue-把-workload-放进资源与公平性的上下文里"><a href="#第三步：Queue-把-workload-放进资源与公平性的上下文里" class="headerlink" title="第三步：Queue 把 workload 放进资源与公平性的上下文里"></a>第三步：<code>Queue</code> 把 workload 放进资源与公平性的上下文里</h2><p><code>PodGroup</code> 解决的是 workload 建模问题，<code>Queue</code> 解决的是资源分配问题。</p>
+<p>在 KAI 里，queue 不是顺手加的一个标签，而是公平性和资源边界的核心对象。很多关键特性都建立在它上面：</p>
+<ul>
+<li>hierarchical queue</li>
+<li>quota &#x2F; deserved quota</li>
+<li>over-quota share</li>
+<li>reclaim</li>
+<li>fair-share</li>
+<li>time-based fairshare</li>
+</ul>
+<p>也就是说，scheduler 在做决策时，看到的不是“某个 Pod 能不能放到某个节点”，而是：</p>
+<blockquote>
+<p>某个 <code>PodGroup</code> 在它所属 <code>Queue</code> 的资源语境下，是否应该得到这次调度机会。</p>
+</blockquote>
+<p>这是 KAI 跟只做 node fitting 的调度器非常不同的一点。</p>
+<h2 id="第四步：scheduler-在一个-cycle-里对-snapshot-做决策"><a href="#第四步：scheduler-在一个-cycle-里对-snapshot-做决策" class="headerlink" title="第四步：scheduler 在一个 cycle 里对 snapshot 做决策"></a>第四步：scheduler 在一个 cycle 里对 snapshot 做决策</h2><p>等到 <code>PodGroup</code> 和 <code>Queue</code> 都就位以后，scheduler 才开始它真正擅长的事情。</p>
+<p>这里的关键点不是某个单独算法，而是 <strong>周期性调度模型</strong>。</p>
+<p>KAI scheduler 不是收到一个 Pod 事件就立刻同步做完全部决策。更准确地说，是启动时先让 cache 跑起来并等待同步；进入稳定运行后，每个 cycle 再做：</p>
+<ol>
+<li>获取 snapshot</li>
+<li>打开 session</li>
+<li>执行 actions</li>
+<li>关闭 session</li>
+</ol>
+<p>这带来两个直接好处：</p>
+<h3 id="1-所有决策基于同一份一致视图"><a href="#1-所有决策基于同一份一致视图" class="headerlink" title="1. 所有决策基于同一份一致视图"></a>1. 所有决策基于同一份一致视图</h3><p>在同一个 cycle 里，所有 action 和 plugin 都基于同一个 cluster snapshot 工作。</p>
+<p>这对复杂特性尤其重要：</p>
+<ul>
+<li>gang scheduling</li>
+<li>reclaim</li>
+<li>preempt</li>
+<li>topology-aware placement</li>
+<li>dynamic resources</li>
+<li>queue fairshare</li>
+</ul>
+<p>如果没有 snapshot 这一层，很多逻辑会变成“边读边改边抢锁”，复杂度会急剧上升。</p>
+<h3 id="2-scheduler-可以处理的是-workload-级别的组合决策"><a href="#2-scheduler-可以处理的是-workload-级别的组合决策" class="headerlink" title="2. scheduler 可以处理的是 workload 级别的组合决策"></a>2. scheduler 可以处理的是 workload 级别的组合决策</h3><p>因为它不是只看一个 Pod，而是看 snapshot 里的：</p>
+<ul>
+<li>nodes</li>
+<li>queues</li>
+<li>podgroups</li>
+<li>bindrequests</li>
+<li>资源状态</li>
+<li>历史 usage</li>
+</ul>
+<p>所以它做出来的是更接近“全局最优”或“局部一致最优”的决策，而不只是一个 request&#x2F;response 式的即时选择。</p>
+<h2 id="第五步：scheduler-不直接-bind，而是创建-BindRequest"><a href="#第五步：scheduler-不直接-bind，而是创建-BindRequest" class="headerlink" title="第五步：scheduler 不直接 bind，而是创建 BindRequest"></a>第五步：scheduler 不直接 bind，而是创建 <code>BindRequest</code></h2><p>这是 KAI 整条工作流里最精彩的一步。</p>
+<p>在 <code>pkg/scheduler/cache/cache.go</code> 里，<code>SchedulerCache.Bind(...)</code> 的逻辑不是直接调用 Pod binding API，而是创建 <code>BindRequest</code>。</p>
+<p>当前 scheduler 创建 <code>BindRequest</code> 时，<code>BindRequestSpec</code> 里主要会写入：</p>
+<ul>
+<li><code>PodName</code></li>
+<li><code>SelectedNode</code></li>
+<li><code>ReceivedResourceType</code></li>
+<li><code>ReceivedGPU</code></li>
+<li><code>SelectedGPUGroups</code></li>
+<li><code>ResourceClaimAllocations</code></li>
+</ul>
+<p>另外，<code>BindRequest</code> 类型里确实还定义了 <code>BackoffLimit</code>，但当前 scheduler 创建对象时并不会主动填充它。更重要的是，scheduler 输出的不是一个轻量的“node choice”，而是一份 <strong>完整的绑定执行意图</strong>。</p>
+<h3 id="为什么这一步非常重要"><a href="#为什么这一步非常重要" class="headerlink" title="为什么这一步非常重要"></a>为什么这一步非常重要</h3><p>如果 scheduler 直接 bind Pod，那它就必须自己同步承担这些职责：</p>
+<ul>
+<li>资源声明与 DRA 处理</li>
+<li>共享 GPU 相关准备</li>
+<li>失败重试</li>
+<li>失败回滚</li>
+<li>状态更新</li>
+<li>绑定副作用控制</li>
+</ul>
+<p>这会让调度循环变得又慢又重。</p>
+<p>KAI 的选择是把它们拆开：</p>
+<ul>
+<li>scheduler 专注于 <strong>决策</strong></li>
+<li>binder 专注于 <strong>执行</strong></li>
+</ul>
+<p>中间用 <code>BindRequest</code> 这个 CRD 做状态中介。</p>
+<p>这类设计最大的价值不是“看起来解耦”，而是真正在错误模型和并发模型上得到收益：</p>
+<ul>
+<li>scheduler cycle 可以更短</li>
+<li>binder 可以独立重试</li>
+<li>执行错误不会把调度内核拖进复杂副作用里</li>
+<li>中间态对象便于排障和观测</li>
+</ul>
+<h2 id="第六步：binder-reconcile-BindRequest，把决策变成真实集群状态"><a href="#第六步：binder-reconcile-BindRequest，把决策变成真实集群状态" class="headerlink" title="第六步：binder reconcile BindRequest，把决策变成真实集群状态"></a>第六步：binder reconcile <code>BindRequest</code>，把决策变成真实集群状态</h2><p>binder 读取到 <code>BindRequest</code> 后，会进入 controller-runtime 的 reconcile 流程。</p>
+<p>它的大致步骤是：</p>
+<ol>
+<li>取回 <code>BindRequest</code></li>
+<li>找到对应 Pod</li>
+<li>找到目标 Node</li>
+<li>如果 Pod 已经绑定则退出</li>
+<li>调用 binder 实现执行真实 bind</li>
+<li>如果失败则 rollback</li>
+<li>更新 <code>BindRequest</code> 状态和 Pod condition</li>
+</ol>
+<p>这里最值得注意的是两点。</p>
+<h3 id="1-binder-处理的是“执行型失败”"><a href="#1-binder-处理的是“执行型失败”" class="headerlink" title="1. binder 处理的是“执行型失败”"></a>1. binder 处理的是“执行型失败”</h3><p>比如：</p>
+<ul>
+<li>节点在短时间内变化了</li>
+<li>资源声明失败了</li>
+<li>共享 GPU 相关准备失败了</li>
+<li>某些 bind-time side effect 没完成</li>
+</ul>
+<p>这些都属于执行面的问题，而不是 placement 逻辑本身的问题。</p>
+<p>KAI 通过 binder 把这些风险从主调度循环里隔离了出来。</p>
+<h3 id="2-binder-能做-rollback"><a href="#2-binder-能做-rollback" class="headerlink" title="2. binder 能做 rollback"></a>2. binder 能做 rollback</h3><p>这很关键。</p>
+<p>当 bind 失败时，binder 会尝试 rollback。对于一个支持 DRA、GPU sharing、复杂资源声明的系统来说，这是必须的。</p>
+<p>因为 scheduler 的决策不只是“选 node”，它往往还隐含了若干资源分配语义。如果失败后没有清理干净，后面很容易出现资源状态污染。</p>
+<h2 id="最后一环：状态回写与历史反馈"><a href="#最后一环：状态回写与历史反馈" class="headerlink" title="最后一环：状态回写与历史反馈"></a>最后一环：状态回写与历史反馈</h2><p>如果工作流只到 binder 为止，那 KAI 还只是一个“高级 scheduler”。</p>
+<p>它之所以更像平台，是因为后面还有完整的反馈闭环。</p>
+<h3 id="PodGroupController"><a href="#PodGroupController" class="headerlink" title="PodGroupController"></a><code>PodGroupController</code></h3><p>它主要回写 <code>PodGroup.ResourcesStatus</code>，并补充部分调度&#x2F;运行态信息。</p>
+<p>这让 <code>PodGroup</code> 不只是“调度前的输入”，也变成“调度后的观测对象”。</p>
+<h3 id="QueueController"><a href="#QueueController" class="headerlink" title="QueueController"></a><code>QueueController</code></h3><p>它主要 patch <code>Queue</code> 状态，并把队列级资源统计暴露成指标，为公平性和资源分配提供基础。</p>
+<h3 id="Prometheus-usage-DB"><a href="#Prometheus-usage-DB" class="headerlink" title="Prometheus &#x2F; usage DB"></a>Prometheus &#x2F; usage DB</h3><p>当 time-based fairshare 打开以后，这条反馈链会继续延伸：</p>
+<ul>
+<li>podgroup-controller 更新 podgroup 资源状态</li>
+<li>queue-controller patch queue 状态并导出指标</li>
+<li>Prometheus 存储这些历史指标</li>
+<li>scheduler 通过 usage DB client 读取历史数据</li>
+</ul>
+<p>这就让 KAI 不只是“看当前资源”的 scheduler，而是一个能把 <strong>历史使用行为</strong> 纳入决策的系统。</p>
+<h2 id="KAI-的-workflow-为什么适合-AI-batch-workload"><a href="#KAI-的-workflow-为什么适合-AI-batch-workload" class="headerlink" title="KAI 的 workflow 为什么适合 AI &#x2F; batch workload"></a>KAI 的 workflow 为什么适合 AI &#x2F; batch workload</h2><p>把整条链路看完以后，会很容易理解它为什么适合 AI 场景。</p>
+<h3 id="1-它先建模，再调度"><a href="#1-它先建模，再调度" class="headerlink" title="1. 它先建模，再调度"></a>1. 它先建模，再调度</h3><p>AI workload 往往不是单 Pod，而是：</p>
+<ul>
+<li>多副本训练</li>
+<li>分布式推理</li>
+<li>分层通信结构</li>
+<li>gang &#x2F; subgroup &#x2F; topology 约束</li>
+</ul>
+<p>KAI 通过 <code>PodGroup</code> 先把这些语义固定下来，再做 scheduling，避免把 workload 复杂性泄漏进每个 action&#x2F;plugin 的实现里。</p>
+<h3 id="2-它先决策，再执行"><a href="#2-它先决策，再执行" class="headerlink" title="2. 它先决策，再执行"></a>2. 它先决策，再执行</h3><p>AI workload 的 bind-time 复杂度通常更高：</p>
+<ul>
+<li>GPU sharing</li>
+<li>DRA &#x2F; ResourceClaim</li>
+<li>volume &#x2F; storage 约束</li>
+<li>失败回滚</li>
+</ul>
+<p>用 <code>BindRequest</code> 把 decision plane 和 execution plane 分开，能让调度器更专注，也让系统更稳定。</p>
+<h3 id="3-它有反馈闭环"><a href="#3-它有反馈闭环" class="headerlink" title="3. 它有反馈闭环"></a>3. 它有反馈闭环</h3><p>公平性不只是“这一刻谁先跑”，而是“长期来看谁占用了多少资源”。</p>
+<p>KAI 通过 queue controller 导出队列级指标，再由 Prometheus 和 usage DB client 把这些历史数据带回调度决策里，因此它可以逐步走向时间维度的公平性，而不是只做瞬时队列排序。</p>
+<h2 id="我对这条工作流的一个总结"><a href="#我对这条工作流的一个总结" class="headerlink" title="我对这条工作流的一个总结"></a>我对这条工作流的一个总结</h2><p>如果把 KAI 的控制面 workflow 用一句话概括，我会写成：</p>
+<blockquote>
+<p><strong>先把 Kubernetes workload 翻译成 KAI 的 workload language，再在一致性 snapshot 上做调度决策，最后把决策通过异步 binding pipeline 落地，并把结果反馈回 queue 与 workload 状态。</strong></p>
+</blockquote>
+<p>这条链路的好处是系统边界非常清楚：</p>
+<ul>
+<li>pod-grouper 负责“翻译 workload”</li>
+<li>scheduler 负责“决定谁该上、上到哪”</li>
+<li>binder 负责“把决定真的执行掉”</li>
+<li>controller 们负责“把执行结果重新喂回系统”</li>
+</ul>
+<h2 id="下一篇看什么"><a href="#下一篇看什么" class="headerlink" title="下一篇看什么"></a>下一篇看什么</h2><p>理解 workflow 以后，下一步最自然的问题就是：</p>
+<ul>
+<li>snapshot 到底是什么？</li>
+<li>session 里都存了什么？</li>
+<li>action 和 plugin 究竟谁负责流程，谁负责策略？</li>
+<li>KAI 为什么要引入 statement &#x2F; scenario 这种“事务化模拟”模型？</li>
+</ul>
+<p>下一篇就进入调度内核本身，拆解 KAI 最核心的设计：</p>
+<p><strong>cycle、snapshot、session、action、plugin、statement。</strong></p>
 
       
     </div>
