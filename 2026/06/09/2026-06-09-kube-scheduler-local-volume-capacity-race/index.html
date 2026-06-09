@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="在排查一起 local-dynamic StorageClass 的 PVC 调度成功但 Provisioning 失败（Not enough free space）的问题时，我发现了 kube-scheduler 的 volumebinding 插件中存在一个容量检查竞态 Bug。本文详细分析 Bug 2：**getUsedCapacity 遗漏了 assume cache 中已预约到该节点、但">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes 调度器 local-dynamic PVC 容量检查竞态 Bug 分析与修复">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/09/2026-06-09-kube-scheduler-local-volume-capacity-race/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="在排查一起 local-dynamic StorageClass 的 PVC 调度成功但 Provisioning 失败（Not enough free space）的问题时，我发现了 kube-scheduler 的 volumebinding 插件中存在一个容量检查竞态 Bug。本文详细分析 Bug 2：**getUsedCapacity 遗漏了 assume cache 中已预约到该节点、但">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-09T07:30:00.000Z">
+<meta property="article:modified_time" content="2026-06-09T05:25:14.093Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Storage">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Scheduler">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/09/2026-06-09-kube-scheduler-local-volume-capacity-race/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/09/2026-06-09-kube-scheduler-local-volume-capacity-race/","path":"2026/06/09/2026-06-09-kube-scheduler-local-volume-capacity-race/","title":"Kubernetes 调度器 local-dynamic PVC 容量检查竞态 Bug 分析与修复"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Kubernetes 调度器 local-dynamic PVC 容量检查竞态 Bug 分析与修复 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">问题背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B0%83%E5%BA%A6%E5%99%A8%E5%AE%B9%E9%87%8F%E6%A3%80%E6%9F%A5%E6%B5%81%E7%A8%8B"><span class="nav-number">2.</span> <span class="nav-text">调度器容量检查流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Bug-2%EF%BC%9ApvcCache-%E4%B8%AD%E5%B7%B2-Assumed-%E4%BD%86%E5%B0%9A%E6%9C%AA%E8%BF%9B%E5%85%A5-NodeInfo-%E7%9A%84-PVC-%E8%A2%AB%E9%81%97%E6%BC%8F"><span class="nav-number">3.</span> <span class="nav-text">Bug 2：pvcCache 中已 Assumed 但尚未进入 NodeInfo 的 PVC 被遗漏</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%97%B6%E5%BA%8F%E5%88%86%E6%9E%90"><span class="nav-number">3.1.</span> <span class="nav-text">时序分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9C%BA%E6%99%AF%E4%B8%80%EF%BC%9APermit-%E9%98%B6%E6%AE%B5%E7%AD%89%E5%BE%85%EF%BC%88WaitOnPermit%EF%BC%89"><span class="nav-number">3.2.</span> <span class="nav-text">场景一：Permit 阶段等待（WaitOnPermit）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9C%BA%E6%99%AF%E4%BA%8C%EF%BC%9ABind-%E5%A4%B1%E8%B4%A5%E5%90%8E%E7%9A%84%E9%87%8D%E8%B0%83%E5%BA%A6"><span class="nav-number">3.3.</span> <span class="nav-text">场景二：Bind 失败后的重调度</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9C%BA%E6%99%AF%E4%B8%89%EF%BC%9A%E5%B9%B6%E5%8F%91%E8%B0%83%E5%BA%A6%E7%AA%97%E5%8F%A3%EF%BC%88%E7%90%86%E8%AE%BA%E7%AB%9E%E6%80%81%EF%BC%89"><span class="nav-number">3.4.</span> <span class="nav-text">场景三：并发调度窗口（理论竞态）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88-getUsedCapacity-%E5%8F%AA%E7%9C%8B-NodeInfo-GetPods-%E6%98%AF%E4%B8%8D%E5%A4%9F%E7%9A%84"><span class="nav-number">4.</span> <span class="nav-text">为什么 getUsedCapacity 只看 NodeInfo.GetPods() 是不够的</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BF%AE%E5%A4%8D%E6%96%B9%E6%A1%88"><span class="nav-number">5.</span> <span class="nav-text">修复方案</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%9D%E8%B7%AF"><span class="nav-number">5.1.</span> <span class="nav-text">思路</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0"><span class="nav-number">5.2.</span> <span class="nav-text">实现</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BF%AE%E5%A4%8D%E7%9A%84%E6%95%88%E6%9E%9C"><span class="nav-number">6.</span> <span class="nav-text">修复的效果</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B6%E4%BB%96%E7%9B%B8%E5%85%B3-Bug%EF%BC%88%E6%9C%AA%E5%9C%A8%E6%9C%AC%E6%96%87%E4%BF%AE%E5%A4%8D%EF%BC%89"><span class="nav-number">7.</span> <span class="nav-text">其他相关 Bug（未在本文修复）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">110</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">37</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">257</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/09/2026-06-09-kube-scheduler-local-volume-capacity-race/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Kubernetes 调度器 local-dynamic PVC 容量检查竞态 Bug 分析与修复 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes 调度器 local-dynamic PVC 容量检查竞态 Bug 分析与修复
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-09 15:30:00 / Modified: 13:25:14" itemprop="dateCreated datePublished" datetime="2026-06-09T15:30:00+08:00">2026-06-09</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>在排查一起 <code>local-dynamic</code> StorageClass 的 PVC 调度成功但 Provisioning 失败（<code>Not enough free space</code>）的问题时，我发现了 kube-scheduler 的 <code>volumebinding</code> 插件中存在一个容量检查竞态 Bug。本文详细分析 Bug 2：**<code>getUsedCapacity</code> 遗漏了 assume cache 中已预约到该节点、但尚未体现在 NodeInfo 的 PVC**。</p>
+<span id="more"></span>
+
+<h2 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h2><p>PVC 描述如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">StorageClass:  local-dynamic</span><br><span class="line">Status:        Pending</span><br><span class="line">Annotations:   volume.kubernetes.io/selected-node: tess-node-9k5ws-tess908.sddz.ebay.com</span><br><span class="line">Events:</span><br><span class="line">  Warning  ProvisioningFailed  kubernetes.io.csi.local</span><br><span class="line">           failed to provision volume with StorageClass &quot;local-dynamic&quot;:</span><br><span class="line">           rpc error: code = OutOfRange desc = Not enough free space</span><br></pre></td></tr></table></figure>
+
+<p>调度器已经把该 PVC 所在的 Pod 绑定到某节点（<code>selected-node</code> 注解已写入），但 CSI 外部 Provisioner 在实际创建卷时报告空间不足。这说明<strong>调度器的容量预检通过了，但实际容量不够</strong>。</p>
+<hr>
+<h2 id="调度器容量检查流程"><a href="#调度器容量检查流程" class="headerlink" title="调度器容量检查流程"></a>调度器容量检查流程</h2><p><code>local-dynamic</code> 使用 Tess 自定义的节点注解方式（而非标准 <code>CSIStorageCapacity</code> 对象）来描述节点磁盘容量：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Node Annotation: csi.volume.kubernetes.io/kubernetes.io.csi.local</span><br><span class="line">Value: &#123;&quot;pool-ssd&quot;: &quot;107374182400&quot;, &quot;pool-hdd&quot;: &quot;214748364800&quot;&#125;</span><br></pre></td></tr></table></figure>
+
+<p>调度流程中，<code>FindPodVolumes</code> → <code>checkVolumeSizeEnough</code> → <code>checkNodeCapacity</code> → <code>getUsedCapacity</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// checkNodeCapacity 伪代码</span></span><br><span class="line"><span class="keyword">for</span> _, poolCap := <span class="keyword">range</span> driverCapacityMap &#123;          <span class="comment">// 遍历每个磁盘池的总容量</span></span><br><span class="line">    usedCapacity := b.getUsedCapacity(className, driverName, node, pods)</span><br><span class="line">    <span class="keyword">if</span> poolCap &lt; totalReqSize + usedCapacity &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>, <span class="literal">nil</span>  <span class="comment">// 容量不足，拒绝调度</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>getUsedCapacity</code> 负责计算节点上已消耗的容量，逻辑分三部分：</p>
+<ol>
+<li><strong>已 Provision 的 PV</strong>：从 <code>pvCache</code> 中列出该 StorageClass 的 PV，筛选 <code>label[&quot;kubernetes.io/hostname&quot;] == node.Name</code> 的，累加容量</li>
+<li><strong>待 Provision 的 PVC（来自 NodeInfo 中的 Pod）</strong>：遍历 <code>nodeInfo.GetPods()</code> 返回的每个 Pod 的 Volume，对 <code>Spec.VolumeName == &quot;&quot;</code> 的 PVC 累加请求量</li>
+<li><strong>CSI Inline Volume</strong>：从 Pod Volume 的 CSI 属性读取 size</li>
+</ol>
+<hr>
+<h2 id="Bug-2：pvcCache-中已-Assumed-但尚未进入-NodeInfo-的-PVC-被遗漏"><a href="#Bug-2：pvcCache-中已-Assumed-但尚未进入-NodeInfo-的-PVC-被遗漏" class="headerlink" title="Bug 2：pvcCache 中已 Assumed 但尚未进入 NodeInfo 的 PVC 被遗漏"></a>Bug 2：pvcCache 中已 Assumed 但尚未进入 NodeInfo 的 PVC 被遗漏</h2><h3 id="时序分析"><a href="#时序分析" class="headerlink" title="时序分析"></a>时序分析</h3><p>Kubernetes 调度器对每个 Pod 的处理流程是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">PreFilter → Filter (并行, 多节点) → Score → Reserve → Permit → PreBind → Bind</span><br></pre></td></tr></table></figure>
+
+<p>在 <strong>Reserve</strong> 阶段，<code>AssumePodVolumes</code> 被调用：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// binder.go - AssumePodVolumes</span></span><br><span class="line">claimClone := dynamicProvision.PVC.DeepCopy()</span><br><span class="line">metav1.SetMetaDataAnnotation(&amp;claimClone.ObjectMeta, volume.AnnSelectedNode, nodeName)</span><br><span class="line">err = b.pvcCache.Assume(claimClone)  <span class="comment">// PVC 写入 assume cache，带 AnnSelectedNode</span></span><br></pre></td></tr></table></figure>
+
+<p>Reserve 阶段完成后，调度器主循环调用 <code>assumePod</code>，将 Pod 加入 NodeInfo 缓存。<strong>这两步是顺序执行的：先 <code>pvcCache.Assume</code>，再 <code>assumePod</code>。</strong></p>
+<p>对于下一个 Pod 的调度，Filter 阶段调用：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">pl.Binder.FindPodVolumes(logger, pod, state.podVolumeClaims, node, nodeInfo.GetPods())</span><br></pre></td></tr></table></figure>
+
+<p><code>nodeInfo.GetPods()</code> 返回节点上已 assume 的 Pod，理论上包含上一个 Pod。<strong>但存在以下场景使得 Pod 未出现在 NodeInfo 中，而 PVC 已经在 pvcCache 中带有 <code>AnnSelectedNode</code>：</strong></p>
+<h3 id="场景一：Permit-阶段等待（WaitOnPermit）"><a href="#场景一：Permit-阶段等待（WaitOnPermit）" class="headerlink" title="场景一：Permit 阶段等待（WaitOnPermit）"></a>场景一：Permit 阶段等待（WaitOnPermit）</h3><p>如果某个 Permit 插件返回 <code>Wait</code>，Pod 会在 WaitOnPermit 状态挂起。此时：</p>
+<ul>
+<li>Pod 已经被 <strong>assume 到节点</strong>（在 NodeInfo 中），<code>AssumePodVolumes</code> 已执行</li>
+<li>若之后 Permit 超时或被拒绝，调度器会调用 <code>RevertAssumedPodVolumes</code></li>
+<li>PVC 的 assume 状态被回滚到 API 版本</li>
+<li>但如果此时 <code>BindPodVolumes</code> 已经通过 API 写入了 <code>AnnSelectedNode</code> 注解，API 版本的 PVC 依然带着 <code>AnnSelectedNode</code>，<code>VolumeName</code> 仍为空</li>
+<li>Pod 被重新放回调度队列，从 NodeInfo 中移除</li>
+<li><strong>此时该 PVC 已不在任何 NodeInfo 的 Pod 列表中，但它的 <code>AnnSelectedNode</code> 仍指向该节点</strong></li>
+</ul>
+<h3 id="场景二：Bind-失败后的重调度"><a href="#场景二：Bind-失败后的重调度" class="headerlink" title="场景二：Bind 失败后的重调度"></a>场景二：Bind 失败后的重调度</h3><ol>
+<li>Pod A 调度到节点 X，<code>BindPodVolumes</code> 向 API 写入 <code>AnnSelectedNode=nodeX</code></li>
+<li>外部 Provisioner 尝试 Provision，失败（如临时错误）</li>
+<li><code>BindPodVolumes</code> 超时，Pod A 被重新放入调度队列</li>
+<li>Pod A 从 NodeInfo(X) 中移除</li>
+<li><strong>PVC-A 在 API Server 中仍有 <code>AnnSelectedNode=nodeX</code>，<code>VolumeName</code> 为空</strong></li>
+<li>此时 Pod B 的调度 Filter 阶段检查节点 X 的容量：<code>getUsedCapacity</code> 遍历 NodeInfo(X) 的 Pod，没有 Pod A，PVC-A 的容量被遗漏</li>
+<li>Pod B 被调度到节点 X，PVC-B 也标记了 <code>AnnSelectedNode=nodeX</code></li>
+<li>当 Pod A 重新调度也选到节点 X 时，两个 PVC 的总容量超过节点实际空间</li>
+</ol>
+<h3 id="场景三：并发调度窗口（理论竞态）"><a href="#场景三：并发调度窗口（理论竞态）" class="headerlink" title="场景三：并发调度窗口（理论竞态）"></a>场景三：并发调度窗口（理论竞态）</h3><p>在 <code>AssumePodVolumes</code> 完成（PVC 进入 assume cache）到 <code>assumePod</code> 完成（Pod 进入 NodeInfo）之间，若有另一个 goroutine 触发了对该节点的 Filter（实际上调度是串行的，但这说明 assume cache 和 NodeInfo 的一致性依赖于调用顺序）。</p>
+<hr>
+<h2 id="为什么-getUsedCapacity-只看-NodeInfo-GetPods-是不够的"><a href="#为什么-getUsedCapacity-只看-NodeInfo-GetPods-是不够的" class="headerlink" title="为什么 getUsedCapacity 只看 NodeInfo.GetPods() 是不够的"></a>为什么 getUsedCapacity 只看 NodeInfo.GetPods() 是不够的</h2><p>现有逻辑：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *volumeBinder)</span></span> getUsedCapacity(className, driverName <span class="type">string</span>, node *v1.Node, pods []fwk.PodInfo) <span class="type">int64</span> &#123;</span><br><span class="line">    <span class="comment">// ...省略 PV 统计...</span></span><br><span class="line">    <span class="keyword">for</span> _, pod := <span class="keyword">range</span> pods &#123;  <span class="comment">// pods = nodeInfo.GetPods()</span></span><br><span class="line">        <span class="keyword">for</span> _, v := <span class="keyword">range</span> pod.GetPod().Spec.Volumes &#123;</span><br><span class="line">            <span class="keyword">if</span> v.PersistentVolumeClaim != <span class="literal">nil</span> &#123;</span><br><span class="line">                pvc, err := b.pvcCache.GetPVC(...)</span><br><span class="line">                <span class="keyword">if</span> pvc.Spec.VolumeName == <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">                    usedCapacity += pvc请求量</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>问题</strong>：<code>pods</code> 只包含<strong>当前在 NodeInfo 中存在的 Pod</strong>。以下 PVC 会被遗漏：</p>
+<ul>
+<li>Pod 已从 NodeInfo 移除（重调度、Permit 被拒），但 PVC 的 <code>AnnSelectedNode</code> 仍存在于 pvcCache</li>
+<li>这些 PVC 占用的节点空间并未被后续的容量检查计入</li>
+</ul>
+<hr>
+<h2 id="修复方案"><a href="#修复方案" class="headerlink" title="修复方案"></a>修复方案</h2><h3 id="思路"><a href="#思路" class="headerlink" title="思路"></a>思路</h3><p>在 <code>getUsedCapacity</code> 中额外扫描 <code>pvcCache</code> 中<strong>所有带 <code>AnnSelectedNode=node.Name</code> 且 <code>VolumeName=&quot;&quot;</code> 的同 StorageClass PVC</strong>，作为补充计算。使用集合去重，避免与 NodeInfo Pod 走读的 PVC 重复计算。</p>
+<h3 id="实现"><a href="#实现" class="headerlink" title="实现"></a>实现</h3><p><strong>Step 1</strong>：在 <code>pkg/scheduler/util/assumecache/assume_cache.go</code> 中新增 <code>ListAll()</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ListAll 返回 cache 中所有对象，不经过 index 过滤。</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *AssumeCache)</span></span> ListAll() []<span class="keyword">interface</span>&#123;&#125; &#123;</span><br><span class="line">    c.rwMutex.RLock()</span><br><span class="line">    <span class="keyword">defer</span> c.rwMutex.RUnlock()</span><br><span class="line"></span><br><span class="line">    allObjs := []<span class="keyword">interface</span>&#123;&#125;&#123;&#125;</span><br><span class="line">    <span class="keyword">for</span> _, obj := <span class="keyword">range</span> c.store.List() &#123;</span><br><span class="line">        objInfo, ok := obj.(*objInfo)</span><br><span class="line">        <span class="keyword">if</span> !ok &#123;</span><br><span class="line">            utilruntime.HandleErrorWithLogger(c.logger, &amp;WrongTypeError&#123;...&#125;, <span class="string">&quot;ListAll error&quot;</span>)</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        &#125;</span><br><span class="line">        allObjs = <span class="built_in">append</span>(allObjs, objInfo.latestObj)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> allObjs</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 2</strong>：在 <code>volumebinding/assume_cache.go</code> 中新增 <code>ListAllPVCs()</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *PVCAssumeCache)</span></span> ListAllPVCs() []*v1.PersistentVolumeClaim &#123;</span><br><span class="line">    objs := c.ListAll()</span><br><span class="line">    pvcs := <span class="built_in">make</span>([]*v1.PersistentVolumeClaim, <span class="number">0</span>, <span class="built_in">len</span>(objs))</span><br><span class="line">    <span class="keyword">for</span> _, obj := <span class="keyword">range</span> objs &#123;</span><br><span class="line">        pvc, ok := obj.(*v1.PersistentVolumeClaim)</span><br><span class="line">        <span class="keyword">if</span> !ok &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">        pvcs = <span class="built_in">append</span>(pvcs, pvc)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> pvcs</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 3</strong>：修改 <code>getUsedCapacity</code>，补充 pvcCache 扫描（核心修复）：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 2a. 来自 NodeInfo 的 Pod 中未绑定的 PVC（原有逻辑）</span></span><br><span class="line">countedPVCs := sets.New[<span class="type">string</span>]()</span><br><span class="line"><span class="keyword">for</span> _, pod := <span class="keyword">range</span> pods &#123;</span><br><span class="line">    <span class="comment">// ...原有逻辑...</span></span><br><span class="line">    <span class="keyword">if</span> pvc.Spec.VolumeName == <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">        usedCapacity += pvc请求量</span><br><span class="line">        countedPVCs.Insert(getPVCName(pvc))  <span class="comment">// 记录已统计</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 2b. 补充：pvcCache 中已 assume/API确认 到该节点但不在任何 Pod 中的 PVC</span></span><br><span class="line"><span class="keyword">for</span> _, pvc := <span class="keyword">range</span> b.pvcCache.ListAllPVCs() &#123;</span><br><span class="line">    <span class="keyword">if</span> volume.GetPersistentVolumeClaimClass(pvc) != className &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">    <span class="keyword">if</span> pvc.Annotations[volume.AnnSelectedNode] != node.Name  &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">    <span class="keyword">if</span> pvc.Spec.VolumeName != <span class="string">&quot;&quot;</span>                             &#123; <span class="keyword">continue</span> &#125; <span class="comment">// 已 provision</span></span><br><span class="line">    <span class="keyword">if</span> countedPVCs.Has(getPVCName(pvc))                      &#123; <span class="keyword">continue</span> &#125; <span class="comment">// 去重</span></span><br><span class="line"></span><br><span class="line">    capacityGiB, _ := volumehelpers.RoundUpToGiB(pvc请求量)</span><br><span class="line">    usedCapacity += capacityGiB * volumehelpers.GiB</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="修复的效果"><a href="#修复的效果" class="headerlink" title="修复的效果"></a>修复的效果</h2><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>修复前</th>
+<th>修复后</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Bind 失败重调度，PVC <code>AnnSelectedNode</code> 残留</td>
+<td>容量被低估，后续 Pod 可能超额调度</td>
+<td>正确计入残留 PVC 的容量</td>
+</tr>
+<tr>
+<td>Permit Wait 超时，PVC 回滚后 <code>AnnSelectedNode</code> 仍在 API</td>
+<td>容量被低估</td>
+<td>正确统计</td>
+</tr>
+<tr>
+<td>正常调度（Pod 在 NodeInfo 中）</td>
+<td>正确</td>
+<td>通过 <code>countedPVCs</code> 去重，行为不变</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="其他相关-Bug（未在本文修复）"><a href="#其他相关-Bug（未在本文修复）" class="headerlink" title="其他相关 Bug（未在本文修复）"></a>其他相关 Bug（未在本文修复）</h2><ol>
+<li><p><strong>Bug 1（per-pool 问题）</strong>：<code>checkNodeCapacity</code> 遍历多个磁盘池，但 <code>getUsedCapacity</code> 返回的是所有池的总 used，用单池 cap 与总 used 比较在多池场景下逻辑有误（有 TODO 注释但尚未修复）</p>
+</li>
+<li><p><strong>Bug 3（PV hostname label 不匹配）</strong>：<code>getUsedCapacity</code> 用 <code>pv.Labels[&quot;kubernetes.io/hostname&quot;] == node.Name</code> 匹配 PV，若节点用 FQDN（如 <code>tess-node-9k5ws-tess908.sddz.ebay.com</code>）而 PV label 用短名，会导致已 Provision 的 PV 容量被遗漏，进一步低估 usedCapacity</p>
+</li>
+</ol>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p><code>local-dynamic</code> PVC 调度成功但 Provision 失败的根因之一，是 <code>getUsedCapacity</code> 只依赖 <code>nodeInfo.GetPods()</code> 来统计待 Provision 的 PVC 容量，无法覆盖以下状态的 PVC：</p>
+<ul>
+<li>Pod 已从 NodeInfo 移除（重调度），但 PVC 的 <code>AnnSelectedNode</code> 注解仍存在</li>
+<li>assume cache 和 NodeInfo 更新之间的短暂窗口</li>
+</ul>
+<p>修复方式：额外扫描 <code>pvcCache</code> 中所有指向该节点的未绑定 PVC，以补充统计。这是一个防御性措施，确保即使 Pod 不在 NodeInfo 中，其占用的容量也能被后续调度决策感知。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Storage/" rel="tag"># Storage</a>
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Scheduler/" rel="tag"># Scheduler</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/03/2026-06-03-fixing-ab-ba-deadlock-in-scst-user-space-device-handler/" rel="prev" title="Fixing an AB-BA Deadlock in SCST User-Space Device Handler">
+                  <i class="fa fa-angle-left"></i> Fixing an AB-BA Deadlock in SCST User-Space Device Handler
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
