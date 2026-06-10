@@ -118,12 +118,12 @@
       </div>
       <div class="site-state-item site-state-categories">
           <a href="/categories/">
-        <span class="site-state-item-count">37</span>
+        <span class="site-state-item-count">6</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
           <a href="/tags/">
-        <span class="site-state-item-count">255</span>
+        <span class="site-state-item-count">15</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -140,95 +140,6 @@
     </div>
 
     <div class="main-inner index posts-expand">
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-go-sort/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="smileusd">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-10-12-go-sort/" class="post-title-link" itemprop="url">go-sort</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>Go排序实现在&#x2F;src&#x2F;go4.org&#x2F;sort&#x2F;sort.go中.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">func Sort(data Interface) &#123;</span><br><span class="line">	n := data.Len()</span><br><span class="line">	if fs, ok := data.(*funcs); ok &#123;</span><br><span class="line">		quickSort_func(fs.lessSwap, 0, n, maxDepth(n))</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		quickSort(data, 0, n, maxDepth(n))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func quickSort(data Interface, a, b, maxDepth int) &#123;</span><br><span class="line">	for b-a &gt; 12 &#123; // Use ShellSort for slices &lt;= 12 elements</span><br><span class="line">		if maxDepth == 0 &#123;</span><br><span class="line">			heapSort(data, a, b)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line">		maxDepth--</span><br><span class="line">		mlo, mhi := doPivot(data, a, b)</span><br><span class="line">		// Avoiding recursion on the larger subproblem guarantees</span><br><span class="line">		// a stack depth of at most lg(b-a).</span><br><span class="line">		if mlo-a &lt; b-mhi &#123;</span><br><span class="line">			quickSort(data, a, mlo, maxDepth)</span><br><span class="line">			a = mhi // i.e., quickSort(data, mhi, b)</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			quickSort(data, mhi, b, maxDepth)</span><br><span class="line">			b = mlo // i.e., quickSort(data, a, mlo)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if b-a &gt; 1 &#123;</span><br><span class="line">		// Do ShellSort pass with gap 6</span><br><span class="line">		// It could be written in this simplified form cause b-a &lt;= 12</span><br><span class="line">		for i := a + 6; i &lt; b; i++ &#123;</span><br><span class="line">			if data.Less(i, i-6) &#123;</span><br><span class="line">				data.Swap(i, i-6)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		insertionSort(data, a, b)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line">// Insertion sort</span><br><span class="line">func insertionSort(data Interface, a, b int) &#123;</span><br><span class="line">	for i := a + 1; i &lt; b; i++ &#123;</span><br><span class="line">		for j := i; j &gt; a &amp;&amp; data.Less(j, j-1); j-- &#123;</span><br><span class="line">			data.Swap(j, j-1)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>quickSort和quickSort_func基本相同, 子不过自己定义的比较方法, 这里不在赘述.</p>
-<p>可以看到主体是quickSort, 所以不保证稳定排序, 当数据量小于等于12时. 退化为希尔排序, 但希尔排序只做了一次gap为6, 之后再次退化为了简单插入排序. 这部分实现非常简单, i从前往后, j从i往前, 每次比较j-1和j, 将小的换到前面.</p>
-<p>当数据量大于12时, 根据maxDepth是否为0决定使用对排序还是使用快速排序, maxDepth计算:</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">// maxDepth returns a threshold at which quicksort should switch</span><br><span class="line">// to heapsort. It returns 2*ceil(lg(n+1)).</span><br><span class="line">func maxDepth(n int) int &#123;</span><br><span class="line">	var depth int</span><br><span class="line">	for i := n; i &gt; 0; i &gt;&gt;= 1 &#123;</span><br><span class="line">		depth++</span><br><span class="line">	&#125;</span><br><span class="line">	return depth * 2</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>返回的是目前树高度的2倍. 每进行一轮快速排序的partition(doPivot), 这个数值就减1, 当减为0, 此时认为数据已经比较有序, 如果数据长度依然大于12, 改为堆排序效率更高.</p>
-<p>这里先看快速排序的主体部分, 再来看堆排序的实现. partition是快排的思想核心, 他实现在doPivot中:</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">doPivot</span><span class="params">(data Interface, lo, hi <span class="type">int</span>)</span></span> (midlo, midhi <span class="type">int</span>) &#123;</span><br><span class="line">	m := lo + (hi-lo)/<span class="number">2</span> <span class="comment">// 避免整数溢出</span></span><br><span class="line">	<span class="keyword">if</span> hi-lo &gt; <span class="number">40</span> &#123; 如果长度大于<span class="number">40</span>, 使用Tukey ninther法</span><br><span class="line">		<span class="comment">// Tukey&#x27;s ``Ninther,&#x27;&#x27; median of three medians of three.</span></span><br><span class="line">		s := (hi - lo) / <span class="number">8</span></span><br><span class="line">		medianOfThree(data, lo, lo+s, lo+<span class="number">2</span>*s)</span><br><span class="line">		medianOfThree(data, m, m-s, m+s)</span><br><span class="line">		medianOfThree(data, hi<span class="number">-1</span>, hi<span class="number">-1</span>-s, hi<span class="number">-1</span><span class="number">-2</span>*s)</span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// medianOfThree 保证lo, m hi-1三个值是从小到大的</span></span><br><span class="line">	medianOfThree(data, lo, m, hi<span class="number">-1</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Invariants are:</span></span><br><span class="line">	<span class="comment">//	data[lo] = pivot (set up by ChoosePivot)</span></span><br><span class="line">	<span class="comment">//	data[lo &lt; i &lt; a] &lt; pivot</span></span><br><span class="line">	<span class="comment">//	data[a &lt;= i &lt; b] &lt;= pivot</span></span><br><span class="line">	<span class="comment">//	data[b &lt;= i &lt; c] unexamined</span></span><br><span class="line">	<span class="comment">//	data[c &lt;= i &lt; hi-1] &gt; pivot</span></span><br><span class="line">	<span class="comment">//	data[hi-1] &gt;= pivot</span></span><br><span class="line">	pivot := lo</span><br><span class="line">	a, c := lo+<span class="number">1</span>, hi<span class="number">-1</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 找到第一个比起始值点大的Index</span></span><br><span class="line">	<span class="keyword">for</span> ; a &lt; c &amp;&amp; data.Less(a, pivot); a++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line">	b := a</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; !data.Less(pivot, b); b++ &#123; <span class="comment">// data[b] &lt;= pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; data.Less(pivot, c<span class="number">-1</span>); c-- &#123; <span class="comment">// data[c-1] &gt; pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> b &gt;= c &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// data[b] &gt; pivot; data[c-1] &lt;= pivot</span></span><br><span class="line">		data.Swap(b, c<span class="number">-1</span>)</span><br><span class="line">		b++</span><br><span class="line">		c--</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// If hi-c&lt;3 then there are duplicates (by property of median of nine).</span></span><br><span class="line">	<span class="comment">// Let be a bit more conservative, and set border to 5.</span></span><br><span class="line">	protect := hi-c &lt; <span class="number">5</span></span><br><span class="line">	<span class="keyword">if</span> !protect &amp;&amp; hi-c &lt; (hi-lo)/<span class="number">4</span> &#123;</span><br><span class="line">		<span class="comment">// Lets test some points for equality to pivot</span></span><br><span class="line">		dups := <span class="number">0</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(pivot, hi<span class="number">-1</span>) &#123; <span class="comment">// data[hi-1] = pivot</span></span><br><span class="line">			data.Swap(c, hi<span class="number">-1</span>)</span><br><span class="line">			c++</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> !data.Less(b<span class="number">-1</span>, pivot) &#123; <span class="comment">// data[b-1] = pivot</span></span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// m-lo = (hi-lo)/2 &gt; 6</span></span><br><span class="line">		<span class="comment">// b-lo &gt; (hi-lo)*3/4-1 &gt; 8</span></span><br><span class="line">		<span class="comment">// ==&gt; m &lt; b ==&gt; data[m] &lt;= pivot</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(m, pivot) &#123; <span class="comment">// data[m] = pivot</span></span><br><span class="line">			data.Swap(m, b<span class="number">-1</span>)</span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// if at least 2 points are equal to pivot, assume skewed distribution</span></span><br><span class="line">		protect = dups &gt; <span class="number">1</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> protect &#123;</span><br><span class="line">		<span class="comment">// Protect against a lot of duplicates</span></span><br><span class="line">		<span class="comment">// Add invariant:</span></span><br><span class="line">		<span class="comment">//	data[a &lt;= i &lt; b] unexamined</span></span><br><span class="line">		<span class="comment">//	data[b &lt;= i &lt; c] = pivot</span></span><br><span class="line">		<span class="keyword">for</span> &#123;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; !data.Less(b<span class="number">-1</span>, pivot); b-- &#123; <span class="comment">// data[b] == pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; data.Less(a, pivot); a++ &#123; <span class="comment">// data[a] &lt; pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> a &gt;= b &#123;</span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// data[a] == pivot; data[b-1] &lt; pivot</span></span><br><span class="line">			data.Swap(a, b<span class="number">-1</span>)</span><br><span class="line">			a++</span><br><span class="line">			b--</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// Swap pivot into middle</span></span><br><span class="line">	data.Swap(pivot, b<span class="number">-1</span>)</span><br><span class="line">	<span class="keyword">return</span> b - <span class="number">1</span>, c</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// medianOfThree moves the median of the three values data[m0], data[m1], data[m2] into data[m1].</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">medianOfThree</span><span class="params">(data Interface, m1, m0, m2 <span class="type">int</span>)</span></span> &#123;</span><br><span class="line">	<span class="comment">// sort 3 elements</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">		data.Swap(m1, m0)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// data[m0] &lt;= data[m1]</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m2, m1) &#123;</span><br><span class="line">		data.Swap(m2, m1)</span><br><span class="line">		<span class="comment">// data[m0] &lt;= data[m2] &amp;&amp; data[m1] &lt; data[m2]</span></span><br><span class="line">		<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">			data.Swap(m1, m0)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 保证 data[m0] &lt;= data[m1] &lt;= data[m2]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
 
     
 
@@ -271,11 +182,18 @@
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
         <i class="far fa-folder"></i>
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
         </span>
     </span>
 
@@ -421,6 +339,200 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-go-sort/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-10-12-go-sort/" class="post-title-link" itemprop="url">go-sort</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Coding/" itemprop="url" rel="index"><span itemprop="name">Coding</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>Go排序实现在&#x2F;src&#x2F;go4.org&#x2F;sort&#x2F;sort.go中.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">func Sort(data Interface) &#123;</span><br><span class="line">	n := data.Len()</span><br><span class="line">	if fs, ok := data.(*funcs); ok &#123;</span><br><span class="line">		quickSort_func(fs.lessSwap, 0, n, maxDepth(n))</span><br><span class="line">	&#125; else &#123;</span><br><span class="line">		quickSort(data, 0, n, maxDepth(n))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func quickSort(data Interface, a, b, maxDepth int) &#123;</span><br><span class="line">	for b-a &gt; 12 &#123; // Use ShellSort for slices &lt;= 12 elements</span><br><span class="line">		if maxDepth == 0 &#123;</span><br><span class="line">			heapSort(data, a, b)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line">		maxDepth--</span><br><span class="line">		mlo, mhi := doPivot(data, a, b)</span><br><span class="line">		// Avoiding recursion on the larger subproblem guarantees</span><br><span class="line">		// a stack depth of at most lg(b-a).</span><br><span class="line">		if mlo-a &lt; b-mhi &#123;</span><br><span class="line">			quickSort(data, a, mlo, maxDepth)</span><br><span class="line">			a = mhi // i.e., quickSort(data, mhi, b)</span><br><span class="line">		&#125; else &#123;</span><br><span class="line">			quickSort(data, mhi, b, maxDepth)</span><br><span class="line">			b = mlo // i.e., quickSort(data, a, mlo)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	if b-a &gt; 1 &#123;</span><br><span class="line">		// Do ShellSort pass with gap 6</span><br><span class="line">		// It could be written in this simplified form cause b-a &lt;= 12</span><br><span class="line">		for i := a + 6; i &lt; b; i++ &#123;</span><br><span class="line">			if data.Less(i, i-6) &#123;</span><br><span class="line">				data.Swap(i, i-6)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		insertionSort(data, a, b)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line">// Insertion sort</span><br><span class="line">func insertionSort(data Interface, a, b int) &#123;</span><br><span class="line">	for i := a + 1; i &lt; b; i++ &#123;</span><br><span class="line">		for j := i; j &gt; a &amp;&amp; data.Less(j, j-1); j-- &#123;</span><br><span class="line">			data.Swap(j, j-1)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>quickSort和quickSort_func基本相同, 子不过自己定义的比较方法, 这里不在赘述.</p>
+<p>可以看到主体是quickSort, 所以不保证稳定排序, 当数据量小于等于12时. 退化为希尔排序, 但希尔排序只做了一次gap为6, 之后再次退化为了简单插入排序. 这部分实现非常简单, i从前往后, j从i往前, 每次比较j-1和j, 将小的换到前面.</p>
+<p>当数据量大于12时, 根据maxDepth是否为0决定使用对排序还是使用快速排序, maxDepth计算:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">// maxDepth returns a threshold at which quicksort should switch</span><br><span class="line">// to heapsort. It returns 2*ceil(lg(n+1)).</span><br><span class="line">func maxDepth(n int) int &#123;</span><br><span class="line">	var depth int</span><br><span class="line">	for i := n; i &gt; 0; i &gt;&gt;= 1 &#123;</span><br><span class="line">		depth++</span><br><span class="line">	&#125;</span><br><span class="line">	return depth * 2</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>返回的是目前树高度的2倍. 每进行一轮快速排序的partition(doPivot), 这个数值就减1, 当减为0, 此时认为数据已经比较有序, 如果数据长度依然大于12, 改为堆排序效率更高.</p>
+<p>这里先看快速排序的主体部分, 再来看堆排序的实现. partition是快排的思想核心, 他实现在doPivot中:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">doPivot</span><span class="params">(data Interface, lo, hi <span class="type">int</span>)</span></span> (midlo, midhi <span class="type">int</span>) &#123;</span><br><span class="line">	m := lo + (hi-lo)/<span class="number">2</span> <span class="comment">// 避免整数溢出</span></span><br><span class="line">	<span class="keyword">if</span> hi-lo &gt; <span class="number">40</span> &#123; 如果长度大于<span class="number">40</span>, 使用Tukey ninther法</span><br><span class="line">		<span class="comment">// Tukey&#x27;s ``Ninther,&#x27;&#x27; median of three medians of three.</span></span><br><span class="line">		s := (hi - lo) / <span class="number">8</span></span><br><span class="line">		medianOfThree(data, lo, lo+s, lo+<span class="number">2</span>*s)</span><br><span class="line">		medianOfThree(data, m, m-s, m+s)</span><br><span class="line">		medianOfThree(data, hi<span class="number">-1</span>, hi<span class="number">-1</span>-s, hi<span class="number">-1</span><span class="number">-2</span>*s)</span><br><span class="line">	&#125;</span><br><span class="line">    <span class="comment">// medianOfThree 保证lo, m hi-1三个值是从小到大的</span></span><br><span class="line">	medianOfThree(data, lo, m, hi<span class="number">-1</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Invariants are:</span></span><br><span class="line">	<span class="comment">//	data[lo] = pivot (set up by ChoosePivot)</span></span><br><span class="line">	<span class="comment">//	data[lo &lt; i &lt; a] &lt; pivot</span></span><br><span class="line">	<span class="comment">//	data[a &lt;= i &lt; b] &lt;= pivot</span></span><br><span class="line">	<span class="comment">//	data[b &lt;= i &lt; c] unexamined</span></span><br><span class="line">	<span class="comment">//	data[c &lt;= i &lt; hi-1] &gt; pivot</span></span><br><span class="line">	<span class="comment">//	data[hi-1] &gt;= pivot</span></span><br><span class="line">	pivot := lo</span><br><span class="line">	a, c := lo+<span class="number">1</span>, hi<span class="number">-1</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 找到第一个比起始值点大的Index</span></span><br><span class="line">	<span class="keyword">for</span> ; a &lt; c &amp;&amp; data.Less(a, pivot); a++ &#123;</span><br><span class="line">	&#125;</span><br><span class="line">	b := a</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; !data.Less(pivot, b); b++ &#123; <span class="comment">// data[b] &lt;= pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">for</span> ; b &lt; c &amp;&amp; data.Less(pivot, c<span class="number">-1</span>); c-- &#123; <span class="comment">// data[c-1] &gt; pivot</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> b &gt;= c &#123;</span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// data[b] &gt; pivot; data[c-1] &lt;= pivot</span></span><br><span class="line">		data.Swap(b, c<span class="number">-1</span>)</span><br><span class="line">		b++</span><br><span class="line">		c--</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// If hi-c&lt;3 then there are duplicates (by property of median of nine).</span></span><br><span class="line">	<span class="comment">// Let be a bit more conservative, and set border to 5.</span></span><br><span class="line">	protect := hi-c &lt; <span class="number">5</span></span><br><span class="line">	<span class="keyword">if</span> !protect &amp;&amp; hi-c &lt; (hi-lo)/<span class="number">4</span> &#123;</span><br><span class="line">		<span class="comment">// Lets test some points for equality to pivot</span></span><br><span class="line">		dups := <span class="number">0</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(pivot, hi<span class="number">-1</span>) &#123; <span class="comment">// data[hi-1] = pivot</span></span><br><span class="line">			data.Swap(c, hi<span class="number">-1</span>)</span><br><span class="line">			c++</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> !data.Less(b<span class="number">-1</span>, pivot) &#123; <span class="comment">// data[b-1] = pivot</span></span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// m-lo = (hi-lo)/2 &gt; 6</span></span><br><span class="line">		<span class="comment">// b-lo &gt; (hi-lo)*3/4-1 &gt; 8</span></span><br><span class="line">		<span class="comment">// ==&gt; m &lt; b ==&gt; data[m] &lt;= pivot</span></span><br><span class="line">		<span class="keyword">if</span> !data.Less(m, pivot) &#123; <span class="comment">// data[m] = pivot</span></span><br><span class="line">			data.Swap(m, b<span class="number">-1</span>)</span><br><span class="line">			b--</span><br><span class="line">			dups++</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// if at least 2 points are equal to pivot, assume skewed distribution</span></span><br><span class="line">		protect = dups &gt; <span class="number">1</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> protect &#123;</span><br><span class="line">		<span class="comment">// Protect against a lot of duplicates</span></span><br><span class="line">		<span class="comment">// Add invariant:</span></span><br><span class="line">		<span class="comment">//	data[a &lt;= i &lt; b] unexamined</span></span><br><span class="line">		<span class="comment">//	data[b &lt;= i &lt; c] = pivot</span></span><br><span class="line">		<span class="keyword">for</span> &#123;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; !data.Less(b<span class="number">-1</span>, pivot); b-- &#123; <span class="comment">// data[b] == pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">for</span> ; a &lt; b &amp;&amp; data.Less(a, pivot); a++ &#123; <span class="comment">// data[a] &lt; pivot</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> a &gt;= b &#123;</span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// data[a] == pivot; data[b-1] &lt; pivot</span></span><br><span class="line">			data.Swap(a, b<span class="number">-1</span>)</span><br><span class="line">			a++</span><br><span class="line">			b--</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// Swap pivot into middle</span></span><br><span class="line">	data.Swap(pivot, b<span class="number">-1</span>)</span><br><span class="line">	<span class="keyword">return</span> b - <span class="number">1</span>, c</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// medianOfThree moves the median of the three values data[m0], data[m1], data[m2] into data[m1].</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">medianOfThree</span><span class="params">(data Interface, m1, m0, m2 <span class="type">int</span>)</span></span> &#123;</span><br><span class="line">	<span class="comment">// sort 3 elements</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">		data.Swap(m1, m0)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// data[m0] &lt;= data[m1]</span></span><br><span class="line">	<span class="keyword">if</span> data.Less(m2, m1) &#123;</span><br><span class="line">		data.Swap(m2, m1)</span><br><span class="line">		<span class="comment">// data[m0] &lt;= data[m2] &amp;&amp; data[m1] &lt; data[m2]</span></span><br><span class="line">		<span class="keyword">if</span> data.Less(m1, m0) &#123;</span><br><span class="line">			data.Swap(m1, m0)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 保证 data[m0] &lt;= data[m1] &lt;= data[m2]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-29-use-operator-sdk/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-06-29-use-operator-sdk/" class="post-title-link" itemprop="url">operator-framework的使用和调查</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>准备用CRD做一个数据迁移的operator, 将不同结点的pvc迁移. 于是决定使用operator-sdk.</p>
+<p>operator-sdk能够自动生成operator相关代码, 并能够直接部署到k8s集群中, 使用起来还是相当方便的.</p>
+<p>operator-sdk需要搭配operator-lifecycle-manager来使用, 安装配置方法这里不做赘述, 可以参考官网,或者这篇文章:<a target="_blank" rel="noopener" href="https://devops.college/developing-kubernetes-operator-is-now-easy-with-operator-framework-d3194a7428ff">Developing Kubernetes Operator is now easy with Operator Framework</a></p>
+<p>operator的大体框架如下所示:</p>
+<pre class="mermaid">graph LR
+A[operaotr] -->|Watch|B[custom resource]
+A[operaotr] -->|handler|F[Handler] 
+F --> E(All Resources)
+C(CRD) --> A    
+D(Deployment) --> A</pre>
+
+<p>通过operator-sdk可以自动生成 crd.yaml, operator.yaml, cr.yaml, rbac.yaml. 这些都需要手动部署到k8s. </p>
+<p>operator.yaml是最重要的一个. 里面包含handle逻辑和type结构, 它是你需要去实现和填充的业务逻辑, 理论上handle可以实现任何逻辑, 比如对修改apiserver中的某些资源内容, 或者创建新的资源, 或者起一个pod和job做一些hack的事情. </p>
+<p>做完这些就可以生成operator了, 他会build一个image, operator是一个deployment的, 它去拉这个image然后watch你定义的cr, 当你创建或者删除cr, 就会触发handle操作.	</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-07-02-golang-map/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -449,9 +561,15 @@
         <i class="far fa-calendar"></i>
       </span>
       <span class="post-meta-item-text">Posted on</span>
-      
 
-      <time title="Created: 2024-03-10 12:35:02 / Modified: 12:37:57" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -459,7 +577,7 @@
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/coding/" itemprop="url" rel="index"><span itemprop="name">coding</span></a>
+          <a href="/categories/Coding/" itemprop="url" rel="index"><span itemprop="name">Coding</span></a>
         </span>
     </span>
 
@@ -599,97 +717,6 @@
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-29-use-operator-sdk/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="smileusd">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-06-29-use-operator-sdk/" class="post-title-link" itemprop="url">operator-framework的使用和调查</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>准备用CRD做一个数据迁移的operator, 将不同结点的pvc迁移. 于是决定使用operator-sdk.</p>
-<p>operator-sdk能够自动生成operator相关代码, 并能够直接部署到k8s集群中, 使用起来还是相当方便的.</p>
-<p>operator-sdk需要搭配operator-lifecycle-manager来使用, 安装配置方法这里不做赘述, 可以参考官网,或者这篇文章:<a target="_blank" rel="noopener" href="https://devops.college/developing-kubernetes-operator-is-now-easy-with-operator-framework-d3194a7428ff">Developing Kubernetes Operator is now easy with Operator Framework</a></p>
-<p>operator的大体框架如下所示:</p>
-<pre class="mermaid">graph LR
-A[operaotr] -->|Watch|B[custom resource]
-A[operaotr] -->|handler|F[Handler] 
-F --> E(All Resources)
-C(CRD) --> A    
-D(Deployment) --> A</pre>
-
-<p>通过operator-sdk可以自动生成 crd.yaml, operator.yaml, cr.yaml, rbac.yaml. 这些都需要手动部署到k8s. </p>
-<p>operator.yaml是最重要的一个. 里面包含handle逻辑和type结构, 它是你需要去实现和填充的业务逻辑, 理论上handle可以实现任何逻辑, 比如对修改apiserver中的某些资源内容, 或者创建新的资源, 或者起一个pod和job做一些hack的事情. </p>
-<p>做完这些就可以生成operator了, 他会build一个image, operator是一个deployment的, 它去拉这个image然后watch你定义的cr, 当你创建或者删除cr, 就会触发handle操作.	</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-10-12-ceph/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -723,11 +750,18 @@ D(Deployment) --> A</pre>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
         <i class="far fa-folder"></i>
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/architecture/" itemprop="url" rel="index"><span itemprop="name">architecture</span></a>
+          <a href="/categories/System/" itemprop="url" rel="index"><span itemprop="name">System</span></a>
         </span>
     </span>
 
@@ -882,135 +916,6 @@ D(Deployment) --> A</pre>
   
 
   <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-05-24-k8s-schedule/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="smileusd">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-05-24-k8s-schedule/" class="post-title-link" itemprop="url">k8s-schedule</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <h4 id="Labels-and-Selectors"><a href="#Labels-and-Selectors" class="headerlink" title="Labels and Selectors"></a>Labels and Selectors</h4><ol>
-<li><p>label<br>  label是k8s中所有资源都有的一个域, 他是一个<key>&#x3D;<value>对, 表示这个资源具有某种特定属性, key必须不能重复. 这样user和其他资源可以通过label来选择具有这种属性的资源集合.</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">&quot;metadata&quot;:</span> &#123;</span><br><span class="line">  <span class="attr">&quot;labels&quot;:</span> &#123;</span><br><span class="line">    <span class="string">&quot;key1&quot;</span> <span class="string">:</span> <span class="string">&quot;value1&quot;</span>,</span><br><span class="line">    <span class="string">&quot;key2&quot;</span> <span class="string">:</span> <span class="string">&quot;value2&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>  label的key有两个段,分别是前缀和名称, 通过’&#x2F;‘分开. 名称字段必须少于63个字符, 必须以’[a-z0-9A-Z]’, ‘-‘, ‘.’, ‘_’和数字 开头和结尾.前缀是可选的, 一旦指定, 不能超过253个字符. label的value指和key中的名称要求一样.</p>
-</li>
-<li><p>Selectors的使用<br>通过api中使用 -l 来选择特定集合的objects: <code>$ kubectl get pods -l &#39;environment in (production, qa)&#39;</code></p>
-</li>
-</ol>
-<p>一些k8s资源, 比如Service and ReplicationController 会有selector字段, 用来选择pod.</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">selector:</span><br><span class="line">    component: redis</span><br></pre></td></tr></table></figure>
-
-<p>基于相等的匹配和基于集合的匹配:<br>  <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">selector:</span></span><br><span class="line"><span class="attr">matchLabels:</span></span><br><span class="line">  <span class="attr">component:</span> <span class="string">redis</span></span><br><span class="line"><span class="attr">matchExpressions:</span></span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">tier</span>, <span class="attr">operator:</span> <span class="string">In</span>, <span class="attr">values:</span> [<span class="string">cache</span>]&#125;</span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">environment</span>, <span class="attr">operator:</span> <span class="string">NotIn</span>, <span class="attr">values:</span> [<span class="string">dev</span>]&#125;</span><br></pre></td></tr></table></figure><br>   注意区分概念, label永远都是key&#x3D;value, 多个label在一起能组成一个集合, 类似map. 只有selector有集合的操作, label本身就是一个&lt;k,v&gt; 对, 没有<k in v>这样的label.<br>   集合方式有四种operator: In, NotIn, Exist, DoesNotExist. <code>&#123;key: tier, operator: In, values: [cache]&#125;</code>这条表达式等价于matchLabels中的: <code>tier: cache</code>.<br>   必须满足所有的selector表达式, 才算匹配.<br>   Job, Deployment, Replica Set, and Daemon Set都是支持基于集合的匹配.</p>
-<ol start="3">
-<li>nodeSelector<br>  nodeSelector用于选择某个node, 再次之前, 需要在node上添加label: <code>kubectl label nodes &lt;node-name&gt; &lt;label-key&gt;=&lt;label-value&gt;</code>. 然后在pod中配置相应的nodeSelector, 就能保证pod调度到符合语义的node:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">env:</span> <span class="string">test</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">  <span class="attr">nodeSelector:</span></span><br><span class="line">    <span class="attr">disktype:</span> <span class="string">ssd</span></span><br></pre></td></tr></table></figure>
-k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">kubernetes.io/hostname</span><br><span class="line">failure-domain.beta.kubernetes.io/zone</span><br><span class="line">failure-domain.beta.kubernetes.io/region</span><br><span class="line">beta.kubernetes.io/instance-type</span><br><span class="line">beta.kubernetes.io/os</span><br><span class="line">beta.kubernetes.io/arch</span><br></pre></td></tr></table></figure></li>
-</ol>
-<h4 id="Affinity"><a href="#Affinity" class="headerlink" title="Affinity"></a>Affinity</h4><p>nodeSelector是比较简单的pod选择节点的方式, k8s提供了affinity&#x2F;anti-affinity用来更复杂的提供节点选择方案. 他有两种: node affinity 和 inter-pod affinity&#x2F;anti-affinity:</p>
-<ul>
-<li><p>node affinity<br>nodeAffinity与nodeSelector相似, 也是基于label, 包括两种类型, 可以分别理解为’hard’和’soft’, 一个强制要求, 一个尽可能要求. </p>
-<ul>
-<li>requiredDuringSchedulingIgnoredDuringExecution: hard类型</li>
-<li>preferredDuringSchedulingIgnoredDuringExecution: soft类型<br>内容和label selector基本一致:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">nodeAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">        <span class="attr">nodeSelectorTerms:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">kubernetes.io/e2e-az-name</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az1</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az2</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">        <span class="attr">preference:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">another-node-label-key</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">another-node-label-value</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
-<code>weight</code> 是1-100.</li>
-</ul>
-</li>
-<li><p>pod affinity<br>  podAffinity&#x2F;podAnti-Affinity是比较已经调度到节点上的pod而不是看node本身. 他也有两种类型hard和soft:</p>
-<ul>
-<li>requiredDuringSchedulingIgnoredDuringExecution: hard</li>
-<li>preferredDuringSchedulingIgnoredDuringExecution: soft</li>
-</ul>
-</li>
-</ul>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">podAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">labelSelector:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">S1</span></span><br><span class="line">        <span class="attr">topologyKey:</span> <span class="string">failure-domain.beta.kubernetes.io/zone</span></span><br><span class="line">    <span class="attr">podAntiAffinity:</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">100</span></span><br><span class="line">        <span class="attr">podAffinityTerm:</span></span><br><span class="line">          <span class="attr">labelSelector:</span></span><br><span class="line">            <span class="attr">matchExpressions:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">              <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">              <span class="attr">values:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">S2</span></span><br><span class="line">          <span class="attr">topologyKey:</span> <span class="string">kubernetes.io/hostname</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
-
-<h4 id="Taints-and-Tolerations"><a href="#Taints-and-Tolerations" class="headerlink" title="Taints and Tolerations"></a>Taints and Tolerations</h4><p>affinity是站在pod的角度, 而taints是站在node的角度, </p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key=value:NoSchedule</span><br></pre></td></tr></table></figure>
-<p>这个命令将node1加了一个taint, 表示无法调度, 除非你有相应的toleration:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
-<p>这两个tolerations都能匹配那个taint. operator默认是<code>Equal</code><br>一个空的tolerations匹配所有的taint:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
-<p>以下这个tolerations匹配所有key为<code>key</code>的taints:</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
-
-<p>effect有两种： NoExecute和ＮoSchedule， 如果加了NoExecute， 那么所有不匹配的pod将会立即被evicted掉， 如果加了Noschedule, 那么只是Pod无法被调度， 已经调度的Ｐod不受影响。NoExecute还可以指定一个可选的域<code>tolerationSeconds</code>， 表示尽管匹配了taint可以不被立即evicted掉, 但在一定时间之后就会被evicted掉。</p>
-<p>通过<code>kubectl taint nodes node1 key:NoSchedule-</code> 取消taint</p>
-<h5 id="更有意思的是多个taint和多个tolerations的情况"><a href="#更有意思的是多个taint和多个tolerations的情况" class="headerlink" title="更有意思的是多个taint和多个tolerations的情况."></a>更有意思的是多个taint和多个tolerations的情况.</h5><p>例如创建三个taint:</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key1=value1:NoSchedule</span><br><span class="line">kubectl taint nodes node1 key1=value1:NoExecute</span><br><span class="line">kubectl taint nodes node1 key2=value2:NoSchedule</span><br></pre></td></tr></table></figure>
-<p>一个pod拥有两个tolerations：</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoExecute&quot;</span></span><br></pre></td></tr></table></figure>
-<p>该pod没有匹配所有的taint, 因此他不能被调度到这个节点， 但如果调度了，他不会被移除， 因为他只有第三个<code>NoSchedule</code>的taint不匹配。</p>
-<h5 id="注意"><a href="#注意" class="headerlink" title="注意"></a>注意</h5><p>在1.6之后， 官方加了一些内置的taint， 他会将pod evctied掉：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">node.kubernetes.io/not-ready: notready.</span><br><span class="line">node.alpha.kubernetes.io/unreachable: Unknown</span><br><span class="line">node.kubernetes.io/out-of-disk: Node becomes out of disk.</span><br><span class="line">node.kubernetes.io/memory-pressure: Node has memory pressure.</span><br><span class="line">node.kubernetes.io/disk-pressure: Node has disk pressure.</span><br><span class="line">node.kubernetes.io/network-unavailable: Node’s network is unavailable.</span><br><span class="line">node.cloudprovider.kubernetes.io/uninitialized: When kubelet is started with “external” cloud provider, it sets this taint on a node to mark it as unusable. When a controller from the cloud-controller-manager initializes this node, kubelet removes this taint.</span><br></pre></td></tr></table></figure>
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
     <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-07-docker-mountflags/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1044,11 +949,18 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
         <i class="far fa-folder"></i>
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
         </span>
     </span>
 
@@ -1135,11 +1047,18 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
         <i class="far fa-folder"></i>
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
         </span>
     </span>
 
@@ -1254,11 +1173,18 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
         <i class="far fa-folder"></i>
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
         </span>
     </span>
 
@@ -1291,6 +1217,142 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
 <p>​    显然问题比我想象的更加复杂. 有一个可能的解释是在我操作delete之后由于太长时间没有删掉导致Kubelet直接暴力删除了这个pod, statefulset又重启了新的pod, 原来的container虽然删掉但相应的namespaces中依然有应用程序在读写, 这种情况导致remove busy, 而且数据在更新.</p>
 <p>这些问题要调查起来都很费力. 显然直接删掉rename逻辑可以解决这个问题, 于是不再追究.</p>
 
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-05-24-k8s-schedule/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-05-24-k8s-schedule/" class="post-title-link" itemprop="url">k8s-schedule</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h4 id="Labels-and-Selectors"><a href="#Labels-and-Selectors" class="headerlink" title="Labels and Selectors"></a>Labels and Selectors</h4><ol>
+<li><p>label<br>  label是k8s中所有资源都有的一个域, 他是一个<key>&#x3D;<value>对, 表示这个资源具有某种特定属性, key必须不能重复. 这样user和其他资源可以通过label来选择具有这种属性的资源集合.</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">&quot;metadata&quot;:</span> &#123;</span><br><span class="line">  <span class="attr">&quot;labels&quot;:</span> &#123;</span><br><span class="line">    <span class="string">&quot;key1&quot;</span> <span class="string">:</span> <span class="string">&quot;value1&quot;</span>,</span><br><span class="line">    <span class="string">&quot;key2&quot;</span> <span class="string">:</span> <span class="string">&quot;value2&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>  label的key有两个段,分别是前缀和名称, 通过’&#x2F;‘分开. 名称字段必须少于63个字符, 必须以’[a-z0-9A-Z]’, ‘-‘, ‘.’, ‘_’和数字 开头和结尾.前缀是可选的, 一旦指定, 不能超过253个字符. label的value指和key中的名称要求一样.</p>
+</li>
+<li><p>Selectors的使用<br>通过api中使用 -l 来选择特定集合的objects: <code>$ kubectl get pods -l &#39;environment in (production, qa)&#39;</code></p>
+</li>
+</ol>
+<p>一些k8s资源, 比如Service and ReplicationController 会有selector字段, 用来选择pod.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">selector:</span><br><span class="line">    component: redis</span><br></pre></td></tr></table></figure>
+
+<p>基于相等的匹配和基于集合的匹配:<br>  <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">selector:</span></span><br><span class="line"><span class="attr">matchLabels:</span></span><br><span class="line">  <span class="attr">component:</span> <span class="string">redis</span></span><br><span class="line"><span class="attr">matchExpressions:</span></span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">tier</span>, <span class="attr">operator:</span> <span class="string">In</span>, <span class="attr">values:</span> [<span class="string">cache</span>]&#125;</span><br><span class="line">  <span class="bullet">-</span> &#123;<span class="attr">key:</span> <span class="string">environment</span>, <span class="attr">operator:</span> <span class="string">NotIn</span>, <span class="attr">values:</span> [<span class="string">dev</span>]&#125;</span><br></pre></td></tr></table></figure><br>   注意区分概念, label永远都是key&#x3D;value, 多个label在一起能组成一个集合, 类似map. 只有selector有集合的操作, label本身就是一个&lt;k,v&gt; 对, 没有<k in v>这样的label.<br>   集合方式有四种operator: In, NotIn, Exist, DoesNotExist. <code>&#123;key: tier, operator: In, values: [cache]&#125;</code>这条表达式等价于matchLabels中的: <code>tier: cache</code>.<br>   必须满足所有的selector表达式, 才算匹配.<br>   Job, Deployment, Replica Set, and Daemon Set都是支持基于集合的匹配.</p>
+<ol start="3">
+<li>nodeSelector<br>  nodeSelector用于选择某个node, 再次之前, 需要在node上添加label: <code>kubectl label nodes &lt;node-name&gt; &lt;label-key&gt;=&lt;label-value&gt;</code>. 然后在pod中配置相应的nodeSelector, 就能保证pod调度到符合语义的node:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">env:</span> <span class="string">test</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">  <span class="attr">nodeSelector:</span></span><br><span class="line">    <span class="attr">disktype:</span> <span class="string">ssd</span></span><br></pre></td></tr></table></figure>
+k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">kubernetes.io/hostname</span><br><span class="line">failure-domain.beta.kubernetes.io/zone</span><br><span class="line">failure-domain.beta.kubernetes.io/region</span><br><span class="line">beta.kubernetes.io/instance-type</span><br><span class="line">beta.kubernetes.io/os</span><br><span class="line">beta.kubernetes.io/arch</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="Affinity"><a href="#Affinity" class="headerlink" title="Affinity"></a>Affinity</h4><p>nodeSelector是比较简单的pod选择节点的方式, k8s提供了affinity&#x2F;anti-affinity用来更复杂的提供节点选择方案. 他有两种: node affinity 和 inter-pod affinity&#x2F;anti-affinity:</p>
+<ul>
+<li><p>node affinity<br>nodeAffinity与nodeSelector相似, 也是基于label, 包括两种类型, 可以分别理解为’hard’和’soft’, 一个强制要求, 一个尽可能要求. </p>
+<ul>
+<li>requiredDuringSchedulingIgnoredDuringExecution: hard类型</li>
+<li>preferredDuringSchedulingIgnoredDuringExecution: soft类型<br>内容和label selector基本一致:<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">nodeAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">        <span class="attr">nodeSelectorTerms:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">kubernetes.io/e2e-az-name</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az1</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">e2e-az2</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">        <span class="attr">preference:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">another-node-label-key</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">another-node-label-value</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-node-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
+<code>weight</code> 是1-100.</li>
+</ul>
+</li>
+<li><p>pod affinity<br>  podAffinity&#x2F;podAnti-Affinity是比较已经调度到节点上的pod而不是看node本身. 他也有两种类型hard和soft:</p>
+<ul>
+<li>requiredDuringSchedulingIgnoredDuringExecution: hard</li>
+<li>preferredDuringSchedulingIgnoredDuringExecution: soft</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">podAffinity:</span></span><br><span class="line">      <span class="attr">requiredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">labelSelector:</span></span><br><span class="line">          <span class="attr">matchExpressions:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">            <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">            <span class="attr">values:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">S1</span></span><br><span class="line">        <span class="attr">topologyKey:</span> <span class="string">failure-domain.beta.kubernetes.io/zone</span></span><br><span class="line">    <span class="attr">podAntiAffinity:</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">100</span></span><br><span class="line">        <span class="attr">podAffinityTerm:</span></span><br><span class="line">          <span class="attr">labelSelector:</span></span><br><span class="line">            <span class="attr">matchExpressions:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">security</span></span><br><span class="line">              <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">              <span class="attr">values:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">S2</span></span><br><span class="line">          <span class="attr">topologyKey:</span> <span class="string">kubernetes.io/hostname</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">with-pod-affinity</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">k8s.gcr.io/pause:2.0</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="Taints-and-Tolerations"><a href="#Taints-and-Tolerations" class="headerlink" title="Taints and Tolerations"></a>Taints and Tolerations</h4><p>affinity是站在pod的角度, 而taints是站在node的角度, </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key=value:NoSchedule</span><br></pre></td></tr></table></figure>
+<p>这个命令将node1加了一个taint, 表示无法调度, 除非你有相应的toleration:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
+<p>这两个tolerations都能匹配那个taint. operator默认是<code>Equal</code><br>一个空的tolerations匹配所有的taint:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
+<p>以下这个tolerations匹配所有key为<code>key</code>的taints:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Exists&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>effect有两种： NoExecute和ＮoSchedule， 如果加了NoExecute， 那么所有不匹配的pod将会立即被evicted掉， 如果加了Noschedule, 那么只是Pod无法被调度， 已经调度的Ｐod不受影响。NoExecute还可以指定一个可选的域<code>tolerationSeconds</code>， 表示尽管匹配了taint可以不被立即evicted掉, 但在一定时间之后就会被evicted掉。</p>
+<p>通过<code>kubectl taint nodes node1 key:NoSchedule-</code> 取消taint</p>
+<h5 id="更有意思的是多个taint和多个tolerations的情况"><a href="#更有意思的是多个taint和多个tolerations的情况" class="headerlink" title="更有意思的是多个taint和多个tolerations的情况."></a>更有意思的是多个taint和多个tolerations的情况.</h5><p>例如创建三个taint:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">kubectl taint nodes node1 key1=value1:NoSchedule</span><br><span class="line">kubectl taint nodes node1 key1=value1:NoExecute</span><br><span class="line">kubectl taint nodes node1 key2=value2:NoSchedule</span><br></pre></td></tr></table></figure>
+<p>一个pod拥有两个tolerations：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">tolerations:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoSchedule&quot;</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">key:</span> <span class="string">&quot;key1&quot;</span></span><br><span class="line">  <span class="attr">operator:</span> <span class="string">&quot;Equal&quot;</span></span><br><span class="line">  <span class="attr">value:</span> <span class="string">&quot;value1&quot;</span></span><br><span class="line">  <span class="attr">effect:</span> <span class="string">&quot;NoExecute&quot;</span></span><br></pre></td></tr></table></figure>
+<p>该pod没有匹配所有的taint, 因此他不能被调度到这个节点， 但如果调度了，他不会被移除， 因为他只有第三个<code>NoSchedule</code>的taint不匹配。</p>
+<h5 id="注意"><a href="#注意" class="headerlink" title="注意"></a>注意</h5><p>在1.6之后， 官方加了一些内置的taint， 他会将pod evctied掉：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">node.kubernetes.io/not-ready: notready.</span><br><span class="line">node.alpha.kubernetes.io/unreachable: Unknown</span><br><span class="line">node.kubernetes.io/out-of-disk: Node becomes out of disk.</span><br><span class="line">node.kubernetes.io/memory-pressure: Node has memory pressure.</span><br><span class="line">node.kubernetes.io/disk-pressure: Node has disk pressure.</span><br><span class="line">node.kubernetes.io/network-unavailable: Node’s network is unavailable.</span><br><span class="line">node.cloudprovider.kubernetes.io/uninitialized: When kubelet is started with “external” cloud provider, it sets this taint on a node to mark it as unusable. When a controller from the cloud-controller-manager initializes this node, kubelet removes this taint.</span><br></pre></td></tr></table></figure>
       
     </div>
 
@@ -1349,11 +1411,18 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
         <i class="far fa-folder"></i>
       </span>
       <span class="post-meta-item-text">In</span>
         <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/cloud/" itemprop="url" rel="index"><span itemprop="name">cloud</span></a>
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
         </span>
     </span>
 
