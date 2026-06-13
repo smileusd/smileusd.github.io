@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="缓存是系统设计面试中出现频率最高的话题之一。本文完整梳理分布式缓存的核心设计：缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构，以及面试中的常见追问答法。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="系统设计面试：分布式缓存架构设计（缓存雪崩&#x2F;穿透&#x2F;击穿与高可用方案）">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-cache-architecture/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="缓存是系统设计面试中出现频率最高的话题之一。本文完整梳理分布式缓存的核心设计：缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构，以及面试中的常见追问答法。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-13T14:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-13T13:38:07.384Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="Debugging">
+<meta property="article:tag" content="Distributed Systems">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-cache-architecture/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/13/2026-06-13-system-design-cache-architecture/","path":"2026/06/13/2026-06-13-system-design-cache-architecture/","title":"系统设计面试：分布式缓存架构设计（缓存雪崩/穿透/击穿与高可用方案）"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>系统设计面试：分布式缓存架构设计（缓存雪崩/穿透/击穿与高可用方案） | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E7%BC%93%E5%AD%98%EF%BC%9F"><span class="nav-number">1.</span> <span class="nav-text">1. 为什么需要缓存？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%E9%80%89%E5%9E%8B"><span class="nav-number">2.</span> <span class="nav-text">2. 缓存策略选型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-Cache-Aside%EF%BC%88%E6%97%81%E8%B7%AF%E7%BC%93%E5%AD%98%EF%BC%89%E2%80%94-%E6%9C%80%E5%B8%B8%E7%94%A8"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 Cache-Aside（旁路缓存）— 最常用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Write-Through%EF%BC%88%E5%86%99%E7%A9%BF%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 Write-Through（写穿）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-Write-Behind%EF%BC%88%E5%86%99%E5%9B%9E%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 Write-Behind（写回）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%89%E5%A4%A7%E7%BB%8F%E5%85%B8%E9%97%AE%E9%A2%98"><span class="nav-number">3.</span> <span class="nav-text">3. 三大经典问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E7%BC%93%E5%AD%98%E9%9B%AA%E5%B4%A9%EF%BC%88Cache-Avalanche%EF%BC%89"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 缓存雪崩（Cache Avalanche）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F%EF%BC%88Cache-Penetration%EF%BC%89"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 缓存穿透（Cache Penetration）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF%EF%BC%88Cache-Breakdown-Hotspot%EF%BC%89"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 缓存击穿（Cache Breakdown&#x2F;Hotspot）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-number">4.</span> <span class="nav-text">4. 缓存一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%AF%BB%E5%86%99%E4%B8%80%E8%87%B4%E6%80%A7%E9%97%AE%E9%A2%98"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 读写一致性问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%BB%B6%E8%BF%9F%E5%8F%8C%E5%88%A0"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 延迟双删</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%BC%BA%E4%B8%80%E8%87%B4%E6%96%B9%E6%A1%88%EF%BC%9ACanal-MQ"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 强一致方案：Canal + MQ</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Redis-%E9%AB%98%E5%8F%AF%E7%94%A8%E6%9E%B6%E6%9E%84"><span class="nav-number">5.</span> <span class="nav-text">5. Redis 高可用架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%B8%89%E7%A7%8D%E9%83%A8%E7%BD%B2%E6%A8%A1%E5%BC%8F%E5%AF%B9%E6%AF%94"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 三种部署模式对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Redis-Sentinel%EF%BC%88%E5%93%A8%E5%85%B5%EF%BC%89"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 Redis Sentinel（哨兵）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-Redis-Cluster"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 Redis Cluster</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E7%83%AD%E7%82%B9-Key-%E4%B8%93%E9%A1%B9%E5%A4%84%E7%90%86"><span class="nav-number">6.</span> <span class="nav-text">6. 热点 Key 专项处理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E9%9D%A2%E8%AF%95%E5%B8%B8%E8%A7%81%E8%BF%BD%E9%97%AE"><span class="nav-number">7.</span> <span class="nav-text">7. 面试常见追问</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">114</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-cache-architecture/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="系统设计面试：分布式缓存架构设计（缓存雪崩/穿透/击穿与高可用方案） | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          系统设计面试：分布式缓存架构设计（缓存雪崩/穿透/击穿与高可用方案）
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-13 22:00:00 / Modified: 21:38:07" itemprop="dateCreated datePublished" datetime="2026-06-13T22:00:00+08:00">2026-06-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/System/" itemprop="url" rel="index"><span itemprop="name">System</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>缓存是系统设计面试中出现频率最高的话题之一。本文完整梳理分布式缓存的核心设计：<strong>缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构</strong>，以及面试中的常见追问答法。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="1-为什么需要缓存？"><a href="#1-为什么需要缓存？" class="headerlink" title="1. 为什么需要缓存？"></a>1. 为什么需要缓存？</h2><p>面试开场先建立直觉：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">没有缓存：</span><br><span class="line">  User → API Server → Database（磁盘 I/O，毫秒级）</span><br><span class="line"></span><br><span class="line">有缓存：</span><br><span class="line">  User → API Server → Redis（内存，微秒级）</span><br><span class="line">                    ↓ Cache Miss</span><br><span class="line">                    → Database → 写回 Redis</span><br></pre></td></tr></table></figure>
+
+<p><strong>典型收益</strong>：</p>
+<ul>
+<li>数据库 QPS 从 10k 降至 1k（90% 请求命中缓存）</li>
+<li>P99 延迟从 50ms 降至 2ms</li>
+<li>数据库成本降低 80%</li>
+</ul>
+<p><strong>代价</strong>：引入数据一致性问题、缓存层本身的可用性问题。</p>
+<hr>
+<h2 id="2-缓存策略选型"><a href="#2-缓存策略选型" class="headerlink" title="2. 缓存策略选型"></a>2. 缓存策略选型</h2><h3 id="2-1-Cache-Aside（旁路缓存）—-最常用"><a href="#2-1-Cache-Aside（旁路缓存）—-最常用" class="headerlink" title="2.1 Cache-Aside（旁路缓存）— 最常用"></a>2.1 Cache-Aside（旁路缓存）— 最常用</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">get_user</span>(<span class="params">user_id</span>):</span><br><span class="line">    <span class="comment"># 1. 先查缓存</span></span><br><span class="line">    user = redis.get(<span class="string">f&quot;user:<span class="subst">&#123;user_id&#125;</span>&quot;</span>)</span><br><span class="line">    <span class="keyword">if</span> user:</span><br><span class="line">        <span class="keyword">return</span> user</span><br><span class="line">    <span class="comment"># 2. Cache Miss → 查数据库</span></span><br><span class="line">    user = db.query(<span class="string">&quot;SELECT * FROM users WHERE id = ?&quot;</span>, user_id)</span><br><span class="line">    <span class="comment"># 3. 写入缓存，设置 TTL</span></span><br><span class="line">    redis.setex(<span class="string">f&quot;user:<span class="subst">&#123;user_id&#125;</span>&quot;</span>, ttl=<span class="number">3600</span>, value=user)</span><br><span class="line">    <span class="keyword">return</span> user</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">update_user</span>(<span class="params">user_id, data</span>):</span><br><span class="line">    db.update(<span class="string">&quot;UPDATE users SET ... WHERE id = ?&quot;</span>, user_id, data)</span><br><span class="line">    redis.delete(<span class="string">f&quot;user:<span class="subst">&#123;user_id&#125;</span>&quot;</span>)  <span class="comment"># 删除缓存，而不是更新</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么删除而不是更新缓存？</strong></p>
+<ul>
+<li>更新缓存在并发写时有竞态：两个写请求可能导致缓存存储了旧数据</li>
+<li>删除是幂等的，下次读时自然重建，更安全</li>
+</ul>
+<h3 id="2-2-Write-Through（写穿）"><a href="#2-2-Write-Through（写穿）" class="headerlink" title="2.2 Write-Through（写穿）"></a>2.2 Write-Through（写穿）</h3><p>写操作同时写数据库 + 缓存，读操作只读缓存。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Write: App → Cache → DB（同步）</span><br><span class="line">Read:  App → Cache（永不 Miss）</span><br></pre></td></tr></table></figure>
+
+<p>优点：数据一致性强；缺点：写延迟高（等待 DB 写完）</p>
+<h3 id="2-3-Write-Behind（写回）"><a href="#2-3-Write-Behind（写回）" class="headerlink" title="2.3 Write-Behind（写回）"></a>2.3 Write-Behind（写回）</h3><p>写操作只写缓存，异步批量刷到 DB。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Write: App → Cache（立即返回）→ 异步 → DB</span><br></pre></td></tr></table></figure>
+
+<p>优点：写性能极高；缺点：有数据丢失风险（缓存宕机前未落盘）</p>
+<p><strong>面试选型口诀</strong>：</p>
+<ul>
+<li>读多写少 → Cache-Aside</li>
+<li>写多读少、强一致 → Write-Through</li>
+<li>写多、允许丢失少量数据 → Write-Behind</li>
+</ul>
+<hr>
+<h2 id="3-三大经典问题"><a href="#3-三大经典问题" class="headerlink" title="3. 三大经典问题"></a>3. 三大经典问题</h2><h3 id="3-1-缓存雪崩（Cache-Avalanche）"><a href="#3-1-缓存雪崩（Cache-Avalanche）" class="headerlink" title="3.1 缓存雪崩（Cache Avalanche）"></a>3.1 缓存雪崩（Cache Avalanche）</h3><p><strong>定义</strong>：大量缓存在同一时刻过期，所有请求同时打到数据库，导致数据库崩溃。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">时刻 T：10万个 key 同时过期</span><br><span class="line">         ↓</span><br><span class="line">所有请求 → DB（直接打满）</span><br><span class="line">         ↓</span><br><span class="line">DB 崩溃 → 服务不可用</span><br></pre></td></tr></table></figure>
+
+<p><strong>解法</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>实现</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>TTL 加随机抖动</td>
+<td><code>TTL = base_ttl + random(0, 300s)</code></td>
+<td>分散过期时间</td>
+</tr>
+<tr>
+<td>永不过期 + 异步更新</td>
+<td>后台线程主动刷新热点 key</td>
+<td>彻底避免 Miss</td>
+</tr>
+<tr>
+<td>多级缓存</td>
+<td>L1（本地内存）+ L2（Redis）</td>
+<td>DB 压力分层</td>
+</tr>
+<tr>
+<td>熔断降级</td>
+<td>DB 被打满时返回降级数据</td>
+<td>兜底保护</td>
+</tr>
+</tbody></table>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> random</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">set_cache</span>(<span class="params">key, value, base_ttl=<span class="number">3600</span></span>):</span><br><span class="line">    <span class="comment"># 加 ±10% 随机抖动，避免同一批 key 同时过期</span></span><br><span class="line">    jitter = random.randint(-<span class="number">360</span>, <span class="number">360</span>)</span><br><span class="line">    ttl = base_ttl + jitter</span><br><span class="line">    redis.setex(key, ttl, value)</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-缓存穿透（Cache-Penetration）"><a href="#3-2-缓存穿透（Cache-Penetration）" class="headerlink" title="3.2 缓存穿透（Cache Penetration）"></a>3.2 缓存穿透（Cache Penetration）</h3><p><strong>定义</strong>：查询一个数据库中根本不存在的数据，缓存永远 Miss，每次都打到 DB。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">攻击者：不断请求不存在的 user_id=-1</span><br><span class="line">         ↓</span><br><span class="line">缓存：Miss（因为不存在）</span><br><span class="line">         ↓</span><br><span class="line">DB：每次都被查询 → 被打垮</span><br></pre></td></tr></table></figure>
+
+<p><strong>解法</strong>：</p>
+<p><strong>方案一：缓存空值</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">user = db.query(user_id)</span><br><span class="line"><span class="keyword">if</span> user <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">    redis.setex(<span class="string">f&quot;user:<span class="subst">&#123;user_id&#125;</span>&quot;</span>, ttl=<span class="number">60</span>, value=<span class="string">&quot;NULL&quot;</span>)  <span class="comment"># 缓存空值</span></span><br><span class="line">    <span class="keyword">return</span> <span class="literal">None</span></span><br></pre></td></tr></table></figure>
+<p>缺点：攻击者可以用不同 ID 绕过（内存浪费）。</p>
+<p><strong>方案二：布隆过滤器（推荐）</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 启动时将所有合法 user_id 写入布隆过滤器</span></span><br><span class="line">bloom_filter = BloomFilter(capacity=<span class="number">10_000_000</span>, error_rate=<span class="number">0.001</span>)</span><br><span class="line"><span class="keyword">for</span> uid <span class="keyword">in</span> db.all_user_ids():</span><br><span class="line">    bloom_filter.add(uid)</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">get_user</span>(<span class="params">user_id</span>):</span><br><span class="line">    <span class="keyword">if</span> user_id <span class="keyword">not</span> <span class="keyword">in</span> bloom_filter:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span>  <span class="comment"># 直接拒绝，不查 DB</span></span><br><span class="line">    <span class="keyword">return</span> cache_aside(user_id)</span><br></pre></td></tr></table></figure>
+
+<p>布隆过滤器特性：</p>
+<ul>
+<li>空间效率极高（1000万个元素约 1.2MB）</li>
+<li>不存在的一定不存在（无假阴性）</li>
+<li>可能误判存在（假阳性率可控，如 0.1%）</li>
+</ul>
+<h3 id="3-3-缓存击穿（Cache-Breakdown-Hotspot）"><a href="#3-3-缓存击穿（Cache-Breakdown-Hotspot）" class="headerlink" title="3.3 缓存击穿（Cache Breakdown&#x2F;Hotspot）"></a>3.3 缓存击穿（Cache Breakdown&#x2F;Hotspot）</h3><p><strong>定义</strong>：单个热点 key 突然过期，大量并发请求同时 Cache Miss，瞬间打穿数据库。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">热点 key &quot;flash_sale:1001&quot; 过期</span><br><span class="line">↓</span><br><span class="line">100万个请求同时 Miss</span><br><span class="line">↓</span><br><span class="line">100万个请求同时查 DB → DB 崩溃</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意</strong>：击穿 vs 雪崩的区别：击穿是<strong>单个热点 key</strong>，雪崩是<strong>大量 key 同时过期</strong>。</p>
+<p><strong>解法</strong>：</p>
+<p><strong>方案一：互斥锁（Mutex Lock）</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">get_hot_item</span>(<span class="params">item_id</span>):</span><br><span class="line">    value = redis.get(<span class="string">f&quot;item:<span class="subst">&#123;item_id&#125;</span>&quot;</span>)</span><br><span class="line">    <span class="keyword">if</span> value:</span><br><span class="line">        <span class="keyword">return</span> value</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 争抢分布式锁</span></span><br><span class="line">    lock_key = <span class="string">f&quot;lock:item:<span class="subst">&#123;item_id&#125;</span>&quot;</span></span><br><span class="line">    <span class="keyword">if</span> redis.<span class="built_in">set</span>(lock_key, <span class="string">&quot;1&quot;</span>, nx=<span class="literal">True</span>, ex=<span class="number">5</span>):  <span class="comment"># 只有一个请求能拿到锁</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            value = db.query(item_id)</span><br><span class="line">            redis.setex(<span class="string">f&quot;item:<span class="subst">&#123;item_id&#125;</span>&quot;</span>, <span class="number">3600</span>, value)</span><br><span class="line">            <span class="keyword">return</span> value</span><br><span class="line">        <span class="keyword">finally</span>:</span><br><span class="line">            redis.delete(lock_key)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="comment"># 其他请求等待后重试</span></span><br><span class="line">        time.sleep(<span class="number">0.05</span>)</span><br><span class="line">        <span class="keyword">return</span> get_hot_item(item_id)</span><br></pre></td></tr></table></figure>
+
+<p><strong>方案二：逻辑过期（永不真正过期）</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">get_hot_item</span>(<span class="params">item_id</span>):</span><br><span class="line">    cached = redis.get(<span class="string">f&quot;item:<span class="subst">&#123;item_id&#125;</span>&quot;</span>)</span><br><span class="line">    <span class="keyword">if</span> cached:</span><br><span class="line">        data, expire_time = parse(cached)</span><br><span class="line">        <span class="keyword">if</span> time.now() &lt; expire_time:</span><br><span class="line">            <span class="keyword">return</span> data</span><br><span class="line">        <span class="comment"># 逻辑过期，异步更新，返回旧数据（不阻塞）</span></span><br><span class="line">        <span class="keyword">if</span> acquire_lock(item_id):</span><br><span class="line">            thread_pool.submit(refresh_cache, item_id)</span><br><span class="line">        <span class="keyword">return</span> data  <span class="comment"># 返回旧值，用户几乎无感知</span></span><br><span class="line">    <span class="keyword">return</span> <span class="literal">None</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="4-缓存一致性"><a href="#4-缓存一致性" class="headerlink" title="4. 缓存一致性"></a>4. 缓存一致性</h2><h3 id="4-1-读写一致性问题"><a href="#4-1-读写一致性问题" class="headerlink" title="4.1 读写一致性问题"></a>4.1 读写一致性问题</h3><p>最常见的双写不一致场景：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">线程 A：更新 DB（user.age=30）</span><br><span class="line">线程 B：更新 DB（user.age=31），更新 Cache（age=31）</span><br><span class="line">线程 A：更新 Cache（age=30）← 覆盖了 B，Cache 存的是旧值！</span><br></pre></td></tr></table></figure>
+
+<p><strong>解法：Delete &gt; Update</strong></p>
+<ul>
+<li>写操作：先更新 DB，再<strong>删除</strong>缓存（不更新）</li>
+<li>依赖 TTL 或下次读时重建缓存</li>
+<li>即使有短暂不一致，也是”最终一致”</li>
+</ul>
+<h3 id="4-2-延迟双删"><a href="#4-2-延迟双删" class="headerlink" title="4.2 延迟双删"></a>4.2 延迟双删</h3><p>对于极端并发场景，删缓存后可能有请求把旧数据回填：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">update_user</span>(<span class="params">user_id, data</span>):</span><br><span class="line">    redis.delete(<span class="string">f&quot;user:<span class="subst">&#123;user_id&#125;</span>&quot;</span>)     <span class="comment"># 第一次删除</span></span><br><span class="line">    db.update(user_id, data)</span><br><span class="line">    time.sleep(<span class="number">0.1</span>)                      <span class="comment"># 等待可能的旧读请求完成</span></span><br><span class="line">    redis.delete(<span class="string">f&quot;user:<span class="subst">&#123;user_id&#125;</span>&quot;</span>)     <span class="comment"># 第二次删除（延迟双删）</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-强一致方案：Canal-MQ"><a href="#4-3-强一致方案：Canal-MQ" class="headerlink" title="4.3 强一致方案：Canal + MQ"></a>4.3 强一致方案：Canal + MQ</h3><p>对强一致要求的场景，用 binlog 订阅替代手动删缓存：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">DB 写入 → binlog → Canal → MQ → 消费者删除/更新缓存</span><br></pre></td></tr></table></figure>
+
+<p>优点：业务代码无需处理缓存；缺点：延迟（通常 100ms 内）。</p>
+<hr>
+<h2 id="5-Redis-高可用架构"><a href="#5-Redis-高可用架构" class="headerlink" title="5. Redis 高可用架构"></a>5. Redis 高可用架构</h2><h3 id="5-1-三种部署模式对比"><a href="#5-1-三种部署模式对比" class="headerlink" title="5.1 三种部署模式对比"></a>5.1 三种部署模式对比</h3><table>
+<thead>
+<tr>
+<th>模式</th>
+<th>可用性</th>
+<th>数据容量</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>单机</td>
+<td>低</td>
+<td>受单机内存限制</td>
+<td>开发&#x2F;测试</td>
+</tr>
+<tr>
+<td>Sentinel（哨兵）</td>
+<td>高</td>
+<td>受单机内存限制</td>
+<td>中小规模</td>
+</tr>
+<tr>
+<td>Cluster（集群）</td>
+<td>高</td>
+<td>水平扩展</td>
+<td>大规模</td>
+</tr>
+</tbody></table>
+<h3 id="5-2-Redis-Sentinel（哨兵）"><a href="#5-2-Redis-Sentinel（哨兵）" class="headerlink" title="5.2 Redis Sentinel（哨兵）"></a>5.2 Redis Sentinel（哨兵）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">           ┌──────────┐</span><br><span class="line">           │ Sentinel1 │</span><br><span class="line">           └─────┬─────┘</span><br><span class="line">                 │ 监控</span><br><span class="line">  ┌──────────────▼──────────────┐</span><br><span class="line">  │  Master（Primary）          │</span><br><span class="line">  └──┬──────────────────────┬──┘</span><br><span class="line">     │ 异步复制              │ 异步复制</span><br><span class="line">┌────▼───┐             ┌────▼───┐</span><br><span class="line">│Replica1│             │Replica2│</span><br><span class="line">└────────┘             └────────┘</span><br></pre></td></tr></table></figure>
+
+<p>故障切换流程：</p>
+<ol>
+<li>Sentinel 检测 Master 失联（默认 30s）</li>
+<li>多数 Sentinel 投票确认（Quorum &#x3D; 2&#x2F;3）</li>
+<li>选举一个 Replica 提升为新 Master</li>
+<li>客户端通过 Sentinel 获取新 Master 地址</li>
+</ol>
+<h3 id="5-3-Redis-Cluster"><a href="#5-3-Redis-Cluster" class="headerlink" title="5.3 Redis Cluster"></a>5.3 Redis Cluster</h3><p>数据按 <strong>16384 个哈希槽</strong>分片，每个节点负责一段槽位：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Node1: slots 0-5460      (1/3 数据)</span><br><span class="line">Node2: slots 5461-10922  (1/3 数据)</span><br><span class="line">Node3: slots 10923-16383 (1/3 数据)</span><br><span class="line"></span><br><span class="line">计算槽位：slot = CRC16(key) % 16384</span><br></pre></td></tr></table></figure>
+
+<p><strong>一致性哈希 vs 哈希槽</strong>：</p>
+<ul>
+<li>哈希槽：扩缩容时迁移槽位，影响范围可控</li>
+<li>一致性哈希：扩缩容只影响相邻节点，更适合自研场景</li>
+</ul>
+<hr>
+<h2 id="6-热点-Key-专项处理"><a href="#6-热点-Key-专项处理" class="headerlink" title="6. 热点 Key 专项处理"></a>6. 热点 Key 专项处理</h2><p>当单个 Key 的 QPS 超过 Redis 单节点承受能力（通常 10万 QPS）：</p>
+<p><strong>方案：Key 散列（Key Sharding）</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">HOT_KEY_SHARDS = <span class="number">100</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">get_hot_key</span>(<span class="params">key</span>):</span><br><span class="line">    shard = random.randint(<span class="number">0</span>, HOT_KEY_SHARDS - <span class="number">1</span>)</span><br><span class="line">    shard_key = <span class="string">f&quot;<span class="subst">&#123;key&#125;</span>:shard:<span class="subst">&#123;shard&#125;</span>&quot;</span></span><br><span class="line">    <span class="keyword">return</span> redis.get(shard_key)</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">set_hot_key</span>(<span class="params">key, value, ttl=<span class="number">3600</span></span>):</span><br><span class="line">    <span class="keyword">for</span> i <span class="keyword">in</span> <span class="built_in">range</span>(HOT_KEY_SHARDS):</span><br><span class="line">        redis.setex(<span class="string">f&quot;<span class="subst">&#123;key&#125;</span>:shard:<span class="subst">&#123;i&#125;</span>&quot;</span>, ttl, value)</span><br></pre></td></tr></table></figure>
+
+<p>读时随机选一个分片，写时更新所有分片，将单 Key 压力分散到 100 个 Key。</p>
+<hr>
+<h2 id="7-面试常见追问"><a href="#7-面试常见追问" class="headerlink" title="7. 面试常见追问"></a>7. 面试常见追问</h2><p><strong>Q: 如何发现热点 Key？</strong></p>
+<blockquote>
+<p>A: Redis 4.0+ 支持 <code>redis-cli --hotkeys</code> 命令（基于 LFU 策略）；监控各 Key 的访问频率；也可在网关层统计请求 Key 分布。</p>
+</blockquote>
+<p><strong>Q: 缓存容量打满了怎么办？</strong></p>
+<blockquote>
+<p>A: 配置合理的淘汰策略。推荐 <code>allkeys-lru</code>（全局 LRU，所有 key 均可被淘汰）或 <code>volatile-lru</code>（只淘汰有 TTL 的 key）；同时监控内存使用率，在 80% 时扩容。</p>
+</blockquote>
+<p><strong>Q: Redis 和 Memcached 怎么选？</strong></p>
+<blockquote>
+<p>A: 选 Redis。Redis 支持丰富数据结构（Hash&#x2F;ZSet&#x2F;List）、持久化（RDB&#x2F;AOF）、Lua 脚本原子操作、Cluster 模式；Memcached 仅在极高吞吐量 + 简单 KV 场景下有微小优势，实际项目中 Redis 覆盖绝大多数场景。</p>
+</blockquote>
+<p><strong>Q: 如何保证缓存和 DB 的强一致性？</strong></p>
+<blockquote>
+<p>A: 严格意义上的强一致（读总是读到最新写）需要分布式事务，代价极高；实践中通常接受”最终一致”（删缓存 + TTL 兜底，不一致窗口 &lt; 1s）；对真正强一致场景，读操作绕过缓存直接读 DB（缓存只用于降低 DB 压力，不用于强一致读）。</p>
+</blockquote>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>根因</th>
+<th>核心解法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>缓存雪崩</td>
+<td>大量 key 同时过期</td>
+<td>TTL 加抖动 + 多级缓存</td>
+</tr>
+<tr>
+<td>缓存穿透</td>
+<td>查不存在的数据</td>
+<td>布隆过滤器</td>
+</tr>
+<tr>
+<td>缓存击穿</td>
+<td>热点 key 突然过期</td>
+<td>互斥锁 &#x2F; 逻辑过期</td>
+</tr>
+<tr>
+<td>数据不一致</td>
+<td>并发写竞态</td>
+<td>删除而非更新 + 延迟双删</td>
+</tr>
+<tr>
+<td>热点 Key</td>
+<td>单节点 QPS 超限</td>
+<td>Key 散列到多个分片</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>面试核心</strong>：缓存问题的本质是”速度（内存）换一致性（磁盘是真相来源）”，每个方案都是在这个 Trade-off 上做取舍。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Performance/" rel="tag"># Performance</a>
+              <a href="/tags/Debugging/" rel="tag"># Debugging</a>
+              <a href="/tags/Distributed-Systems/" rel="tag"># Distributed Systems</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/13/2026-06-13-system-design-interview-fault-tolerant-microservices/" rel="prev" title="系统设计面试：如何设计高可用微服务系统（快速容灾与流量切换）">
+                  <i class="fa fa-angle-left"></i> 系统设计面试：如何设计高可用微服务系统（快速容灾与流量切换）
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/13/2026-06-13-system-design-message-queue/" rel="next" title="系统设计面试：消息队列深度解析（Kafka 设计原理与可靠性保障）">
+                  系统设计面试：消息队列深度解析（Kafka 设计原理与可靠性保障） <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

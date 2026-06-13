@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="限流是保障系统稳定性的最后一道防线。本文系统梳理限流系统的四大算法、单机 vs 分布式限流、滑动窗口精确实现，以及如何在面试中设计一个完整的分布式限流服务。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="系统设计面试：分布式限流系统设计（算法原理与工程实现）">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-rate-limiting/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="限流是保障系统稳定性的最后一道防线。本文系统梳理限流系统的四大算法、单机 vs 分布式限流、滑动窗口精确实现，以及如何在面试中设计一个完整的分布式限流服务。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-13T14:20:00.000Z">
+<meta property="article:modified_time" content="2026-06-13T13:43:33.446Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="Networking">
+<meta property="article:tag" content="Distributed Systems">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-rate-limiting/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/13/2026-06-13-system-design-rate-limiting/","path":"2026/06/13/2026-06-13-system-design-rate-limiting/","title":"系统设计面试：分布式限流系统设计（算法原理与工程实现）"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>系统设计面试：分布式限流系统设计（算法原理与工程实现） | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E9%99%90%E6%B5%81%EF%BC%9F"><span class="nav-number">1.</span> <span class="nav-text">1. 为什么需要限流？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%9B%9B%E5%A4%A7%E9%99%90%E6%B5%81%E7%AE%97%E6%B3%95"><span class="nav-number">2.</span> <span class="nav-text">2. 四大限流算法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%9B%BA%E5%AE%9A%E7%AA%97%E5%8F%A3%E8%AE%A1%E6%95%B0%E5%99%A8%EF%BC%88Fixed-Window%EF%BC%89"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 固定窗口计数器（Fixed Window）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E6%BB%91%E5%8A%A8%E7%AA%97%E5%8F%A3%E8%AE%A1%E6%95%B0%E5%99%A8%EF%BC%88Sliding-Window-Log%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 滑动窗口计数器（Sliding Window Log）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E6%BC%8F%E6%A1%B6%EF%BC%88Leaky-Bucket%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 漏桶（Leaky Bucket）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E4%BB%A4%E7%89%8C%E6%A1%B6%EF%BC%88Token-Bucket%EF%BC%89%E2%80%94-%E6%9C%80%E5%B8%B8%E7%94%A8"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 令牌桶（Token Bucket）— 最常用</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%88%86%E5%B8%83%E5%BC%8F%E9%99%90%E6%B5%81"><span class="nav-number">3.</span> <span class="nav-text">3. 分布式限流</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8D%95%E6%9C%BA%E9%99%90%E6%B5%81%E4%B8%8D%E5%A4%9F%EF%BC%9F"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 为什么单机限流不够？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%9F%BA%E4%BA%8E-Redis-%E7%9A%84%E9%9B%86%E4%B8%AD%E5%BC%8F%E9%99%90%E6%B5%81"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 基于 Redis 的集中式限流</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E6%9C%AC%E5%9C%B0%E8%AE%A1%E6%95%B0%E5%99%A8-%E5%AE%9A%E6%9C%9F%E5%90%8C%E6%AD%A5%EF%BC%88%E9%AB%98%E6%80%A7%E8%83%BD%E6%96%B9%E6%A1%88%EF%BC%89"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 本地计数器 + 定期同步（高性能方案）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%AE%8C%E6%95%B4%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%9AAPI-%E9%99%90%E6%B5%81%E6%9C%8D%E5%8A%A1"><span class="nav-number">4.</span> <span class="nav-text">4. 完整系统设计：API 限流服务</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E9%9C%80%E6%B1%82%E6%BE%84%E6%B8%85"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 需求澄清</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 整体架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E9%99%90%E6%B5%81%E8%A7%84%E5%88%99%E8%AE%BE%E8%AE%A1"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 限流规则设计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E9%99%90%E6%B5%81%E5%93%8D%E5%BA%94%E8%AE%BE%E8%AE%A1"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 限流响应设计</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%B8%B8%E8%A7%81%E9%99%90%E6%B5%81%E5%9C%BA%E6%99%AF%E4%B8%8E%E5%AF%B9%E5%BA%94%E7%AD%96%E7%95%A5"><span class="nav-number">5.</span> <span class="nav-text">5. 常见限流场景与对应策略</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E9%9D%A2%E8%AF%95%E5%B8%B8%E8%A7%81%E8%BF%BD%E9%97%AE"><span class="nav-number">6.</span> <span class="nav-text">6. 面试常见追问</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">7.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">114</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-rate-limiting/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="系统设计面试：分布式限流系统设计（算法原理与工程实现） | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          系统设计面试：分布式限流系统设计（算法原理与工程实现）
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-13 22:20:00 / Modified: 21:43:33" itemprop="dateCreated datePublished" datetime="2026-06-13T22:20:00+08:00">2026-06-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/System/" itemprop="url" rel="index"><span itemprop="name">System</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>限流是保障系统稳定性的最后一道防线。本文系统梳理限流系统的<strong>四大算法、单机 vs 分布式限流、滑动窗口精确实现</strong>，以及如何在面试中设计一个完整的分布式限流服务。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="1-为什么需要限流？"><a href="#1-为什么需要限流？" class="headerlink" title="1. 为什么需要限流？"></a>1. 为什么需要限流？</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">不限流的后果：</span><br><span class="line">  突发流量 → 服务资源耗尽 → 响应变慢 → 超时堆积 → 雪崩</span><br><span class="line"></span><br><span class="line">限流的本质：</span><br><span class="line">  用&quot;拒绝部分请求&quot;换取&quot;剩余请求的服务质量&quot;</span><br><span class="line">  宁可少服务一些用户，也不让所有用户都得到差服务</span><br></pre></td></tr></table></figure>
+
+<p><strong>限流 vs 熔断 vs 降级的区别</strong>：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>触发条件</th>
+<th>作用方向</th>
+<th>目标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>限流</td>
+<td>请求量超阈值</td>
+<td>在入口拒绝请求</td>
+<td>保护自身</td>
+</tr>
+<tr>
+<td>熔断</td>
+<td>下游错误率超阈值</td>
+<td>不调用下游</td>
+<td>保护下游</td>
+</tr>
+<tr>
+<td>降级</td>
+<td>资源不足或超时</td>
+<td>走简化逻辑</td>
+<td>保证主路径可用</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="2-四大限流算法"><a href="#2-四大限流算法" class="headerlink" title="2. 四大限流算法"></a>2. 四大限流算法</h2><h3 id="2-1-固定窗口计数器（Fixed-Window）"><a href="#2-1-固定窗口计数器（Fixed-Window）" class="headerlink" title="2.1 固定窗口计数器（Fixed Window）"></a>2.1 固定窗口计数器（Fixed Window）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">时间轴: |---窗口1(0-60s)---|---窗口2(60-120s)---|</span><br><span class="line">计数:         100请求               100请求</span><br><span class="line"></span><br><span class="line">实现：</span><br><span class="line">  counter = redis.incr(f&quot;rate:&#123;user_id&#125;:&#123;current_minute&#125;&quot;)</span><br><span class="line">  if counter &gt; 100:</span><br><span class="line">      reject()</span><br><span class="line">  if counter == 1:</span><br><span class="line">      redis.expire(f&quot;rate:&#123;user_id&#125;:&#123;current_minute&#125;&quot;, 60)</span><br></pre></td></tr></table></figure>
+
+<p><strong>致命缺陷：临界突破</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">59秒：100个请求（窗口1打满）</span><br><span class="line">60秒：100个请求（窗口2重置，又允许100个）</span><br><span class="line">→ 2秒内实际通过200个请求，是限额的2倍！</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-滑动窗口计数器（Sliding-Window-Log）"><a href="#2-2-滑动窗口计数器（Sliding-Window-Log）" class="headerlink" title="2.2 滑动窗口计数器（Sliding Window Log）"></a>2.2 滑动窗口计数器（Sliding Window Log）</h3><p>用时间戳日志精确统计：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">is_allowed</span>(<span class="params">user_id, limit=<span class="number">100</span>, window=<span class="number">60</span></span>):</span><br><span class="line">    now = time.time()</span><br><span class="line">    key = <span class="string">f&quot;rate:<span class="subst">&#123;user_id&#125;</span>&quot;</span></span><br><span class="line">    pipe = redis.pipeline()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 删除窗口外的请求记录</span></span><br><span class="line">    pipe.zremrangebyscore(key, <span class="number">0</span>, now - window)</span><br><span class="line">    <span class="comment"># 统计窗口内的请求数</span></span><br><span class="line">    pipe.zcard(key)</span><br><span class="line">    <span class="comment"># 记录当前请求</span></span><br><span class="line">    pipe.zadd(key, &#123;now: now&#125;)</span><br><span class="line">    pipe.expire(key, window)</span><br><span class="line"></span><br><span class="line">    _, count, _, _ = pipe.execute()</span><br><span class="line">    <span class="keyword">return</span> count &lt; limit</span><br></pre></td></tr></table></figure>
+
+<p><strong>优点</strong>：精确，无临界问题<br><strong>缺点</strong>：每个请求都存一条记录，大 QPS 下内存消耗大</p>
+<p><strong>面试优化</strong>：滑动窗口计数（不存日志，分格子）</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 将 60s 窗口分成 60 个格子（每格 1s）</span></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">is_allowed_sliding_count</span>(<span class="params">user_id, limit=<span class="number">100</span>, window=<span class="number">60</span>, precision=<span class="number">60</span></span>):</span><br><span class="line">    now = time.time()</span><br><span class="line">    slot = <span class="built_in">int</span>(now * precision / window)  <span class="comment"># 当前格子编号</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 统计过去 60 个格子的总量</span></span><br><span class="line">    total = <span class="number">0</span></span><br><span class="line">    <span class="keyword">for</span> i <span class="keyword">in</span> <span class="built_in">range</span>(precision):</span><br><span class="line">        key = <span class="string">f&quot;rate:<span class="subst">&#123;user_id&#125;</span>:<span class="subst">&#123;slot - i&#125;</span>&quot;</span></span><br><span class="line">        count = redis.get(key) <span class="keyword">or</span> <span class="number">0</span></span><br><span class="line">        total += <span class="built_in">int</span>(count)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> total &gt;= limit:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">False</span></span><br><span class="line"></span><br><span class="line">    redis.incr(<span class="string">f&quot;rate:<span class="subst">&#123;user_id&#125;</span>:<span class="subst">&#123;slot&#125;</span>&quot;</span>)</span><br><span class="line">    redis.expire(<span class="string">f&quot;rate:<span class="subst">&#123;user_id&#125;</span>:<span class="subst">&#123;slot&#125;</span>&quot;</span>, window + <span class="number">1</span>)</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">True</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-漏桶（Leaky-Bucket）"><a href="#2-3-漏桶（Leaky-Bucket）" class="headerlink" title="2.3 漏桶（Leaky Bucket）"></a>2.3 漏桶（Leaky Bucket）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">请求 → 桶（队列）→ 以固定速率流出</span><br><span class="line"></span><br><span class="line">            ┌──────────┐</span><br><span class="line">  请求 →→→  │  桶(队列) │ → 以 r req/s 匀速处理</span><br><span class="line">            └──────────┘</span><br><span class="line">                ↑</span><br><span class="line">          桶满则丢弃新请求</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">LeakyBucket</span>:</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self, capacity=<span class="number">100</span>, leak_rate=<span class="number">10</span></span>):  <span class="comment"># 10 req/s</span></span><br><span class="line">        self.capacity = capacity</span><br><span class="line">        self.water = <span class="number">0</span></span><br><span class="line">        self.last_time = time.time()</span><br><span class="line">        self.leak_rate = leak_rate</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">allow</span>(<span class="params">self</span>):</span><br><span class="line">        now = time.time()</span><br><span class="line">        elapsed = now - self.last_time</span><br><span class="line">        <span class="comment"># 漏掉已流出的水</span></span><br><span class="line">        self.water = <span class="built_in">max</span>(<span class="number">0</span>, self.water - elapsed * self.leak_rate)</span><br><span class="line">        self.last_time = now</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> self.water &lt; self.capacity:</span><br><span class="line">            self.water += <span class="number">1</span></span><br><span class="line">            <span class="keyword">return</span> <span class="literal">True</span></span><br><span class="line">        <span class="keyword">return</span> <span class="literal">False</span>  <span class="comment"># 桶满，拒绝</span></span><br></pre></td></tr></table></figure>
+
+<p>特点：<strong>输出速率恒定</strong>，适合对下游的保护（防止突发打垮下游）。</p>
+<h3 id="2-4-令牌桶（Token-Bucket）—-最常用"><a href="#2-4-令牌桶（Token-Bucket）—-最常用" class="headerlink" title="2.4 令牌桶（Token Bucket）— 最常用"></a>2.4 令牌桶（Token Bucket）— 最常用</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">令牌以固定速率生成，放入桶中</span><br><span class="line">请求来了必须先取令牌，取到才能通过</span><br><span class="line"></span><br><span class="line">            ┌──────────┐</span><br><span class="line">  令牌 →→→  │  桶(令牌) │ → 请求取走令牌后通过</span><br><span class="line">            └──────────┘</span><br><span class="line">        每秒生成 r 个令牌，桶容量 b</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">TokenBucket</span>:</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self, rate=<span class="number">10</span>, capacity=<span class="number">100</span></span>):</span><br><span class="line">        self.rate = rate          <span class="comment"># 每秒生成的令牌数</span></span><br><span class="line">        self.capacity = capacity  <span class="comment"># 桶最大容量</span></span><br><span class="line">        self.tokens = capacity    <span class="comment"># 当前令牌数（初始满桶）</span></span><br><span class="line">        self.last_time = time.time()</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">allow</span>(<span class="params">self, tokens_required=<span class="number">1</span></span>):</span><br><span class="line">        now = time.time()</span><br><span class="line">        elapsed = now - self.last_time</span><br><span class="line">        <span class="comment"># 补充令牌</span></span><br><span class="line">        self.tokens = <span class="built_in">min</span>(</span><br><span class="line">            self.capacity,</span><br><span class="line">            self.tokens + elapsed * self.rate</span><br><span class="line">        )</span><br><span class="line">        self.last_time = now</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> self.tokens &gt;= tokens_required:</span><br><span class="line">            self.tokens -= tokens_required</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">True</span></span><br><span class="line">        <span class="keyword">return</span> <span class="literal">False</span>  <span class="comment"># 令牌不足，拒绝</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>令牌桶 vs 漏桶核心差异</strong>：</p>
+<ul>
+<li>令牌桶允许<strong>突发</strong>（桶满时积累了令牌，可以瞬间消耗）</li>
+<li>漏桶输出<strong>匀速</strong>（无论请求多密集，处理速度恒定）</li>
+</ul>
+<hr>
+<h2 id="3-分布式限流"><a href="#3-分布式限流" class="headerlink" title="3. 分布式限流"></a>3. 分布式限流</h2><h3 id="3-1-为什么单机限流不够？"><a href="#3-1-为什么单机限流不够？" class="headerlink" title="3.1 为什么单机限流不够？"></a>3.1 为什么单机限流不够？</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">假设限额：100 QPS/用户</span><br><span class="line">部署 10 个实例，每个实例限流 100 QPS</span><br><span class="line"></span><br><span class="line">用户实际可以：向不同实例发请求，达到 10 * 100 = 1000 QPS</span><br><span class="line">→ 单机限流在分布式环境下形同虚设（除非请求总是打到同一实例）</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-基于-Redis-的集中式限流"><a href="#3-2-基于-Redis-的集中式限流" class="headerlink" title="3.2 基于 Redis 的集中式限流"></a>3.2 基于 Redis 的集中式限流</h3><p>所有实例共享 Redis 计数器：</p>
+<p><strong>方案一：Redis + Lua 脚本（原子操作）</strong></p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- rate_limit.lua</span></span><br><span class="line"><span class="keyword">local</span> key = KEYS[<span class="number">1</span>]</span><br><span class="line"><span class="keyword">local</span> limit = <span class="built_in">tonumber</span>(ARGV[<span class="number">1</span>])</span><br><span class="line"><span class="keyword">local</span> window = <span class="built_in">tonumber</span>(ARGV[<span class="number">2</span>])</span><br><span class="line"></span><br><span class="line"><span class="keyword">local</span> current = redis.call(<span class="string">&#x27;INCR&#x27;</span>, key)</span><br><span class="line"><span class="keyword">if</span> current == <span class="number">1</span> <span class="keyword">then</span></span><br><span class="line">    redis.call(<span class="string">&#x27;EXPIRE&#x27;</span>, key, window)</span><br><span class="line"><span class="keyword">end</span></span><br><span class="line"><span class="keyword">if</span> current &gt; limit <span class="keyword">then</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>  <span class="comment">-- 拒绝</span></span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span>  <span class="comment">-- 允许</span></span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">script = redis.register_script(<span class="built_in">open</span>(<span class="string">&#x27;rate_limit.lua&#x27;</span>).read())</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">is_allowed</span>(<span class="params">user_id, limit=<span class="number">100</span>, window=<span class="number">60</span></span>):</span><br><span class="line">    key = <span class="string">f&quot;rate:<span class="subst">&#123;user_id&#125;</span>:<span class="subst">&#123;<span class="built_in">int</span>(time.time() / window)&#125;</span>&quot;</span></span><br><span class="line">    result = script(keys=[key], args=[limit, window])</span><br><span class="line">    <span class="keyword">return</span> result == <span class="number">1</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>方案二：Redis + Sliding Window（精确）</strong></p>
+<p>使用 ZSET 实现精确滑动窗口（见上文 2.2），适合对精度要求高的场景。</p>
+<p><strong>方案三：Nginx + lua-resty-limit（网关层限流）</strong></p>
+<figure class="highlight nginx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">http</span> &#123;</span><br><span class="line">    <span class="attribute">lua_shared_dict</span> rate_limit <span class="number">10m</span>;</span><br><span class="line"></span><br><span class="line">    <span class="section">server</span> &#123;</span><br><span class="line">        <span class="section">location</span> /api/ &#123;</span><br><span class="line">            <span class="section">access_by_lua_block</span> &#123;</span><br><span class="line">                <span class="attribute">local</span> limit = require <span class="string">&quot;resty.limit.req&quot;</span></span><br><span class="line">                local lim, err = limit.new(<span class="string">&quot;rate_limit&quot;</span>, <span class="number">100</span>, <span class="number">200</span>)</span><br><span class="line">                local key = ngx.var.remote_addr</span><br><span class="line">                local delay, err = lim:incoming(key, <span class="literal">true</span>)</span><br><span class="line">                if not delay then</span><br><span class="line">                    if err == <span class="string">&quot;rejected&quot;</span> then</span><br><span class="line">                        return ngx.exit(<span class="number">429</span>)</span><br><span class="line">                    end</span><br><span class="line">                end</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-本地计数器-定期同步（高性能方案）"><a href="#3-3-本地计数器-定期同步（高性能方案）" class="headerlink" title="3.3 本地计数器 + 定期同步（高性能方案）"></a>3.3 本地计数器 + 定期同步（高性能方案）</h3><p>当 Redis 限流成为瓶颈时（网络 RTT 叠加），用本地计数器 + 定期同步：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">DistributedRateLimiter</span>:</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self, global_limit=<span class="number">10000</span>, sync_interval=100ms</span>):</span><br><span class="line">        self.local_count = <span class="number">0</span></span><br><span class="line">        self.local_quota = global_limit / num_instances  <span class="comment"># 本地分配的配额</span></span><br><span class="line">        self.sync_interval = sync_interval</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">allow</span>(<span class="params">self</span>):</span><br><span class="line">        self.local_count += <span class="number">1</span></span><br><span class="line">        <span class="keyword">if</span> self.local_count &lt;= self.local_quota:</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">True</span></span><br><span class="line">        <span class="keyword">return</span> <span class="literal">False</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">sync_to_redis</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="comment"># 定期将本地计数同步到 Redis</span></span><br><span class="line">        <span class="comment"># 并从 Redis 获取全局计数，动态调整本地配额</span></span><br><span class="line">        global_count = redis.incrby(<span class="string">&quot;global_counter&quot;</span>, self.local_count)</span><br><span class="line">        self.local_count = <span class="number">0</span></span><br><span class="line">        <span class="comment"># 动态调整配额（例如某些实例闲置时，将配额让渡给繁忙实例）</span></span><br><span class="line">        self.local_quota = recalculate_quota(global_count)</span><br></pre></td></tr></table></figure>
+
+<p><strong>适用场景</strong>：QPS 极高（10万+），允许轻微超量（配额分配有误差）。</p>
+<hr>
+<h2 id="4-完整系统设计：API-限流服务"><a href="#4-完整系统设计：API-限流服务" class="headerlink" title="4. 完整系统设计：API 限流服务"></a>4. 完整系统设计：API 限流服务</h2><p>面试题：<strong>设计一个支持亿级用户的 API 限流系统</strong></p>
+<h3 id="4-1-需求澄清"><a href="#4-1-需求澄清" class="headerlink" title="4.1 需求澄清"></a>4.1 需求澄清</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">- 限流维度：用户级、IP级、API 级？→ 多维度</span><br><span class="line">- 限流策略：固定 QPS？还是动态配置？→ 动态，运行时可修改</span><br><span class="line">- 精度要求：允许 ±5% 误差？→ 允许小误差</span><br><span class="line">- 响应时间：限流判断增加的延迟 → &lt; 1ms</span><br><span class="line">- 规模：DAU 1亿，峰值 1000万 QPS</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-整体架构"><a href="#4-2-整体架构" class="headerlink" title="4.2 整体架构"></a>4.2 整体架构</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">                 ┌─────────────────────────────────┐</span><br><span class="line">                 │         API Gateway              │</span><br><span class="line">                 │  ┌─────────────────────────┐    │</span><br><span class="line">Client ────────► │  │   Rate Limit Middleware  │    │</span><br><span class="line">                 │  │  (本地令牌桶 + 异步同步)  │    │</span><br><span class="line">                 │  └────────────┬────────────┘    │</span><br><span class="line">                 └───────────────┼─────────────────┘</span><br><span class="line">                                 │ 定期同步 (100ms)</span><br><span class="line">                 ┌───────────────▼─────────────────┐</span><br><span class="line">                 │        Rate Limit Service        │</span><br><span class="line">                 │   (全局计数 + 配额分配算法)        │</span><br><span class="line">                 └───────────────┬─────────────────┘</span><br><span class="line">                                 │</span><br><span class="line">                 ┌───────────────▼─────────────────┐</span><br><span class="line">                 │        Redis Cluster             │</span><br><span class="line">                 │  (全局计数器 + 限流规则存储)       │</span><br><span class="line">                 └─────────────────────────────────┘</span><br><span class="line">                                 │</span><br><span class="line">                 ┌───────────────▼─────────────────┐</span><br><span class="line">                 │        Config Service            │</span><br><span class="line">                 │  (动态限流规则，运行时修改)        │</span><br><span class="line">                 └─────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-限流规则设计"><a href="#4-3-限流规则设计" class="headerlink" title="4.3 限流规则设计"></a>4.3 限流规则设计</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 规则存储结构（Redis Hash）</span></span><br><span class="line"><span class="attr">rate_limit_rules:</span></span><br><span class="line">  <span class="string">user:&#123;user_id&#125;:api:/search:</span></span><br><span class="line">    <span class="attr">limit:</span> <span class="number">100</span></span><br><span class="line">    <span class="attr">window:</span> <span class="string">60s</span></span><br><span class="line">    <span class="attr">algorithm:</span> <span class="string">sliding_window</span></span><br><span class="line">  <span class="string">ip:&#123;ip_address&#125;:</span></span><br><span class="line">    <span class="attr">limit:</span> <span class="number">1000</span></span><br><span class="line">    <span class="attr">window:</span> <span class="string">60s</span></span><br><span class="line">    <span class="attr">algorithm:</span> <span class="string">token_bucket</span></span><br><span class="line">  <span class="attr">api:/checkout:global:</span></span><br><span class="line">    <span class="attr">limit:</span> <span class="number">50000</span></span><br><span class="line">    <span class="attr">window:</span> <span class="string">1s</span></span><br><span class="line">    <span class="attr">algorithm:</span> <span class="string">token_bucket</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-限流响应设计"><a href="#4-4-限流响应设计" class="headerlink" title="4.4 限流响应设计"></a>4.4 限流响应设计</h3><p>被限流时，返回标准 HTTP 429：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">HTTP/1.1</span> <span class="number">429</span> Too Many Requests</span><br><span class="line"><span class="attribute">Retry-After</span><span class="punctuation">: </span>30</span><br><span class="line"><span class="attribute">X-RateLimit-Limit</span><span class="punctuation">: </span>100</span><br><span class="line"><span class="attribute">X-RateLimit-Remaining</span><span class="punctuation">: </span>0</span><br><span class="line"><span class="attribute">X-RateLimit-Reset</span><span class="punctuation">: </span>1718300400</span><br><span class="line"></span><br><span class="line"><span class="language-json"><span class="punctuation">&#123;</span><span class="attr">&quot;error&quot;</span><span class="punctuation">:</span> <span class="string">&quot;rate_limit_exceeded&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;message&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Too many requests, retry after 30 seconds&quot;</span><span class="punctuation">&#125;</span></span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="5-常见限流场景与对应策略"><a href="#5-常见限流场景与对应策略" class="headerlink" title="5. 常见限流场景与对应策略"></a>5. 常见限流场景与对应策略</h2><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐算法</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>API 接口保护（允许突发）</td>
+<td>令牌桶</td>
+<td>允许短时突发，日常匀速</td>
+</tr>
+<tr>
+<td>下游 DB&#x2F;服务保护</td>
+<td>漏桶</td>
+<td>匀速输出，保护下游</td>
+</tr>
+<tr>
+<td>精确用量计费</td>
+<td>滑动窗口</td>
+<td>无临界问题，精确计量</td>
+</tr>
+<tr>
+<td>简单 QPS 限制（允许误差）</td>
+<td>固定窗口</td>
+<td>实现简单，够用</td>
+</tr>
+<tr>
+<td>极高 QPS + 允许小误差</td>
+<td>本地计数器 + 定期同步</td>
+<td>减少 Redis RTT</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="6-面试常见追问"><a href="#6-面试常见追问" class="headerlink" title="6. 面试常见追问"></a>6. 面试常见追问</h2><p><strong>Q: 限流时如何公平对待不同用户？</strong></p>
+<blockquote>
+<p>A: 实现优先级队列：VIP 用户拥有更高配额（10x）；在接近限额时，优先拒绝低优先级请求；可结合令牌桶为不同等级用户分配不同的桶容量和填充速率。</p>
+</blockquote>
+<p><strong>Q: 如何防止限流服务本身成为单点故障？</strong></p>
+<blockquote>
+<p>A: Redis Cluster 保证存储层高可用；Rate Limit Service 本身无状态，可水平扩展；网关本地有降级策略（Redis 不可达时，降级为本地限流；甚至临时关闭限流，优先保证业务可用）。</p>
+</blockquote>
+<p><strong>Q: 分布式环境下如何保证”全局精确限流”？</strong></p>
+<blockquote>
+<p>A: 严格意义上的全局精确限流（无任何误差）代价极高，需要每个请求都做跨实例的 Redis 原子操作，延迟显著上升。实际工程中接受 1-5% 的超量（本地计数器 + 定期同步方案），用精度换性能，这是合理的工程权衡。</p>
+</blockquote>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">算法选型：令牌桶（允许突发 API 限流） vs 漏桶（保护下游）</span><br><span class="line">          固定窗口（简单） vs 滑动窗口（精确）</span><br><span class="line"></span><br><span class="line">实现层次：</span><br><span class="line">  网关层（Nginx/Kong）→ 最早拦截，保护后端</span><br><span class="line">  应用层（SDK/Middleware）→ 细粒度，可按业务维度限流</span><br><span class="line">  服务层（Sentinel/Hystrix）→ 熔断+限流一体</span><br><span class="line"></span><br><span class="line">分布式策略：</span><br><span class="line">  Redis 集中计数（精确） vs 本地计数+同步（高性能）</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>面试核心</strong>：限流不只是”计数器”，要展示你对突发流量处理、分布式一致性权衡、降级兜底的系统性思考。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Performance/" rel="tag"># Performance</a>
+              <a href="/tags/Networking/" rel="tag"># Networking</a>
+              <a href="/tags/Distributed-Systems/" rel="tag"># Distributed Systems</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/13/2026-06-13-system-design-message-queue/" rel="prev" title="系统设计面试：消息队列深度解析（Kafka 设计原理与可靠性保障）">
+                  <i class="fa fa-angle-left"></i> 系统设计面试：消息队列深度解析（Kafka 设计原理与可靠性保障）
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/13/2026-06-13-system-design-database-sharding/" rel="next" title="系统设计面试：数据库分片与分布式存储（分库分表、一致性哈希、读写分离）">
+                  系统设计面试：数据库分片与分布式存储（分库分表、一致性哈希、读写分离） <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

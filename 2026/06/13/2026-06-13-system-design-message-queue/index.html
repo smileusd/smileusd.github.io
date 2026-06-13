@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="消息队列是分布式系统的”神经中枢”。本文以 Kafka 为核心，从面试视角解析消息队列的核心设计、可靠性保障、顺序性、幂等性等关键问题，并给出面试常见追问的参考答案。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="系统设计面试：消息队列深度解析（Kafka 设计原理与可靠性保障）">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-message-queue/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="消息队列是分布式系统的”神经中枢”。本文以 Kafka 为核心，从面试视角解析消息队列的核心设计、可靠性保障、顺序性、幂等性等关键问题，并给出面试常见追问的参考答案。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-13T14:10:00.000Z">
+<meta property="article:modified_time" content="2026-06-13T13:40:44.867Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="Cloud">
+<meta property="article:tag" content="Distributed Systems">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-message-queue/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/13/2026-06-13-system-design-message-queue/","path":"2026/06/13/2026-06-13-system-design-message-queue/","title":"系统设计面试：消息队列深度解析（Kafka 设计原理与可靠性保障）"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>系统设计面试：消息队列深度解析（Kafka 设计原理与可靠性保障） | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97%EF%BC%9F"><span class="nav-number">1.</span> <span class="nav-text">1. 为什么需要消息队列？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-Kafka-%E6%A0%B8%E5%BF%83%E6%9E%B6%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">2. Kafka 核心架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 基本概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E4%B8%BA%E4%BB%80%E4%B9%88-Kafka-%E8%BF%99%E4%B9%88%E5%BF%AB%EF%BC%9F"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 为什么 Kafka 这么快？</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%B6%88%E6%81%AF%E5%8F%AF%E9%9D%A0%E6%80%A7%E4%BF%9D%E9%9A%9C"><span class="nav-number">3.</span> <span class="nav-text">3. 消息可靠性保障</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%B6%88%E6%81%AF%E4%B8%8D%E4%B8%A2%E5%A4%B1%EF%BC%9A%E4%B8%89%E4%B8%AA%E7%8E%AF%E8%8A%82%E9%83%BD%E8%A6%81%E4%BF%9D%E9%9A%9C"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 消息不丢失：三个环节都要保障</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E6%B6%88%E6%81%AF%E4%B8%8D%E9%87%8D%E5%A4%8D%EF%BC%9A%E5%B9%82%E7%AD%89%E6%80%A7%E8%AE%BE%E8%AE%A1"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 消息不重复：幂等性设计</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E6%B6%88%E6%81%AF%E9%A1%BA%E5%BA%8F%E6%80%A7"><span class="nav-number">4.</span> <span class="nav-text">4. 消息顺序性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-Kafka-%E7%9A%84%E9%A1%BA%E5%BA%8F%E4%BF%9D%E8%AF%81%E8%8C%83%E5%9B%B4"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 Kafka 的顺序保证范围</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E4%BF%9D%E8%AF%81%E4%B8%9A%E5%8A%A1%E9%A1%BA%E5%BA%8F%E7%9A%84%E6%96%B9%E6%B3%95"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 保证业务顺序的方法</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E6%B6%88%E6%81%AF%E7%A7%AF%E5%8E%8B%E5%A4%84%E7%90%86"><span class="nav-number">5.</span> <span class="nav-text">5. 消息积压处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E6%B6%88%E6%81%AF%E7%A7%AF%E5%8E%8B%E7%9A%84%E5%8E%9F%E5%9B%A0%E4%B8%8E%E5%BA%94%E5%AF%B9"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 消息积压的原因与应对</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E6%AD%BB%E4%BF%A1%E9%98%9F%E5%88%97%EF%BC%88DLQ%EF%BC%89"><span class="nav-number">6.</span> <span class="nav-text">6. 死信队列（DLQ）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97%E9%80%89%E5%9E%8B"><span class="nav-number">7.</span> <span class="nav-text">7. 消息队列选型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E9%9D%A2%E8%AF%95%E5%B8%B8%E8%A7%81%E8%BF%BD%E9%97%AE"><span class="nav-number">8.</span> <span class="nav-text">8. 面试常见追问</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">9.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">114</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-message-queue/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="系统设计面试：消息队列深度解析（Kafka 设计原理与可靠性保障） | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          系统设计面试：消息队列深度解析（Kafka 设计原理与可靠性保障）
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-13 22:10:00 / Modified: 21:40:44" itemprop="dateCreated datePublished" datetime="2026-06-13T22:10:00+08:00">2026-06-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/System/" itemprop="url" rel="index"><span itemprop="name">System</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>消息队列是分布式系统的”神经中枢”。本文以 Kafka 为核心，从面试视角解析消息队列的<strong>核心设计、可靠性保障、顺序性、幂等性</strong>等关键问题，并给出面试常见追问的参考答案。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="1-为什么需要消息队列？"><a href="#1-为什么需要消息队列？" class="headerlink" title="1. 为什么需要消息队列？"></a>1. 为什么需要消息队列？</h2><p>建立直觉：消息队列解决三类核心问题。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">1. 解耦（Decoupling）</span><br><span class="line">   Before: A 直接调用 B/C/D → A 与下游强依赖</span><br><span class="line">   After:  A → MQ ← B/C/D 各自消费 → A 无需知道下游</span><br><span class="line"></span><br><span class="line">2. 削峰（Peak Shaving）</span><br><span class="line">   秒杀系统：瞬间 100万请求 → MQ 缓冲 → 下游按能力匀速消费</span><br><span class="line"></span><br><span class="line">3. 异步（Async Processing）</span><br><span class="line">   用户下单后：同步返回&quot;下单成功&quot; → 异步发邮件/短信/扣库存</span><br><span class="line">   （主路径 P99 从 500ms 降到 50ms）</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="2-Kafka-核心架构"><a href="#2-Kafka-核心架构" class="headerlink" title="2. Kafka 核心架构"></a>2. Kafka 核心架构</h2><h3 id="2-1-基本概念"><a href="#2-1-基本概念" class="headerlink" title="2.1 基本概念"></a>2.1 基本概念</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">Producer → Topic (Partition 1, 2, 3) → Consumer Group</span><br><span class="line">                                      └─ Consumer 1 → Partition 1</span><br><span class="line">                                      └─ Consumer 2 → Partition 2, 3</span><br><span class="line"></span><br><span class="line">Broker：Kafka 节点，存储 Partition 数据</span><br><span class="line">Topic：消息分类，逻辑概念</span><br><span class="line">Partition：物理存储单元，一个 Partition 是一个有序的消息序列</span><br><span class="line">Offset：消息在 Partition 中的位置（单调递增整数）</span><br><span class="line">Consumer Group：多个 Consumer 协同消费，每个 Partition 只被组内一个 Consumer 消费</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-为什么-Kafka-这么快？"><a href="#2-2-为什么-Kafka-这么快？" class="headerlink" title="2.2 为什么 Kafka 这么快？"></a>2.2 为什么 Kafka 这么快？</h3><p>面试高频题，答案要有技术深度：</p>
+<p><strong>① 顺序写磁盘</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">随机写磁盘：~100 IOPS（磁头寻道开销大）</span><br><span class="line">顺序写磁盘：~100MB/s（接近内存速度）</span><br><span class="line"></span><br><span class="line">Kafka 只做 Append，永远顺序写，磁盘 I/O 不是瓶颈</span><br></pre></td></tr></table></figure>
+
+<p><strong>② 零拷贝（Zero-Copy）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">传统文件传输：</span><br><span class="line">磁盘 → 内核缓冲区 → 用户空间 → Socket 缓冲区 → 网卡</span><br><span class="line">（4次拷贝，2次系统调用）</span><br><span class="line"></span><br><span class="line">Kafka（sendfile 系统调用）：</span><br><span class="line">磁盘 → 内核缓冲区 → 网卡</span><br><span class="line">（2次拷贝，1次系统调用，减少 CPU 参与）</span><br></pre></td></tr></table></figure>
+
+<p><strong>③ 批量压缩</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Producer 端批量发送</span></span><br><span class="line">producer.send(topic, messages=[msg1, msg2, ..., msg1000])</span><br><span class="line"><span class="comment"># Kafka 将一批消息压缩后一次写入（Snappy/LZ4/Gzip）</span></span><br><span class="line"><span class="comment"># 既减少网络传输量，又减少磁盘占用</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>④ Page Cache</strong></p>
+<ul>
+<li>Kafka 不自己管理内存缓存，依赖 OS Page Cache</li>
+<li>Consumer 通常消费最新数据，Page Cache 命中率极高（热数据直接从内存读）</li>
+</ul>
+<hr>
+<h2 id="3-消息可靠性保障"><a href="#3-消息可靠性保障" class="headerlink" title="3. 消息可靠性保障"></a>3. 消息可靠性保障</h2><h3 id="3-1-消息不丢失：三个环节都要保障"><a href="#3-1-消息不丢失：三个环节都要保障" class="headerlink" title="3.1 消息不丢失：三个环节都要保障"></a>3.1 消息不丢失：三个环节都要保障</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Producer → Broker → Consumer</span><br><span class="line">   ↑            ↑         ↑</span><br><span class="line">  ACK        副本同步    手动提交 Offset</span><br></pre></td></tr></table></figure>
+
+<p><strong>Producer 端：ACK 配置</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">producer = KafkaProducer(</span><br><span class="line">    acks=<span class="string">&#x27;all&#x27;</span>,           <span class="comment"># 等待所有 ISR 副本确认（最强保障）</span></span><br><span class="line">    retries=<span class="number">3</span>,            <span class="comment"># 发送失败自动重试</span></span><br><span class="line">    enable_idempotence=<span class="literal">True</span>,  <span class="comment"># 开启幂等（防止重试导致重复）</span></span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>acks 值</th>
+<th>含义</th>
+<th>可靠性</th>
+<th>吞吐量</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>不等 Broker 确认</td>
+<td>最低（可能丢失）</td>
+<td>最高</td>
+</tr>
+<tr>
+<td>1</td>
+<td>等 Leader 确认</td>
+<td>中（Leader 宕机可能丢失）</td>
+<td>中</td>
+</tr>
+<tr>
+<td>all&#x2F;-1</td>
+<td>等所有 ISR 确认</td>
+<td>最高（不丢失）</td>
+<td>最低</td>
+</tr>
+</tbody></table>
+<p><strong>Broker 端：副本机制</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ISR（In-Sync Replicas）：与 Leader 保持同步的副本集合</span><br><span class="line"></span><br><span class="line">当 Follower 落后超过 replica.lag.time.max.ms（默认 10s）时，</span><br><span class="line">从 ISR 中移除。</span><br><span class="line"></span><br><span class="line">min.insync.replicas = 2：</span><br><span class="line">  写入必须至少 2 个副本确认才算成功（配合 acks=all 使用）</span><br></pre></td></tr></table></figure>
+
+<p><strong>Consumer 端：手动提交 Offset</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">consumer = KafkaConsumer(</span><br><span class="line">    enable_auto_commit=<span class="literal">False</span>  <span class="comment"># 关闭自动提交</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> message <span class="keyword">in</span> consumer:</span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        process(message)          <span class="comment"># 先处理</span></span><br><span class="line">        consumer.commit()         <span class="comment"># 处理成功后才提交 Offset</span></span><br><span class="line">    <span class="keyword">except</span> Exception:</span><br><span class="line">        <span class="comment"># 处理失败，不提交 Offset，下次重新消费</span></span><br><span class="line">        handle_error(message)</span><br></pre></td></tr></table></figure>
+
+<p>⚠️ 常见错误：先提交再处理 → 处理失败后消息已被标记消费，导致丢失。</p>
+<h3 id="3-2-消息不重复：幂等性设计"><a href="#3-2-消息不重复：幂等性设计" class="headerlink" title="3.2 消息不重复：幂等性设计"></a>3.2 消息不重复：幂等性设计</h3><p>开启 Kafka Producer 幂等后，内部通过 <code>(ProducerID, PartitionID, SequenceNumber)</code> 去重，同一消息发送多次只写一次。</p>
+<p>但 Consumer 端仍可能重复消费（Consumer 崩溃后 Offset 未提交），业务层必须做幂等处理：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">process_order</span>(<span class="params">order_id, amount</span>):</span><br><span class="line">    <span class="comment"># 方法一：数据库唯一索引（最可靠）</span></span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        db.execute(</span><br><span class="line">            <span class="string">&quot;INSERT INTO orders (id, amount) VALUES (?, ?)&quot;</span>,</span><br><span class="line">            order_id, amount</span><br><span class="line">        )</span><br><span class="line">    <span class="keyword">except</span> UniqueViolationError:</span><br><span class="line">        logger.info(<span class="string">f&quot;Order <span class="subst">&#123;order_id&#125;</span> already processed, skip&quot;</span>)</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 方法二：Redis 去重</span></span><br><span class="line">    <span class="keyword">if</span> redis.setnx(<span class="string">f&quot;processed:<span class="subst">&#123;order_id&#125;</span>&quot;</span>, <span class="string">&quot;1&quot;</span>):</span><br><span class="line">        redis.expire(<span class="string">f&quot;processed:<span class="subst">&#123;order_id&#125;</span>&quot;</span>, <span class="number">86400</span>)</span><br><span class="line">        do_process(order_id, amount)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        logger.info(<span class="string">f&quot;Duplicate message, skip&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="4-消息顺序性"><a href="#4-消息顺序性" class="headerlink" title="4. 消息顺序性"></a>4. 消息顺序性</h2><h3 id="4-1-Kafka-的顺序保证范围"><a href="#4-1-Kafka-的顺序保证范围" class="headerlink" title="4.1 Kafka 的顺序保证范围"></a>4.1 Kafka 的顺序保证范围</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Kafka 只保证单 Partition 内有序，不保证全局有序。</span><br><span class="line"></span><br><span class="line">Topic: orders（3个 Partition）</span><br><span class="line">  Partition 0: order-A→order-C→order-E（内部有序）</span><br><span class="line">  Partition 1: order-B→order-D（内部有序）</span><br><span class="line">  Partition 2: order-F（内部有序）</span><br><span class="line"></span><br><span class="line">跨 Partition 无序：无法保证 order-A 在 order-B 之前被处理</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-保证业务顺序的方法"><a href="#4-2-保证业务顺序的方法" class="headerlink" title="4.2 保证业务顺序的方法"></a>4.2 保证业务顺序的方法</h3><p><strong>同一业务实体路由到同一 Partition</strong>：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 按 order_id 取模，同一订单的所有消息进同一 Partition</span></span><br><span class="line">producer.send(</span><br><span class="line">    topic=<span class="string">&#x27;orders&#x27;</span>,</span><br><span class="line">    key=<span class="built_in">str</span>(order_id).encode(),  <span class="comment"># Kafka 按 key hash 选 Partition</span></span><br><span class="line">    value=message</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p><strong>单 Partition + 单 Consumer</strong>（极端有序需求）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Topic 只配 1 个 Partition → 吞吐量受单节点限制，一般不推荐</span><br></pre></td></tr></table></figure>
+
+<p><strong>应用层排序</strong>：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Consumer 消费后，按 sequence_number 排序再处理</span></span><br><span class="line">messages.sort(key=<span class="keyword">lambda</span> m: m.sequence_number)</span><br><span class="line"><span class="keyword">for</span> msg <span class="keyword">in</span> messages:</span><br><span class="line">    process(msg)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="5-消息积压处理"><a href="#5-消息积压处理" class="headerlink" title="5. 消息积压处理"></a>5. 消息积压处理</h2><h3 id="5-1-消息积压的原因与应对"><a href="#5-1-消息积压的原因与应对" class="headerlink" title="5.1 消息积压的原因与应对"></a>5.1 消息积压的原因与应对</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">积压场景：Consumer 消费速度 &lt; Producer 生产速度</span><br><span class="line"></span><br><span class="line">诊断：</span><br><span class="line">  lag = latest_offset - committed_offset</span><br><span class="line"></span><br><span class="line">lag &gt; 阈值时：</span><br><span class="line">  1. 查看 Consumer 的处理耗时（是否有慢查询/外部调用）</span><br><span class="line">  2. 查看 Consumer 的 CPU/内存/线程数</span><br><span class="line">  3. 查看 Partition 数与 Consumer 数的比例</span><br></pre></td></tr></table></figure>
+
+<p><strong>紧急扩容方案</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">方案一：增加 Consumer 实例</span><br><span class="line">  Consumer 数 ≤ Partition 数时，增加实例直接生效</span><br><span class="line">  Consumer 数 &gt; Partition 数时，多余实例空闲（无效）</span><br><span class="line">  → 扩容前先扩 Partition 数（但注意顺序性影响）</span><br><span class="line"></span><br><span class="line">方案二：临时提高消费速度</span><br><span class="line">  - 将耗时操作改为异步（如写 DB → 先写内存队列）</span><br><span class="line">  - 批量消费（每次 poll 500条而非1条）</span><br><span class="line"></span><br><span class="line">方案三：消息转移（最后手段）</span><br><span class="line">  - 新建一个高 Partition 数的 Topic</span><br><span class="line">  - 把积压消息迁移过去，用更多 Consumer 消费</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="6-死信队列（DLQ）"><a href="#6-死信队列（DLQ）" class="headerlink" title="6. 死信队列（DLQ）"></a>6. 死信队列（DLQ）</h2><p>消息消费失败时的兜底机制：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">MAX_RETRY = <span class="number">3</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">consume</span>(<span class="params">message</span>):</span><br><span class="line">    retry_count = message.headers.get(<span class="string">&#x27;retry-count&#x27;</span>, <span class="number">0</span>)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        process(message)</span><br><span class="line">    <span class="keyword">except</span> Exception <span class="keyword">as</span> e:</span><br><span class="line">        <span class="keyword">if</span> retry_count &lt; MAX_RETRY:</span><br><span class="line">            <span class="comment"># 重新入队，增加重试计数和延迟</span></span><br><span class="line">            delay = <span class="number">2</span> ** retry_count * <span class="number">1000</span>  <span class="comment"># 指数退避 1s/2s/4s</span></span><br><span class="line">            producer.send(</span><br><span class="line">                topic=<span class="string">f&#x27;<span class="subst">&#123;message.topic&#125;</span>-retry&#x27;</span>,</span><br><span class="line">                value=message.value,</span><br><span class="line">                headers=&#123;<span class="string">&#x27;retry-count&#x27;</span>: retry_count + <span class="number">1</span>&#125;,</span><br><span class="line">                delay_ms=delay</span><br><span class="line">            )</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="comment"># 超过最大重试，进死信队列</span></span><br><span class="line">            producer.send(</span><br><span class="line">                topic=<span class="string">f&#x27;<span class="subst">&#123;message.topic&#125;</span>-dlq&#x27;</span>,</span><br><span class="line">                value=message.value,</span><br><span class="line">                headers=&#123;<span class="string">&#x27;error&#x27;</span>: <span class="built_in">str</span>(e), <span class="string">&#x27;original-topic&#x27;</span>: message.topic&#125;</span><br><span class="line">            )</span><br></pre></td></tr></table></figure>
+
+<p>DLQ 中的消息可以：</p>
+<ul>
+<li>人工检查并修复后重发</li>
+<li>触发告警通知开发人员</li>
+<li>定期自动重处理（如次日凌晨重试）</li>
+</ul>
+<hr>
+<h2 id="7-消息队列选型"><a href="#7-消息队列选型" class="headerlink" title="7. 消息队列选型"></a>7. 消息队列选型</h2><table>
+<thead>
+<tr>
+<th></th>
+<th>Kafka</th>
+<th>RabbitMQ</th>
+<th>RocketMQ</th>
+<th>Pulsar</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>吞吐量</td>
+<td>极高（百万&#x2F;s）</td>
+<td>中（万&#x2F;s）</td>
+<td>高（十万&#x2F;s）</td>
+<td>极高</td>
+</tr>
+<tr>
+<td>延迟</td>
+<td>毫秒级</td>
+<td>微秒级</td>
+<td>毫秒级</td>
+<td>毫秒级</td>
+</tr>
+<tr>
+<td>顺序性</td>
+<td>Partition 级</td>
+<td>队列级</td>
+<td>队列级</td>
+<td>Partition 级</td>
+</tr>
+<tr>
+<td>延迟消息</td>
+<td>不原生支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>消息回溯</td>
+<td>支持（按 Offset）</td>
+<td>不支持</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>日志&#x2F;流处理&#x2F;事件溯源</td>
+<td>任务队列&#x2F;RPC</td>
+<td>电商&#x2F;金融</td>
+<td>云原生&#x2F;多租户</td>
+</tr>
+</tbody></table>
+<p><strong>面试选型建议</strong>：</p>
+<ul>
+<li>日志收集、埋点、大数据管道 → <strong>Kafka</strong></li>
+<li>任务调度、异步任务、微服务通信 → <strong>RabbitMQ &#x2F; RocketMQ</strong></li>
+<li>云原生、需要多租户隔离 → <strong>Pulsar</strong></li>
+</ul>
+<hr>
+<h2 id="8-面试常见追问"><a href="#8-面试常见追问" class="headerlink" title="8. 面试常见追问"></a>8. 面试常见追问</h2><p><strong>Q: Kafka 如何保证 Exactly-Once 语义？</strong></p>
+<blockquote>
+<p>A: Kafka 0.11+ 支持事务。Producer 开启 <code>enable.idempotence=True</code> + <code>transactional.id</code>，配合 Consumer <code>isolation.level=read_committed</code>，可实现端到端 Exactly-Once。但跨系统（如 Kafka → DB）的 Exactly-Once 需要业务层幂等配合。</p>
+</blockquote>
+<p><strong>Q: Kafka 的 Rebalance 会有什么影响？</strong></p>
+<blockquote>
+<p>A: Rebalance 期间所有消费者暂停消费（Stop-the-World），可能导致消息积压和延迟。触发原因：Consumer 加入&#x2F;退出&#x2F;崩溃、Topic 分区数变化。优化：增大 <code>session.timeout.ms</code>，使用静态成员（<code>group.instance.id</code>）避免不必要的 Rebalance。</p>
+</blockquote>
+<p><strong>Q: 如何实现延迟消息？</strong></p>
+<blockquote>
+<p>A: Kafka 不原生支持延迟消息。常见做法：① 使用 RocketMQ（原生支持 18个延迟级别）；② 基于时间轮实现延迟队列（Redis ZSET 存储消息，score 为触发时间戳，定时扫描到期消息推入正式 Topic）；③ 业务层 DB 存储延迟消息，定时任务扫描推送。</p>
+</blockquote>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">消息队列核心保障三要素：</span><br><span class="line"></span><br><span class="line">不丢失 → Producer acks=all + min.insync.replicas + Consumer 手动提交</span><br><span class="line">不重复 → Producer 幂等 + Consumer 业务幂等（DB 唯一索引 / Redis setnx）</span><br><span class="line">有顺序 → 同 Key 路由同 Partition + 单 Consumer 处理</span><br><span class="line"></span><br><span class="line">积压应对 → 增加 Consumer（先扩 Partition） + 批量消费 + 异步处理</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>面试核心</strong>：背完 Kafka 高性能原理（顺序写+零拷贝+Page Cache）和三个环节可靠性保障，再结合实际项目经验（处理过什么积压&#x2F;重复消费问题），面试基本稳了。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Performance/" rel="tag"># Performance</a>
+              <a href="/tags/Cloud/" rel="tag"># Cloud</a>
+              <a href="/tags/Distributed-Systems/" rel="tag"># Distributed Systems</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/13/2026-06-13-system-design-cache-architecture/" rel="prev" title="系统设计面试：分布式缓存架构设计（缓存雪崩/穿透/击穿与高可用方案）">
+                  <i class="fa fa-angle-left"></i> 系统设计面试：分布式缓存架构设计（缓存雪崩/穿透/击穿与高可用方案）
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/13/2026-06-13-system-design-rate-limiting/" rel="next" title="系统设计面试：分布式限流系统设计（算法原理与工程实现）">
+                  系统设计面试：分布式限流系统设计（算法原理与工程实现） <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
