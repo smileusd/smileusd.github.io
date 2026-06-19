@@ -19,18 +19,18 @@
 
 <script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
 
-    <meta name="description" content="缓存是系统设计面试中出现频率最高的话题之一。本文完整梳理分布式缓存的核心设计：缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构，以及面试中的常见追问答法。">
+    <meta name="description" content="本文完整梳理分布式缓存的核心设计：缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构，以及各方案背后的工程权衡。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="系统设计：分布式缓存架构设计（缓存雪崩&#x2F;穿透&#x2F;击穿与高可用方案）">
 <meta property="og:url" content="https://smileusd.github.io/2026/06/13/2026-06-13-system-design-cache-architecture/index.html">
 <meta property="og:site_name" content="Hexo">
-<meta property="og:description" content="缓存是系统设计面试中出现频率最高的话题之一。本文完整梳理分布式缓存的核心设计：缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构，以及面试中的常见追问答法。">
+<meta property="og:description" content="本文完整梳理分布式缓存的核心设计：缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构，以及各方案背后的工程权衡。">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-06-13T14:00:00.000Z">
-<meta property="article:modified_time" content="2026-06-14T10:12:03.362Z">
+<meta property="article:modified_time" content="2026-06-18T16:53:53.435Z">
 <meta property="article:author" content="smileusd">
-<meta property="article:tag" content="Debugging">
 <meta property="article:tag" content="Performance">
+<meta property="article:tag" content="Debugging">
 <meta property="article:tag" content="Distributed Systems">
 <meta name="twitter:card" content="summary">
 
@@ -107,7 +107,7 @@
       <div class="sidebar-panel-container">
         <!--noindex-->
         <div class="post-toc-wrap sidebar-panel">
-            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E7%BC%93%E5%AD%98%EF%BC%9F"><span class="nav-number">1.</span> <span class="nav-text">1. 为什么需要缓存？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%E9%80%89%E5%9E%8B"><span class="nav-number">2.</span> <span class="nav-text">2. 缓存策略选型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-Cache-Aside%EF%BC%88%E6%97%81%E8%B7%AF%E7%BC%93%E5%AD%98%EF%BC%89%E2%80%94-%E6%9C%80%E5%B8%B8%E7%94%A8"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 Cache-Aside（旁路缓存）— 最常用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Write-Through%EF%BC%88%E5%86%99%E7%A9%BF%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 Write-Through（写穿）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-Write-Behind%EF%BC%88%E5%86%99%E5%9B%9E%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 Write-Behind（写回）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%89%E5%A4%A7%E7%BB%8F%E5%85%B8%E9%97%AE%E9%A2%98"><span class="nav-number">3.</span> <span class="nav-text">3. 三大经典问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E7%BC%93%E5%AD%98%E9%9B%AA%E5%B4%A9%EF%BC%88Cache-Avalanche%EF%BC%89"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 缓存雪崩（Cache Avalanche）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F%EF%BC%88Cache-Penetration%EF%BC%89"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 缓存穿透（Cache Penetration）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF%EF%BC%88Cache-Breakdown-Hotspot%EF%BC%89"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 缓存击穿（Cache Breakdown&#x2F;Hotspot）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-number">4.</span> <span class="nav-text">4. 缓存一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%AF%BB%E5%86%99%E4%B8%80%E8%87%B4%E6%80%A7%E9%97%AE%E9%A2%98"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 读写一致性问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%BB%B6%E8%BF%9F%E5%8F%8C%E5%88%A0"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 延迟双删</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%BC%BA%E4%B8%80%E8%87%B4%E6%96%B9%E6%A1%88%EF%BC%9ACanal-MQ"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 强一致方案：Canal + MQ</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Redis-%E9%AB%98%E5%8F%AF%E7%94%A8%E6%9E%B6%E6%9E%84"><span class="nav-number">5.</span> <span class="nav-text">5. Redis 高可用架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%B8%89%E7%A7%8D%E9%83%A8%E7%BD%B2%E6%A8%A1%E5%BC%8F%E5%AF%B9%E6%AF%94"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 三种部署模式对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Redis-Sentinel%EF%BC%88%E5%93%A8%E5%85%B5%EF%BC%89"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 Redis Sentinel（哨兵）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-Redis-Cluster"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 Redis Cluster</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E7%83%AD%E7%82%B9-Key-%E4%B8%93%E9%A1%B9%E5%A4%84%E7%90%86"><span class="nav-number">6.</span> <span class="nav-text">6. 热点 Key 专项处理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E9%9D%A2%E8%AF%95%E5%B8%B8%E8%A7%81%E8%BF%BD%E9%97%AE"><span class="nav-number">7.</span> <span class="nav-text">7. 面试常见追问</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E7%BC%93%E5%AD%98%EF%BC%9F"><span class="nav-number">1.</span> <span class="nav-text">1. 为什么需要缓存？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%E9%80%89%E5%9E%8B"><span class="nav-number">2.</span> <span class="nav-text">2. 缓存策略选型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-Cache-Aside%EF%BC%88%E6%97%81%E8%B7%AF%E7%BC%93%E5%AD%98%EF%BC%89%E2%80%94-%E6%9C%80%E5%B8%B8%E7%94%A8"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 Cache-Aside（旁路缓存）— 最常用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Write-Through%EF%BC%88%E5%86%99%E7%A9%BF%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 Write-Through（写穿）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-Write-Behind%EF%BC%88%E5%86%99%E5%9B%9E%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 Write-Behind（写回）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%89%E5%A4%A7%E7%BB%8F%E5%85%B8%E9%97%AE%E9%A2%98"><span class="nav-number">3.</span> <span class="nav-text">3. 三大经典问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E7%BC%93%E5%AD%98%E9%9B%AA%E5%B4%A9%EF%BC%88Cache-Avalanche%EF%BC%89"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 缓存雪崩（Cache Avalanche）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F%EF%BC%88Cache-Penetration%EF%BC%89"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 缓存穿透（Cache Penetration）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF%EF%BC%88Cache-Breakdown-Hotspot%EF%BC%89"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 缓存击穿（Cache Breakdown&#x2F;Hotspot）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-number">4.</span> <span class="nav-text">4. 缓存一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%AF%BB%E5%86%99%E4%B8%80%E8%87%B4%E6%80%A7%E9%97%AE%E9%A2%98"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 读写一致性问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%BB%B6%E8%BF%9F%E5%8F%8C%E5%88%A0"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 延迟双删</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%BC%BA%E4%B8%80%E8%87%B4%E6%96%B9%E6%A1%88%EF%BC%9ACanal-MQ"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 强一致方案：Canal + MQ</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Redis-%E9%AB%98%E5%8F%AF%E7%94%A8%E6%9E%B6%E6%9E%84"><span class="nav-number">5.</span> <span class="nav-text">5. Redis 高可用架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%B8%89%E7%A7%8D%E9%83%A8%E7%BD%B2%E6%A8%A1%E5%BC%8F%E5%AF%B9%E6%AF%94"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 三种部署模式对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Redis-Sentinel%EF%BC%88%E5%93%A8%E5%85%B5%EF%BC%89"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 Redis Sentinel（哨兵）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-Redis-Cluster"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 Redis Cluster</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E7%83%AD%E7%82%B9-Key-%E4%B8%93%E9%A1%B9%E5%A4%84%E7%90%86"><span class="nav-number">6.</span> <span class="nav-text">6. 热点 Key 专项处理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98%E8%A7%A3%E6%9E%90"><span class="nav-number">7.</span> <span class="nav-text">7. 常见问题解析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">总结</span></a></li></ol></div>
         </div>
         <!--/noindex-->
 
@@ -194,7 +194,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-06-14 18:12:03" itemprop="dateModified" datetime="2026-06-14T18:12:03+08:00">2026-06-14</time>
+      <time title="Modified: 2026-06-19 00:53:53" itemprop="dateModified" datetime="2026-06-19T00:53:53+08:00">2026-06-19</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -215,11 +215,11 @@
     
     
     
-    <div class="post-body" itemprop="articleBody"><p>缓存是系统设计面试中出现频率最高的话题之一。本文完整梳理分布式缓存的核心设计：<strong>缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构</strong>，以及面试中的常见追问答法。</p>
+    <div class="post-body" itemprop="articleBody"><p>本文完整梳理分布式缓存的核心设计：<strong>缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构</strong>，以及各方案背后的工程权衡。</p>
 <span id="more"></span>
 
 <hr>
-<h2 id="1-为什么需要缓存？"><a href="#1-为什么需要缓存？" class="headerlink" title="1. 为什么需要缓存？"></a>1. 为什么需要缓存？</h2><p>面试开场先建立直觉：</p>
+<h2 id="1-为什么需要缓存？"><a href="#1-为什么需要缓存？" class="headerlink" title="1. 为什么需要缓存？"></a>1. 为什么需要缓存？</h2><p>先建立直觉：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">没有缓存：</span><br><span class="line">  User → API Server → Database（磁盘 I/O，毫秒级）</span><br><span class="line"></span><br><span class="line">有缓存：</span><br><span class="line">  User → API Server → Redis（内存，微秒级）</span><br><span class="line">                    ↓ Cache Miss</span><br><span class="line">                    → Database → 写回 Redis</span><br></pre></td></tr></table></figure>
 
 <p><strong>典型收益</strong>：</p>
@@ -245,7 +245,7 @@
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Write: App → Cache（立即返回）→ 异步 → DB</span><br></pre></td></tr></table></figure>
 
 <p>优点：写性能极高；缺点：有数据丢失风险（缓存宕机前未落盘）</p>
-<p><strong>面试选型口诀</strong>：</p>
+<p><strong>选型原则</strong>：</p>
 <ul>
 <li>读多写少 → Cache-Aside</li>
 <li>写多读少、强一致 → Write-Through</li>
@@ -384,7 +384,7 @@
 
 <p>读时随机选一个分片，写时更新所有分片，将单 Key 压力分散到 100 个 Key。</p>
 <hr>
-<h2 id="7-面试常见追问"><a href="#7-面试常见追问" class="headerlink" title="7. 面试常见追问"></a>7. 面试常见追问</h2><p><strong>Q: 如何发现热点 Key？</strong></p>
+<h2 id="7-常见问题解析"><a href="#7-常见问题解析" class="headerlink" title="7. 常见问题解析"></a>7. 常见问题解析</h2><p><strong>Q: 如何发现热点 Key？</strong></p>
 <blockquote>
 <p>A: Redis 4.0+ 支持 <code>redis-cli --hotkeys</code> 命令（基于 LFU 策略）；监控各 Key 的访问频率；也可在网关层统计请求 Key 分布。</p>
 </blockquote>
@@ -436,7 +436,7 @@
 </tr>
 </tbody></table>
 <blockquote>
-<p><strong>面试核心</strong>：缓存问题的本质是”速度（内存）换一致性（磁盘是真相来源）”，每个方案都是在这个 Trade-off 上做取舍。</p>
+<p><strong>核心理念</strong>：缓存问题的本质是”速度（内存）换一致性（磁盘是真相来源）”，每个方案都是在这个 Trade-off 上做取舍。</p>
 </blockquote>
 
     </div>
@@ -447,8 +447,8 @@
 
     <footer class="post-footer">
           <div class="post-tags">
-              <a href="/tags/Debugging/" rel="tag"># Debugging</a>
               <a href="/tags/Performance/" rel="tag"># Performance</a>
+              <a href="/tags/Debugging/" rel="tag"># Debugging</a>
               <a href="/tags/Distributed-Systems/" rel="tag"># Distributed Systems</a>
           </div>
 
