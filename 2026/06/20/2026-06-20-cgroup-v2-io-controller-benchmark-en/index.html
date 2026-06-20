@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Systematic benchmarks of the Cgroup V2 IO controller on production-grade Kubernetes nodes, covering io.max (hard bandwidth&#x2F;IOPS limits), io.weight (proportional scheduling), and io.cost.qos (late">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cgroup V2 IO Controller Benchmarks: io.max, io.weight, and iocost in Practice">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark-en/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Systematic benchmarks of the Cgroup V2 IO controller on production-grade Kubernetes nodes, covering io.max (hard bandwidth&#x2F;IOPS limits), io.weight (proportional scheduling), and io.cost.qos (late">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-20T04:30:00.000Z">
+<meta property="article:modified_time" content="2026-06-20T12:51:28.570Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="Kernel">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark-en/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark-en/","path":"2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark-en/","title":"Cgroup V2 IO Controller Benchmarks: io.max, io.weight, and iocost in Practice"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Cgroup V2 IO Controller Benchmarks: io.max, io.weight, and iocost in Practice | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Test-Environment"><span class="nav-number">1.</span> <span class="nav-text">Test Environment</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Baseline-Performance-No-Throttling"><span class="nav-number">2.</span> <span class="nav-text">Baseline Performance (No Throttling)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#io-max-Throttling-Tests-Case-1"><span class="nav-number">3.</span> <span class="nav-text">io.max Throttling Tests (Case 1)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Cross-Device-and-Multi-Volume-Tests-Case-2"><span class="nav-number">4.</span> <span class="nav-text">Cross-Device and Multi-Volume Tests (Case 2)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#io-weight-Proportional-Scheduling-Tests-Case-3"><span class="nav-number">5.</span> <span class="nav-text">io.weight Proportional Scheduling Tests (Case 3)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#iocost-QoS-Precision-Control-Tests-Case-6"><span class="nav-number">6.</span> <span class="nav-text">iocost QoS Precision Control Tests (Case 6)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Three-Volume-Weight-Tests-Case-7"><span class="nav-number">7.</span> <span class="nav-text">Three-Volume Weight Tests (Case 7)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Large-Scale-Pod-Tests-Case-5-9"><span class="nav-number">8.</span> <span class="nav-text">Large-Scale Pod Tests (Case 5 &amp; 9)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Case-5-IO-Scheduler-Comparison"><span class="nav-number">8.1.</span> <span class="nav-text">Case 5: IO Scheduler Comparison</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Case-9-Container-Count-vs-IO-Throughput"><span class="nav-number">8.2.</span> <span class="nav-text">Case 9: Container Count vs IO Throughput</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Summary-and-Recommendations"><span class="nav-number">9.</span> <span class="nav-text">Summary and Recommendations</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">124</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark-en/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Cgroup V2 IO Controller Benchmarks: io.max, io.weight, and iocost in Practice | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Cgroup V2 IO Controller Benchmarks: io.max, io.weight, and iocost in Practice
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-20 12:30:00 / Modified: 20:51:28" itemprop="dateCreated datePublished" datetime="2026-06-20T12:30:00+08:00">2026-06-20</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux-Kernel</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>Systematic benchmarks of the Cgroup V2 IO controller on production-grade Kubernetes nodes, covering <code>io.max</code> (hard bandwidth&#x2F;IOPS limits), <code>io.weight</code> (proportional scheduling), and <code>io.cost.qos</code> (latency-based QoS), across Direct IO vs Buffer IO, raw disk vs LVM, and ext4 vs xfs combinations.</p>
+<span id="more"></span>
+
+<h2 id="Test-Environment"><a href="#Test-Environment" class="headerlink" title="Test Environment"></a>Test Environment</h2><ul>
+<li><strong>OS</strong>: Ubuntu 22.04 LTS (kernel 5.15)</li>
+<li><strong>Kubernetes</strong>: v1.23</li>
+<li><strong>Storage</strong>: 3 × 1.7T SSDs (sda&#x2F;sdb&#x2F;sdc), LVM VG spanning all three disks</li>
+<li><strong>Tools</strong>: fio + custom IO statistics scripts</li>
+</ul>
+<p>Disk layout:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">sda  1.7T</span><br><span class="line"> └─sda4  1.3T  → LVM PV</span><br><span class="line">sdb  1.7T</span><br><span class="line"> └─sdb1  1.7T  → LVM PV</span><br><span class="line">sdc  1.7T</span><br><span class="line"> └─sdc1  1.7T  → LVM PV</span><br><span class="line"></span><br><span class="line">VG: vg10000 (composed of sda4 + sdb1 + sdc1)</span><br></pre></td></tr></table></figure>
+
+<p>Base fio command:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">fio -filename=/mnt/test/xfs/testfile \</span><br><span class="line">    -direct=0 -iodepth 64 -thread -rw=write \</span><br><span class="line">    -ioengine=libaio -bs=4k -size=20G \</span><br><span class="line">    -numjobs=1 -group_reporting --runtime=100 \</span><br><span class="line">    -name=mytest</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Baseline-Performance-No-Throttling"><a href="#Baseline-Performance-No-Throttling" class="headerlink" title="Baseline Performance (No Throttling)"></a>Baseline Performance (No Throttling)</h2><table>
+<thead>
+<tr>
+<th>4K Sequential R&#x2F;W</th>
+<th>Read BW</th>
+<th>Read IOPS</th>
+<th>Write BW</th>
+<th>Write IOPS</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Ext4 Direct</td>
+<td>359 MB&#x2F;s</td>
+<td>89,887</td>
+<td>391 MB&#x2F;s</td>
+<td>97,825</td>
+</tr>
+<tr>
+<td>Ext4 Buffer</td>
+<td>336 MB&#x2F;s</td>
+<td>84,110</td>
+<td>728 MB&#x2F;s</td>
+<td>182,086</td>
+</tr>
+<tr>
+<td>XFS Direct</td>
+<td>360 MB&#x2F;s</td>
+<td>89,997</td>
+<td>400 MB&#x2F;s</td>
+<td>100,005</td>
+</tr>
+<tr>
+<td>XFS Buffer</td>
+<td>300 MB&#x2F;s</td>
+<td>74,910</td>
+<td>780 MB&#x2F;s</td>
+<td>194,982</td>
+</tr>
+</tbody></table>
+<p>Buffer IO write bandwidth is significantly higher than Direct IO due to page cache write aggregation.</p>
+<hr>
+<h2 id="io-max-Throttling-Tests-Case-1"><a href="#io-max-Throttling-Tests-Case-1" class="headerlink" title="io.max Throttling Tests (Case 1)"></a>io.max Throttling Tests (Case 1)</h2><p>Single volume, single thread, <code>io.max</code> applied to a single device.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>IO Type</th>
+<th>FS</th>
+<th>Layer</th>
+<th>Config</th>
+<th>Actual Write BW</th>
+<th>Actual Write IOPS</th>
+<th>Disk Util</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1-1</td>
+<td>Direct</td>
+<td>ext4</td>
+<td>raw</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>21,113</td>
+<td>31%</td>
+</tr>
+<tr>
+<td>1-2</td>
+<td>Direct</td>
+<td>xfs</td>
+<td>raw</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>13,382</td>
+<td>28%</td>
+</tr>
+<tr>
+<td>1-3</td>
+<td>Buffer</td>
+<td>ext4</td>
+<td>raw</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>90</td>
+<td>25%</td>
+</tr>
+<tr>
+<td>1-4</td>
+<td>Buffer</td>
+<td>xfs</td>
+<td>raw</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>90</td>
+<td>25%</td>
+</tr>
+<tr>
+<td>1-5</td>
+<td>Direct</td>
+<td>xfs</td>
+<td>raw</td>
+<td>wiops&#x3D;1000</td>
+<td>4 MB&#x2F;s</td>
+<td>1,000</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>1-6</td>
+<td>Buffer</td>
+<td>xfs</td>
+<td>raw</td>
+<td>wiops&#x3D;10</td>
+<td>12.6 MB&#x2F;s</td>
+<td>14.5</td>
+<td>3%</td>
+</tr>
+<tr>
+<td>1-7</td>
+<td>Direct</td>
+<td>xfs</td>
+<td>LVM</td>
+<td>wiops&#x3D;1000</td>
+<td>0.4 MB&#x2F;s</td>
+<td>100</td>
+<td>4%</td>
+</tr>
+<tr>
+<td>1-8</td>
+<td>Buffer</td>
+<td>xfs</td>
+<td>LVM</td>
+<td>wiops&#x3D;100</td>
+<td>475 MB&#x2F;s</td>
+<td>2</td>
+<td>1.6%</td>
+</tr>
+<tr>
+<td>1-9</td>
+<td>Direct</td>
+<td>xfs</td>
+<td>LVM</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>25,570</td>
+<td>28%</td>
+</tr>
+<tr>
+<td>1-10</td>
+<td>Buffer</td>
+<td>xfs</td>
+<td>LVM</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>2</td>
+<td>20%</td>
+</tr>
+</tbody></table>
+<p><strong>Key Finding: Buffer IO IOPS throttling is inaccurate</strong></p>
+<p>Case 1-8 (Buffer IO, LVM, wiops&#x3D;100): actual IOPS was only 2, but bandwidth hit 475 MB&#x2F;s — far exceeding the intent. Case 1-6 is similar (wiops&#x3D;10, actual 14.5 IOPS).</p>
+<p><strong>Reason</strong>: Buffer IO dirty page writeback uses a block size determined by the kernel’s writeback aggregation policy, not the 4K block size set in fio. With sufficient memory, many small writes are coalesced into large writes, so actual IOPS drops far below the configured limit while bandwidth may exceed it. With less memory, writeback frequency increases and block sizes are smaller.</p>
+<p><strong>Conclusion</strong>: <code>io.max</code> BPS throttling (<code>wbps</code>) is accurate for Buffer IO. IOPS throttling (<code>wiops</code>) is unreliable for Buffer IO.</p>
+<hr>
+<h2 id="Cross-Device-and-Multi-Volume-Tests-Case-2"><a href="#Cross-Device-and-Multi-Volume-Tests-Case-2" class="headerlink" title="Cross-Device and Multi-Volume Tests (Case 2)"></a>Cross-Device and Multi-Volume Tests (Case 2)</h2><table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Config</th>
+<th>Device 1 Actual</th>
+<th>Device 2 Actual</th>
+<th>LVM Total</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>2-1</td>
+<td>dev1&#x3D;100MB&#x2F;s, dev2&#x3D;unlimited</td>
+<td>104 MB&#x2F;s, 83 IOPS</td>
+<td>489 MB&#x2F;s, 446 IOPS</td>
+<td>IOPS fluctuates [0,100]</td>
+</tr>
+<tr>
+<td>2-2</td>
+<td>both devices 100MB&#x2F;s</td>
+<td>100 MB&#x2F;s, 100 IOPS</td>
+<td>100 MB&#x2F;s, 100 IOPS</td>
+<td>100 MB&#x2F;s, [5,70] IOPS</td>
+</tr>
+</tbody></table>
+<p>Throttling on LVM volumes spanning multiple devices is applied at the underlying device granularity. LVM-level IOPS fluctuates due to striping across devices.</p>
+<hr>
+<h2 id="io-weight-Proportional-Scheduling-Tests-Case-3"><a href="#io-weight-Proportional-Scheduling-Tests-Case-3" class="headerlink" title="io.weight Proportional Scheduling Tests (Case 3)"></a>io.weight Proportional Scheduling Tests (Case 3)</h2><p>Two LVM volumes, two fio threads, testing <code>io.weight</code> proportional scheduling.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Scenario</th>
+<th>Volume 1</th>
+<th>Volume 2</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3-1.1</td>
+<td>Buffer, no limit</td>
+<td>250 MB&#x2F;s</td>
+<td>250 MB&#x2F;s</td>
+<td>500 MB&#x2F;s, 100% util</td>
+</tr>
+<tr>
+<td>3-1.2</td>
+<td>Direct, no limit</td>
+<td>220 MB&#x2F;s</td>
+<td>220 MB&#x2F;s</td>
+<td>440 MB&#x2F;s, 100% util</td>
+</tr>
+<tr>
+<td>3-2</td>
+<td>Direct, weight 100:300, user qos</td>
+<td>206 MB&#x2F;s</td>
+<td>209 MB&#x2F;s</td>
+<td>420 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>3-4</td>
+<td>Buffer, weight 100:300, user qos</td>
+<td>129 MB&#x2F;s</td>
+<td>368 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>3-6</td>
+<td>Direct, weight 100:900, user qos</td>
+<td>153 MB&#x2F;s</td>
+<td>155 MB&#x2F;s</td>
+<td>304 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>3-8</td>
+<td>Buffer, weight 100:900, user qos</td>
+<td>57 MB&#x2F;s</td>
+<td>442 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<p><strong>Key Finding: Direct IO io.weight is ineffective under default iocost.qos</strong></p>
+<p>Cases 3-2 and 3-6: weights set to 100:300 and 100:900, but actual bandwidth is nearly equal (~206 vs ~209, ~153 vs ~155).</p>
+<p><strong>Reason</strong>: The default <code>io.cost.qos</code> automatically adjusts weights based on latency (<code>ctrl=auto</code>). When Direct IO saturates the disk at 100% utilization, the kernel overrides user-configured weights to meet latency targets.</p>
+<p>Buffer IO weight scheduling works correctly (3-4: 129 vs 368 ≈ 1:2.8; 3-8: 57 vs 442 ≈ 1:7.8), close to the expected 1:3 and 1:9 ratios.</p>
+<p><strong>Conclusion</strong>: <code>io.weight</code> works well for Buffer IO. For Direct IO at full disk saturation, iocost automatic adjustment must be disabled (set <code>min=max=100</code>) for weights to take effect.</p>
+<hr>
+<h2 id="iocost-QoS-Precision-Control-Tests-Case-6"><a href="#iocost-QoS-Precision-Control-Tests-Case-6" class="headerlink" title="iocost QoS Precision Control Tests (Case 6)"></a>iocost QoS Precision Control Tests (Case 6)</h2><p>Disable iocost auto-adjustment (<code>min=max=100</code>), two volumes at weight 100:900.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Additional Config</th>
+<th>Volume 1</th>
+<th>Volume 2</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>6-1</td>
+<td>No io.max</td>
+<td>22 MB&#x2F;s, 83% util</td>
+<td>309 MB&#x2F;s, 85% util</td>
+<td>322 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>6-2</td>
+<td>No io.max, weight 100:300</td>
+<td>127 MB&#x2F;s</td>
+<td>291 MB&#x2F;s</td>
+<td>405 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>6-3</td>
+<td>io.max 150MB&#x2F;s each</td>
+<td>18 MB&#x2F;s</td>
+<td>145 MB&#x2F;s</td>
+<td>168 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>6-4</td>
+<td>io.max 100MB&#x2F;s each</td>
+<td>67 MB&#x2F;s</td>
+<td>102 MB&#x2F;s</td>
+<td>164 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>6-5</td>
+<td>v2 limit 10MB&#x2F;s</td>
+<td>48 MB&#x2F;s</td>
+<td>10 MB&#x2F;s</td>
+<td>58 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<p>Case 6-1 with weight 100:900 shows an actual ratio of ~1:14 (22 vs 309), exceeding the expected 1:9. This is because disk utilization is ~85%, causing iocost to slightly adjust the allocation ratio. With auto-adjustment disabled (<code>min=max=100</code>), the actual ratio is closer to the configured value.</p>
+<hr>
+<h2 id="Three-Volume-Weight-Tests-Case-7"><a href="#Three-Volume-Weight-Tests-Case-7" class="headerlink" title="Three-Volume Weight Tests (Case 7)"></a>Three-Volume Weight Tests (Case 7)</h2><p>Three LVM volumes with different weights, <code>io.cost.qos</code> set to <code>min=max=100</code> (auto-adjustment disabled).</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Weight Config</th>
+<th>Vol 1</th>
+<th>Vol 2</th>
+<th>Vol 3</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>7-1</td>
+<td>100:900:900</td>
+<td>38 MB&#x2F;s</td>
+<td>6 MB&#x2F;s</td>
+<td>191 MB&#x2F;s</td>
+<td>235 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-3</td>
+<td>100:900:900, v2 limit 10MB&#x2F;s</td>
+<td>10 MB&#x2F;s</td>
+<td>9.6 MB&#x2F;s</td>
+<td>153 MB&#x2F;s</td>
+<td>172 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-4</td>
+<td>100:900:900, ctrl&#x3D;auto</td>
+<td>20 MB&#x2F;s</td>
+<td>112 MB&#x2F;s</td>
+<td>122 MB&#x2F;s</td>
+<td>254 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-5</td>
+<td>100:300:900</td>
+<td>9.7 MB&#x2F;s</td>
+<td>30 MB&#x2F;s</td>
+<td>155 MB&#x2F;s</td>
+<td>194 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-6</td>
+<td>100:300:600</td>
+<td>14 MB&#x2F;s</td>
+<td>43 MB&#x2F;s</td>
+<td>118 MB&#x2F;s</td>
+<td>175 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-9</td>
+<td>No weights (baseline)</td>
+<td>121 MB&#x2F;s</td>
+<td>119 MB&#x2F;s</td>
+<td>119 MB&#x2F;s</td>
+<td>359 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<p><strong>Findings</strong>:</p>
+<ol>
+<li>Case 7-4 with <code>ctrl=auto</code>: vol3 (weight 900) achieved only 122 MB&#x2F;s, barely higher than vol2 (112 MB&#x2F;s) — far from the expected 1:9 ratio. Auto-adjustment overrides configured weights.</li>
+<li>Enabling <code>io.weight</code> reduces total bandwidth (235 vs 359 MB&#x2F;s baseline). <code>io.cost.qos</code> can partially mitigate but not fully eliminate this overhead.</li>
+<li>Case 7-2 (<code>ctrl=auto</code>, no <code>min=max</code>) caused a CPU soft lockup on the node, terminating the test.</li>
+</ol>
+<hr>
+<h2 id="Large-Scale-Pod-Tests-Case-5-9"><a href="#Large-Scale-Pod-Tests-Case-5-9" class="headerlink" title="Large-Scale Pod Tests (Case 5 &amp; 9)"></a>Large-Scale Pod Tests (Case 5 &amp; 9)</h2><p>100 pods, 10 fio threads each, testing the impact of IO scheduler and iocost on node-wide IO behavior.</p>
+<h3 id="Case-5-IO-Scheduler-Comparison"><a href="#Case-5-IO-Scheduler-Comparison" class="headerlink" title="Case 5: IO Scheduler Comparison"></a>Case 5: IO Scheduler Comparison</h3><table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Load Avg</th>
+<th>CPU</th>
+<th>D-state Procs</th>
+<th>Node IO PSI</th>
+<th>Total IO BW</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Unlimited (mq-deadline)</td>
+<td>900</td>
+<td>100%</td>
+<td>30</td>
+<td>910ms</td>
+<td>300 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>io.max throttled (mq-deadline)</td>
+<td>548</td>
+<td>68.4%</td>
+<td>0</td>
+<td>450ms</td>
+<td>200 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>io.max throttled (bfq)</td>
+<td>700</td>
+<td>93.4%</td>
+<td>0</td>
+<td>791ms</td>
+<td>150 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<h3 id="Case-9-Container-Count-vs-IO-Throughput"><a href="#Case-9-Container-Count-vs-IO-Throughput" class="headerlink" title="Case 9: Container Count vs IO Throughput"></a>Case 9: Container Count vs IO Throughput</h3><p>Write throughput as container count increases, across different schedulers and control strategies:</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>1 container</th>
+<th>2 containers</th>
+<th>6 containers</th>
+<th>18 containers</th>
+<th>50 containers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SSD xfs, bfq</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>220 MB&#x2F;s</td>
+<td>220 MB&#x2F;s</td>
+<td>300 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>SSD xfs, mq-deadline</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>SSD xfs, bfq+iocost</td>
+<td>250 MB&#x2F;s</td>
+<td>300 MB&#x2F;s</td>
+<td>340 MB&#x2F;s</td>
+<td>16~490 MB&#x2F;s</td>
+<td>35~491 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>SSD xfs, bfq+ioweight</td>
+<td>40 MB&#x2F;s</td>
+<td>42 MB&#x2F;s</td>
+<td>65 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>NVMe xfs, bfq</td>
+<td>830 MB&#x2F;s</td>
+<td>900 MB&#x2F;s</td>
+<td>810 MB&#x2F;s</td>
+<td>850 MB&#x2F;s</td>
+<td>750 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<p><strong>Key Findings</strong>:</p>
+<ol>
+<li><strong>BFQ throughput degrades significantly under multiple containers</strong>: On SSD, throughput drops from 500 MB&#x2F;s to 220 MB&#x2F;s at 6 containers, while mq-deadline holds a stable 500 MB&#x2F;s throughout.</li>
+<li><strong>iocost causes IO instability</strong>: With iocost enabled, throughput fluctuates wildly between 16–490 MB&#x2F;s, with prolonged periods of very low IO before recovering.</li>
+<li><strong>BFQ is relatively stable on NVMe</strong>: NVMe’s high IOPS characteristics reduce BFQ’s scheduling overhead, making throughput degradation under multiple containers more acceptable.</li>
+</ol>
+<hr>
+<h2 id="Summary-and-Recommendations"><a href="#Summary-and-Recommendations" class="headerlink" title="Summary and Recommendations"></a>Summary and Recommendations</h2><table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Scenario</th>
+<th>Recommendation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>io.max</code> BPS throttling</td>
+<td>Direct IO &#x2F; Buffer IO</td>
+<td>Reliable — use directly</td>
+</tr>
+<tr>
+<td><code>io.max</code> IOPS throttling</td>
+<td>Direct IO</td>
+<td>Reliable</td>
+</tr>
+<tr>
+<td><code>io.max</code> IOPS throttling</td>
+<td>Buffer IO</td>
+<td>Unreliable — avoid</td>
+</tr>
+<tr>
+<td><code>io.weight</code></td>
+<td>Buffer IO</td>
+<td>Works well</td>
+</tr>
+<tr>
+<td><code>io.weight</code></td>
+<td>Direct IO at full disk load</td>
+<td>Requires <code>min=max=100</code> to disable iocost auto-adjustment</td>
+</tr>
+<tr>
+<td><code>io.cost.qos ctrl=auto</code></td>
+<td>Any scenario</td>
+<td>Can cause CPU soft lockups under high-concurrency IO — use with caution in production</td>
+</tr>
+<tr>
+<td>IO scheduler</td>
+<td>High-concurrency multi-container</td>
+<td>mq-deadline more stable than bfq; bfq suitable when weight scheduling is required</td>
+</tr>
+</tbody></table>
+<p><strong>Core conclusion</strong>: Cgroup V2’s IO controller is powerful, but the mechanisms interact with each other (iocost can override io.weight; BFQ degrades under high concurrency). For production environments, start with <code>io.max</code> BPS throttling, validate thoroughly, then incrementally introduce weight scheduling and iocost.</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Performance/" rel="tag"># Performance</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark/" rel="prev" title="Cgroup V2 IO 控制器基准测试：io.max、io.weight 与 iocost 实测分析">
+                  <i class="fa fa-angle-left"></i> Cgroup V2 IO 控制器基准测试：io.max、io.weight 与 iocost 实测分析
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-csi-inline-volume-orphan-kubelet-restart-en/" rel="next" title="CSI Inline Volume Becomes Orphan After Kubelet Restart During Pod Termination">
+                  CSI Inline Volume Becomes Orphan After Kubelet Restart During Pod Termination <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="When a pod is terminating and the kubelet restarts or shuts down at the same time, a CSI inline (ephemeral) volume can be left as an orphan — kubelet skips both the unmount and the cleanup of the volu">
+<meta property="og:type" content="article">
+<meta property="og:title" content="CSI Inline Volume Becomes Orphan After Kubelet Restart During Pod Termination">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/20/2026-06-20-csi-inline-volume-orphan-kubelet-restart-en/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="When a pod is terminating and the kubelet restarts or shuts down at the same time, a CSI inline (ephemeral) volume can be left as an orphan — kubelet skips both the unmount and the cleanup of the volu">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-20T05:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-20T12:43:11.606Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Debugging">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Storage">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/20/2026-06-20-csi-inline-volume-orphan-kubelet-restart-en/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/20/2026-06-20-csi-inline-volume-orphan-kubelet-restart-en/","path":"2026/06/20/2026-06-20-csi-inline-volume-orphan-kubelet-restart-en/","title":"CSI Inline Volume Becomes Orphan After Kubelet Restart During Pod Termination"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>CSI Inline Volume Becomes Orphan After Kubelet Restart During Pod Termination | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Problem"><span class="nav-number">1.</span> <span class="nav-text">Problem</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Root-Cause-Analysis"><span class="nav-number">2.</span> <span class="nav-text">Root Cause Analysis</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-reconstructVolume-takes-the-wrong-plugin-lookup-path"><span class="nav-number">2.1.</span> <span class="nav-text">1. reconstructVolume takes the wrong plugin lookup path</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Inline-volumes-should-go-through-GetUniqueVolumeNameFromSpecWithPod"><span class="nav-number">2.2.</span> <span class="nav-text">2. Inline volumes should go through GetUniqueVolumeNameFromSpecWithPod</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Consequence-of-reconstructVolume-failure"><span class="nav-number">2.3.</span> <span class="nav-text">3. Consequence of reconstructVolume failure</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Trigger-conditions"><span class="nav-number">2.4.</span> <span class="nav-text">Trigger conditions</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#CSI-Driver-Side"><span class="nav-number">3.</span> <span class="nav-text">CSI Driver Side</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Fix"><span class="nav-number">4.</span> <span class="nav-text">Fix</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Upstream-fix"><span class="nav-number">4.1.</span> <span class="nav-text">Upstream fix</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Workaround-for-older-versions"><span class="nav-number">4.2.</span> <span class="nav-text">Workaround for older versions</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Summary"><span class="nav-number">5.</span> <span class="nav-text">Summary</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">124</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/20/2026-06-20-csi-inline-volume-orphan-kubelet-restart-en/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="CSI Inline Volume Becomes Orphan After Kubelet Restart During Pod Termination | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          CSI Inline Volume Becomes Orphan After Kubelet Restart During Pod Termination
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-20 13:00:00 / Modified: 20:43:11" itemprop="dateCreated datePublished" datetime="2026-06-20T13:00:00+08:00">2026-06-20</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>When a pod is terminating and the kubelet restarts or shuts down at the same time, a CSI inline (ephemeral) volume can be left as an orphan — kubelet skips both the unmount and the cleanup of the volume after it restarts. This post walks through the root cause and the fix.</p>
+<span id="more"></span>
+
+<h2 id="Problem"><a href="#Problem" class="headerlink" title="Problem"></a>Problem</h2><p>When a pod is in Terminating state and the kubelet is restarted, the following errors appear in the kubelet log:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">kubelet: I reconciler.go:388] &quot;Could not construct volume information, cleaning up mounts&quot;</span><br><span class="line">  podName=1517b38e-fa84-4138-b6c0-06663741e385</span><br><span class="line">  volumeSpecName=&quot;data&quot;</span><br><span class="line">  err=&quot;failed to GetVolumeName from volumePlugin for volumeSpec \&quot;data\&quot;</span><br><span class="line">  err=kubernetes.io/csi: plugin.GetVolumeName failed to extract volume source</span><br><span class="line">  from spec: unexpected api.CSIVolumeSource found in volume.Spec&quot;</span><br><span class="line"></span><br><span class="line">kubelet: E operation_generator.go:952] UnmountVolume.MarkVolumeMountAsUncertain failed</span><br><span class="line">  for volume &quot;&quot; (UniqueName: &quot;data&quot;)</span><br><span class="line">  pod &quot;1517b38e-fa84-4138-b6c0-06663741e385&quot;</span><br><span class="line">  Error: UnmountVolume.TearDown failed: rpc error: code = Aborted</span><br><span class="line">  desc = NodeUnpublish operation for volume csi-c6b0a910... still ongoing</span><br></pre></td></tr></table></figure>
+
+<p>After kubelet restarts, it receives the <code>SyncLoop DELETE</code> event for the pod, but the underlying LVM logical volume is never removed — it becomes an orphan resource on the node.</p>
+<hr>
+<h2 id="Root-Cause-Analysis"><a href="#Root-Cause-Analysis" class="headerlink" title="Root Cause Analysis"></a>Root Cause Analysis</h2><h3 id="1-reconstructVolume-takes-the-wrong-plugin-lookup-path"><a href="#1-reconstructVolume-takes-the-wrong-plugin-lookup-path" class="headerlink" title="1. reconstructVolume takes the wrong plugin lookup path"></a>1. <code>reconstructVolume</code> takes the wrong plugin lookup path</h3><p>After kubelet restarts, it calls <code>reconstructVolume</code> to rebuild the in-memory volume state from existing mount paths on disk. The flow is:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">kubelet restart</span><br><span class="line">  → reconstructVolume</span><br><span class="line">    → FindAttachablePluginByName        ← wrong lookup here</span><br><span class="line">    → FindDeviceMountablePluginByName</span><br><span class="line">    → GetUniqueVolumeNameFromSpec       ← only handles CSIPersistentVolumeSource</span><br><span class="line">      → getPVSourceFromSpec</span><br><span class="line">        → ERROR: &quot;unexpected api.CSIVolumeSource found in volume.Spec&quot;</span><br></pre></td></tr></table></figure>
+
+<p>A CSI inline (ephemeral) volume uses <code>api.CSIVolumeSource</code>, while a CSI PV uses <code>api.CSIPersistentVolumeSource</code>. The <code>getPVSourceFromSpec</code> function only handles the latter and errors out on the former.</p>
+<h3 id="2-Inline-volumes-should-go-through-GetUniqueVolumeNameFromSpecWithPod"><a href="#2-Inline-volumes-should-go-through-GetUniqueVolumeNameFromSpecWithPod" class="headerlink" title="2. Inline volumes should go through GetUniqueVolumeNameFromSpecWithPod"></a>2. Inline volumes should go through <code>GetUniqueVolumeNameFromSpecWithPod</code></h3><p>For ephemeral volumes, the unique name must incorporate the pod UID and should call <code>GetUniqueVolumeNameFromSpecWithPod</code>. The branching logic is:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> attachablePlugin != <span class="literal">nil</span> || deviceMountablePlugin != <span class="literal">nil</span> &#123;</span><br><span class="line">    uniqueVolumeName, err = util.GetUniqueVolumeNameFromSpec(plugin, volumeSpec)</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    uniqueVolumeName = util.GetUniqueVolumeNameFromSpecWithPod(volume.podName, plugin, volumeSpec)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>A CSI inline volume should not have <code>attachablePlugin</code> or <code>deviceMountablePlugin</code>. However, the code uses <code>FindAttachablePluginByName</code> (lookup by plugin name) instead of <code>FindDeviceMountablePluginBySpec</code> (lookup by spec). This causes the inline volume to incorrectly enter the <code>if</code> branch and call <code>GetUniqueVolumeNameFromSpec</code>, which fails.</p>
+<h3 id="3-Consequence-of-reconstructVolume-failure"><a href="#3-Consequence-of-reconstructVolume-failure" class="headerlink" title="3. Consequence of reconstructVolume failure"></a>3. Consequence of <code>reconstructVolume</code> failure</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">reconstructedVolume, err := rc.reconstructVolume(volume)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> volumeInDSW &#123;</span><br><span class="line">        <span class="comment">// Some pod still needs the volume, skip cleanup</span></span><br><span class="line">        <span class="keyword">continue</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// No pod needs the volume, attempt cleanup</span></span><br><span class="line">    rc.cleanupMounts(volume)</span><br><span class="line">    <span class="keyword">continue</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Because the pod is Terminating, it is not added to the Desired State of World (DSW), so <code>volumeInDSW</code> is false. Kubelet calls <code>cleanupMounts</code> → <code>UnmountVolume</code>. But at this point the container has not yet fully exited, so the CSI driver returns <code>Aborted</code> (NodeUnpublish is still in progress). This is the only cleanup opportunity — after the failure, kubelet does not retry, and the volume is left as an orphan.</p>
+<h3 id="Trigger-conditions"><a href="#Trigger-conditions" class="headerlink" title="Trigger conditions"></a>Trigger conditions</h3><p>All three must be true simultaneously:</p>
+<ol>
+<li>Pod is in Terminating state</li>
+<li>Kubelet restarts or crashes during pod termination</li>
+<li><code>reconstructVolume</code> fails, and the pod is not in DSW</li>
+</ol>
+<hr>
+<h2 id="CSI-Driver-Side"><a href="#CSI-Driver-Side" class="headerlink" title="CSI Driver Side"></a>CSI Driver Side</h2><p>While kubelet attempts cleanup, the local CSI driver also tries to execute <code>NodeUnpublishVolume</code> but fails because the LV is still in use by the container:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">CSI local driver: NodeUnpublishVolume</span><br><span class="line">  volume_id:&quot;csi-17ef0134...&quot; target_path:&quot;...mount&quot;</span><br><span class="line">CSI local driver: Removing volume with id=vg-data_csi-17ef0134...</span><br><span class="line">mke2fs: /dev/vg-data/vg-data_csi-17ef0134... is apparently in use by the system</span><br><span class="line">wipefs: error: probing initialization failed: Device or resource busy</span><br><span class="line">lvremove: Logical volume vg-data/vg-data_csi-17ef0134... contains a filesystem in use.</span><br><span class="line">NodeUnpublishVolume failed: Failed to lvremove: filesystem in use</span><br></pre></td></tr></table></figure>
+
+<p>The LV cannot be removed because the container is still using the filesystem. NodeUnpublish returns an <code>Internal</code> error.</p>
+<hr>
+<h2 id="Fix"><a href="#Fix" class="headerlink" title="Fix"></a>Fix</h2><h3 id="Upstream-fix"><a href="#Upstream-fix" class="headerlink" title="Upstream fix"></a>Upstream fix</h3><p>This bug was fixed in Kubernetes 1.25: <a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/pull/108997">kubernetes&#x2F;kubernetes#108997</a></p>
+<p>The core change: in <code>reconstructVolume</code>, the plugin lookup for CSI inline volumes is changed to use <code>FindDeviceMountablePluginBySpec</code> instead of <code>FindAttachablePluginByName</code>. This correctly skips the <code>attachablePlugin</code>&#x2F;<code>deviceMountablePlugin</code> check for inline volumes, routes them to <code>GetUniqueVolumeNameFromSpecWithPod</code>, and allows the volume to be properly rebuilt in ActualStateOfWorld so the normal unmount flow can proceed.</p>
+<h3 id="Workaround-for-older-versions"><a href="#Workaround-for-older-versions" class="headerlink" title="Workaround for older versions"></a>Workaround for older versions</h3><p>Before the fix is rolled out, orphan LVs must be cleaned up manually:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. List all LVs to find orphans (those with no active mount)</span></span><br><span class="line">lvs vg-data</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. Check if the LV is still mounted</span></span><br><span class="line">lsblk /dev/vg-data/&lt;lv-name&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. Force unmount and remove</span></span><br><span class="line">umount -f /dev/vg-data/&lt;lv-name&gt;</span><br><span class="line">lvremove -f vg-data/&lt;lv-name&gt;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Summary"><a href="#Summary" class="headerlink" title="Summary"></a>Summary</h2><table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Bug</th>
+<th>Impact</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Plugin lookup</td>
+<td><code>FindAttachablePluginByName</code> incorrectly matches inline volumes</td>
+<td><code>reconstructVolume</code> errors out</td>
+</tr>
+<tr>
+<td>Path decision</td>
+<td>Inline volume incorrectly enters <code>GetUniqueVolumeNameFromSpec</code></td>
+<td>Volume cannot be added to ASW</td>
+</tr>
+<tr>
+<td>Cleanup window</td>
+<td><code>cleanupMounts</code> is called while container is still running</td>
+<td>Guaranteed to fail</td>
+</tr>
+</tbody></table>
+<p>The root cause is that CSI inline volumes share the same <code>reconstructVolume</code> code path as CSI PVs but require different plugin lookup semantics. Kubernetes 1.25 fixes this by differentiating the plugin lookup method based on the volume spec type.</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Debugging/" rel="tag"># Debugging</a>
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Storage/" rel="tag"># Storage</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark-en/" rel="prev" title="Cgroup V2 IO Controller Benchmarks: io.max, io.weight, and iocost in Practice">
+                  <i class="fa fa-angle-left"></i> Cgroup V2 IO Controller Benchmarks: io.max, io.weight, and iocost in Practice
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-lvm-hang-concurrent-pod-operations-en/" rel="next" title="LVM Hangs Under High Concurrency: Root Cause and Fix for Local CSI Volume Drivers">
+                  LVM Hangs Under High Concurrency: Root Cause and Fix for Local CSI Volume Drivers <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

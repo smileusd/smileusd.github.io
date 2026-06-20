@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Cgroup V2 offers a unified hierarchy, better IO QoS — including buffer IO throttling — and cleaner semantics compared to V1. This post documents the end-to-end process of migrating a production Kubern">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Migrating a Kubernetes Cluster to Cgroup V2: Requirements, Enablement, and Compatibility">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-kubernetes-migration-en/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Cgroup V2 offers a unified hierarchy, better IO QoS — including buffer IO throttling — and cleaner semantics compared to V1. This post documents the end-to-end process of migrating a production Kubern">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-20T06:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-20T12:47:05.808Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Kernel">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-kubernetes-migration-en/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-kubernetes-migration-en/","path":"2026/06/20/2026-06-20-cgroup-v2-kubernetes-migration-en/","title":"Migrating a Kubernetes Cluster to Cgroup V2: Requirements, Enablement, and Compatibility"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Migrating a Kubernetes Cluster to Cgroup V2: Requirements, Enablement, and Compatibility | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Why-Migrate-to-Cgroup-V2"><span class="nav-number">1.</span> <span class="nav-text">Why Migrate to Cgroup V2</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Problems-with-Cgroup-V1"><span class="nav-number">1.1.</span> <span class="nav-text">Problems with Cgroup V1</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#What-Cgroup-V2-Improves"><span class="nav-number">1.2.</span> <span class="nav-text">What Cgroup V2 Improves</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Component-Version-Requirements"><span class="nav-number">2.</span> <span class="nav-text">Component Version Requirements</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Enablement-Steps"><span class="nav-number">3.</span> <span class="nav-text">Enablement Steps</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Upgrade-the-kernel"><span class="nav-number">3.1.</span> <span class="nav-text">1. Upgrade the kernel</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Upgrade-containerd"><span class="nav-number">3.2.</span> <span class="nav-text">2. Upgrade containerd</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Set-kernel-boot-parameters"><span class="nav-number">3.3.</span> <span class="nav-text">3. Set kernel boot parameters</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-Load-the-BFQ-scheduler-module"><span class="nav-number">3.4.</span> <span class="nav-text">4. Load the BFQ scheduler module</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-Upgrade-or-patch-Kubernetes"><span class="nav-number">3.5.</span> <span class="nav-text">5. Upgrade or patch Kubernetes</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Compatibility-Verification"><span class="nav-number">4.</span> <span class="nav-text">Compatibility Verification</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#CPU-controller"><span class="nav-number">4.1.</span> <span class="nav-text">CPU controller</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Memory-controller"><span class="nav-number">4.2.</span> <span class="nav-text">Memory controller</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#PID-controller"><span class="nav-number">4.3.</span> <span class="nav-text">PID controller</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Hugetlb-controller"><span class="nav-number">4.4.</span> <span class="nav-text">Hugetlb controller</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#IO-controller-key-new-capability"><span class="nav-number">4.5.</span> <span class="nav-text">IO controller (key new capability)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Migration-Checklist"><span class="nav-number">5.</span> <span class="nav-text">Migration Checklist</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">124</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-kubernetes-migration-en/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Migrating a Kubernetes Cluster to Cgroup V2: Requirements, Enablement, and Compatibility | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Migrating a Kubernetes Cluster to Cgroup V2: Requirements, Enablement, and Compatibility
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-20 14:00:00 / Modified: 20:47:05" itemprop="dateCreated datePublished" datetime="2026-06-20T14:00:00+08:00">2026-06-20</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux-Kernel</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>Cgroup V2 offers a unified hierarchy, better IO QoS — including buffer IO throttling — and cleaner semantics compared to V1. This post documents the end-to-end process of migrating a production Kubernetes cluster to cgroup v2: component version requirements, kernel boot parameters, and compatibility verification results for CPU, memory, PID, hugetlb, and IO controllers.</p>
+<span id="more"></span>
+
+<h2 id="Why-Migrate-to-Cgroup-V2"><a href="#Why-Migrate-to-Cgroup-V2" class="headerlink" title="Why Migrate to Cgroup V2"></a>Why Migrate to Cgroup V2</h2><h3 id="Problems-with-Cgroup-V1"><a href="#Problems-with-Cgroup-V1" class="headerlink" title="Problems with Cgroup V1"></a>Problems with Cgroup V1</h3><p>Cgroup V1 allows multiple independent hierarchies to coexist, one per controller. This leads to:</p>
+<ul>
+<li>The same process appearing at different positions in different hierarchies</li>
+<li>Inconsistent controller behavior that is difficult to reason about</li>
+<li>Double-counting in resource statistics</li>
+</ul>
+<h3 id="What-Cgroup-V2-Improves"><a href="#What-Cgroup-V2-Improves" class="headerlink" title="What Cgroup V2 Improves"></a>What Cgroup V2 Improves</h3><p>V2 merges all controllers into a single unified hierarchy:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">/sys/fs/cgroup/</span><br><span class="line">├── system.slice/</span><br><span class="line">├── user.slice/</span><br><span class="line">└── kubepods/           ← Kubernetes hierarchy, same path as V1</span><br><span class="line">    ├── burstable/</span><br><span class="line">    │   └── pod-xxx/</span><br><span class="line">    │       ├── cpu.max</span><br><span class="line">    │       ├── memory.max</span><br><span class="line">    │       └── io.max</span><br><span class="line">    └── guaranteed/</span><br></pre></td></tr></table></figure>
+
+<p>Key improvements:</p>
+<ul>
+<li><strong>Unified hierarchy</strong>: all controllers under one directory tree</li>
+<li><strong>Buffer IO throttling</strong>: V1 only throttles Direct IO; V2 <code>io.max</code> applies to Buffer IO as well</li>
+<li><strong>IO weight scheduling</strong>: <code>io.weight</code> proportional bandwidth allocation with BFQ&#x2F;CFQ schedulers</li>
+<li><strong>iocost model</strong>: latency-based IO cost model for smarter QoS control</li>
+</ul>
+<p>The primary driver for migrating Kubernetes clusters to cgroup v2 is disk IO QoS — particularly the ability to throttle buffer IO, which is critical for improving resource utilization on nodes shared by mixed workloads.</p>
+<hr>
+<h2 id="Component-Version-Requirements"><a href="#Component-Version-Requirements" class="headerlink" title="Component Version Requirements"></a>Component Version Requirements</h2><table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Minimum</th>
+<th>Recommended</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Linux Kernel</td>
+<td>4.15</td>
+<td>5.2+</td>
+<td>5.6+ required for hugetlb controller</td>
+</tr>
+<tr>
+<td>Kubernetes</td>
+<td>1.19</td>
+<td>1.25+</td>
+<td>Official cgroup v2 support from 1.19</td>
+</tr>
+<tr>
+<td>containerd</td>
+<td>1.4.4</td>
+<td>1.6+</td>
+<td>Must support unified cgroup hierarchy</td>
+</tr>
+<tr>
+<td>runc</td>
+<td>v1.0.0-rc91</td>
+<td>v1.0.0+</td>
+<td>Full unified mode since rc93</td>
+</tr>
+<tr>
+<td>systemd</td>
+<td>244</td>
+<td>249+</td>
+<td>cpuset controller delegation from 244</td>
+</tr>
+<tr>
+<td>cAdvisor</td>
+<td>v0.36.1</td>
+<td>v0.45+</td>
+<td>cgroup v2 metrics from v0.36.1</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="Enablement-Steps"><a href="#Enablement-Steps" class="headerlink" title="Enablement Steps"></a>Enablement Steps</h2><h3 id="1-Upgrade-the-kernel"><a href="#1-Upgrade-the-kernel" class="headerlink" title="1. Upgrade the kernel"></a>1. Upgrade the kernel</h3><p>Kernel 5.4 or 5.15 is recommended. Kernels below 4.15 do not support cgroup v2.</p>
+<h3 id="2-Upgrade-containerd"><a href="#2-Upgrade-containerd" class="headerlink" title="2. Upgrade containerd"></a>2. Upgrade containerd</h3><p>containerd 1.4.4+ automatically detects the host cgroup version. No additional configuration is required.</p>
+<h3 id="3-Set-kernel-boot-parameters"><a href="#3-Set-kernel-boot-parameters" class="headerlink" title="3. Set kernel boot parameters"></a>3. Set kernel boot parameters</h3><p>Add to the GRUB command line or kernel parameters:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">cgroup_no_v1=all</span><br><span class="line">systemd.unified_cgroup_hierarchy=1</span><br></pre></td></tr></table></figure>
+
+<p>Optional parameters for IO debugging and optimization:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">blk_cgroup.blkcg_debug_stats=1   <span class="comment"># Enable blkcg debug statistics</span></span><br><span class="line">scsi_mod.use_blk_mq=1            <span class="comment"># Enable SCSI multi-queue</span></span><br></pre></td></tr></table></figure>
+
+<p>After reboot, verify:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Confirm cgroup v2 is active</span></span><br><span class="line">mount | grep cgroup</span><br><span class="line"><span class="comment"># Expected: cgroup2 on /sys/fs/cgroup type cgroup2</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">ls</span> /sys/fs/cgroup/</span><br><span class="line"><span class="comment"># Should see: cgroup.controllers, cpu.stat, io.stat, etc.</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-Load-the-BFQ-scheduler-module"><a href="#4-Load-the-BFQ-scheduler-module" class="headerlink" title="4. Load the BFQ scheduler module"></a>4. Load the BFQ scheduler module</h3><p>IO weight scheduling requires the BFQ scheduler:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">modprobe bfq</span><br><span class="line"><span class="comment"># Switch a disk to BFQ</span></span><br><span class="line"><span class="built_in">echo</span> bfq &gt; /sys/block/sda/queue/scheduler</span><br></pre></td></tr></table></figure>
+
+<p>Persist this across reboots by adding it to a systemd service or <code>/etc/modules</code>.</p>
+<h3 id="5-Upgrade-or-patch-Kubernetes"><a href="#5-Upgrade-or-patch-Kubernetes" class="headerlink" title="5. Upgrade or patch Kubernetes"></a>5. Upgrade or patch Kubernetes</h3><p>Kubernetes 1.19+ includes native cgroup v2 support. Key upstream commits:</p>
+<ul>
+<li><code>bb5ed1b7</code>: initial cgroupv2 support in kubelet</li>
+<li><code>a9772b22</code>: CPU hard cap on cgroup v2</li>
+<li><code>79be8be1</code>: make hugetlb cgroup optional (compatibility with older kernels)</li>
+<li><code>26d94ad6</code>: skip device cgroup configuration under v2</li>
+</ul>
+<p>For clusters running older Kubernetes versions, these commits can be cherry-picked individually.</p>
+<hr>
+<h2 id="Compatibility-Verification"><a href="#Compatibility-Verification" class="headerlink" title="Compatibility Verification"></a>Compatibility Verification</h2><p>The following results are from a test environment running kernel 5.4, Kubernetes 1.23, and containerd 1.4.4.</p>
+<h3 id="CPU-controller"><a href="#CPU-controller" class="headerlink" title="CPU controller"></a>CPU controller</h3><p>Cgroup V2 uses <code>cpu.max</code> in place of V1’s <code>cpu.cfs_quota_us</code> + <code>cpu.cfs_period_us</code>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Pod-level (total CPU limit across all containers)</span></span><br><span class="line"><span class="built_in">cat</span> /sys/fs/cgroup/kubepods/burstable/pod&lt;uid&gt;/cpu.max</span><br><span class="line"><span class="comment"># Example: 75600 100000</span></span><br><span class="line"><span class="comment"># Meaning: up to 75.6ms of CPU per 100ms period ≈ 0.756 cores</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Per-container limits</span></span><br><span class="line"><span class="built_in">cat</span> .../pod&lt;uid&gt;/&lt;container-id&gt;/cpu.max</span><br><span class="line"><span class="comment"># 25600 100000  → 0.256 cores (250m limit)</span></span><br><span class="line"><span class="comment"># 50000 100000  → 0.5 cores   (500m limit)</span></span><br></pre></td></tr></table></figure>
+
+<p>Behavior is identical to V1. No application changes required.</p>
+<h3 id="Memory-controller"><a href="#Memory-controller" class="headerlink" title="Memory controller"></a>Memory controller</h3><p><code>memory.max</code> replaces V1’s <code>memory.limit_in_bytes</code>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Pod total memory limit (128Mi + 64Mi = 192Mi)</span></span><br><span class="line"><span class="built_in">cat</span> .../pod&lt;uid&gt;/memory.max</span><br><span class="line"><span class="comment"># 201326592</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Container 1: 64Mi</span></span><br><span class="line"><span class="built_in">cat</span> .../pod&lt;uid&gt;/&lt;container1&gt;/memory.max</span><br><span class="line"><span class="comment"># 67108864</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Container 2: 128Mi</span></span><br><span class="line"><span class="built_in">cat</span> .../pod&lt;uid&gt;/&lt;container2&gt;/memory.max</span><br><span class="line"><span class="comment"># 134217728</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>Note</strong>: V2 introduces <code>memory.min</code> (hard guarantee), <code>memory.low</code> (soft guarantee), and <code>memory.high</code> (high watermark throttle). Kubernetes does not currently use these fields — they are set to <code>0</code> or <code>max</code>. Upstream KEP #2571 is tracking Memory QoS support.</p>
+</blockquote>
+<h3 id="PID-controller"><a href="#PID-controller" class="headerlink" title="PID controller"></a>PID controller</h3><p><code>pids.max</code> replaces V1’s <code>pids.limit</code>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># kubelet config</span></span><br><span class="line"><span class="built_in">cat</span> /var/lib/kubelet/config.yaml | grep podPidsLimit</span><br><span class="line"><span class="comment"># podPidsLimit: 24</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">cat</span> .../pod&lt;uid&gt;/pids.max</span><br><span class="line"><span class="comment"># 24</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># When the limit is exceeded:</span></span><br><span class="line"><span class="comment"># sh: can&#x27;t fork: Resource temporarily unavailable</span></span><br></pre></td></tr></table></figure>
+
+<p>Behavior is identical to V1.</p>
+<h3 id="Hugetlb-controller"><a href="#Hugetlb-controller" class="headerlink" title="Hugetlb controller"></a>Hugetlb controller</h3><p><strong>Kernel 5.4 does not support the hugetlb controller in cgroup v2.</strong> Kernel 5.6+ is required.</p>
+<p>This is the most significant compatibility gap when migrating from V1 to V2. Workloads that request <code>hugepages</code> resources will not have cgroup-level isolation on kernels below 5.6. Assess the impact before migrating nodes that run hugetlb-consuming workloads.</p>
+<h3 id="IO-controller-key-new-capability"><a href="#IO-controller-key-new-capability" class="headerlink" title="IO controller (key new capability)"></a>IO controller (key new capability)</h3><p>Cgroup V2 IO interfaces:</p>
+<table>
+<thead>
+<tr>
+<th>Interface</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>io.max</code></td>
+<td>Hard limit on bandwidth (BPS) or IOPS — applies to both Direct and Buffer IO</td>
+</tr>
+<tr>
+<td><code>io.weight</code></td>
+<td>Proportional IO bandwidth allocation (requires BFQ&#x2F;CFQ scheduler)</td>
+</tr>
+<tr>
+<td><code>io.stat</code></td>
+<td>Per-device IO statistics</td>
+</tr>
+<tr>
+<td><code>io.cost.qos</code></td>
+<td>Latency-based cost model QoS configuration</td>
+</tr>
+<tr>
+<td><code>io.cost.model</code></td>
+<td>Physical disk model parameters for iocost</td>
+</tr>
+</tbody></table>
+<p>Usage examples:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Enable iocost on device 8:0</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;8:0 enable=1&quot;</span> &gt; /sys/fs/cgroup/io.cost.qos</span><br><span class="line"></span><br><span class="line"><span class="comment"># Limit pod write bandwidth to 100 MB/s</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;8:0 wbps=104857600&quot;</span> &gt; .../pod&lt;uid&gt;/io.max</span><br><span class="line"></span><br><span class="line"><span class="comment"># Set IO weight ratio 1:9 between two containers</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;100&quot;</span> &gt; .../pod&lt;uid&gt;/&lt;container1&gt;/io.weight</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;900&quot;</span> &gt; .../pod&lt;uid&gt;/&lt;container2&gt;/io.weight</span><br></pre></td></tr></table></figure>
+
+<p>The critical advancement over V1 is <strong>Buffer IO throttling</strong>. V1’s <code>blkio.throttle.write_bps_device</code> only controls Direct IO — Buffer IO writes through the page cache and bypasses the throttle entirely. V2 tracks page cache writeback attribution per cgroup, enabling effective Buffer IO throttling. For most real-world workloads (databases, log writers), which use Buffer IO predominantly, this is transformative.</p>
+<hr>
+<h2 id="Migration-Checklist"><a href="#Migration-Checklist" class="headerlink" title="Migration Checklist"></a>Migration Checklist</h2><ol>
+<li><strong>Rolling node upgrade</strong>: kernel boot parameter changes require a reboot; use cordon + drain + reboot per node to roll smoothly</li>
+<li><strong>Hugetlb assessment</strong>: verify that nodes running hugetlb workloads will run kernel 5.6+, or exclude them from the initial rollout</li>
+<li><strong>BFQ persistence</strong>: <code>modprobe bfq</code> must be persistent across reboots via a systemd unit or <code>/etc/modules</code></li>
+<li><strong>iocost stability</strong>: <code>io.cost.qos ctrl=auto</code> can cause CPU soft lockups under high-concurrency IO; prefer <code>ctrl=user</code> in production until thoroughly validated</li>
+<li><strong>Monitoring</strong>: update cAdvisor to v0.36.1+ to ensure cgroup v2 IO metrics are collected</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-lvm-hang-concurrent-pod-operations-en/" rel="prev" title="LVM Hangs Under High Concurrency: Root Cause and Fix for Local CSI Volume Drivers">
+                  <i class="fa fa-angle-left"></i> LVM Hangs Under High Concurrency: Root Cause and Fix for Local CSI Volume Drivers
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
