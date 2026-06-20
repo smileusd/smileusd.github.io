@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="在使用 CSI Local Inline Volume 的节点上，当大量 Pod 并发创建和删除时，LVM 命令会出现长时间挂起，整个节点的磁盘操作进入不可用状态。本文分析其根因，并记录通过引入 FIFO 队列限制并发度的解决方案。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LVM 挂起：大量 Pod 并发创建删除时的磁盘操作瓶颈与解法">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/20/2026-06-20-lvm-hang-concurrent-pod-operations/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="在使用 CSI Local Inline Volume 的节点上，当大量 Pod 并发创建和删除时，LVM 命令会出现长时间挂起，整个节点的磁盘操作进入不可用状态。本文分析其根因，并记录通过引入 FIFO 队列限制并发度的解决方案。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-20T03:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-20T12:03:26.383Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="Storage">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/20/2026-06-20-lvm-hang-concurrent-pod-operations/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/20/2026-06-20-lvm-hang-concurrent-pod-operations/","path":"2026/06/20/2026-06-20-lvm-hang-concurrent-pod-operations/","title":"LVM 挂起：大量 Pod 并发创建删除时的磁盘操作瓶颈与解法"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>LVM 挂起：大量 Pod 并发创建删除时的磁盘操作瓶颈与解法 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E7%8E%B0%E8%B1%A1"><span class="nav-number">1.</span> <span class="nav-text">问题现象</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B9%E5%9B%A0%E5%88%86%E6%9E%90"><span class="nav-number">2.</span> <span class="nav-text">根因分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8D%95%E6%AC%A1-Pod-%E6%93%8D%E4%BD%9C%E7%9A%84%E7%A3%81%E7%9B%98%E5%BC%80%E9%94%80"><span class="nav-number">2.1.</span> <span class="nav-text">单次 Pod 操作的磁盘开销</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%97%A0%E5%B9%B6%E5%8F%91%E9%99%90%E5%88%B6%E7%9A%84-goroutine-%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.2.</span> <span class="nav-text">无并发限制的 goroutine 模型</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-number">3.</span> <span class="nav-text">解决方案</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BC%98%E5%8C%96-1%EF%BC%9A%E5%90%88%E5%B9%B6%E9%87%8D%E5%A4%8D%E7%9A%84%E7%A3%81%E7%9B%98%E6%93%8D%E4%BD%9C"><span class="nav-number">3.1.</span> <span class="nav-text">优化 1：合并重复的磁盘操作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BC%98%E5%8C%96-2%EF%BC%9A%E5%BC%95%E5%85%A5-FIFO-%E9%98%9F%E5%88%97-%E9%99%90%E6%B5%81%E5%B7%A5%E4%BD%9C%E8%80%85%EF%BC%88%E6%A0%B8%E5%BF%83%EF%BC%89"><span class="nav-number">3.2.</span> <span class="nav-text">优化 2：引入 FIFO 队列 + 限流工作者（核心）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%88%E6%9E%9C%E5%AF%B9%E6%AF%94"><span class="nav-number">3.3.</span> <span class="nav-text">效果对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E9%94%AE%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99"><span class="nav-number">4.</span> <span class="nav-text">关键设计原则</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">120</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/20/2026-06-20-lvm-hang-concurrent-pod-operations/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="LVM 挂起：大量 Pod 并发创建删除时的磁盘操作瓶颈与解法 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          LVM 挂起：大量 Pod 并发创建删除时的磁盘操作瓶颈与解法
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-20 11:00:00 / Modified: 20:03:26" itemprop="dateCreated datePublished" datetime="2026-06-20T11:00:00+08:00">2026-06-20</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>在使用 CSI Local Inline Volume 的节点上，当大量 Pod 并发创建和删除时，LVM 命令会出现长时间挂起，整个节点的磁盘操作进入不可用状态。本文分析其根因，并记录通过引入 FIFO 队列限制并发度的解决方案。</p>
+<span id="more"></span>
+
+<h2 id="问题现象"><a href="#问题现象" class="headerlink" title="问题现象"></a>问题现象</h2><p>节点上并发创建删除大量使用 local CSI inline volume 的 Pod 时，LVM 命令挂起，<code>/proc/&lt;pid&gt;/stack</code> 显示进程阻塞在 <code>blkdev_issue_discard</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"># cat /proc/182718/stack</span><br><span class="line">[&lt;0&gt;] submit_bio_wait+0x7f/0xc0</span><br><span class="line">[&lt;0&gt;] blkdev_issue_discard+0x7e/0xd0</span><br><span class="line">[&lt;0&gt;] blk_ioctl_discard+0x110/0x140</span><br><span class="line">[&lt;0&gt;] blkdev_common_ioctl+0x3fc/0x890</span><br><span class="line">[&lt;0&gt;] blkdev_ioctl+0xf6/0x270</span><br><span class="line">[&lt;0&gt;] block_ioctl+0x46/0x50</span><br><span class="line">[&lt;0&gt;] __x64_sys_ioctl+0x91/0xc0</span><br><span class="line">[&lt;0&gt;] do_syscall_64+0x5c/0xc0</span><br><span class="line">[&lt;0&gt;] entry_SYSCALL_64_after_hwframe+0x44/0xae</span><br></pre></td></tr></table></figure>
+
+<p>该状态下，LVM 对整个节点不可用，影响调试、指标导出等所有依赖磁盘操作的功能。</p>
+<hr>
+<h2 id="根因分析"><a href="#根因分析" class="headerlink" title="根因分析"></a>根因分析</h2><h3 id="单次-Pod-操作的磁盘开销"><a href="#单次-Pod-操作的磁盘开销" class="headerlink" title="单次 Pod 操作的磁盘开销"></a>单次 Pod 操作的磁盘开销</h3><p>Local CSI 驱动在处理每个 Pod 的 volume 时，创建和删除流程各需要约 5 次磁盘操作（<code>lvs</code>、<code>lvcreate</code>、<code>mkfs</code>、<code>wipefs</code>、<code>lvremove</code> 等），涉及：</p>
+<ul>
+<li>LVM 元数据查询与修改</li>
+<li>文件系统格式化（<code>mkfs</code>）</li>
+<li>数据擦除（<code>wipefs</code>、<code>discard</code>）</li>
+</ul>
+<p>这些操作都需要持有内核块层的锁。</p>
+<h3 id="无并发限制的-goroutine-模型"><a href="#无并发限制的-goroutine-模型" class="headerlink" title="无并发限制的 goroutine 模型"></a>无并发限制的 goroutine 模型</h3><p>原始驱动框架对每个 CSI RPC 请求直接启动一个 goroutine 执行磁盘操作，没有工作者数量上限。当 100 个 Pod 同时发起请求时：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">100 个 Pod × 创建阶段 5 次磁盘操作 = 500 次并发磁盘操作</span><br></pre></td></tr></table></figure>
+
+<p>这 500 个操作全部争抢内核块层锁，压力直接传导到 Linux 内核。所有操作在锁上排队等待，时间上集中分布在队列尾部——即大量 Pod 几乎同时完成，而非均匀分散。</p>
+<hr>
+<h2 id="解决方案"><a href="#解决方案" class="headerlink" title="解决方案"></a>解决方案</h2><h3 id="优化-1：合并重复的磁盘操作"><a href="#优化-1：合并重复的磁盘操作" class="headerlink" title="优化 1：合并重复的磁盘操作"></a>优化 1：合并重复的磁盘操作</h3><p>对创建和删除流程做了操作合并：</p>
+<ul>
+<li>将多次 <code>lvs</code> 查找合并为一次批量查询</li>
+<li>删除流程中移除冗余的清理操作</li>
+</ul>
+<p>合并后创建和删除各需约 4 次磁盘操作（减少 1 次）。</p>
+<h3 id="优化-2：引入-FIFO-队列-限流工作者（核心）"><a href="#优化-2：引入-FIFO-队列-限流工作者（核心）" class="headerlink" title="优化 2：引入 FIFO 队列 + 限流工作者（核心）"></a>优化 2：引入 FIFO 队列 + 限流工作者（核心）</h3><p>更重要的改变是在驱动层引入了有界 FIFO 队列和固定数量的 worker：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">CSI RPC 请求</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">FIFO 磁盘操作队列（无界入队，有序出队）</span><br><span class="line">    │</span><br><span class="line">    ├── Worker 1 ──► 磁盘操作</span><br><span class="line">    ├── Worker 2 ──► 磁盘操作</span><br><span class="line">    ├── ...</span><br><span class="line">    └── Worker N ──► 磁盘操作（N = 10）</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>所有磁盘操作进入队列排队，而非直接并发执行</li>
+<li>固定 N 个 worker（实测 N&#x3D;10）从队列取任务执行</li>
+<li>Pod 创建&#x2F;删除从”并发爆发”变为”均匀流水”</li>
+</ul>
+<h3 id="效果对比"><a href="#效果对比" class="headerlink" title="效果对比"></a>效果对比</h3><p>测试场景：100 个 Pod 并发创建并删除，使用 local CSI inline volume。</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>修复前</th>
+<th>修复后（workers&#x3D;10）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pod Running 时间</td>
+<td>17 min</td>
+<td>14 min 40s</td>
+</tr>
+<tr>
+<td>Pod Terminated 时间</td>
+<td>17 min</td>
+<td>8 min</td>
+</tr>
+<tr>
+<td>完成时间分布</td>
+<td>集中在末尾</td>
+<td>均匀分散</td>
+</tr>
+<tr>
+<td>LVM 可用性</td>
+<td>不可用（挂起）</td>
+<td>始终可用</td>
+</tr>
+</tbody></table>
+<p>修复后：</p>
+<ul>
+<li>Pod Terminated 时间从 17 分钟缩短到 8 分钟（提速 53%）</li>
+<li>LVM 在整个过程中保持可用，调试和指标采集不受影响</li>
+<li>Pod 的运行和终止时间分布从”集中爆发”变为”均匀分散”</li>
+</ul>
+<hr>
+<h2 id="关键设计原则"><a href="#关键设计原则" class="headerlink" title="关键设计原则"></a>关键设计原则</h2><p><strong>并发限流比减少单次操作更重要。</strong></p>
+<p>减少单次操作次数（4 次 vs 5 次）只有边际收益；真正解决问题的是限制同时进入内核块层的操作数量。内核块层的锁争抢是 O(N²) 级别的性能降级——并发越多，每个操作等待时间越长，总时间反而更长。</p>
+<p>引入 FIFO 队列将并发模型从”无限并发 + 内核排队”改为”应用层排队 + 有限并发”，把压力从内核转移到用户态，换来了更好的可预测性和更低的总体延迟。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Performance/" rel="tag"># Performance</a>
+              <a href="/tags/Storage/" rel="tag"># Storage</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-csi-inline-volume-orphan-after-kubelet-restart/" rel="prev" title="CSI Inline Volume 孤儿问题：Kubelet 重启后 Volume 无法清理的根因与修复">
+                  <i class="fa fa-angle-left"></i> CSI Inline Volume 孤儿问题：Kubelet 重启后 Volume 无法清理的根因与修复
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-cgroup-v2-kubernetes-migration-guide/" rel="next" title="Kubernetes 集群迁移到 Cgroup V2：原理、兼容性验证与启用步骤">
+                  Kubernetes 集群迁移到 Cgroup V2：原理、兼容性验证与启用步骤 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

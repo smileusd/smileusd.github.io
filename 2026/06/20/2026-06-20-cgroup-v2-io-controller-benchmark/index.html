@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="本文记录在生产级 Kubernetes 节点上对 Cgroup V2 IO 控制器的系统性基准测试，覆盖 io.max（带宽&#x2F;IOPS 硬限）、io.weight（权重调度）、io.cost.qos（延迟模型 QoS）三类控制机制，以及 Direct IO vs Buffer IO、raw disk vs LVM、ext4 vs xfs 等不同组合下的实测数据。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cgroup V2 IO 控制器基准测试：io.max、io.weight 与 iocost 实测分析">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="本文记录在生产级 Kubernetes 节点上对 Cgroup V2 IO 控制器的系统性基准测试，覆盖 io.max（带宽&#x2F;IOPS 硬限）、io.weight（权重调度）、io.cost.qos（延迟模型 QoS）三类控制机制，以及 Direct IO vs Buffer IO、raw disk vs LVM、ext4 vs xfs 等不同组合下的实测数据。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-20T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-20T12:07:50.522Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="Kernel">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark/","path":"2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark/","title":"Cgroup V2 IO 控制器基准测试：io.max、io.weight 与 iocost 实测分析"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Cgroup V2 IO 控制器基准测试：io.max、io.weight 与 iocost 实测分析 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83"><span class="nav-number">1.</span> <span class="nav-text">测试环境</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A3%B8%E7%9B%98%E5%9F%BA%E5%87%86%E6%80%A7%E8%83%BD"><span class="nav-number">2.</span> <span class="nav-text">裸盘基准性能</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#io-max-%E9%99%90%E9%80%9F%E6%B5%8B%E8%AF%95%EF%BC%88Case-1%EF%BC%89"><span class="nav-number">3.</span> <span class="nav-text">io.max 限速测试（Case 1）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B7%A8%E8%AE%BE%E5%A4%87%E4%B8%8E%E5%A4%9A-Volume-%E6%B5%8B%E8%AF%95%EF%BC%88Case-2%EF%BC%89"><span class="nav-number">4.</span> <span class="nav-text">跨设备与多 Volume 测试（Case 2）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#io-weight-%E6%9D%83%E9%87%8D%E8%B0%83%E5%BA%A6%E6%B5%8B%E8%AF%95%EF%BC%88Case-3%EF%BC%89"><span class="nav-number">5.</span> <span class="nav-text">io.weight 权重调度测试（Case 3）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#iocost-QoS-%E7%B2%BE%E7%A1%AE%E6%8E%A7%E5%88%B6%E6%B5%8B%E8%AF%95%EF%BC%88Case-6%EF%BC%89"><span class="nav-number">6.</span> <span class="nav-text">iocost QoS 精确控制测试（Case 6）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89-Volume-%E6%9D%83%E9%87%8D%E6%B5%8B%E8%AF%95%EF%BC%88Case-7%EF%BC%89"><span class="nav-number">7.</span> <span class="nav-text">三 Volume 权重测试（Case 7）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A4%A7%E8%A7%84%E6%A8%A1-Pod-%E5%9C%BA%E6%99%AF%E6%B5%8B%E8%AF%95%EF%BC%88Case-5-9%EF%BC%89"><span class="nav-number">8.</span> <span class="nav-text">大规模 Pod 场景测试（Case 5 &amp; 9）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Case-5%EF%BC%9A%E4%B8%8D%E5%90%8C-IO-%E8%B0%83%E5%BA%A6%E5%99%A8%E5%AF%B9%E6%AF%94"><span class="nav-number">8.1.</span> <span class="nav-text">Case 5：不同 IO 调度器对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Case-9%EF%BC%9A%E5%AE%B9%E5%99%A8%E6%95%B0%E9%87%8F%E5%AF%B9-IO-%E5%90%9E%E5%90%90%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="nav-number">8.2.</span> <span class="nav-text">Case 9：容器数量对 IO 吞吐的影响</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E4%BD%BF%E7%94%A8%E5%BB%BA%E8%AE%AE"><span class="nav-number">9.</span> <span class="nav-text">总结与使用建议</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">120</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/20/2026-06-20-cgroup-v2-io-controller-benchmark/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Cgroup V2 IO 控制器基准测试：io.max、io.weight 与 iocost 实测分析 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Cgroup V2 IO 控制器基准测试：io.max、io.weight 与 iocost 实测分析
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-20 12:00:00 / Modified: 20:07:50" itemprop="dateCreated datePublished" datetime="2026-06-20T12:00:00+08:00">2026-06-20</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux-Kernel</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>本文记录在生产级 Kubernetes 节点上对 Cgroup V2 IO 控制器的系统性基准测试，覆盖 <code>io.max</code>（带宽&#x2F;IOPS 硬限）、<code>io.weight</code>（权重调度）、<code>io.cost.qos</code>（延迟模型 QoS）三类控制机制，以及 Direct IO vs Buffer IO、raw disk vs LVM、ext4 vs xfs 等不同组合下的实测数据。</p>
+<span id="more"></span>
+
+<h2 id="测试环境"><a href="#测试环境" class="headerlink" title="测试环境"></a>测试环境</h2><ul>
+<li><strong>OS</strong>：Ubuntu 22.04 LTS（kernel 5.15）</li>
+<li><strong>Kubernetes</strong>：v1.23</li>
+<li><strong>存储</strong>：3 块 1.7T SSD（sda&#x2F;sdb&#x2F;sdc），LVM VG 横跨三块盘</li>
+<li><strong>测试工具</strong>：fio + 自定义 IO 统计脚本</li>
+</ul>
+<p>磁盘布局：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">sda  1.7T</span><br><span class="line"> └─sda4  1.3T  → LVM PV</span><br><span class="line">sdb  1.7T</span><br><span class="line"> └─sdb1  1.7T  → LVM PV</span><br><span class="line">sdc  1.7T</span><br><span class="line"> └─sdc1  1.7T  → LVM PV</span><br><span class="line"></span><br><span class="line">VG: vg10000（由 sda4 + sdb1 + sdc1 组成）</span><br></pre></td></tr></table></figure>
+
+<p>FIO 基础命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">fio -filename=/mnt/test/xfs/testfile \</span><br><span class="line">    -direct=0 -iodepth 64 -thread -rw=write \</span><br><span class="line">    -ioengine=libaio -bs=4k -size=20G \</span><br><span class="line">    -numjobs=1 -group_reporting --runtime=100 \</span><br><span class="line">    -name=mytest</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="裸盘基准性能"><a href="#裸盘基准性能" class="headerlink" title="裸盘基准性能"></a>裸盘基准性能</h2><table>
+<thead>
+<tr>
+<th>4K 顺序读写</th>
+<th>读 BW</th>
+<th>读 IOPS</th>
+<th>写 BW</th>
+<th>写 IOPS</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Ext4 Direct</td>
+<td>359 MB&#x2F;s</td>
+<td>89,887</td>
+<td>391 MB&#x2F;s</td>
+<td>97,825</td>
+</tr>
+<tr>
+<td>Ext4 Buffer</td>
+<td>336 MB&#x2F;s</td>
+<td>84,110</td>
+<td>728 MB&#x2F;s</td>
+<td>182,086</td>
+</tr>
+<tr>
+<td>XFS Direct</td>
+<td>360 MB&#x2F;s</td>
+<td>89,997</td>
+<td>400 MB&#x2F;s</td>
+<td>100,005</td>
+</tr>
+<tr>
+<td>XFS Buffer</td>
+<td>300 MB&#x2F;s</td>
+<td>74,910</td>
+<td>780 MB&#x2F;s</td>
+<td>194,982</td>
+</tr>
+</tbody></table>
+<p>Buffer IO 的写带宽因 page cache 聚合写入而显著高于 Direct IO。</p>
+<hr>
+<h2 id="io-max-限速测试（Case-1）"><a href="#io-max-限速测试（Case-1）" class="headerlink" title="io.max 限速测试（Case 1）"></a>io.max 限速测试（Case 1）</h2><p>单 volume，单线程，对单设备设置 <code>io.max</code>。</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>IO 类型</th>
+<th>文件系统</th>
+<th>层级</th>
+<th>配置</th>
+<th>实测写 BW</th>
+<th>实测写 IOPS</th>
+<th>磁盘利用率</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1-1</td>
+<td>Direct</td>
+<td>ext4</td>
+<td>raw</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>21,113</td>
+<td>31%</td>
+</tr>
+<tr>
+<td>1-2</td>
+<td>Direct</td>
+<td>xfs</td>
+<td>raw</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>13,382</td>
+<td>28%</td>
+</tr>
+<tr>
+<td>1-3</td>
+<td>Buffer</td>
+<td>ext4</td>
+<td>raw</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>90</td>
+<td>25%</td>
+</tr>
+<tr>
+<td>1-4</td>
+<td>Buffer</td>
+<td>xfs</td>
+<td>raw</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>90</td>
+<td>25%</td>
+</tr>
+<tr>
+<td>1-5</td>
+<td>Direct</td>
+<td>xfs</td>
+<td>raw</td>
+<td>wiops&#x3D;1000</td>
+<td>4 MB&#x2F;s</td>
+<td>1,000</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>1-6</td>
+<td>Buffer</td>
+<td>xfs</td>
+<td>raw</td>
+<td>wiops&#x3D;10</td>
+<td>12.6 MB&#x2F;s</td>
+<td>14.5</td>
+<td>3%</td>
+</tr>
+<tr>
+<td>1-7</td>
+<td>Direct</td>
+<td>xfs</td>
+<td>LVM</td>
+<td>wiops&#x3D;1000</td>
+<td>0.4 MB&#x2F;s</td>
+<td>100</td>
+<td>4%</td>
+</tr>
+<tr>
+<td>1-8</td>
+<td>Buffer</td>
+<td>xfs</td>
+<td>LVM</td>
+<td>wiops&#x3D;100</td>
+<td>475 MB&#x2F;s</td>
+<td>2</td>
+<td>1.6%</td>
+</tr>
+<tr>
+<td>1-9</td>
+<td>Direct</td>
+<td>xfs</td>
+<td>LVM</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>25,570</td>
+<td>28%</td>
+</tr>
+<tr>
+<td>1-10</td>
+<td>Buffer</td>
+<td>xfs</td>
+<td>LVM</td>
+<td>wbps&#x3D;100MB&#x2F;s</td>
+<td>100 MB&#x2F;s</td>
+<td>2</td>
+<td>20%</td>
+</tr>
+</tbody></table>
+<p><strong>关键发现：Buffer IO 的 IOPS 限速不准确</strong></p>
+<p>Case 1-8（Buffer IO，LVM，wiops&#x3D;100）：实测 IOPS 仅为 2，但 BPS 达到 475 MB&#x2F;s，远超预期。Case 1-6 类似（wiops&#x3D;10，实测 14.5 IOPS）。</p>
+<p>原因：Buffer IO 的 dirty page writeback 使用的实际 block size 并非 fio 设置的 4K，而是由内核的 writeback 聚合策略决定的（通常更大）。内存越少，dirty page 刷盘频率越高，block size 越小；内存充足时，多个小写入被合并为大块写入，导致实际 IOPS 远低于配置值，BPS 却可能超出限制。</p>
+<p><strong>结论</strong>：<code>io.max</code> 的 BPS 限速（<code>wbps</code>）在 Buffer IO 下准确，IOPS 限速（<code>wiops</code>）在 Buffer IO 下不可靠。</p>
+<hr>
+<h2 id="跨设备与多-Volume-测试（Case-2）"><a href="#跨设备与多-Volume-测试（Case-2）" class="headerlink" title="跨设备与多 Volume 测试（Case 2）"></a>跨设备与多 Volume 测试（Case 2）</h2><table>
+<thead>
+<tr>
+<th>Case</th>
+<th>配置</th>
+<th>Device 1 实测</th>
+<th>Device 2 实测</th>
+<th>LVM 总计</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>2-1</td>
+<td>dev1&#x3D;100MB&#x2F;s, dev2&#x3D;无限</td>
+<td>104 MB&#x2F;s, 83 IOPS</td>
+<td>489 MB&#x2F;s, 446 IOPS</td>
+<td>IOPS 在 [0,100] 波动</td>
+</tr>
+<tr>
+<td>2-2</td>
+<td>两设备各 100MB&#x2F;s</td>
+<td>100 MB&#x2F;s, 100 IOPS</td>
+<td>100 MB&#x2F;s, 100 IOPS</td>
+<td>100 MB&#x2F;s, [5,70] IOPS</td>
+</tr>
+</tbody></table>
+<p>跨设备 LVM volume 的限速以底层设备为粒度，LVM 层级的 IOPS 由于条带化导致数值波动较大。</p>
+<hr>
+<h2 id="io-weight-权重调度测试（Case-3）"><a href="#io-weight-权重调度测试（Case-3）" class="headerlink" title="io.weight 权重调度测试（Case 3）"></a>io.weight 权重调度测试（Case 3）</h2><p>两个 LVM volume，两个 fio 线程，测试 <code>io.weight</code> 比例调度效果。</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>场景</th>
+<th>Volume 1</th>
+<th>Volume 2</th>
+<th>磁盘总计</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3-1.1</td>
+<td>Buffer，无限制</td>
+<td>250 MB&#x2F;s</td>
+<td>250 MB&#x2F;s</td>
+<td>500 MB&#x2F;s, 100% util</td>
+</tr>
+<tr>
+<td>3-1.2</td>
+<td>Direct，无限制</td>
+<td>220 MB&#x2F;s</td>
+<td>220 MB&#x2F;s</td>
+<td>440 MB&#x2F;s, 100% util</td>
+</tr>
+<tr>
+<td>3-2</td>
+<td>Direct，weight 100:300，user qos</td>
+<td>206 MB&#x2F;s</td>
+<td>209 MB&#x2F;s</td>
+<td>420 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>3-4</td>
+<td>Buffer，weight 100:300，user qos</td>
+<td>129 MB&#x2F;s</td>
+<td>368 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>3-6</td>
+<td>Direct，weight 100:900，user qos</td>
+<td>153 MB&#x2F;s</td>
+<td>155 MB&#x2F;s</td>
+<td>304 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>3-8</td>
+<td>Buffer，weight 100:900，user qos</td>
+<td>57 MB&#x2F;s</td>
+<td>442 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<p><strong>关键发现：Direct IO 的 io.weight 在默认 iocost.qos 下无效</strong></p>
+<p>Case 3-2 和 3-6：权重设置为 100:300 和 100:900，但两个 volume 的实际带宽几乎相等（<del>206 vs ~209，</del>153 vs ~155）。</p>
+<p>原因：默认的 <code>io.cost.qos</code> 会根据延迟自动调整权重（<code>ctrl=auto</code>），当 Direct IO 让磁盘达到 100% 利用率时，内核为了满足延迟目标会忽略用户设置的权重比例，重新分配。</p>
+<p>Buffer IO 下权重调度效果正常（3-4: 129 vs 368 ≈ 1:2.8；3-8: 57 vs 442 ≈ 1:7.8），接近预期的 1:3 和 1:9。</p>
+<p><strong>结论</strong>：<code>io.weight</code> 在 Buffer IO 下效果良好；在 Direct IO 且磁盘满负载时，需要禁用 iocost.qos 的自动调整（设置 <code>min=max=100</code>）才能生效。</p>
+<hr>
+<h2 id="iocost-QoS-精确控制测试（Case-6）"><a href="#iocost-QoS-精确控制测试（Case-6）" class="headerlink" title="iocost QoS 精确控制测试（Case 6）"></a>iocost QoS 精确控制测试（Case 6）</h2><p>禁用 iocost 自动调整（<code>min=max=100</code>），两个 volume 权重 100:900。</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>附加配置</th>
+<th>Volume 1</th>
+<th>Volume 2</th>
+<th>磁盘总计</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>6-1</td>
+<td>无 io.max</td>
+<td>22 MB&#x2F;s, 83% util</td>
+<td>309 MB&#x2F;s, 85% util</td>
+<td>322 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>6-2</td>
+<td>无 io.max，权重 100:300</td>
+<td>127 MB&#x2F;s</td>
+<td>291 MB&#x2F;s</td>
+<td>405 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>6-3</td>
+<td>io.max 各 150MB&#x2F;s</td>
+<td>18 MB&#x2F;s</td>
+<td>145 MB&#x2F;s</td>
+<td>168 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>6-4</td>
+<td>io.max 各 100MB&#x2F;s</td>
+<td>67 MB&#x2F;s</td>
+<td>102 MB&#x2F;s</td>
+<td>164 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>6-5</td>
+<td>v2 限制 10MB&#x2F;s</td>
+<td>48 MB&#x2F;s</td>
+<td>10 MB&#x2F;s</td>
+<td>58 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<p>Case 6-1 权重 100:900 的实际比例约为 1:14（22 vs 309），超过预期 1:9。这是因为磁盘利用率约 85%，iocost 轻微调整了分配比例。禁用自动调整后（min&#x3D;max&#x3D;100），权重比例更接近配置值。</p>
+<hr>
+<h2 id="三-Volume-权重测试（Case-7）"><a href="#三-Volume-权重测试（Case-7）" class="headerlink" title="三 Volume 权重测试（Case 7）"></a>三 Volume 权重测试（Case 7）</h2><p>三个 LVM volume，权重配置不同，<code>io.cost.qos</code> 设置 <code>min=max=100</code>（禁用自动调整）。</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>权重配置</th>
+<th>Vol 1</th>
+<th>Vol 2</th>
+<th>Vol 3</th>
+<th>总计</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>7-1</td>
+<td>100:900:900</td>
+<td>38 MB&#x2F;s</td>
+<td>6 MB&#x2F;s</td>
+<td>191 MB&#x2F;s</td>
+<td>235 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-3</td>
+<td>100:900:900，v2 限 10MB&#x2F;s</td>
+<td>10 MB&#x2F;s</td>
+<td>9.6 MB&#x2F;s</td>
+<td>153 MB&#x2F;s</td>
+<td>172 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-4</td>
+<td>100:900:900，ctrl&#x3D;auto</td>
+<td>20 MB&#x2F;s</td>
+<td>112 MB&#x2F;s</td>
+<td>122 MB&#x2F;s</td>
+<td>254 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-5</td>
+<td>100:300:900</td>
+<td>9.7 MB&#x2F;s</td>
+<td>30 MB&#x2F;s</td>
+<td>155 MB&#x2F;s</td>
+<td>194 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-6</td>
+<td>100:300:600</td>
+<td>14 MB&#x2F;s</td>
+<td>43 MB&#x2F;s</td>
+<td>118 MB&#x2F;s</td>
+<td>175 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>7-9</td>
+<td>无权重配置（基准）</td>
+<td>121 MB&#x2F;s</td>
+<td>119 MB&#x2F;s</td>
+<td>119 MB&#x2F;s</td>
+<td>359 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<p><strong>发现</strong>：</p>
+<ol>
+<li>7-4 使用 <code>ctrl=auto</code> 时，权重 900 的 vol3 实测 122 MB&#x2F;s，仅略高于 vol2（112 MB&#x2F;s），比例远不是 1:9，自动调整干扰了权重效果</li>
+<li>设置 io.weight 后总带宽下降（235 vs 359 MB&#x2F;s），<code>io.cost.qos</code> 可以缓解但无法完全消除</li>
+<li>7-2（<code>ctrl=auto</code>，无 <code>min=max</code>）导致节点出现 CPU 软锁，测试中断</li>
+</ol>
+<hr>
+<h2 id="大规模-Pod-场景测试（Case-5-9）"><a href="#大规模-Pod-场景测试（Case-5-9）" class="headerlink" title="大规模 Pod 场景测试（Case 5 &amp; 9）"></a>大规模 Pod 场景测试（Case 5 &amp; 9）</h2><p>100 个 Pod，每 Pod 10 个 fio 线程，测试 IO 调度器和 iocost 对节点整体的影响。</p>
+<h3 id="Case-5：不同-IO-调度器对比"><a href="#Case-5：不同-IO-调度器对比" class="headerlink" title="Case 5：不同 IO 调度器对比"></a>Case 5：不同 IO 调度器对比</h3><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>Load Avg</th>
+<th>CPU</th>
+<th>D-state 进程</th>
+<th>节点 IO PSI</th>
+<th>总 IO 带宽</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>无限制（mq-deadline）</td>
+<td>900</td>
+<td>100%</td>
+<td>30</td>
+<td>910ms</td>
+<td>300 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>io.max 限速（mq-deadline）</td>
+<td>548</td>
+<td>68.4%</td>
+<td>0</td>
+<td>450ms</td>
+<td>200 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>io.max 限速（bfq）</td>
+<td>700</td>
+<td>93.4%</td>
+<td>0</td>
+<td>791ms</td>
+<td>150 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<h3 id="Case-9：容器数量对-IO-吞吐的影响"><a href="#Case-9：容器数量对-IO-吞吐的影响" class="headerlink" title="Case 9：容器数量对 IO 吞吐的影响"></a>Case 9：容器数量对 IO 吞吐的影响</h3><p>不同 IO 调度器和控制策略下，随容器数量增加的写入吞吐量：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>1容器</th>
+<th>2容器</th>
+<th>6容器</th>
+<th>18容器</th>
+<th>50容器</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SSD xfs，bfq</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>220 MB&#x2F;s</td>
+<td>220 MB&#x2F;s</td>
+<td>300 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>SSD xfs，mq-deadline</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>SSD xfs，bfq+iocost</td>
+<td>250 MB&#x2F;s</td>
+<td>300 MB&#x2F;s</td>
+<td>340 MB&#x2F;s</td>
+<td>16~490 MB&#x2F;s</td>
+<td>35~491 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>SSD xfs，bfq+ioweight</td>
+<td>40 MB&#x2F;s</td>
+<td>42 MB&#x2F;s</td>
+<td>65 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+<td>500 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>NVMe xfs，bfq</td>
+<td>830 MB&#x2F;s</td>
+<td>900 MB&#x2F;s</td>
+<td>810 MB&#x2F;s</td>
+<td>850 MB&#x2F;s</td>
+<td>750 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<p><strong>关键发现</strong>：</p>
+<ol>
+<li><strong>BFQ 调度器在多容器下吞吐量下降显著</strong>：SSD 环境下从 500 MB&#x2F;s 降至 220 MB&#x2F;s（6容器），而 mq-deadline 全程保持 500 MB&#x2F;s 稳定</li>
+<li><strong>iocost 导致 IO 不稳定</strong>：启用 iocost 后，IO 吞吐在 16~490 MB&#x2F;s 之间剧烈波动，某些情况下长时间低 IO 才能恢复（见 iocost 测试图示）</li>
+<li><strong>NVMe 上 BFQ 相对稳定</strong>：NVMe 的高 IOPS 特性让 BFQ 的调度开销相对较小，多容器下吞吐下降幅度可接受</li>
+</ol>
+<hr>
+<h2 id="总结与使用建议"><a href="#总结与使用建议" class="headerlink" title="总结与使用建议"></a>总结与使用建议</h2><table>
+<thead>
+<tr>
+<th>功能</th>
+<th>场景</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>io.max</code> BPS 限速</td>
+<td>Direct IO &#x2F; Buffer IO</td>
+<td>可靠，直接使用</td>
+</tr>
+<tr>
+<td><code>io.max</code> IOPS 限速</td>
+<td>Direct IO</td>
+<td>可靠</td>
+</tr>
+<tr>
+<td><code>io.max</code> IOPS 限速</td>
+<td>Buffer IO</td>
+<td>不可靠，慎用</td>
+</tr>
+<tr>
+<td><code>io.weight</code></td>
+<td>Buffer IO</td>
+<td>效果良好</td>
+</tr>
+<tr>
+<td><code>io.weight</code></td>
+<td>Direct IO，磁盘满载</td>
+<td>需配合 <code>min=max=100</code> 关闭 iocost 自动调整</td>
+</tr>
+<tr>
+<td><code>io.cost.qos ctrl=auto</code></td>
+<td>任何场景</td>
+<td>高并发下可能导致 CPU 软锁，生产谨慎使用</td>
+</tr>
+<tr>
+<td>IO 调度器</td>
+<td>多容器高并发</td>
+<td>mq-deadline 比 bfq 更稳定，bfq 适合需要权重调度的场景</td>
+</tr>
+</tbody></table>
+<p><strong>核心结论</strong>：Cgroup V2 的 IO 控制器功能强大，但各机制之间存在相互影响（iocost 会覆盖 io.weight，BFQ 在高并发下有性能衰减）。生产环境建议从 <code>io.max</code> BPS 限速入手，待充分测试后再逐步引入权重和 iocost 功能。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Performance/" rel="tag"># Performance</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-cgroup-v2-kubernetes-migration-guide/" rel="prev" title="Kubernetes 集群迁移到 Cgroup V2：原理、兼容性验证与启用步骤">
+                  <i class="fa fa-angle-left"></i> Kubernetes 集群迁移到 Cgroup V2：原理、兼容性验证与启用步骤
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

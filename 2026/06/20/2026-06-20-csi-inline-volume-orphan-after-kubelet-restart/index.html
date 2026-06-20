@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="当 Pod 正在 Terminating 期间 kubelet 发生重启，CSI Inline Volume（ephemeral volume）可能进入”孤儿”状态——kubelet 重启后既不卸载该 volume，也不清理挂载点，导致底层 LVM 资源泄漏。本文分析其根因，并给出修复方案。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="CSI Inline Volume 孤儿问题：Kubelet 重启后 Volume 无法清理的根因与修复">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/20/2026-06-20-csi-inline-volume-orphan-after-kubelet-restart/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="当 Pod 正在 Terminating 期间 kubelet 发生重启，CSI Inline Volume（ephemeral volume）可能进入”孤儿”状态——kubelet 重启后既不卸载该 volume，也不清理挂载点，导致底层 LVM 资源泄漏。本文分析其根因，并给出修复方案。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-20T02:30:00.000Z">
+<meta property="article:modified_time" content="2026-06-20T12:02:12.915Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Debugging">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Storage">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/20/2026-06-20-csi-inline-volume-orphan-after-kubelet-restart/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/20/2026-06-20-csi-inline-volume-orphan-after-kubelet-restart/","path":"2026/06/20/2026-06-20-csi-inline-volume-orphan-after-kubelet-restart/","title":"CSI Inline Volume 孤儿问题：Kubelet 重启后 Volume 无法清理的根因与修复"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>CSI Inline Volume 孤儿问题：Kubelet 重启后 Volume 无法清理的根因与修复 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E7%8E%B0%E8%B1%A1"><span class="nav-number">1.</span> <span class="nav-text">问题现象</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B9%E5%9B%A0%E5%88%86%E6%9E%90"><span class="nav-number">2.</span> <span class="nav-text">根因分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-reconstructVolume-%E8%B5%B0%E9%94%99%E4%BA%86%E6%8F%92%E4%BB%B6%E6%9F%A5%E6%89%BE%E8%B7%AF%E5%BE%84"><span class="nav-number">2.1.</span> <span class="nav-text">1. reconstructVolume 走错了插件查找路径</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%BA%94%E8%B5%B0-GetUniqueVolumeNameFromSpecWithPod"><span class="nav-number">2.2.</span> <span class="nav-text">2. 应走 GetUniqueVolumeNameFromSpecWithPod</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-reconstructVolume-%E5%A4%B1%E8%B4%A5%E5%90%8E%E7%9A%84%E5%90%8E%E6%9E%9C"><span class="nav-number">2.3.</span> <span class="nav-text">3. reconstructVolume 失败后的后果</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A7%A6%E5%8F%91%E6%9D%A1%E4%BB%B6"><span class="nav-number">2.4.</span> <span class="nav-text">触发条件</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#CSI-%E9%A9%B1%E5%8A%A8%E4%BE%A7%E7%9A%84%E6%8A%A5%E9%94%99"><span class="nav-number">3.</span> <span class="nav-text">CSI 驱动侧的报错</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BF%AE%E5%A4%8D%E6%96%B9%E6%A1%88"><span class="nav-number">4.</span> <span class="nav-text">修复方案</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%8A%E6%B8%B8%E4%BF%AE%E5%A4%8D"><span class="nav-number">4.1.</span> <span class="nav-text">上游修复</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%8E%E7%89%88%E6%9C%AC%E4%B8%B4%E6%97%B6%E5%A4%84%E7%90%86"><span class="nav-number">4.2.</span> <span class="nav-text">低版本临时处理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">120</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/20/2026-06-20-csi-inline-volume-orphan-after-kubelet-restart/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="CSI Inline Volume 孤儿问题：Kubelet 重启后 Volume 无法清理的根因与修复 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          CSI Inline Volume 孤儿问题：Kubelet 重启后 Volume 无法清理的根因与修复
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-20 10:30:00 / Modified: 20:02:12" itemprop="dateCreated datePublished" datetime="2026-06-20T10:30:00+08:00">2026-06-20</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>当 Pod 正在 Terminating 期间 kubelet 发生重启，CSI Inline Volume（ephemeral volume）可能进入”孤儿”状态——kubelet 重启后既不卸载该 volume，也不清理挂载点，导致底层 LVM 资源泄漏。本文分析其根因，并给出修复方案。</p>
+<span id="more"></span>
+
+<h2 id="问题现象"><a href="#问题现象" class="headerlink" title="问题现象"></a>问题现象</h2><p>Pod 处于 Terminating 状态时，节点上的 kubelet 重启。重启后日志中出现如下错误：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">kubelet: I reconciler.go:388] &quot;Could not construct volume information, cleaning up mounts&quot;</span><br><span class="line">  podName=1517b38e-fa84-4138-b6c0-06663741e385</span><br><span class="line">  volumeSpecName=&quot;data&quot;</span><br><span class="line">  err=&quot;failed to GetVolumeName from volumePlugin for volumeSpec \&quot;data\&quot;</span><br><span class="line">  err=kubernetes.io/csi: plugin.GetVolumeName failed to extract volume source</span><br><span class="line">  from spec: unexpected api.CSIVolumeSource found in volume.Spec&quot;</span><br><span class="line"></span><br><span class="line">kubelet: E operation_generator.go:952] UnmountVolume.MarkVolumeMountAsUncertain failed</span><br><span class="line">  for volume &quot;&quot; (UniqueName: &quot;data&quot;)</span><br><span class="line">  pod &quot;1517b38e-fa84-4138-b6c0-06663741e385&quot;</span><br><span class="line">  Error: UnmountVolume.TearDown failed: rpc error: code = Aborted</span><br><span class="line">  desc = NodeUnpublish operation for volume csi-c6b0a910... still ongoing</span><br></pre></td></tr></table></figure>
+
+<p>最终结果：Pod 被从 API Server 删除（<code>SyncLoop DELETE</code>），但 volume 的 LVM 逻辑卷仍然存在于节点上，成为孤儿资源。</p>
+<hr>
+<h2 id="根因分析"><a href="#根因分析" class="headerlink" title="根因分析"></a>根因分析</h2><h3 id="1-reconstructVolume-走错了插件查找路径"><a href="#1-reconstructVolume-走错了插件查找路径" class="headerlink" title="1. reconstructVolume 走错了插件查找路径"></a>1. <code>reconstructVolume</code> 走错了插件查找路径</h3><p>Kubelet 重启后，会通过 <code>reconstructVolume</code> 从磁盘上残留的挂载信息重建 volume 状态。核心流程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">kubelet restart</span><br><span class="line">  → reconstructVolume</span><br><span class="line">    → FindAttachablePluginByName      ← 问题在这里</span><br><span class="line">    → FindDeviceMountablePluginByName</span><br><span class="line">    → GetUniqueVolumeNameFromSpec     ← 只处理 CSIPersistentVolumeSource</span><br><span class="line">      → getPVSourceFromSpec</span><br><span class="line">        → ERROR: &quot;unexpected api.CSIVolumeSource found in volume.Spec&quot;</span><br></pre></td></tr></table></figure>
+
+<p>CSI Inline Volume（<code>api.CSIVolumeSource</code>）与 CSI PV（<code>api.CSIPersistentVolumeSource</code>）是两种不同的结构体。<code>getPVSourceFromSpec</code> 只处理后者，遇到前者时直接报错。</p>
+<h3 id="2-应走-GetUniqueVolumeNameFromSpecWithPod"><a href="#2-应走-GetUniqueVolumeNameFromSpecWithPod" class="headerlink" title="2. 应走 GetUniqueVolumeNameFromSpecWithPod"></a>2. 应走 <code>GetUniqueVolumeNameFromSpecWithPod</code></h3><p>对于 ephemeral volume，唯一名称需要结合 Pod UID 生成，应调用 <code>GetUniqueVolumeNameFromSpecWithPod</code>，而非 <code>GetUniqueVolumeNameFromSpec</code>。判断走哪条路径的逻辑是：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> attachablePlugin != <span class="literal">nil</span> || deviceMountablePlugin != <span class="literal">nil</span> &#123;</span><br><span class="line">    uniqueVolumeName, err = util.GetUniqueVolumeNameFromSpec(plugin, volumeSpec)</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    uniqueVolumeName = util.GetUniqueVolumeNameFromSpecWithPod(volume.podName, plugin, volumeSpec)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>CSI Inline Volume 不应有 <code>attachablePlugin</code> 和 <code>deviceMountablePlugin</code>，但代码中使用了 <code>FindAttachablePluginByName</code>（按名字查找），而非 <code>FindDeviceMountablePluginBySpec</code>（按 spec 查找）。这导致本应进入 <code>else</code> 分支的 inline volume 错误地进入了 <code>if</code> 分支。</p>
+<h3 id="3-reconstructVolume-失败后的后果"><a href="#3-reconstructVolume-失败后的后果" class="headerlink" title="3. reconstructVolume 失败后的后果"></a>3. <code>reconstructVolume</code> 失败后的后果</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">reconstructedVolume, err := rc.reconstructVolume(volume)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> volumeInDSW &#123;</span><br><span class="line">        <span class="comment">// 某个 Pod 还需要这个 volume，跳过清理</span></span><br><span class="line">        <span class="keyword">continue</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 没有 Pod 需要它，尝试清理挂载点</span></span><br><span class="line">    rc.cleanupMounts(volume)</span><br><span class="line">    <span class="keyword">continue</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>由于 Pod 正在 Terminating，Pod 没有被加入 Desired State of World（DSW），所以 <code>volumeInDSW</code> 为 false。kubelet 调用 <code>cleanupMounts</code> → <code>UnmountVolume</code>，但此时容器还没有完全退出，底层 CSI 驱动返回 <code>Aborted</code>（NodeUnpublish 操作仍在进行中）。</p>
+<p>这是唯一一次清理机会，失败后 kubelet 不再重试，volume 就此成为孤儿。</p>
+<h3 id="触发条件"><a href="#触发条件" class="headerlink" title="触发条件"></a>触发条件</h3><p>三个条件同时满足才会触发：</p>
+<ol>
+<li>Pod 正处于 Terminating 状态</li>
+<li>Kubelet 在此期间重启或宕机</li>
+<li><code>reconstructVolume</code> 失败，且 Pod 未被加入 DSW</li>
+</ol>
+<hr>
+<h2 id="CSI-驱动侧的报错"><a href="#CSI-驱动侧的报错" class="headerlink" title="CSI 驱动侧的报错"></a>CSI 驱动侧的报错</h2><p>在 kubelet 尝试清理的同时，CSI 驱动（本地 LVM 驱动）也尝试执行 <code>NodeUnpublishVolume</code>，但因 LV 仍被使用而失败：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">CSI local driver: NodeUnpublishVolume req=volume_id:&quot;csi-17ef0134...&quot; target_path:&quot;...mount&quot;</span><br><span class="line">CSI local driver: Removing volume with id=vg10000_csi-17ef0134...</span><br><span class="line">mke2fs: /dev/vg10000/vg10000_csi-17ef0134... is apparently in use by the system</span><br><span class="line">wipefs: error: probing initialization failed: Device or resource busy</span><br><span class="line">lvremove: Logical volume vg10000/vg10000_csi-17ef0134... contains a filesystem in use.</span><br><span class="line">NodeUnpublishVolume failed: Failed to lvremove lv: filesystem in use</span><br></pre></td></tr></table></figure>
+
+<p>LV 因容器仍在使用文件系统而无法被删除，NodeUnpublish 以 <code>Internal</code> 错误返回。</p>
+<hr>
+<h2 id="修复方案"><a href="#修复方案" class="headerlink" title="修复方案"></a>修复方案</h2><h3 id="上游修复"><a href="#上游修复" class="headerlink" title="上游修复"></a>上游修复</h3><p>该 bug 已在 Kubernetes 1.25 修复：<a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/pull/108997">kubernetes&#x2F;kubernetes#108997</a></p>
+<p>修复核心：将 <code>reconstructVolume</code> 中对 CSI Inline Volume 的插件查找改为使用 <code>FindDeviceMountablePluginBySpec</code>，使其正确跳过 <code>attachablePlugin</code> 和 <code>deviceMountablePlugin</code> 的查找，进而走 <code>GetUniqueVolumeNameFromSpecWithPod</code> 路径，成功重建 volume 状态并正常触发卸载流程。</p>
+<h3 id="低版本临时处理"><a href="#低版本临时处理" class="headerlink" title="低版本临时处理"></a>低版本临时处理</h3><p>在 bug 修复版本未上线之前，需要手动清理孤儿 LV。步骤：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 确认孤儿 LV（无对应挂载点的 LV）</span></span><br><span class="line">lvs vg10000</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 检查 LV 是否仍被挂载</span></span><br><span class="line">lsblk /dev/vg10000/&lt;lv-name&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 强制卸载后删除</span></span><br><span class="line">umount -f /dev/vg10000/&lt;lv-name&gt;</span><br><span class="line">lvremove -f vg10000/&lt;lv-name&gt;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><table>
+<thead>
+<tr>
+<th>环节</th>
+<th>问题</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>插件查找</td>
+<td><code>FindAttachablePluginByName</code> 误匹配 inline volume</td>
+<td><code>reconstructVolume</code> 报错</td>
+</tr>
+<tr>
+<td>路径判断</td>
+<td>inline volume 错进 <code>GetUniqueVolumeNameFromSpec</code></td>
+<td>volume 无法加入 ASW</td>
+</tr>
+<tr>
+<td>清理时机</td>
+<td>容器未退出时 <code>cleanupMounts</code> 必然失败</td>
+<td>volume 成为孤儿</td>
+</tr>
+</tbody></table>
+<p>根本原因是 CSI Inline Volume 在 kubelet 重建路径上的判断逻辑与 CSI PV 混用，导致重启窗口期内的 volume 无法被正确重建和清理。上游在 1.25 通过区分插件查找方式解决了这一问题。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Debugging/" rel="tag"># Debugging</a>
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Storage/" rel="tag"># Storage</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-kubernetes-local-pvc-lost-fake-device-solution/" rel="prev" title="Kubernetes Local PVC 丢失时的 Fake Device 解决方案">
+                  <i class="fa fa-angle-left"></i> Kubernetes Local PVC 丢失时的 Fake Device 解决方案
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/20/2026-06-20-lvm-hang-concurrent-pod-operations/" rel="next" title="LVM 挂起：大量 Pod 并发创建删除时的磁盘操作瓶颈与解法">
+                  LVM 挂起：大量 Pod 并发创建删除时的磁盘操作瓶颈与解法 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
