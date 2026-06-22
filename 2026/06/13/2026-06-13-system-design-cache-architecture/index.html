@@ -27,7 +27,7 @@
 <meta property="og:description" content="本文完整梳理分布式缓存的核心设计：缓存策略选型、三大经典问题（雪崩&#x2F;穿透&#x2F;击穿）的根因与解法、高可用架构，以及各方案背后的工程权衡。">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-06-13T14:00:00.000Z">
-<meta property="article:modified_time" content="2026-06-18T16:53:53.435Z">
+<meta property="article:modified_time" content="2026-06-22T09:39:31.585Z">
 <meta property="article:author" content="smileusd">
 <meta property="article:tag" content="Debugging">
 <meta property="article:tag" content="Performance">
@@ -107,7 +107,7 @@
       <div class="sidebar-panel-container">
         <!--noindex-->
         <div class="post-toc-wrap sidebar-panel">
-            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E7%BC%93%E5%AD%98%EF%BC%9F"><span class="nav-number">1.</span> <span class="nav-text">1. 为什么需要缓存？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%E9%80%89%E5%9E%8B"><span class="nav-number">2.</span> <span class="nav-text">2. 缓存策略选型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-Cache-Aside%EF%BC%88%E6%97%81%E8%B7%AF%E7%BC%93%E5%AD%98%EF%BC%89%E2%80%94-%E6%9C%80%E5%B8%B8%E7%94%A8"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 Cache-Aside（旁路缓存）— 最常用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Write-Through%EF%BC%88%E5%86%99%E7%A9%BF%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 Write-Through（写穿）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-Write-Behind%EF%BC%88%E5%86%99%E5%9B%9E%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 Write-Behind（写回）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%89%E5%A4%A7%E7%BB%8F%E5%85%B8%E9%97%AE%E9%A2%98"><span class="nav-number">3.</span> <span class="nav-text">3. 三大经典问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E7%BC%93%E5%AD%98%E9%9B%AA%E5%B4%A9%EF%BC%88Cache-Avalanche%EF%BC%89"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 缓存雪崩（Cache Avalanche）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F%EF%BC%88Cache-Penetration%EF%BC%89"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 缓存穿透（Cache Penetration）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF%EF%BC%88Cache-Breakdown-Hotspot%EF%BC%89"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 缓存击穿（Cache Breakdown&#x2F;Hotspot）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-number">4.</span> <span class="nav-text">4. 缓存一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%AF%BB%E5%86%99%E4%B8%80%E8%87%B4%E6%80%A7%E9%97%AE%E9%A2%98"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 读写一致性问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%BB%B6%E8%BF%9F%E5%8F%8C%E5%88%A0"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 延迟双删</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%BC%BA%E4%B8%80%E8%87%B4%E6%96%B9%E6%A1%88%EF%BC%9ACanal-MQ"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 强一致方案：Canal + MQ</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Redis-%E9%AB%98%E5%8F%AF%E7%94%A8%E6%9E%B6%E6%9E%84"><span class="nav-number">5.</span> <span class="nav-text">5. Redis 高可用架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%B8%89%E7%A7%8D%E9%83%A8%E7%BD%B2%E6%A8%A1%E5%BC%8F%E5%AF%B9%E6%AF%94"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 三种部署模式对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Redis-Sentinel%EF%BC%88%E5%93%A8%E5%85%B5%EF%BC%89"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 Redis Sentinel（哨兵）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-Redis-Cluster"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 Redis Cluster</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E7%83%AD%E7%82%B9-Key-%E4%B8%93%E9%A1%B9%E5%A4%84%E7%90%86"><span class="nav-number">6.</span> <span class="nav-text">6. 热点 Key 专项处理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98%E8%A7%A3%E6%9E%90"><span class="nav-number">7.</span> <span class="nav-text">7. 常见问题解析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E7%BC%93%E5%AD%98%EF%BC%9F"><span class="nav-number">1.</span> <span class="nav-text">1. 为什么需要缓存？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%E9%80%89%E5%9E%8B"><span class="nav-number">2.</span> <span class="nav-text">2. 缓存策略选型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-Cache-Aside%EF%BC%88%E6%97%81%E8%B7%AF%E7%BC%93%E5%AD%98%EF%BC%89%E2%80%94-%E6%9C%80%E5%B8%B8%E7%94%A8"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 Cache-Aside（旁路缓存）— 最常用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Write-Through%EF%BC%88%E5%86%99%E7%A9%BF%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 Write-Through（写穿）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-Write-Behind%EF%BC%88%E5%86%99%E5%9B%9E%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 Write-Behind（写回）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%89%E5%A4%A7%E7%BB%8F%E5%85%B8%E9%97%AE%E9%A2%98"><span class="nav-number">3.</span> <span class="nav-text">3. 三大经典问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E7%BC%93%E5%AD%98%E9%9B%AA%E5%B4%A9%EF%BC%88Cache-Avalanche%EF%BC%89"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 缓存雪崩（Cache Avalanche）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F%EF%BC%88Cache-Penetration%EF%BC%89"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 缓存穿透（Cache Penetration）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF%EF%BC%88Cache-Breakdown-Hotspot%EF%BC%89"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 缓存击穿（Cache Breakdown&#x2F;Hotspot）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-number">4.</span> <span class="nav-text">4. 缓存一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%AF%BB%E5%86%99%E4%B8%80%E8%87%B4%E6%80%A7%E9%97%AE%E9%A2%98"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 读写一致性问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%BB%B6%E8%BF%9F%E5%8F%8C%E5%88%A0"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 延迟双删</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%BC%BA%E4%B8%80%E8%87%B4%E6%96%B9%E6%A1%88%EF%BC%9ACanal-MQ"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 强一致方案：Canal + MQ</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Redis-%E9%AB%98%E5%8F%AF%E7%94%A8%E6%9E%B6%E6%9E%84"><span class="nav-number">5.</span> <span class="nav-text">5. Redis 高可用架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%B8%89%E7%A7%8D%E9%83%A8%E7%BD%B2%E6%A8%A1%E5%BC%8F%E5%AF%B9%E6%AF%94"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 三种部署模式对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Redis-Sentinel%EF%BC%88%E5%93%A8%E5%85%B5%EF%BC%89"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 Redis Sentinel（哨兵）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-Redis-Cluster"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 Redis Cluster</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E7%83%AD%E7%82%B9-Key-%E4%B8%93%E9%A1%B9%E5%A4%84%E7%90%86"><span class="nav-number">6.</span> <span class="nav-text">6. 热点 Key 专项处理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98%E8%A7%A3%E6%9E%90"><span class="nav-number">7.</span> <span class="nav-text">7. 常见问题解析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E7%9C%9F%E5%AE%9E%E7%B3%BB%E7%BB%9F%E4%B8%AD%E7%9A%84%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1"><span class="nav-number">8.</span> <span class="nav-text">8. 真实系统中的缓存设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-kube-apiserver%EF%BC%9AWatch-Cache"><span class="nav-number">8.1.</span> <span class="nav-text">8.1 kube-apiserver：Watch Cache</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-etcd%EF%BC%9AMVCC-%E5%86%85%E5%AD%98%E7%B4%A2%E5%BC%95"><span class="nav-number">8.2.</span> <span class="nav-text">8.2 etcd：MVCC + 内存索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-Linux-%E5%86%85%E6%A0%B8%EF%BC%9APage-Cache"><span class="nav-number">8.3.</span> <span class="nav-text">8.3 Linux 内核：Page Cache</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-4-%E5%AF%B9%E6%AF%94%EF%BC%9A%E4%B8%8D%E5%90%8C%E7%B3%BB%E7%BB%9F%E7%9A%84%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1%E5%8F%96%E8%88%8D"><span class="nav-number">8.4.</span> <span class="nav-text">8.4 对比：不同系统的缓存设计取舍</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">9.</span> <span class="nav-text">总结</span></a></li></ol></div>
         </div>
         <!--/noindex-->
 
@@ -194,7 +194,7 @@
         <i class="far fa-calendar-check"></i>
       </span>
       <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-06-19 00:53:53" itemprop="dateModified" datetime="2026-06-19T00:53:53+08:00">2026-06-19</time>
+      <time title="Modified: 2026-06-22 17:39:31" itemprop="dateModified" datetime="2026-06-22T17:39:31+08:00">2026-06-22</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -400,6 +400,134 @@
 <blockquote>
 <p>A: 严格意义上的强一致（读总是读到最新写）需要分布式事务，代价极高；实践中通常接受”最终一致”（删缓存 + TTL 兜底，不一致窗口 &lt; 1s）；对真正强一致场景，读操作绕过缓存直接读 DB（缓存只用于降低 DB 压力，不用于强一致读）。</p>
 </blockquote>
+<hr>
+<h2 id="8-真实系统中的缓存设计"><a href="#8-真实系统中的缓存设计" class="headerlink" title="8. 真实系统中的缓存设计"></a>8. 真实系统中的缓存设计</h2><p>上面讲的是通用模式。下面看几个生产级系统是如何设计缓存层的——它们都遵循同样的原则，但在细节上各有取舍。</p>
+<h3 id="8-1-kube-apiserver：Watch-Cache"><a href="#8-1-kube-apiserver：Watch-Cache" class="headerlink" title="8.1 kube-apiserver：Watch Cache"></a>8.1 kube-apiserver：Watch Cache</h3><p><strong>问题背景</strong>：Kubernetes 集群中所有组件（scheduler、controller-manager、kubelet）都需要频繁读取 Pod、Node、Service 等资源状态。如果每次 LIST&#x2F;GET 都直接查 etcd，etcd 会被打垮。</p>
+<p><strong>解法：Watch Cache（观察缓存）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">etcd ──watch──▶ kube-apiserver 内存 Watch Cache ──▶ scheduler/controller/kubectl</span><br><span class="line">                  (所有对象的全量快照)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>kube-apiserver 启动时，从 etcd 全量 LIST 所有资源，加载到内存 Watch Cache</li>
+<li>之后通过 etcd Watch 机制接收增量变更事件，实时更新内存快照</li>
+<li>所有 <code>kubectl get pods</code>、list-watch 请求直接从内存返回，<strong>不再访问 etcd</strong></li>
+<li>只有写操作（create&#x2F;update&#x2F;delete）才会写入 etcd</li>
+</ul>
+<p><strong>这是 Read-Through 缓存的变体</strong>：kube-apiserver 是缓存层，etcd 是数据源。</p>
+<p><strong>一致性保证</strong>：Watch Cache 通过 etcd revision（单调递增版本号）保证”不早于某版本”的一致性读。客户端可以携带 <code>resourceVersion</code> 指定最低一致性要求：</p>
+<table>
+<thead>
+<tr>
+<th>resourceVersion</th>
+<th>语义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>未指定</td>
+<td>可能读到稍旧的缓存数据（最终一致）</td>
+</tr>
+<tr>
+<td><code>&quot;0&quot;</code></td>
+<td>从缓存任意版本读（最快）</td>
+</tr>
+<tr>
+<td>具体版本号</td>
+<td>保证读到该版本之后的数据</td>
+</tr>
+</tbody></table>
+<p><strong>收益</strong>：在大型集群（5000 节点）中，Watch Cache 可将 etcd 的读 QPS 从数万降至数百，etcd 只处理写请求和 Watch 连接。</p>
+<hr>
+<h3 id="8-2-etcd：MVCC-内存索引"><a href="#8-2-etcd：MVCC-内存索引" class="headerlink" title="8.2 etcd：MVCC + 内存索引"></a>8.2 etcd：MVCC + 内存索引</h3><p><strong>问题背景</strong>：etcd 是强一致的 KV 存储，底层用 boltdb（B+ 树，磁盘存储）。如果每次读都扫磁盘，延迟会很高。</p>
+<p><strong>解法：MVCC + treeIndex（内存 B 树索引）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">写路径：</span><br><span class="line">  Client PUT(key, val)</span><br><span class="line">    → WAL 预写日志（磁盘，保证持久性）</span><br><span class="line">    → boltdb 存储 (revision → val)（磁盘）</span><br><span class="line">    → treeIndex 更新 (key → revision 列表)（内存）</span><br><span class="line">    → 通知 Watcher</span><br><span class="line"></span><br><span class="line">读路径：</span><br><span class="line">  Client GET(key)</span><br><span class="line">    → treeIndex 查 key 对应的最新 revision（内存，极快）</span><br><span class="line">    → boltdb 按 revision 取 val（磁盘，一次精确查找）</span><br></pre></td></tr></table></figure>
+
+<p><strong>treeIndex 的结构</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 每个 key 对应一个 keyIndex，记录所有历史版本</span></span><br><span class="line"><span class="keyword">type</span> keyIndex <span class="keyword">struct</span> &#123;</span><br><span class="line">    key         []<span class="type">byte</span></span><br><span class="line">    modified    revision  <span class="comment">// 最近一次修改的 revision</span></span><br><span class="line">    generations []generation  <span class="comment">// MVCC 多版本历史</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>MVCC 的意义</strong>：etcd 不直接覆盖旧值，而是追加新版本。这样：</p>
+<ul>
+<li>Watch 可以从任意历史 revision 开始回放事件（不会丢事件）</li>
+<li>读写互不阻塞（读旧版本，写新版本）</li>
+<li>代价：需要定期 <strong>compaction</strong> 清理旧版本，否则 boltdb 无限增长</li>
+</ul>
+<p><strong>内存缓存的边界</strong>：treeIndex 全在内存，boltdb 靠操作系统 page cache 加速。etcd 本身<strong>不做应用层缓存</strong>（它就是缓存的数据源），它的设计目标是”小数据、强一致、高可靠”，而不是高吞吐读。</p>
+<hr>
+<h3 id="8-3-Linux-内核：Page-Cache"><a href="#8-3-Linux-内核：Page-Cache" class="headerlink" title="8.3 Linux 内核：Page Cache"></a>8.3 Linux 内核：Page Cache</h3><p><strong>最底层的缓存</strong>：操作系统的 Page Cache 是所有磁盘 IO 的第一道缓存。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">应用层 read(fd)</span><br><span class="line">  → VFS 层查 Page Cache（内存）</span><br><span class="line">  → 命中：直接返回内存页（微秒级）</span><br><span class="line">  → 未命中：从磁盘读取，填充 Page Cache，再返回（毫秒级）</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>Redis 的 RDB&#x2F;AOF 持久化、etcd 的 boltdb 读取，都受益于 Page Cache</li>
+<li><code>free -h</code> 中的 <code>buff/cache</code> 列就是 Page Cache 占用</li>
+<li>内存不足时，内核自动 LRU 淘汰冷页（匿名页靠 swap）</li>
+</ul>
+<p><strong>与应用层缓存的区别</strong>：Page Cache 对应用透明，无需修改代码；应用层缓存（Redis）可以存结构化数据、设置 TTL、做分布式共享。</p>
+<hr>
+<h3 id="8-4-对比：不同系统的缓存设计取舍"><a href="#8-4-对比：不同系统的缓存设计取舍" class="headerlink" title="8.4 对比：不同系统的缓存设计取舍"></a>8.4 对比：不同系统的缓存设计取舍</h3><table>
+<thead>
+<tr>
+<th>系统</th>
+<th>缓存层</th>
+<th>数据源</th>
+<th>一致性模型</th>
+<th>淘汰策略</th>
+<th>核心权衡</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>kube-apiserver</td>
+<td>内存 Watch Cache</td>
+<td>etcd</td>
+<td>最终一致（revision 对齐）</td>
+<td>不淘汰（全量）</td>
+<td>全量缓存换低 etcd 压力</td>
+</tr>
+<tr>
+<td>etcd treeIndex</td>
+<td>内存 B 树索引</td>
+<td>boltdb（磁盘）</td>
+<td>强一致</td>
+<td>不淘汰（全量）</td>
+<td>索引在内存，值在磁盘</td>
+</tr>
+<tr>
+<td>Redis</td>
+<td>内存 KV</td>
+<td>业务 DB</td>
+<td>最终一致（TTL + 手动失效）</td>
+<td>LRU &#x2F; LFU &#x2F; TTL</td>
+<td>速度换一致性，支持分布式</td>
+</tr>
+<tr>
+<td>Linux Page Cache</td>
+<td>内存页</td>
+<td>磁盘文件</td>
+<td>强一致（写穿到磁盘）</td>
+<td>LRU（内核自动）</td>
+<td>对应用透明，操作系统管理</td>
+</tr>
+<tr>
+<td>CDN</td>
+<td>边缘节点磁盘&#x2F;内存</td>
+<td>源站</td>
+<td>最终一致（TTL &#x2F; purge）</td>
+<td>LRU + TTL</td>
+<td>地理分布，降低源站带宽</td>
+</tr>
+<tr>
+<td>DNS 本地缓存</td>
+<td>本地内存</td>
+<td>上游 DNS</td>
+<td>最终一致（TTL）</td>
+<td>TTL 到期自动失效</td>
+<td>减少 DNS 查询延迟</td>
+</tr>
+</tbody></table>
+<p><strong>规律总结</strong>：</p>
+<ol>
+<li><strong>缓存层越靠近计算</strong>（内存 &gt; 本地磁盘 &gt; 远端网络），延迟越低，但容量越小、一致性越难保证</li>
+<li><strong>全量缓存</strong>（kube-apiserver Watch Cache）可以提供更强的一致性，但要求数据集能放进内存</li>
+<li><strong>增量更新</strong>（Watch&#x2F;binlog&#x2F;CDC）比定时轮询效率高得多，是生产系统的主流选择</li>
+<li><strong>强一致</strong>（etcd treeIndex）通过将 key→revision 索引放内存、value 放磁盘，在不牺牲一致性的前提下加速读操作</li>
+</ol>
 <hr>
 <h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><table>
 <thead>
