@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"},"path":"/search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="电商系统是系统设计面试中最经典的题目之一，覆盖商品、订单、库存、搜索、推荐、支付等几乎所有核心子系统。本文从全局视角拆解一个淘宝&#x2F;Amazon 量级的电商平台设计。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="系统设计：设计一个电商系统（淘宝&#x2F;Amazon 级别）">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/30/2026-06-30-ecommerce-system-design/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="电商系统是系统设计面试中最经典的题目之一，覆盖商品、订单、库存、搜索、推荐、支付等几乎所有核心子系统。本文从全局视角拆解一个淘宝&#x2F;Amazon 量级的电商平台设计。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-30T12:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-30T12:47:22.135Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="系统设计">
+<meta property="article:tag" content="分布式系统">
+<meta property="article:tag" content="电商">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/30/2026-06-30-ecommerce-system-design/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/30/2026-06-30-ecommerce-system-design/","path":"2026/06/30/2026-06-30-ecommerce-system-design/","title":"系统设计：设计一个电商系统（淘宝/Amazon 级别）"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>系统设计：设计一个电商系统（淘宝/Amazon 级别） | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup"><div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close" role="button">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E9%9C%80%E6%B1%82%E5%88%86%E6%9E%90"><span class="nav-number">1.</span> <span class="nav-text">1. 需求分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8A%9F%E8%83%BD%E9%9C%80%E6%B1%82"><span class="nav-number">1.1.</span> <span class="nav-text">功能需求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9D%9E%E5%8A%9F%E8%83%BD%E9%9C%80%E6%B1%82"><span class="nav-number">1.2.</span> <span class="nav-text">非功能需求</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">2. 整体架构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%A0%B8%E5%BF%83%E5%AD%90%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1"><span class="nav-number">3.</span> <span class="nav-text">3. 核心子系统设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E5%95%86%E5%93%81%E7%B3%BB%E7%BB%9F"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 商品系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B"><span class="nav-number">3.1.1.</span> <span class="nav-text">数据模型</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%A4%9A%E7%BA%A7%E7%BC%93%E5%AD%98%E6%9E%B6%E6%9E%84"><span class="nav-number">3.1.2.</span> <span class="nav-text">多级缓存架构</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%95%86%E5%93%81%E8%AF%A6%E6%83%85%E9%A1%B5%E9%9D%99%E6%80%81%E5%8C%96"><span class="nav-number">3.1.3.</span> <span class="nav-text">商品详情页静态化</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E6%90%9C%E7%B4%A2%E7%B3%BB%E7%BB%9F"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 搜索系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%8A%80%E6%9C%AF%E9%80%89%E5%9E%8B%EF%BC%9AElasticsearch"><span class="nav-number">3.2.1.</span> <span class="nav-text">技术选型：Elasticsearch</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%90%9C%E7%B4%A2%E6%8E%92%E5%BA%8F%E7%AD%96%E7%95%A5"><span class="nav-number">3.2.2.</span> <span class="nav-text">搜索排序策略</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E8%B4%AD%E7%89%A9%E8%BD%A6%E7%B3%BB%E7%BB%9F"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 购物车系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AD%98%E5%82%A8%E6%96%B9%E6%A1%88%EF%BC%9ARedis-Hash"><span class="nav-number">3.3.1.</span> <span class="nav-text">存储方案：Redis Hash</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E5%BA%93%E5%AD%98%E7%B3%BB%E7%BB%9F%EF%BC%88%E6%A0%B8%E5%BF%83%E9%9A%BE%E9%A2%98%EF%BC%89"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 库存系统（核心难题）</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%B6%85%E5%8D%96%E5%9C%BA%E6%99%AF%E5%A4%8D%E7%8E%B0"><span class="nav-number">3.4.1.</span> <span class="nav-text">超卖场景复现</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%96%B9%E6%A1%88%E4%B8%80%EF%BC%9A%E6%95%B0%E6%8D%AE%E5%BA%93%E6%82%B2%E8%A7%82%E9%94%81%EF%BC%88SELECT-FOR-UPDATE%EF%BC%89"><span class="nav-number">3.4.2.</span> <span class="nav-text">方案一：数据库悲观锁（SELECT FOR UPDATE）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%96%B9%E6%A1%88%E4%BA%8C%EF%BC%9A%E6%95%B0%E6%8D%AE%E5%BA%93%E4%B9%90%E8%A7%82%E9%94%81%EF%BC%88CAS%EF%BC%89"><span class="nav-number">3.4.3.</span> <span class="nav-text">方案二：数据库乐观锁（CAS）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%96%B9%E6%A1%88%E4%B8%89%EF%BC%9ARedis-%E5%8E%9F%E5%AD%90%E6%89%A3%E5%87%8F%EF%BC%88%E6%8E%A8%E8%8D%90%EF%BC%89"><span class="nav-number">3.4.4.</span> <span class="nav-text">方案三：Redis 原子扣减（推荐）</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E8%AE%A2%E5%8D%95%E7%B3%BB%E7%BB%9F"><span class="nav-number">3.5.</span> <span class="nav-text">3.5 订单系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AE%A2%E5%8D%95%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-number">3.5.1.</span> <span class="nav-text">订单状态机</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%BA%93%E5%88%86%E5%BA%93%E5%88%86%E8%A1%A8"><span class="nav-number">3.5.2.</span> <span class="nav-text">数据库分库分表</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AE%A2%E5%8D%95%E5%88%9B%E5%BB%BA%E6%B5%81%E7%A8%8B%EF%BC%88%E9%98%B2%E9%87%8D%E4%B8%8E%E5%B9%82%E7%AD%89%EF%BC%89"><span class="nav-number">3.5.3.</span> <span class="nav-text">订单创建流程（防重与幂等）</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E9%AB%98%E5%B9%B6%E5%8F%91%E5%A4%A7%E4%BF%83%E8%AE%BE%E8%AE%A1"><span class="nav-number">4.</span> <span class="nav-text">4. 高并发大促设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E9%99%90%E6%B5%81"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 限流</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E7%86%94%E6%96%AD%E9%99%8D%E7%BA%A7"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 熔断降级</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 秒杀系统</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%AD%98%E5%82%A8%E9%80%89%E5%9E%8B%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">5. 存储选型总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E6%9E%B6%E6%9E%84%E6%BC%94%E8%BF%9B%E8%B7%AF%E5%BE%84"><span class="nav-number">6.</span> <span class="nav-text">6. 架构演进路径</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E9%9D%A2%E8%AF%95%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-number">7.</span> <span class="nav-text">7. 面试要点总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">8.</span> <span class="nav-text">参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">126</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/30/2026-06-30-ecommerce-system-design/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="系统设计：设计一个电商系统（淘宝/Amazon 级别） | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          系统设计：设计一个电商系统（淘宝/Amazon 级别）
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-30 20:00:00 / Modified: 20:47:22" itemprop="dateCreated datePublished" datetime="2026-06-30T20:00:00+08:00">2026-06-30</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">系统设计</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>电商系统是系统设计面试中最经典的题目之一，覆盖商品、订单、库存、搜索、推荐、支付等几乎所有核心子系统。本文从全局视角拆解一个淘宝&#x2F;Amazon 量级的电商平台设计。</p>
+<span id="more"></span>
+
+<h2 id="1-需求分析"><a href="#1-需求分析" class="headerlink" title="1. 需求分析"></a>1. 需求分析</h2><h3 id="功能需求"><a href="#功能需求" class="headerlink" title="功能需求"></a>功能需求</h3><ul>
+<li>商品浏览、搜索、详情页</li>
+<li>购物车管理</li>
+<li>下单、支付、订单管理</li>
+<li>库存管理（防超卖）</li>
+<li>商家后台（上架、库存管理）</li>
+<li>评价与评论系统</li>
+</ul>
+<h3 id="非功能需求"><a href="#非功能需求" class="headerlink" title="非功能需求"></a>非功能需求</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>目标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>用户规模</td>
+<td>1 亿日活（DAU）</td>
+</tr>
+<tr>
+<td>商品数量</td>
+<td>10 亿+ SKU</td>
+</tr>
+<tr>
+<td>峰值 QPS</td>
+<td>100 万&#x2F;秒（大促期间）</td>
+</tr>
+<tr>
+<td>下单延迟</td>
+<td>P99 &lt; 500ms</td>
+</tr>
+<tr>
+<td>库存一致性</td>
+<td>强一致，不允许超卖</td>
+</tr>
+<tr>
+<td>可用性</td>
+<td>99.99%</td>
+</tr>
+</tbody></table>
+<p><strong>关键挑战：</strong></p>
+<ul>
+<li><strong>大促流量洪峰</strong>：双十一峰值 QPS 是日常的 10-100 倍</li>
+<li><strong>库存超卖</strong>：高并发下的库存扣减一致性</li>
+<li><strong>数据规模</strong>：10 亿 SKU 的商品检索与展示</li>
+</ul>
+<hr>
+<h2 id="2-整体架构"><a href="#2-整体架构" class="headerlink" title="2. 整体架构"></a>2. 整体架构</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">用户层</span><br><span class="line">  │ Web / App</span><br><span class="line">  ▼</span><br><span class="line">[CDN] ← 静态资源（图片、CSS、JS）</span><br><span class="line">  │</span><br><span class="line">[API Gateway / 负载均衡]</span><br><span class="line">  │ 限流、鉴权、路由</span><br><span class="line">  ├─────────────────────────────────────────────┐</span><br><span class="line">  ▼                                             ▼</span><br><span class="line">[商品服务]  [搜索服务]  [购物车]  [订单服务]  [库存服务]</span><br><span class="line">  │              │          │         │           │</span><br><span class="line">[商品DB]  [Elasticsearch] [Redis] [订单DB]  [库存DB]</span><br><span class="line">                                      │</span><br><span class="line">                                  [支付服务]</span><br><span class="line">                                      │</span><br><span class="line">                              [第三方支付网关]</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="3-核心子系统设计"><a href="#3-核心子系统设计" class="headerlink" title="3. 核心子系统设计"></a>3. 核心子系统设计</h2><h3 id="3-1-商品系统"><a href="#3-1-商品系统" class="headerlink" title="3.1 商品系统"></a>3.1 商品系统</h3><p>商品数据量大（10 亿 SKU），读多写少，适合读写分离 + 多级缓存。</p>
+<h4 id="数据模型"><a href="#数据模型" class="headerlink" title="数据模型"></a>数据模型</h4><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 商品 SPU（标准产品单元，如&quot;iPhone 16&quot;）</span></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> product_spu (</span><br><span class="line">    spu_id      <span class="type">BIGINT</span> <span class="keyword">PRIMARY</span> KEY,</span><br><span class="line">    title       <span class="type">VARCHAR</span>(<span class="number">200</span>),</span><br><span class="line">    category_id <span class="type">BIGINT</span>,</span><br><span class="line">    brand_id    <span class="type">BIGINT</span>,</span><br><span class="line">    description TEXT,</span><br><span class="line">    status      TINYINT,    <span class="comment">-- 0:下架 1:上架</span></span><br><span class="line">    created_at  DATETIME,</span><br><span class="line">    updated_at  DATETIME</span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="comment">-- 商品 SKU（库存单元，如&quot;iPhone 16 黑色 256GB&quot;）</span></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> product_sku (</span><br><span class="line">    sku_id      <span class="type">BIGINT</span> <span class="keyword">PRIMARY</span> KEY,</span><br><span class="line">    spu_id      <span class="type">BIGINT</span>,</span><br><span class="line">    price       <span class="type">DECIMAL</span>(<span class="number">12</span>,<span class="number">2</span>),</span><br><span class="line">    attrs       JSON,       <span class="comment">-- &#123;&quot;颜色&quot;:&quot;黑色&quot;,&quot;存储&quot;:&quot;256GB&quot;&#125;</span></span><br><span class="line">    image_url   <span class="type">VARCHAR</span>(<span class="number">500</span>),</span><br><span class="line">    status      TINYINT</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<p><strong>SPU vs SKU 的区别：</strong></p>
+<ul>
+<li>SPU（Standard Product Unit）：一类商品的抽象，如”iPhone 16”</li>
+<li>SKU（Stock Keeping Unit）：具体可售卖的单品，如”iPhone 16 黑色 256GB”</li>
+<li>一个 SPU 对应多个 SKU，库存和价格绑定在 SKU 层面</li>
+</ul>
+<h4 id="多级缓存架构"><a href="#多级缓存架构" class="headerlink" title="多级缓存架构"></a>多级缓存架构</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">请求</span><br><span class="line"> │</span><br><span class="line"> ▼ 1. 浏览器缓存（Cache-Control: max-age=300）</span><br><span class="line"> │</span><br><span class="line"> ▼ 2. CDN 边缘节点缓存（命中率 ~80%）</span><br><span class="line"> │</span><br><span class="line"> ▼ 3. 本地内存缓存（Guava Cache / Caffeine，单机）</span><br><span class="line"> │   热门商品，容量小但延迟极低（&lt;1ms）</span><br><span class="line"> │</span><br><span class="line"> ▼ 4. 分布式缓存（Redis Cluster）</span><br><span class="line"> │   Key: product:&#123;sku_id&#125;，TTL 10min</span><br><span class="line"> │   命中率 ~95%</span><br><span class="line"> │</span><br><span class="line"> ▼ 5. 数据库（MySQL + 只读从库）</span><br><span class="line">     主库写，多从库读，读写分离</span><br></pre></td></tr></table></figure>
+
+<p><strong>缓存更新策略：</strong></p>
+<ul>
+<li>商品更新时：先更新 DB，再删除 Redis 缓存（Cache-Aside 模式）</li>
+<li>不用”更新缓存”而用”删除缓存”：避免并发写导致旧值覆盖新值</li>
+</ul>
+<h4 id="商品详情页静态化"><a href="#商品详情页静态化" class="headerlink" title="商品详情页静态化"></a>商品详情页静态化</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">商品详情页（大流量入口）：</span><br><span class="line">  ├── 静态部分（标题、描述、图片）→ 提前渲染成 HTML → 存 CDN</span><br><span class="line">  │   更新商品时触发 CDN 缓存刷新</span><br><span class="line">  └── 动态部分（价格、库存、优惠）→ 前端异步 Ajax 拉取</span><br><span class="line">      价格和库存变化频繁，不能静态化</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-搜索系统"><a href="#3-2-搜索系统" class="headerlink" title="3.2 搜索系统"></a>3.2 搜索系统</h3><p>商品搜索需要支持全文检索、多维度过滤和个性化排序。</p>
+<h4 id="技术选型：Elasticsearch"><a href="#技术选型：Elasticsearch" class="headerlink" title="技术选型：Elasticsearch"></a>技术选型：Elasticsearch</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">为什么选 ES 而非直接查 MySQL？</span><br><span class="line">  ├── MySQL LIKE &#x27;%keyword%&#x27; → 全表扫描，10 亿 SKU 不可接受</span><br><span class="line">  ├── ES 倒排索引 → 毫秒级全文检索</span><br><span class="line">  └── ES 支持多字段聚合过滤（品牌/价格/类目/属性）</span><br><span class="line"></span><br><span class="line">索引结构：</span><br><span class="line">&#123;</span><br><span class="line">  &quot;sku_id&quot;: 123456,</span><br><span class="line">  &quot;title&quot;: &quot;iPhone 16 Pro 黑色 256GB&quot;,</span><br><span class="line">  &quot;brand&quot;: &quot;Apple&quot;,</span><br><span class="line">  &quot;category&quot;: &quot;手机&quot;,</span><br><span class="line">  &quot;price&quot;: 9999.0,</span><br><span class="line">  &quot;attrs&quot;: &#123;&quot;颜色&quot;: &quot;黑色&quot;, &quot;存储&quot;: &quot;256GB&quot;&#125;,</span><br><span class="line">  &quot;sales_volume&quot;: 10000,    // 销量（用于默认排序）</span><br><span class="line">  &quot;score&quot;: 4.8,             // 评分</span><br><span class="line">  &quot;status&quot;: 1</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="搜索排序策略"><a href="#搜索排序策略" class="headerlink" title="搜索排序策略"></a>搜索排序策略</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">综合排序分 = α × 相关性得分（BM25）</span><br><span class="line">           + β × 销量得分（归一化）</span><br><span class="line">           + γ × 评分得分</span><br><span class="line">           + δ × 新鲜度（上架时间衰减）</span><br><span class="line">           + ε × 个性化得分（用户历史行为）</span><br><span class="line"></span><br><span class="line">不同场景权重不同：</span><br><span class="line">  ├── 用户主动搜索：α（相关性）权重最高</span><br><span class="line">  ├── 分类浏览：β（销量）权重最高</span><br><span class="line">  └── 个性化推荐页：ε（个性化）权重最高</span><br></pre></td></tr></table></figure>
+
+<p><strong>数据同步：商品 DB → ES</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">MySQL (主库)</span><br><span class="line">  │ binlog</span><br><span class="line">  ▼</span><br><span class="line">Canal (监听 binlog)</span><br><span class="line">  │ 解析变更事件</span><br><span class="line">  ▼</span><br><span class="line">Kafka（缓冲）</span><br><span class="line">  │</span><br><span class="line">ES Indexer（消费）</span><br><span class="line">  │ 增量更新 ES</span><br><span class="line">  ▼</span><br><span class="line">Elasticsearch</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-购物车系统"><a href="#3-3-购物车系统" class="headerlink" title="3.3 购物车系统"></a>3.3 购物车系统</h3><p>购物车的核心特点：读多写多，数据量中等，允许最终一致。</p>
+<h4 id="存储方案：Redis-Hash"><a href="#存储方案：Redis-Hash" class="headerlink" title="存储方案：Redis Hash"></a>存储方案：Redis Hash</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">Key:   cart:&#123;user_id&#125;</span><br><span class="line">Field: &#123;sku_id&#125;</span><br><span class="line">Value: &#123;quantity, price_snapshot, selected&#125;</span><br><span class="line"></span><br><span class="line">HSET cart:1001 sku:5001 &#x27;&#123;&quot;qty&quot;:2,&quot;price&quot;:9999.0,&quot;selected&quot;:true&#125;&#x27;</span><br><span class="line">HSET cart:1001 sku:5002 &#x27;&#123;&quot;qty&quot;:1,&quot;price&quot;:299.0,&quot;selected&quot;:false&#125;&#x27;</span><br><span class="line">TTL: 30 天</span><br><span class="line"></span><br><span class="line">为什么用 Redis 而不是 MySQL？</span><br><span class="line">  ├── 购物车是高频读写（每次修改数量都写）</span><br><span class="line">  ├── 数据量适中，Redis 内存可承受</span><br><span class="line">  └── 允许最终一致（掉电丢失可重新加入，不影响业务）</span><br></pre></td></tr></table></figure>
+
+<p><strong>价格快照：</strong> 购物车存储加购时的价格快照，结算时重新获取最新价格并展示差价提示，防止用户误解。</p>
+<p><strong>未登录购物车：</strong> 存浏览器 LocalStorage，登录后合并到服务端购物车（按用户 ID 合并，数量取最大值）。</p>
+<h3 id="3-4-库存系统（核心难题）"><a href="#3-4-库存系统（核心难题）" class="headerlink" title="3.4 库存系统（核心难题）"></a>3.4 库存系统（核心难题）</h3><p>库存防超卖是电商系统最核心的技术挑战，需要在高并发下保证强一致。</p>
+<h4 id="超卖场景复现"><a href="#超卖场景复现" class="headerlink" title="超卖场景复现"></a>超卖场景复现</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">库存 = 1，两个请求并发到来：</span><br><span class="line"></span><br><span class="line">T1: 查库存 → 1 &gt; 0，可下单</span><br><span class="line">T2: 查库存 → 1 &gt; 0，可下单   ← 读到同样的值！</span><br><span class="line">T1: 扣库存 → 库存变为 0</span><br><span class="line">T2: 扣库存 → 库存变为 -1    ← 超卖！</span><br></pre></td></tr></table></figure>
+
+<h4 id="方案一：数据库悲观锁（SELECT-FOR-UPDATE）"><a href="#方案一：数据库悲观锁（SELECT-FOR-UPDATE）" class="headerlink" title="方案一：数据库悲观锁（SELECT FOR UPDATE）"></a>方案一：数据库悲观锁（SELECT FOR UPDATE）</h4><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>;</span><br><span class="line"><span class="keyword">SELECT</span> stock <span class="keyword">FROM</span> inventory <span class="keyword">WHERE</span> sku_id <span class="operator">=</span> <span class="number">5001</span> <span class="keyword">FOR</span> <span class="keyword">UPDATE</span>;</span><br><span class="line"><span class="comment">-- 其他事务被阻塞，等待锁释放</span></span><br><span class="line"><span class="keyword">UPDATE</span> inventory <span class="keyword">SET</span> stock <span class="operator">=</span> stock <span class="operator">-</span> <span class="number">1</span> <span class="keyword">WHERE</span> sku_id <span class="operator">=</span> <span class="number">5001</span> <span class="keyword">AND</span> stock <span class="operator">&gt;</span> <span class="number">0</span>;</span><br><span class="line"><span class="keyword">COMMIT</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>缺点：</strong> 锁粒度大，高并发下数据库连接数耗尽，性能差。适合低并发场景。</p>
+<h4 id="方案二：数据库乐观锁（CAS）"><a href="#方案二：数据库乐观锁（CAS）" class="headerlink" title="方案二：数据库乐观锁（CAS）"></a>方案二：数据库乐观锁（CAS）</h4><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 不加行锁，用版本号 CAS</span></span><br><span class="line"><span class="keyword">UPDATE</span> inventory</span><br><span class="line"><span class="keyword">SET</span> stock <span class="operator">=</span> stock <span class="operator">-</span> <span class="number">1</span>, version <span class="operator">=</span> version <span class="operator">+</span> <span class="number">1</span></span><br><span class="line"><span class="keyword">WHERE</span> sku_id <span class="operator">=</span> <span class="number">5001</span> <span class="keyword">AND</span> stock <span class="operator">&gt;</span> <span class="number">0</span> <span class="keyword">AND</span> version <span class="operator">=</span> #&#123;current_version&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">-- 影响行数为 0 说明被抢先修改，重试或失败</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>缺点：</strong> 高并发下大量 CAS 失败，重试风暴。</p>
+<h4 id="方案三：Redis-原子扣减（推荐）"><a href="#方案三：Redis-原子扣减（推荐）" class="headerlink" title="方案三：Redis 原子扣减（推荐）"></a>方案三：Redis 原子扣减（推荐）</h4><figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- Lua 脚本保证原子性（Redis 单线程执行）</span></span><br><span class="line"><span class="keyword">local</span> stock = redis.call(<span class="string">&#x27;GET&#x27;</span>, KEYS[<span class="number">1</span>])</span><br><span class="line"><span class="keyword">if</span> <span class="built_in">tonumber</span>(stock) &lt;= <span class="number">0</span> <span class="keyword">then</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">-1</span>  <span class="comment">-- 库存不足</span></span><br><span class="line"><span class="keyword">end</span></span><br><span class="line">redis.call(<span class="string">&#x27;DECRBY&#x27;</span>, KEYS[<span class="number">1</span>], ARGV[<span class="number">1</span>])</span><br><span class="line"><span class="keyword">return</span> <span class="number">1</span>  <span class="comment">-- 扣减成功</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">库存预热：</span><br><span class="line">  大促前将库存 load 到 Redis：</span><br><span class="line">  SET inventory:sku:5001 1000</span><br><span class="line"></span><br><span class="line">下单流程：</span><br><span class="line">  1. Redis 原子扣减库存（Lua 脚本）</span><br><span class="line">  2. 扣减成功 → 异步写订单到 DB + 发 MQ 消息</span><br><span class="line">  3. 扣减失败 → 返回&quot;库存不足&quot;</span><br><span class="line"></span><br><span class="line">库存同步：</span><br><span class="line">  Redis → MySQL 定期同步（最终一致）</span><br><span class="line">  支付成功后：MySQL 真正扣减持久化库存</span><br></pre></td></tr></table></figure>
+
+<p><strong>大促库存分桶：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">单个 Redis Key 并发 DECR 仍有热点问题</span><br><span class="line">解决：将 1000 库存拆成 10 个桶，每桶 100</span><br><span class="line"></span><br><span class="line">inventory:sku:5001:0  → 100</span><br><span class="line">inventory:sku:5001:1  → 100</span><br><span class="line">...</span><br><span class="line">inventory:sku:5001:9  → 100</span><br><span class="line"></span><br><span class="line">下单时：按 user_id % 10 选桶，分散热点</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-5-订单系统"><a href="#3-5-订单系统" class="headerlink" title="3.5 订单系统"></a>3.5 订单系统</h3><h4 id="订单状态机"><a href="#订单状态机" class="headerlink" title="订单状态机"></a>订单状态机</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">待付款 → 已付款 → 待发货 → 已发货 → 已完成</span><br><span class="line">  │                                      │</span><br><span class="line">  └─→ 已取消                          已评价</span><br><span class="line">  │</span><br><span class="line">  └─→（支付超时自动取消，30分钟）</span><br></pre></td></tr></table></figure>
+
+<h4 id="数据库分库分表"><a href="#数据库分库分表" class="headerlink" title="数据库分库分表"></a>数据库分库分表</h4><p>订单数据量大（日增千万级），必须分库分表。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">分片策略：按 user_id 取模</span><br><span class="line"></span><br><span class="line">user_id % 16 → 16 个库</span><br><span class="line">每库内按 order_id 取模 → 16 张表</span><br><span class="line"></span><br><span class="line">总计 256 张表（满足未来 10 年增长）</span><br><span class="line"></span><br><span class="line">-- 路由示例</span><br><span class="line">db_index    = user_id % 16       → db_05</span><br><span class="line">table_index = order_id % 16      → order_05</span><br><span class="line">全路径：db_05.order_05</span><br></pre></td></tr></table></figure>
+
+<p><strong>order_id 生成（雪花算法 Snowflake）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">64 bit:</span><br><span class="line">[1位符号] [41位时间戳ms] [10位机器ID] [12位序列号]</span><br><span class="line"></span><br><span class="line">特点：</span><br><span class="line">  ├── 全局唯一，趋势递增（B-Tree 友好）</span><br><span class="line">  ├── 不依赖数据库自增</span><br><span class="line">  └── 单机每毫秒最多 4096 个 ID</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么不按 order_id 分片？</strong></p>
+<ul>
+<li>查询”我的订单列表”需按 user_id 查</li>
+<li>若按 order_id 分片，同一用户的订单散落多表，需要 scatter-gather，性能差</li>
+</ul>
+<h4 id="订单创建流程（防重与幂等）"><a href="#订单创建流程（防重与幂等）" class="headerlink" title="订单创建流程（防重与幂等）"></a>订单创建流程（防重与幂等）</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">客户端</span><br><span class="line">  │ 1. 获取下单 token（防重令牌）</span><br><span class="line">  ▼</span><br><span class="line">[订单服务]</span><br><span class="line">  │ 2. Redis: SET order_token:&#123;token&#125; 1 NX EX 300</span><br><span class="line">  │    NX 保证同一 token 只能成功一次</span><br><span class="line">  │</span><br><span class="line">  │ 3. 预占库存（Redis 扣减）</span><br><span class="line">  │</span><br><span class="line">  │ 4. 创建订单记录（DB，包含 token）</span><br><span class="line">  │</span><br><span class="line">  │ 5. 发送 MQ 消息（支付超时任务）</span><br><span class="line">  │</span><br><span class="line">  └─→ 返回 order_id 给客户端</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="4-高并发大促设计"><a href="#4-高并发大促设计" class="headerlink" title="4. 高并发大促设计"></a>4. 高并发大促设计</h2><h3 id="4-1-限流"><a href="#4-1-限流" class="headerlink" title="4.1 限流"></a>4.1 限流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">多层限流（防止流量击穿）：</span><br><span class="line"></span><br><span class="line">[入口层 - Nginx]</span><br><span class="line">  └── 全局 QPS 限制，漏桶算法</span><br><span class="line">       超限返回 503</span><br><span class="line"></span><br><span class="line">[API Gateway]</span><br><span class="line">  └── 接口级限流（令牌桶算法）</span><br><span class="line">       /api/order/create → 10 万 QPS</span><br><span class="line"></span><br><span class="line">[服务层]</span><br><span class="line">  └── 单用户频率限制</span><br><span class="line">       单 user_id 1 秒最多下 5 单</span><br><span class="line">       Redis: INCR order_rate:&#123;user_id&#125; EX 1</span><br><span class="line"></span><br><span class="line">[数据库层]</span><br><span class="line">  └── 连接池限流，拒绝超量请求</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-熔断降级"><a href="#4-2-熔断降级" class="headerlink" title="4.2 熔断降级"></a>4.2 熔断降级</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">大促期间，非核心功能主动降级：</span><br><span class="line"></span><br><span class="line">降级开关（配置中心，实时生效）：</span><br><span class="line">  ├── 关闭推荐系统   → 首页展示热销榜</span><br><span class="line">  ├── 关闭评价系统   → 商品详情不展示评论</span><br><span class="line">  ├── 关闭历史记录   → 不记录浏览历史</span><br><span class="line">  └── 购物车只读     → 不允许新增，只允许结算</span><br><span class="line"></span><br><span class="line">保留核心链路：搜索 → 商品详情 → 下单 → 支付</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-秒杀系统"><a href="#4-3-秒杀系统" class="headerlink" title="4.3 秒杀系统"></a>4.3 秒杀系统</h3><p>秒杀是电商最极端的并发场景（1 秒内几十万人抢 100 件商品）。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">核心思路：在最前层过滤掉 99% 的请求</span><br><span class="line"></span><br><span class="line">[用户请求]</span><br><span class="line">  │</span><br><span class="line">  ▼ 1. CDN 静态页面（秒杀页无需访问服务器）</span><br><span class="line">  │</span><br><span class="line">  ▼ 2. 请求随机丢弃（Nginx：只放行 1% 请求）</span><br><span class="line">  │    大量请求在入口拦截</span><br><span class="line">  │</span><br><span class="line">  ▼ 3. 用户资格验证（Redis 检查：是否已购买/黑名单）</span><br><span class="line">  │</span><br><span class="line">  ▼ 4. 内存队列（Queue）</span><br><span class="line">  │    只放入 N 个请求（N = 库存数）</span><br><span class="line">  │    多余请求立即返回&quot;售罄&quot;</span><br><span class="line">  │</span><br><span class="line">  ▼ 5. 异步处理（Worker 消费队列）</span><br><span class="line">  │    扣库存 → 创建订单 → 发送支付链接</span><br><span class="line">  │</span><br><span class="line">  ▼ 6. 用户轮询结果</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="5-存储选型总结"><a href="#5-存储选型总结" class="headerlink" title="5. 存储选型总结"></a>5. 存储选型总结</h2><table>
+<thead>
+<tr>
+<th>数据</th>
+<th>选型</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>商品基础信息</td>
+<td>MySQL（读写分离）</td>
+<td>结构化，支持复杂查询</td>
+</tr>
+<tr>
+<td>商品全文搜索</td>
+<td>Elasticsearch</td>
+<td>倒排索引，毫秒级检索</td>
+</tr>
+<tr>
+<td>商品详情缓存</td>
+<td>Redis + CDN</td>
+<td>读多写少，降低 DB 压力</td>
+</tr>
+<tr>
+<td>购物车</td>
+<td>Redis Hash</td>
+<td>高频读写，允许最终一致</td>
+</tr>
+<tr>
+<td>库存计数</td>
+<td>Redis（Lua 原子扣减）</td>
+<td>高并发防超卖</td>
+</tr>
+<tr>
+<td>订单数据</td>
+<td>MySQL（分库分表）</td>
+<td>强一致，支持事务</td>
+</tr>
+<tr>
+<td>用户行为日志</td>
+<td>Kafka + Hive</td>
+<td>流式摄入，离线分析</td>
+</tr>
+<tr>
+<td>会话&#x2F;Token</td>
+<td>Redis</td>
+<td>低延迟，支持 TTL</td>
+</tr>
+<tr>
+<td>商品图片</td>
+<td>对象存储（OSS&#x2F;S3）+ CDN</td>
+<td>大文件，高并发读</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="6-架构演进路径"><a href="#6-架构演进路径" class="headerlink" title="6. 架构演进路径"></a>6. 架构演进路径</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">阶段一（0→1，单体）：</span><br><span class="line">  ├── 单体应用 + 单 MySQL + 单 Redis</span><br><span class="line">  └── 快速上线，验证业务</span><br><span class="line"></span><br><span class="line">阶段二（1→10，拆分）：</span><br><span class="line">  ├── 按业务拆微服务（商品、订单、库存分开）</span><br><span class="line">  ├── 数据库读写分离</span><br><span class="line">  └── 引入 MQ 解耦</span><br><span class="line"></span><br><span class="line">阶段三（10→100，扩展）：</span><br><span class="line">  ├── 订单分库分表</span><br><span class="line">  ├── 引入 Elasticsearch 做搜索</span><br><span class="line">  └── 多级缓存体系建立</span><br><span class="line"></span><br><span class="line">阶段四（100→∞，大促）：</span><br><span class="line">  ├── 秒杀独立集群隔离</span><br><span class="line">  ├── 全链路压测</span><br><span class="line">  └── 降级开关体系</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="7-面试要点总结"><a href="#7-面试要点总结" class="headerlink" title="7. 面试要点总结"></a>7. 面试要点总结</h2><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>关键设计</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>防超卖</td>
+<td>Redis Lua 原子扣减 + 库存分桶</td>
+</tr>
+<tr>
+<td>订单分片</td>
+<td>按 user_id 分库，order_id 用 Snowflake</td>
+</tr>
+<tr>
+<td>缓存</td>
+<td>多级缓存（本地 → Redis → DB），Cache-Aside 更新</td>
+</tr>
+<tr>
+<td>搜索</td>
+<td>ES 倒排索引，binlog → Canal → Kafka → ES 同步</td>
+</tr>
+<tr>
+<td>大促</td>
+<td>多层限流 + 非核心降级 + 秒杀前置过滤</td>
+</tr>
+<tr>
+<td>幂等</td>
+<td>防重令牌（Redis NX），MQ 消费幂等（唯一消息 ID）</td>
+</tr>
+<tr>
+<td>可用性</td>
+<td>核心链路与非核心链路隔离，熔断降级</td>
+</tr>
+</tbody></table>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://developer.aliyun.com/article/720640">阿里巴巴双十一架构演进</a></li>
+<li><a target="_blank" rel="noopener" href="https://yq.aliyun.com/articles/719237">淘宝架构：从单体到分布式</a></li>
+<li>Designing Data-Intensive Applications — Chapter 6, 9, 11</li>
+<li><a target="_blank" rel="noopener" href="https://aws.amazon.com/cn/blogs/aws/">How Amazon handles flash sales</a></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" rel="tag"># 系统设计</a>
+              <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" rel="tag"># 分布式系统</a>
+              <a href="/tags/%E7%94%B5%E5%95%86/" rel="tag"># 电商</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/30/2026-06-30-google-search-system-design/" rel="prev" title="系统设计：设计一个 Google Search 系统">
+                  <i class="fa fa-angle-left"></i> 系统设计：设计一个 Google Search 系统
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/30/2026-06-30-payment-system-design/" rel="next" title="系统设计：设计一个支付系统（支付宝/Stripe 级别）">
+                  系统设计：设计一个支付系统（支付宝/Stripe 级别） <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdn.bootcdn.net/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  <script src="https://cdn.bootcdn.net/ajax/libs/hexo-generator-searchdb/1.4.1/search.js" integrity="sha256-1kfA5uHPf65M5cphT2dvymhkuyHPQp5A53EGZOnOLmc=" crossorigin="anonymous"></script>
+<script src="/js/third-party/search/local-search.js"></script>
+
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdn.bootcdn.net/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>

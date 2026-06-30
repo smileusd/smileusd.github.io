@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"},"path":"/search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="支付系统是互联网最核心、最复杂的业务系统之一，直接关系到资金安全。本文从系统设计角度，拆解如何设计一个类支付宝&#x2F;Stripe 量级的支付平台，覆盖核心支付链路、幂等、对账、风控等关键设计。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="系统设计：设计一个支付系统（支付宝&#x2F;Stripe 级别）">
+<meta property="og:url" content="https://smileusd.github.io/2026/06/30/2026-06-30-payment-system-design/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="支付系统是互联网最核心、最复杂的业务系统之一，直接关系到资金安全。本文从系统设计角度，拆解如何设计一个类支付宝&#x2F;Stripe 量级的支付平台，覆盖核心支付链路、幂等、对账、风控等关键设计。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-30T13:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-30T12:51:43.772Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="系统设计">
+<meta property="article:tag" content="分布式系统">
+<meta property="article:tag" content="支付">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/06/30/2026-06-30-payment-system-design/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/06/30/2026-06-30-payment-system-design/","path":"2026/06/30/2026-06-30-payment-system-design/","title":"系统设计：设计一个支付系统（支付宝/Stripe 级别）"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>系统设计：设计一个支付系统（支付宝/Stripe 级别） | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup"><div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close" role="button">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E9%9C%80%E6%B1%82%E5%88%86%E6%9E%90"><span class="nav-number">1.</span> <span class="nav-text">1. 需求分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8A%9F%E8%83%BD%E9%9C%80%E6%B1%82"><span class="nav-number">1.1.</span> <span class="nav-text">功能需求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9D%9E%E5%8A%9F%E8%83%BD%E9%9C%80%E6%B1%82"><span class="nav-number">1.2.</span> <span class="nav-text">非功能需求</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">2. 整体架构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%A0%B8%E5%BF%83%E6%94%AF%E4%BB%98%E9%93%BE%E8%B7%AF"><span class="nav-number">3.</span> <span class="nav-text">3. 核心支付链路</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%94%AF%E4%BB%98%E6%B5%81%E7%A8%8B%E5%85%A8%E9%93%BE%E8%B7%AF"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 支付流程全链路</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E6%94%AF%E4%BB%98%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 支付状态机</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%B9%82%E7%AD%89%E8%AE%BE%E8%AE%A1%EF%BC%88%E9%98%B2%E9%87%8D%E5%A4%8D%E6%94%AF%E4%BB%98%EF%BC%89"><span class="nav-number">4.</span> <span class="nav-text">4. 幂等设计（防重复支付）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%B9%82%E7%AD%89%E9%94%AE%E8%AE%BE%E8%AE%A1"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 幂等键设计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%9C%8D%E5%8A%A1%E7%AB%AF%E5%B9%82%E7%AD%89%E5%AE%9E%E7%8E%B0"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 服务端幂等实现</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E8%B4%A6%E5%8A%A1%E7%B3%BB%E7%BB%9F%EF%BC%88%E5%A4%8D%E5%BC%8F%E8%AE%B0%E8%B4%A6%EF%BC%89"><span class="nav-number">5.</span> <span class="nav-text">5. 账务系统（复式记账）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%A4%8D%E5%BC%8F%E8%AE%B0%E8%B4%A6%E5%8E%9F%E7%90%86"><span class="nav-number">5.1.</span> <span class="nav-text">5.1 复式记账原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E8%B4%A6%E6%88%B7%E6%A8%A1%E5%9E%8B"><span class="nav-number">5.2.</span> <span class="nav-text">5.2 账户模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E4%BD%99%E9%A2%9D%E6%89%A3%E5%87%8F%EF%BC%88%E9%98%B2%E8%B6%85%E6%89%A3%EF%BC%89"><span class="nav-number">5.3.</span> <span class="nav-text">5.3 余额扣减（防超扣）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E8%AE%BE%E8%AE%A1"><span class="nav-number">6.</span> <span class="nav-text">6. 分布式事务设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E4%B8%A4%E9%98%B6%E6%AE%B5%E6%8F%90%E4%BA%A4%EF%BC%882PC%EF%BC%89%E7%9A%84%E9%97%AE%E9%A2%98"><span class="nav-number">6.1.</span> <span class="nav-text">6.1 两阶段提交（2PC）的问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-Saga-%E6%A8%A1%E5%BC%8F%EF%BC%88%E6%8E%A8%E8%8D%90%EF%BC%89"><span class="nav-number">6.2.</span> <span class="nav-text">6.2 Saga 模式（推荐）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E6%9C%AC%E5%9C%B0%E6%B6%88%E6%81%AF%E8%A1%A8%EF%BC%88%E5%8F%AF%E9%9D%A0%E6%B6%88%E6%81%AF%EF%BC%89"><span class="nav-number">6.3.</span> <span class="nav-text">6.3 本地消息表（可靠消息）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%AF%B9%E8%B4%A6%E7%B3%BB%E7%BB%9F"><span class="nav-number">7.</span> <span class="nav-text">7. 对账系统</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E5%AF%B9%E8%B4%A6%E7%B1%BB%E5%9E%8B"><span class="nav-number">7.1.</span> <span class="nav-text">7.1 对账类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E5%B7%AE%E9%94%99%E7%B1%BB%E5%9E%8B%E4%B8%8E%E5%A4%84%E7%90%86"><span class="nav-number">7.2.</span> <span class="nav-text">7.2 差错类型与处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E5%AF%B9%E8%B4%A6%E7%B3%BB%E7%BB%9F%E6%9E%B6%E6%9E%84"><span class="nav-number">7.3.</span> <span class="nav-text">7.3 对账系统架构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E9%A3%8E%E6%8E%A7%E7%B3%BB%E7%BB%9F"><span class="nav-number">8.</span> <span class="nav-text">8. 风控系统</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%AE%9E%E6%97%B6%E9%A3%8E%E6%8E%A7%EF%BC%88-50ms%EF%BC%89"><span class="nav-number">8.1.</span> <span class="nav-text">8.1 实时风控（&lt; 50ms）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-%E5%BC%82%E6%AD%A5%E9%A3%8E%E6%8E%A7%EF%BC%88%E4%BA%8B%E5%90%8E%E6%A3%80%E6%B5%8B%EF%BC%89"><span class="nav-number">8.2.</span> <span class="nav-text">8.2 异步风控（事后检测）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E9%AB%98%E5%8F%AF%E7%94%A8%E8%AE%BE%E8%AE%A1"><span class="nav-number">9.</span> <span class="nav-text">9. 高可用设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#9-1-%E6%94%AF%E4%BB%98%E6%A0%B8%E5%BF%83%E5%8F%AF%E7%94%A8%E6%80%A7"><span class="nav-number">9.1.</span> <span class="nav-text">9.1 支付核心可用性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-2-%E6%B8%A0%E9%81%93%E9%99%8D%E7%BA%A7%E7%AD%96%E7%95%A5"><span class="nav-number">9.2.</span> <span class="nav-text">9.2 渠道降级策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-3-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1"><span class="nav-number">9.3.</span> <span class="nav-text">9.3 数据库设计</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E9%80%80%E6%AC%BE%E8%AE%BE%E8%AE%A1"><span class="nav-number">10.</span> <span class="nav-text">10. 退款设计</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%AD%98%E5%82%A8%E9%80%89%E5%9E%8B%E6%80%BB%E7%BB%93"><span class="nav-number">11.</span> <span class="nav-text">11. 存储选型总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#12-%E9%9D%A2%E8%AF%95%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-number">12.</span> <span class="nav-text">12. 面试要点总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">13.</span> <span class="nav-text">参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">126</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/06/30/2026-06-30-payment-system-design/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="系统设计：设计一个支付系统（支付宝/Stripe 级别） | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          系统设计：设计一个支付系统（支付宝/Stripe 级别）
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-30 21:00:00 / Modified: 20:51:43" itemprop="dateCreated datePublished" datetime="2026-06-30T21:00:00+08:00">2026-06-30</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">系统设计</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>支付系统是互联网最核心、最复杂的业务系统之一，直接关系到资金安全。本文从系统设计角度，拆解如何设计一个类支付宝&#x2F;Stripe 量级的支付平台，覆盖核心支付链路、幂等、对账、风控等关键设计。</p>
+<span id="more"></span>
+
+<h2 id="1-需求分析"><a href="#1-需求分析" class="headerlink" title="1. 需求分析"></a>1. 需求分析</h2><h3 id="功能需求"><a href="#功能需求" class="headerlink" title="功能需求"></a>功能需求</h3><ul>
+<li>用户发起支付（余额支付、银行卡、第三方渠道）</li>
+<li>支付结果查询</li>
+<li>退款处理</li>
+<li>账户余额管理（充值、提现）</li>
+<li>商户资金结算</li>
+<li>交易记录与对账</li>
+</ul>
+<h3 id="非功能需求"><a href="#非功能需求" class="headerlink" title="非功能需求"></a>非功能需求</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>目标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>日交易量</td>
+<td>10 亿笔&#x2F;天（双十一峰值）</td>
+</tr>
+<tr>
+<td>峰值 TPS</td>
+<td>10 万笔&#x2F;秒</td>
+</tr>
+<tr>
+<td>支付延迟</td>
+<td>P99 &lt; 3 秒（含银行交互）</td>
+</tr>
+<tr>
+<td>资金一致性</td>
+<td>强一致，绝对不允许资金错误</td>
+</tr>
+<tr>
+<td>可用性</td>
+<td>99.999%（年停机 &lt; 5 分钟）</td>
+</tr>
+<tr>
+<td>幂等性</td>
+<td>同一笔支付请求无论重试多少次，只扣款一次</td>
+</tr>
+</tbody></table>
+<p><strong>关键挑战：</strong></p>
+<ul>
+<li><strong>资金安全</strong>：任何情况下不能多扣或少扣，不能重复支付</li>
+<li><strong>分布式一致性</strong>：跨系统、跨数据库的资金流转保证强一致</li>
+<li><strong>高可用</strong>：支付系统不可用直接导致业务损失，要求极高可用性</li>
+<li><strong>对账</strong>：每天与银行、商户进行资金对账，发现并修复差错</li>
+</ul>
+<hr>
+<h2 id="2-整体架构"><a href="#2-整体架构" class="headerlink" title="2. 整体架构"></a>2. 整体架构</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">用户层</span><br><span class="line">  │ App / Web / 商户系统</span><br><span class="line">  ▼</span><br><span class="line">[API Gateway]</span><br><span class="line">  │ 鉴权、限流、签名验证</span><br><span class="line">  ▼</span><br><span class="line">[支付核心服务]</span><br><span class="line">  ├── 支付路由服务    ← 选择最优支付渠道</span><br><span class="line">  ├── 账户服务        ← 余额查询与扣减</span><br><span class="line">  ├── 订单服务        ← 支付订单管理</span><br><span class="line">  └── 风控服务        ← 实时反欺诈</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">[渠道适配层]</span><br><span class="line">  ├── 支付宝渠道</span><br><span class="line">  ├── 微信支付渠道</span><br><span class="line">  ├── 银联渠道</span><br><span class="line">  └── 银行直连渠道</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">[第三方支付网关 / 银行核心]</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="3-核心支付链路"><a href="#3-核心支付链路" class="headerlink" title="3. 核心支付链路"></a>3. 核心支付链路</h2><h3 id="3-1-支付流程全链路"><a href="#3-1-支付流程全链路" class="headerlink" title="3.1 支付流程全链路"></a>3.1 支付流程全链路</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">用户点击&quot;支付&quot;</span><br><span class="line">  │</span><br><span class="line">  ▼ 1. 客户端生成 client_order_id（幂等键）</span><br><span class="line">  │</span><br><span class="line">  ▼ 2. API Gateway 接收请求</span><br><span class="line">  │   - 验证签名（防篡改）</span><br><span class="line">  │   - 鉴权（Token 有效性）</span><br><span class="line">  │   - 限流（防刷）</span><br><span class="line">  │</span><br><span class="line">  ▼ 3. 风控实时检测（&lt; 50ms）</span><br><span class="line">  │   - 用户行为分析</span><br><span class="line">  │   - 设备指纹验证</span><br><span class="line">  │   - 交易金额/频次检测</span><br><span class="line">  │   拒绝 → 返回拒绝原因</span><br><span class="line">  │</span><br><span class="line">  ▼ 4. 创建支付订单（幂等写入）</span><br><span class="line">  │   - Redis NX 检查 client_order_id 是否已存在</span><br><span class="line">  │   - 写入 payment_order 表，状态 PENDING</span><br><span class="line">  │</span><br><span class="line">  ▼ 5. 路由选择最优渠道</span><br><span class="line">  │   - 根据金额、银行卡类型、商户配置选渠道</span><br><span class="line">  │   - 渠道健康度检测（成功率 &gt; 95%）</span><br><span class="line">  │</span><br><span class="line">  ▼ 6. 调用渠道（银行/第三方）</span><br><span class="line">  │   - 异步回调（Webhook）or 轮询</span><br><span class="line">  │   - 超时重试策略</span><br><span class="line">  │</span><br><span class="line">  ▼ 7. 接收支付结果</span><br><span class="line">  │   - 成功 → 更新订单状态，触发账务记账</span><br><span class="line">  │   - 失败 → 更新订单状态，释放预占资源</span><br><span class="line">  │   - 超时 → 状态机保持 PROCESSING，异步对账</span><br><span class="line">  │</span><br><span class="line">  ▼ 8. 账务系统记账（双边记账）</span><br><span class="line">  │   - 借记用户账户，贷记商户账户</span><br><span class="line">  │   - 写入流水明细</span><br><span class="line">  │</span><br><span class="line">  ▼ 9. 通知商户（MQ 异步）</span><br><span class="line">      - 发送支付成功/失败事件</span><br><span class="line">      - 商户系统更新订单状态</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-支付状态机"><a href="#3-2-支付状态机" class="headerlink" title="3.2 支付状态机"></a>3.2 支付状态机</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">CREATED（已创建）</span><br><span class="line">  │</span><br><span class="line">  ▼ 提交渠道</span><br><span class="line">PROCESSING（处理中）</span><br><span class="line">  │         │         │</span><br><span class="line">  ▼ 成功    ▼ 失败    ▼ 超时/未知</span><br><span class="line">SUCCESS  FAILED   UNKNOWN</span><br><span class="line">  │                   │</span><br><span class="line">  │               定时对账任务</span><br><span class="line">  │               确认后更新</span><br><span class="line">  │</span><br><span class="line">  ▼ 用户申请</span><br><span class="line">REFUNDING（退款中）</span><br><span class="line">  │</span><br><span class="line">  ▼</span><br><span class="line">REFUNDED（已退款）</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键原则：</strong> 支付状态只能前进，不能回退。UNKNOWN 状态由对账任务负责最终确认。</p>
+<hr>
+<h2 id="4-幂等设计（防重复支付）"><a href="#4-幂等设计（防重复支付）" class="headerlink" title="4. 幂等设计（防重复支付）"></a>4. 幂等设计（防重复支付）</h2><p>幂等是支付系统最重要的特性，确保同一笔支付无论重试多少次都只执行一次。</p>
+<h3 id="4-1-幂等键设计"><a href="#4-1-幂等键设计" class="headerlink" title="4.1 幂等键设计"></a>4.1 幂等键设计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">客户端生成全局唯一的 idempotency_key（幂等键）：</span><br><span class="line"></span><br><span class="line">格式：&#123;app_id&#125;_&#123;user_id&#125;_&#123;timestamp&#125;_&#123;random&#125;</span><br><span class="line">例：  pay_1001_20241201120000_a3f5</span><br><span class="line"></span><br><span class="line">规则：</span><br><span class="line">  - 同一笔业务请求使用同一个 idempotency_key</span><br><span class="line">  - 网络超时重试时，携带相同的 idempotency_key</span><br><span class="line">  - 服务端根据 idempotency_key 去重</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-服务端幂等实现"><a href="#4-2-服务端幂等实现" class="headerlink" title="4.2 服务端幂等实现"></a>4.2 服务端幂等实现</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">方案一：Redis NX（推荐）</span><br><span class="line"></span><br><span class="line">请求到来时：</span><br><span class="line">  SET idempotency:&#123;key&#125; &#123;request_hash&#125; NX EX 86400</span><br><span class="line"></span><br><span class="line">NX 保证：</span><br><span class="line">  - 首次请求 → SET 成功 → 处理业务</span><br><span class="line">  - 重复请求 → SET 失败 → 返回上次结果</span><br><span class="line"></span><br><span class="line">处理完成后：</span><br><span class="line">  将 value 更新为 &#123;payment_id, status, result&#125;</span><br><span class="line">  重复请求直接返回缓存的结果（不重复执行）</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 方案二：数据库唯一约束（兜底）</span></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> payment_order (</span><br><span class="line">    payment_id       <span class="type">BIGINT</span> <span class="keyword">PRIMARY</span> KEY,</span><br><span class="line">    idempotency_key  <span class="type">VARCHAR</span>(<span class="number">128</span>) <span class="keyword">UNIQUE</span>,  <span class="comment">-- 唯一约束</span></span><br><span class="line">    user_id          <span class="type">BIGINT</span>,</span><br><span class="line">    amount           <span class="type">DECIMAL</span>(<span class="number">20</span>,<span class="number">4</span>),</span><br><span class="line">    currency         <span class="type">CHAR</span>(<span class="number">3</span>),</span><br><span class="line">    status           <span class="type">VARCHAR</span>(<span class="number">20</span>),          <span class="comment">-- PENDING/PROCESSING/SUCCESS/FAILED</span></span><br><span class="line">    channel          <span class="type">VARCHAR</span>(<span class="number">50</span>),</span><br><span class="line">    channel_trade_id <span class="type">VARCHAR</span>(<span class="number">200</span>),         <span class="comment">-- 渠道侧流水号</span></span><br><span class="line">    created_at       DATETIME,</span><br><span class="line">    updated_at       DATETIME</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<p><strong>双重保障：</strong> Redis NX 是第一道门（快速），DB 唯一约束是最终兜底（防缓存宕机）。</p>
+<hr>
+<h2 id="5-账务系统（复式记账）"><a href="#5-账务系统（复式记账）" class="headerlink" title="5. 账务系统（复式记账）"></a>5. 账务系统（复式记账）</h2><h3 id="5-1-复式记账原理"><a href="#5-1-复式记账原理" class="headerlink" title="5.1 复式记账原理"></a>5.1 复式记账原理</h3><p>支付系统采用<strong>复式记账法（Double-entry Bookkeeping）</strong>，每笔交易都有等额的借方和贷方，借贷永远平衡。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">用户 A 向商户 B 支付 100 元：</span><br><span class="line"></span><br><span class="line">账户          | 借(Debit) | 贷(Credit)</span><br><span class="line">-------------|-----------|----------</span><br><span class="line">用户A 资产账户 |           |  100（减少）</span><br><span class="line">商户B 资产账户 |  100      |          （增加）</span><br><span class="line">平台待结算账户 |  100      |          （增加，中间过渡）</span><br><span class="line"></span><br><span class="line">复式记账保证：Σ借方 = Σ贷方，资金永远守恒</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-账户模型"><a href="#5-2-账户模型" class="headerlink" title="5.2 账户模型"></a>5.2 账户模型</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 账户表（余额）</span></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> account (</span><br><span class="line">    account_id   <span class="type">BIGINT</span> <span class="keyword">PRIMARY</span> KEY,</span><br><span class="line">    user_id      <span class="type">BIGINT</span>,</span><br><span class="line">    account_type <span class="type">VARCHAR</span>(<span class="number">20</span>),   <span class="comment">-- CASH/ESCROW/SETTLEMENT</span></span><br><span class="line">    balance      <span class="type">DECIMAL</span>(<span class="number">20</span>,<span class="number">4</span>), <span class="comment">-- 当前余额</span></span><br><span class="line">    frozen_amt   <span class="type">DECIMAL</span>(<span class="number">20</span>,<span class="number">4</span>), <span class="comment">-- 冻结金额（预占）</span></span><br><span class="line">    currency     <span class="type">CHAR</span>(<span class="number">3</span>),</span><br><span class="line">    version      <span class="type">BIGINT</span>         <span class="comment">-- 乐观锁版本号</span></span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="comment">-- 流水表（不可修改，只追加）</span></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> account_journal (</span><br><span class="line">    journal_id     <span class="type">BIGINT</span> <span class="keyword">PRIMARY</span> KEY,</span><br><span class="line">    account_id     <span class="type">BIGINT</span>,</span><br><span class="line">    amount         <span class="type">DECIMAL</span>(<span class="number">20</span>,<span class="number">4</span>),</span><br><span class="line">    direction      <span class="type">CHAR</span>(<span class="number">1</span>),       <span class="comment">-- D:借 C:贷</span></span><br><span class="line">    balance_before <span class="type">DECIMAL</span>(<span class="number">20</span>,<span class="number">4</span>),</span><br><span class="line">    balance_after  <span class="type">DECIMAL</span>(<span class="number">20</span>,<span class="number">4</span>),</span><br><span class="line">    biz_type       <span class="type">VARCHAR</span>(<span class="number">50</span>),   <span class="comment">-- PAYMENT/REFUND/TRANSFER</span></span><br><span class="line">    biz_id         <span class="type">BIGINT</span>,        <span class="comment">-- 关联业务ID</span></span><br><span class="line">    created_at     DATETIME</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<p><strong>流水表只追加（Append-Only）：</strong> 绝不修改或删除历史记录，任何时间点的余额 &#x3D; 初始余额 + Σ所有流水。</p>
+<h3 id="5-3-余额扣减（防超扣）"><a href="#5-3-余额扣减（防超扣）" class="headerlink" title="5.3 余额扣减（防超扣）"></a>5.3 余额扣减（防超扣）</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 乐观锁扣减余额（防并发超扣）</span></span><br><span class="line"><span class="keyword">UPDATE</span> account</span><br><span class="line"><span class="keyword">SET</span> balance  <span class="operator">=</span> balance <span class="operator">-</span> #&#123;amount&#125;,</span><br><span class="line">    version  <span class="operator">=</span> version <span class="operator">+</span> <span class="number">1</span></span><br><span class="line"><span class="keyword">WHERE</span> account_id <span class="operator">=</span> #&#123;accountId&#125;</span><br><span class="line">  <span class="keyword">AND</span> balance   <span class="operator">&gt;=</span> #&#123;amount&#125;   <span class="comment">-- 余额充足</span></span><br><span class="line">  <span class="keyword">AND</span> version    <span class="operator">=</span> #&#123;version&#125;; <span class="comment">-- 版本号一致</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 影响行数 = 0 说明并发冲突或余额不足</span></span><br><span class="line"><span class="comment">-- 重试或返回失败</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="6-分布式事务设计"><a href="#6-分布式事务设计" class="headerlink" title="6. 分布式事务设计"></a>6. 分布式事务设计</h2><p>支付涉及多个系统（支付服务、账务服务、通知服务），必须保证跨系统一致性。</p>
+<h3 id="6-1-两阶段提交（2PC）的问题"><a href="#6-1-两阶段提交（2PC）的问题" class="headerlink" title="6.1 两阶段提交（2PC）的问题"></a>6.1 两阶段提交（2PC）的问题</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">问题：</span><br><span class="line">  Prepare 阶段所有参与者锁住资源</span><br><span class="line">  Commit 阶段协调者崩溃 → 参与者永久阻塞</span><br><span class="line"></span><br><span class="line">在高并发支付场景下，2PC 性能差，且存在协调者单点故障。</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-Saga-模式（推荐）"><a href="#6-2-Saga-模式（推荐）" class="headerlink" title="6.2 Saga 模式（推荐）"></a>6.2 Saga 模式（推荐）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">支付 Saga 步骤：</span><br><span class="line"></span><br><span class="line">Step 1: 创建支付订单（本地事务）</span><br><span class="line">        补偿：取消支付订单</span><br><span class="line"></span><br><span class="line">Step 2: 扣减用户余额（账务服务）</span><br><span class="line">        补偿：退回用户余额</span><br><span class="line"></span><br><span class="line">Step 3: 调用渠道支付（第三方）</span><br><span class="line">        补偿：发起退款</span><br><span class="line"></span><br><span class="line">Step 4: 记录商户收款（账务服务）</span><br><span class="line">        补偿：扣回商户收款</span><br><span class="line"></span><br><span class="line">Step 5: 通知商户（MQ）</span><br><span class="line">        补偿：发送取消通知</span><br><span class="line"></span><br><span class="line">如果 Step 3 失败 → 逆序执行补偿：</span><br><span class="line">  取消商户记账 → 退回用户余额 → 取消支付订单</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-本地消息表（可靠消息）"><a href="#6-3-本地消息表（可靠消息）" class="headerlink" title="6.3 本地消息表（可靠消息）"></a>6.3 本地消息表（可靠消息）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">解决支付成功后，如何可靠通知商户：</span><br><span class="line"></span><br><span class="line">1. 支付成功 → 在同一个本地事务中：</span><br><span class="line">   - 更新 payment_order.status = SUCCESS</span><br><span class="line">   - 写入 outbox 表（消息发件箱）</span><br><span class="line">     INSERT INTO outbox (id, topic, payload, status) VALUES (...)</span><br><span class="line"></span><br><span class="line">2. 后台 Outbox Processor 轮询：</span><br><span class="line">   SELECT * FROM outbox WHERE status = &#x27;PENDING&#x27; LIMIT 100</span><br><span class="line">   → 发送到 Kafka</span><br><span class="line">   → 更新 outbox.status = SENT</span><br><span class="line"></span><br><span class="line">3. 商户消费 Kafka 消息</span><br><span class="line">   → 幂等处理（按 payment_id 去重）</span><br><span class="line"></span><br><span class="line">原子性保证：步骤1 是单库事务，步骤2 失败可以重试，最终一定投递。</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="7-对账系统"><a href="#7-对账系统" class="headerlink" title="7. 对账系统"></a>7. 对账系统</h2><p>对账是支付系统的最后一道防线，发现并修复资金差错。</p>
+<h3 id="7-1-对账类型"><a href="#7-1-对账类型" class="headerlink" title="7.1 对账类型"></a>7.1 对账类型</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">内部对账（实时）：</span><br><span class="line">  支付订单表 ↔ 账务流水表</span><br><span class="line">  验证：每笔支付对应的流水借贷平衡</span><br><span class="line"></span><br><span class="line">外部对账（T+1，次日）：</span><br><span class="line">  我方交易流水 ↔ 银行/渠道流水账单</span><br><span class="line">  发现：渠道成功我方未处理、我方成功渠道未记录</span><br><span class="line"></span><br><span class="line">商户对账：</span><br><span class="line">  平台侧商户流水 ↔ 商户侧收款记录</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-差错类型与处理"><a href="#7-2-差错类型与处理" class="headerlink" title="7.2 差错类型与处理"></a>7.2 差错类型与处理</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">差错类型：</span><br><span class="line"></span><br><span class="line">1. 长款（平台多收）：</span><br><span class="line">   渠道已扣款，我方未创建成功记录</span><br><span class="line">   处理：查找对应订单，补录成功状态，或自动退款</span><br><span class="line"></span><br><span class="line">2. 短款（平台少收）：</span><br><span class="line">   我方记录成功，渠道实际未扣款</span><br><span class="line">   处理：人工介入，向用户重新收款或标记坏账</span><br><span class="line"></span><br><span class="line">3. 悬账（状态未知）：</span><br><span class="line">   支付状态 UNKNOWN，渠道有记录</span><br><span class="line">   处理：以渠道状态为准，更新本地状态</span><br><span class="line"></span><br><span class="line">对账流水线：</span><br><span class="line">  [渠道文件] → 解析 → 存储</span><br><span class="line">  [本地流水] → 导出 → 对比</span><br><span class="line">  → 差异报告 → 人工审核 → 补账/退款</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-3-对账系统架构"><a href="#7-3-对账系统架构" class="headerlink" title="7.3 对账系统架构"></a>7.3 对账系统架构</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">T+1 对账批处理（每天凌晨）：</span><br><span class="line"></span><br><span class="line">渠道账单文件（SFTP/API）</span><br><span class="line">  │</span><br><span class="line">  ▼ 下载 &amp; 解析</span><br><span class="line">[对账数据仓库（Hive/Spark）]</span><br><span class="line">  │                    │</span><br><span class="line">  │ 本地流水导出        │ 渠道流水导入</span><br><span class="line">  ▼                    ▼</span><br><span class="line">[Spark Join 对比（按 channel_trade_id 关联）]</span><br><span class="line">  │</span><br><span class="line">  ▼</span><br><span class="line">[差异记录表]</span><br><span class="line">  │</span><br><span class="line">  ▼ 自动处理</span><br><span class="line">  ├── 金额差异 &lt; 1分 → 自动平账（浮点精度）</span><br><span class="line">  ├── 长款 &amp; 金额可追溯 → 自动补单</span><br><span class="line">  └── 无法自动处理 → 人工差错工单</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="8-风控系统"><a href="#8-风控系统" class="headerlink" title="8. 风控系统"></a>8. 风控系统</h2><h3 id="8-1-实时风控（-50ms）"><a href="#8-1-实时风控（-50ms）" class="headerlink" title="8.1 实时风控（&lt; 50ms）"></a>8.1 实时风控（&lt; 50ms）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">每笔支付请求经过实时风控引擎：</span><br><span class="line"></span><br><span class="line">输入特征：</span><br><span class="line">  ├── 用户维度：账号年龄、历史交易次数、地理位置</span><br><span class="line">  ├── 设备维度：设备指纹、IP 归属地、是否越狱/Root</span><br><span class="line">  ├── 交易维度：金额、商户类别、时间（深夜异常）</span><br><span class="line">  └── 行为维度：操作频率、鼠标轨迹（Web 端）</span><br><span class="line"></span><br><span class="line">规则引擎（快速拦截）：</span><br><span class="line">  ├── 黑名单：命中直接拒绝</span><br><span class="line">  ├── 频率限制：同账号 1 分钟内 &gt; 3 笔 → 人工验证</span><br><span class="line">  ├── 金额规则：单笔 &gt; 5 万 → 短信验证</span><br><span class="line">  └── 地域风险：异地登录后大额支付 → 人脸识别</span><br><span class="line"></span><br><span class="line">ML 模型（复杂欺诈检测）：</span><br><span class="line">  ├── 梯度提升树（XGBoost）: 规则难以覆盖的欺诈模式</span><br><span class="line">  ├── 图神经网络（GNN）: 团伙欺诈检测（账号关联图）</span><br><span class="line">  └── 实时特征服务（Redis）: 滑动窗口聚合特征，&lt;5ms</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-2-异步风控（事后检测）"><a href="#8-2-异步风控（事后检测）" class="headerlink" title="8.2 异步风控（事后检测）"></a>8.2 异步风控（事后检测）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">某些欺诈模式无法实时发现：</span><br><span class="line">  ├── 账号盗用：盗用者行为模式类似正常</span><br><span class="line">  ├── 洗钱链路：单笔正常，多笔串联可疑</span><br><span class="line">  └── 团伙欺诈：单个账号正常，关联账号异常</span><br><span class="line"></span><br><span class="line">事后分析：</span><br><span class="line">  Kafka 消费支付流水 → Flink 实时计算 →</span><br><span class="line">  发现异常 → 冻结账户 + 人工审核</span><br><span class="line">  (允许延迟几分钟，换取更高检出率)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="9-高可用设计"><a href="#9-高可用设计" class="headerlink" title="9. 高可用设计"></a>9. 高可用设计</h2><h3 id="9-1-支付核心可用性"><a href="#9-1-支付核心可用性" class="headerlink" title="9.1 支付核心可用性"></a>9.1 支付核心可用性</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">99.999% 可用性 = 年停机 &lt; 5 分钟</span><br><span class="line"></span><br><span class="line">多活架构（同城双活 + 异地灾备）：</span><br><span class="line"></span><br><span class="line">[同城机房A]          [同城机房B]</span><br><span class="line">支付服务集群    ←→    支付服务集群</span><br><span class="line">账务DB主库      →     账务DB从库</span><br><span class="line">  │</span><br><span class="line">  ↓（同步复制）</span><br><span class="line">[异地机房C]</span><br><span class="line">灾备集群（冷备，RTO 15分钟）</span><br><span class="line"></span><br><span class="line">流量分配：</span><br><span class="line">  - 正常：A/B 各承担 50% 流量</span><br><span class="line">  - A 故障：全部流量切至 B（&lt; 30 秒自动切换）</span><br><span class="line">  - 同城全故障：切换至异地（人工介入，15 分钟）</span><br></pre></td></tr></table></figure>
+
+<h3 id="9-2-渠道降级策略"><a href="#9-2-渠道降级策略" class="headerlink" title="9.2 渠道降级策略"></a>9.2 渠道降级策略</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">单一渠道故障时的降级策略：</span><br><span class="line"></span><br><span class="line">主渠道（支付宝）健康度 &lt; 95%</span><br><span class="line">  → 路由切换到备用渠道（微信支付）</span><br><span class="line"></span><br><span class="line">所有渠道故障（极端情况）：</span><br><span class="line">  → 降级到余额支付（用户预充值余额）</span><br><span class="line">  → 降级到账期支付（先消费后还款，需授信）</span><br><span class="line"></span><br><span class="line">渠道健康度监控：</span><br><span class="line">  - 每 30 秒探测渠道成功率</span><br><span class="line">  - 成功率 &lt; 95% → 开始分流</span><br><span class="line">  - 成功率 &lt; 80% → 全部切走</span><br><span class="line">  - 成功率恢复 &gt; 99% → 逐步切回</span><br></pre></td></tr></table></figure>
+
+<h3 id="9-3-数据库设计"><a href="#9-3-数据库设计" class="headerlink" title="9.3 数据库设计"></a>9.3 数据库设计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">读写分离 + 分库分表：</span><br><span class="line"></span><br><span class="line">分片键：user_id</span><br><span class="line">  - payment_order：按 user_id % 16 → 16 库，每库 16 表 = 256 张表</span><br><span class="line">  - account_journal：按 account_id % 16</span><br><span class="line"></span><br><span class="line">全局流水 ID：Snowflake（趋势递增，利于 B-Tree 索引）</span><br><span class="line"></span><br><span class="line">特殊处理：</span><br><span class="line">  - 账务表：单独部署，使用更高配置的 DB 实例</span><br><span class="line">  - 账务 DB 使用同步复制（RPO=0），普通 DB 可用半同步</span><br><span class="line">  - 账务操作禁止跨库事务，必须在单库内完成</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="10-退款设计"><a href="#10-退款设计" class="headerlink" title="10. 退款设计"></a>10. 退款设计</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">退款流程：</span><br><span class="line"></span><br><span class="line">1. 用户申请退款</span><br><span class="line">   → 创建退款单，状态 REFUND_PENDING</span><br><span class="line">   → 验证退款资格（退款期限内？金额不超原单？）</span><br><span class="line"></span><br><span class="line">2. 原路退款</span><br><span class="line">   → 调用渠道退款接口</span><br><span class="line">   → 渠道将资金退回用户的原支付账户</span><br><span class="line"></span><br><span class="line">3. 更新状态</span><br><span class="line">   → 退款成功 → 更新原支付单状态</span><br><span class="line">   → 反向记账（冲销原流水）</span><br><span class="line"></span><br><span class="line">退款幂等：</span><br><span class="line">  同一退款单只能退款一次（DB 唯一约束）</span><br><span class="line">  退款 ID 作为幂等键调用渠道</span><br><span class="line"></span><br><span class="line">部分退款：</span><br><span class="line">  支持多次部分退款，累计退款金额 ≤ 原支付金额</span><br><span class="line">  超额退款请求直接拒绝</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="11-存储选型总结"><a href="#11-存储选型总结" class="headerlink" title="11. 存储选型总结"></a>11. 存储选型总结</h2><table>
+<thead>
+<tr>
+<th>数据</th>
+<th>选型</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>支付订单</td>
+<td>MySQL（分库分表）</td>
+<td>强一致，支持事务，按 user_id 分片</td>
+</tr>
+<tr>
+<td>账户余额</td>
+<td>MySQL（主库读写）</td>
+<td>余额精确计算，禁止走从库</td>
+</tr>
+<tr>
+<td>账务流水</td>
+<td>MySQL（append-only）</td>
+<td>审计溯源，只追加不修改</td>
+</tr>
+<tr>
+<td>幂等键</td>
+<td>Redis + MySQL 唯一索引</td>
+<td>Redis 快速去重，DB 兜底</td>
+</tr>
+<tr>
+<td>风控特征</td>
+<td>Redis（滑动窗口）</td>
+<td>毫秒级聚合查询</td>
+</tr>
+<tr>
+<td>黑名单</td>
+<td>Redis Bloom Filter</td>
+<td>亿级黑名单，内存高效</td>
+</tr>
+<tr>
+<td>支付事件</td>
+<td>Kafka</td>
+<td>高吞吐，解耦支付与通知</td>
+</tr>
+<tr>
+<td>对账数据</td>
+<td>Hive &#x2F; Spark</td>
+<td>T+1 批处理，PB 级对账</td>
+</tr>
+<tr>
+<td>对账结果</td>
+<td>MySQL</td>
+<td>差错工单管理</td>
+</tr>
+<tr>
+<td>渠道配置</td>
+<td>ZooKeeper &#x2F; 配置中心</td>
+<td>实时推送，支持动态路由</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="12-面试要点总结"><a href="#12-面试要点总结" class="headerlink" title="12. 面试要点总结"></a>12. 面试要点总结</h2><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>关键设计</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>幂等</td>
+<td>客户端生成 idempotency_key，Redis NX + DB 唯一索引双重保障</td>
+</tr>
+<tr>
+<td>一致性</td>
+<td>Saga 编排 + 本地消息表（Outbox），避免 2PC</td>
+</tr>
+<tr>
+<td>账务</td>
+<td>复式记账，流水只追加，任意时点可重算余额</td>
+</tr>
+<tr>
+<td>防超扣</td>
+<td>账户乐观锁（version CAS），余额充足校验</td>
+</tr>
+<tr>
+<td>对账</td>
+<td>T+1 批处理对账，差错分类自动&#x2F;人工处理</td>
+</tr>
+<tr>
+<td>风控</td>
+<td>实时规则引擎（&lt; 50ms）+ 异步 ML 检测</td>
+</tr>
+<tr>
+<td>高可用</td>
+<td>同城双活 + 异地灾备，渠道故障自动切换</td>
+</tr>
+<tr>
+<td>状态机</td>
+<td>支付状态严格单向，UNKNOWN 由对账任务最终确认</td>
+</tr>
+<tr>
+<td>退款</td>
+<td>原路退款，退款单幂等，部分退款不超原单金额</td>
+</tr>
+<tr>
+<td>数据库</td>
+<td>账务 DB 同步复制（RPO&#x3D;0），禁止跨库事务</td>
+</tr>
+</tbody></table>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://stripe.com/blog/idempotency">Stripe Engineering Blog: Designing robust and predictable APIs with idempotency</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.infoq.cn/article/high-availability-of-payments-architecture">支付宝架构师眼中的高可用</a></li>
+<li><a target="_blank" rel="noopener" href="https://eng.uber.com/payments-platform/">Uber 的支付架构演进</a></li>
+<li>Designing Data-Intensive Applications — Chapter 7, 9</li>
+<li><a target="_blank" rel="noopener" href="https://martinfowler.com/articles/patterns-of-distributed-systems/saga.html">Martin Fowler: Saga Pattern</a></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" rel="tag"># 系统设计</a>
+              <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" rel="tag"># 分布式系统</a>
+              <a href="/tags/%E6%94%AF%E4%BB%98/" rel="tag"># 支付</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/30/2026-06-30-ecommerce-system-design/" rel="prev" title="系统设计：设计一个电商系统（淘宝/Amazon 级别）">
+                  <i class="fa fa-angle-left"></i> 系统设计：设计一个电商系统（淘宝/Amazon 级别）
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdn.bootcdn.net/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  <script src="https://cdn.bootcdn.net/ajax/libs/hexo-generator-searchdb/1.4.1/search.js" integrity="sha256-1kfA5uHPf65M5cphT2dvymhkuyHPQp5A53EGZOnOLmc=" crossorigin="anonymous"></script>
+<script src="/js/third-party/search/local-search.js"></script>
+
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdn.bootcdn.net/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
