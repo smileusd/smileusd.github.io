@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="搜索引擎是互联网最核心的基础设施之一。本文从系统设计角度，拆解如何从零设计一个类 Google 的大规模搜索系统，覆盖爬取、索引、检索、排序全链路。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="系统设计：设计一个 Google Search 系统">
+<meta property="og:url" content="http://example.com/2026/06/30/2026-06-30-google-search-system-design/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="搜索引擎是互联网最核心的基础设施之一。本文从系统设计角度，拆解如何从零设计一个类 Google 的大规模搜索系统，覆盖爬取、索引、检索、排序全链路。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-06-30T06:06:28.000Z">
+<meta property="article:modified_time" content="2026-06-30T06:09:56.702Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="系统设计">
+<meta property="article:tag" content="分布式系统">
+<meta property="article:tag" content="搜索引擎">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://example.com/2026/06/30/2026-06-30-google-search-system-design/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"http://example.com/2026/06/30/2026-06-30-google-search-system-design/","path":"2026/06/30/2026-06-30-google-search-system-design/","title":"系统设计：设计一个 Google Search 系统"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>系统设计：设计一个 Google Search 系统 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E9%9C%80%E6%B1%82%E5%88%86%E6%9E%90"><span class="nav-number">1.</span> <span class="nav-text">1. 需求分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8A%9F%E8%83%BD%E9%9C%80%E6%B1%82"><span class="nav-number">1.1.</span> <span class="nav-text">功能需求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9D%9E%E5%8A%9F%E8%83%BD%E9%9C%80%E6%B1%82"><span class="nav-number">1.2.</span> <span class="nav-text">非功能需求</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">2. 整体架构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6%E8%AF%A6%E8%A7%A3"><span class="nav-number">3.</span> <span class="nav-text">3. 核心组件详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-Web-%E7%88%AC%E8%99%AB%EF%BC%88Crawler%EF%BC%89"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 Web 爬虫（Crawler）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%86%85%E5%AE%B9%E5%AD%98%E5%82%A8"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 内容存储</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%80%92%E6%8E%92%E7%B4%A2%E5%BC%95%EF%BC%88Inverted-Index%EF%BC%89"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 倒排索引（Inverted Index）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E6%9F%A5%E8%AF%A2%E5%A4%84%E7%90%86%EF%BC%88Query-Processing%EF%BC%89"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 查询处理（Query Processing）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E6%8E%92%E5%BA%8F%E7%B3%BB%E7%BB%9F%EF%BC%88Ranking%EF%BC%89"><span class="nav-number">3.5.</span> <span class="nav-text">3.5 排序系统（Ranking）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%B3%BB%E7%BB%9F%E5%85%B3%E9%94%AE%E8%AE%BE%E8%AE%A1"><span class="nav-number">4.</span> <span class="nav-text">4. 系统关键设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E9%AB%98%E5%8F%AF%E7%94%A8%E4%B8%8E%E5%AE%B9%E9%94%99"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 高可用与容错</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E7%B4%A2%E5%BC%95%E6%9B%B4%E6%96%B0%EF%BC%88%E6%96%B0%E9%B2%9C%E5%BA%A6%EF%BC%89"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 索引更新（新鲜度）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 缓存策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E8%A7%84%E6%A8%A1%E4%BC%B0%E7%AE%97"><span class="nav-number">4.4.</span> <span class="nav-text">4.4 规模估算</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E6%9E%B6%E6%9E%84%E5%9B%BE%E6%80%BB%E8%A7%88"><span class="nav-number">5.</span> <span class="nav-text">5. 架构图总览</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E9%9D%A2%E8%AF%95%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-number">6.</span> <span class="nav-text">6. 面试要点总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">7.</span> <span class="nav-text">参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">John Doe</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">27</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2026/06/30/2026-06-30-google-search-system-design/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="John Doe">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="系统设计：设计一个 Google Search 系统 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          系统设计：设计一个 Google Search 系统
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-06-30 14:06:28 / Modified: 14:09:56" itemprop="dateCreated datePublished" datetime="2026-06-30T14:06:28+08:00">2026-06-30</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">系统设计</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>搜索引擎是互联网最核心的基础设施之一。本文从系统设计角度，拆解如何从零设计一个类 Google 的大规模搜索系统，覆盖爬取、索引、检索、排序全链路。</p>
+<span id="more"></span>
+
+<h2 id="1-需求分析"><a href="#1-需求分析" class="headerlink" title="1. 需求分析"></a>1. 需求分析</h2><h3 id="功能需求"><a href="#功能需求" class="headerlink" title="功能需求"></a>功能需求</h3><ul>
+<li>用户输入关键词，返回相关网页列表</li>
+<li>支持分页（每页 10 条结果）</li>
+<li>结果按相关性排序</li>
+<li>支持基本的布尔查询（AND &#x2F; OR &#x2F; NOT）</li>
+</ul>
+<h3 id="非功能需求"><a href="#非功能需求" class="headerlink" title="非功能需求"></a>非功能需求</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>目标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>规模</td>
+<td>索引 200 亿+ 网页</td>
+</tr>
+<tr>
+<td>QPS</td>
+<td>峰值 10 万+ 查询&#x2F;秒</td>
+</tr>
+<tr>
+<td>延迟</td>
+<td>P99 &lt; 200ms</td>
+</tr>
+<tr>
+<td>可用性</td>
+<td>99.99%</td>
+</tr>
+<tr>
+<td>索引新鲜度</td>
+<td>热门页面分钟级更新</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="2-整体架构"><a href="#2-整体架构" class="headerlink" title="2. 整体架构"></a>2. 整体架构</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">用户请求</span><br><span class="line">   │</span><br><span class="line">   ▼</span><br><span class="line">[负载均衡层]</span><br><span class="line">   │</span><br><span class="line">   ▼</span><br><span class="line">[查询服务 Query Service]</span><br><span class="line">   ├── 查询解析 / 分词</span><br><span class="line">   ├── 拼写纠正 &amp; 同义词扩展</span><br><span class="line">   ├── 索引检索 (Inverted Index)</span><br><span class="line">   └── 结果排序 (Ranking)</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">[返回 Top-K 结果]</span><br><span class="line"></span><br><span class="line">后台流水线：</span><br><span class="line">[Web Crawler] → [内容存储] → [索引构建] → [倒排索引集群]</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="3-核心组件详解"><a href="#3-核心组件详解" class="headerlink" title="3. 核心组件详解"></a>3. 核心组件详解</h2><h3 id="3-1-Web-爬虫（Crawler）"><a href="#3-1-Web-爬虫（Crawler）" class="headerlink" title="3.1 Web 爬虫（Crawler）"></a>3.1 Web 爬虫（Crawler）</h3><p>爬虫是整个系统的数据入口，负责持续抓取互联网页面。</p>
+<p><strong>设计要点：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">URL 前沿队列 (URL Frontier)</span><br><span class="line">    │</span><br><span class="line">    ▼ 取 URL</span><br><span class="line">[DNS 解析] → [下载器] → [内容去重] → [HTML 解析]</span><br><span class="line">                                           │</span><br><span class="line">                                     提取新 URL ─→ 回到 URL Frontier</span><br><span class="line">                                           │</span><br><span class="line">                                     提取正文 ─→ 内容存储</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键考量：</strong></p>
+<ul>
+<li><strong>礼貌性爬取</strong>：遵守 <code>robots.txt</code>，限制同一域名爬取频率（如每域 1 req&#x2F;s）</li>
+<li><strong>去重</strong>：URL 去重用 Bloom Filter，内容去重用 SimHash（近似重复检测）</li>
+<li><strong>优先级调度</strong>：按 PageRank &#x2F; 更新频率动态调整爬取优先级</li>
+<li><strong>分布式</strong>：数千台爬虫机器，按域名哈希分片，避免多台机器重复爬同一域</li>
+</ul>
+<p><strong>规模估算：</strong></p>
+<ul>
+<li>200 亿页面，平均 100KB&#x2F;页 → 原始存储 ≈ 2PB</li>
+<li>每天重新爬取 5% → 日爬取量约 10 亿页</li>
+</ul>
+<h3 id="3-2-内容存储"><a href="#3-2-内容存储" class="headerlink" title="3.2 内容存储"></a>3.2 内容存储</h3><p>爬取的原始页面需要持久化，供索引构建和调试使用。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">原始 HTML → [对象存储 / HDFS]</span><br><span class="line">               └── 按 URL hash 分区</span><br><span class="line">               └── 压缩存储（gzip, 节省 70% 空间）</span><br><span class="line"></span><br><span class="line">文档元数据（URL, 爬取时间, PageRank, 语言）</span><br><span class="line">               └── [分布式 KV 存储，如 Bigtable / HBase]</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-倒排索引（Inverted-Index）"><a href="#3-3-倒排索引（Inverted-Index）" class="headerlink" title="3.3 倒排索引（Inverted Index）"></a>3.3 倒排索引（Inverted Index）</h3><p>倒排索引是搜索引擎的核心数据结构。</p>
+<p><strong>结构：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">词项(Term) → Posting List</span><br><span class="line">              └── [(doc_id, tf, positions), ...]</span><br><span class="line"></span><br><span class="line">例：</span><br><span class="line">&quot;search&quot;  → [(doc3, tf=5, [12,45,89]), (doc7, tf=2, [3,67]), ...]</span><br><span class="line">&quot;engine&quot;  → [(doc3, tf=3, [15,91,102]), (doc9, tf=1, [8]), ...]</span><br></pre></td></tr></table></figure>
+
+<p><strong>构建流程（MapReduce &#x2F; Spark）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Map:   (doc_id, content) → (term, doc_id, tf, position)</span><br><span class="line">Reduce: term → sorted posting list by doc_id</span><br></pre></td></tr></table></figure>
+
+<p><strong>分片策略（Term vs Doc 分片）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>描述</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Term 分片</td>
+<td>按词项哈希，同一词的所有文档在同一节点</td>
+<td>单词查询快</td>
+<td>多词 AND 查询需跨节点</td>
+</tr>
+<tr>
+<td>Doc 分片</td>
+<td>按文档哈希，每节点存所有词的部分文档</td>
+<td>支持独立排序</td>
+<td>需 scatter-gather 合并</td>
+</tr>
+</tbody></table>
+<p><strong>Google 实践</strong>：采用 Doc 分片（Index Server）+ 多层级索引（Tier）。热门词有独立的小索引（Hit List），优先命中。</p>
+<p><strong>索引压缩：</strong></p>
+<ul>
+<li>doc_id 使用 Delta 编码（存差值）</li>
+<li>词频用 VByte 编码</li>
+<li>压缩比可达 10:1</li>
+</ul>
+<h3 id="3-4-查询处理（Query-Processing）"><a href="#3-4-查询处理（Query-Processing）" class="headerlink" title="3.4 查询处理（Query Processing）"></a>3.4 查询处理（Query Processing）</h3><p>用户查询到结果的完整链路：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">原始查询 &quot;google search design&quot;</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">[预处理]</span><br><span class="line">    ├── 分词: [&quot;google&quot;, &quot;search&quot;, &quot;design&quot;]</span><br><span class="line">    ├── 停用词过滤: 保留全部（搜索场景慎删）</span><br><span class="line">    ├── 拼写纠正: &quot;serach&quot; → &quot;search&quot;（Edit Distance + 语言模型）</span><br><span class="line">    └── 同义词扩展: &quot;design&quot; → [&quot;design&quot;, &quot;architect&quot;]</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">[索引查询]</span><br><span class="line">    ├── 每个词查 Posting List</span><br><span class="line">    ├── 多词 AND：归并排序（利用 doc_id 有序性）</span><br><span class="line">    └── 取 Top-K candidates（数千个）</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">[排序 Ranking]</span><br><span class="line">    └── 返回 Top-10 结果</span><br></pre></td></tr></table></figure>
+
+<p><strong>AND 查询优化（跳表 Skip List）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Posting: [3, 8, 15, 23, 47, 89, 102, ...]</span><br><span class="line">Skip:    [3→15→47→102→...]</span><br><span class="line"></span><br><span class="line">跳表让 AND 归并从 O(N) 加速到 O(√N)</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-5-排序系统（Ranking）"><a href="#3-5-排序系统（Ranking）" class="headerlink" title="3.5 排序系统（Ranking）"></a>3.5 排序系统（Ranking）</h3><p>排序是搜索质量的核心，Google 综合数百个信号。</p>
+<p><strong>经典两阶段排序：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">[粗排 - L1 Ranking]</span><br><span class="line">  ├── 数千候选 → 数百</span><br><span class="line">  ├── TF-IDF / BM25 相关性得分</span><br><span class="line">  └── 轻量特征（文档长度、词频）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">[精排 - L2 Ranking]</span><br><span class="line">  ├── 数百 → Top 10</span><br><span class="line">  ├── PageRank 链接权威性</span><br><span class="line">  ├── 用户行为信号（CTR, 停留时长）</span><br><span class="line">  ├── 新鲜度（内容更新时间）</span><br><span class="line">  ├── 个性化（用户历史）</span><br><span class="line">  └── 机器学习模型（LambdaMART / Neural Ranking）</span><br></pre></td></tr></table></figure>
+
+<p><strong>BM25 公式（现代 TF-IDF）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Score(D,Q) = Σ IDF(qi) × [tf(qi,D) × (k1+1)] / [tf(qi,D) + k1×(1-b+b×|D|/avgdl)]</span><br><span class="line"></span><br><span class="line">其中：</span><br><span class="line">- IDF = log((N-df+0.5)/(df+0.5))  文档频率惩罚常见词</span><br><span class="line">- k1=1.2, b=0.75  调节参数</span><br><span class="line">- |D|/avgdl  文档长度归一化</span><br></pre></td></tr></table></figure>
+
+<p><strong>PageRank（链接分析）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">PR(A) = (1-d) + d × Σ [PR(T)/C(T)]</span><br><span class="line"></span><br><span class="line">- d=0.85 阻尼系数</span><br><span class="line">- T 为所有指向 A 的页面</span><br><span class="line">- C(T) 为 T 的出链数</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="4-系统关键设计"><a href="#4-系统关键设计" class="headerlink" title="4. 系统关键设计"></a>4. 系统关键设计</h2><h3 id="4-1-高可用与容错"><a href="#4-1-高可用与容错" class="headerlink" title="4.1 高可用与容错"></a>4.1 高可用与容错</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[全球多 Region 部署]</span><br><span class="line">  ├── 每 Region 独立服务，故障隔离</span><br><span class="line">  ├── DNS GeoDNS 就近路由</span><br><span class="line">  └── 跨 Region 索引复制（最终一致）</span><br><span class="line"></span><br><span class="line">[单 Region 内]</span><br><span class="line">  ├── 每个 Index Shard 3 副本</span><br><span class="line">  ├── 查询 scatter-gather：发送到所有 shard，任一副本响应即可</span><br><span class="line">  └── 超时熔断：单 shard 超时则返回部分结果，不阻塞整体响应</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-索引更新（新鲜度）"><a href="#4-2-索引更新（新鲜度）" class="headerlink" title="4.2 索引更新（新鲜度）"></a>4.2 索引更新（新鲜度）</h3><p>不同页面对新鲜度要求不同：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>更新策略</th>
+<th>延迟</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>热门新闻页</td>
+<td>实时索引 (Caffeine)</td>
+<td>分钟级</td>
+</tr>
+<tr>
+<td>普通网页</td>
+<td>批量增量更新</td>
+<td>小时级</td>
+</tr>
+<tr>
+<td>低质量页面</td>
+<td>定期全量重建</td>
+<td>天&#x2F;周级</td>
+</tr>
+</tbody></table>
+<p><strong>增量索引设计：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">新爬取文档</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">[实时 Indexing Pipeline]</span><br><span class="line">  ├── 解析 → 提取 terms</span><br><span class="line">  ├── 写入 Delta Index（小型，内存友好）</span><br><span class="line">  └── 定期 Merge → Base Index</span><br><span class="line"></span><br><span class="line">查询时：Base Index + Delta Index 合并结果</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-缓存策略"><a href="#4-3-缓存策略" class="headerlink" title="4.3 缓存策略"></a>4.3 缓存策略</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">[查询结果缓存]</span><br><span class="line">  ├── 热门查询（&quot;weather&quot;, &quot;NBA&quot;）命中率 &gt; 80%</span><br><span class="line">  ├── Key: 规范化查询串</span><br><span class="line">  ├── TTL: 热门词 1min，长尾词 1h</span><br><span class="line">  └── 分布式缓存（Redis Cluster）</span><br><span class="line"></span><br><span class="line">[Posting List 缓存]</span><br><span class="line">  ├── 高频词（&quot;the&quot;, &quot;how&quot;）的 Posting List 常驻内存</span><br><span class="line">  └── 按访问频率 LRU 淘汰</span><br><span class="line"></span><br><span class="line">[预计算热门查询]</span><br><span class="line">  └── Top 1000 查询每分钟预热，直接返回</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-规模估算"><a href="#4-4-规模估算" class="headerlink" title="4.4 规模估算"></a>4.4 规模估算</h3><p><strong>存储：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">原始网页：200 亿 × 100KB = 2PB（压缩后 ~500TB）</span><br><span class="line">倒排索引：词典 + Posting List ≈ 100TB</span><br><span class="line">文档元数据：200 亿 × 1KB = 20TB</span><br></pre></td></tr></table></figure>
+
+<p><strong>计算：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">QPS: 10 万查询/秒</span><br><span class="line">每次查询：scatter 到 ~1000 shard，每 shard ~100ms</span><br><span class="line">Index Server 数量 ≈ 10 万 / (1000 QPS/server) ≈ 100 台（每 shard 3 副本 → 约 300 台）</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="5-架构图总览"><a href="#5-架构图总览" class="headerlink" title="5. 架构图总览"></a>5. 架构图总览</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">                        ┌─────────────┐</span><br><span class="line">                        │   用户请求   │</span><br><span class="line">                        └──────┬──────┘</span><br><span class="line">                               │</span><br><span class="line">                        ┌──────▼──────┐</span><br><span class="line">                        │  负载均衡   │</span><br><span class="line">                        └──────┬──────┘</span><br><span class="line">                               │</span><br><span class="line">                    ┌──────────▼──────────┐</span><br><span class="line">                    │    Query Processor   │</span><br><span class="line">                    │  分词/纠错/同义词扩展 │</span><br><span class="line">                    └──────────┬──────────┘</span><br><span class="line">                               │ scatter</span><br><span class="line">          ┌────────────────────┼────────────────────┐</span><br><span class="line">          ▼                    ▼                    ▼</span><br><span class="line">   [Index Shard 1]      [Index Shard 2]      [Index Shard N]</span><br><span class="line">   (Inverted Index)     (Inverted Index)     (Inverted Index)</span><br><span class="line">          │                    │                    │</span><br><span class="line">          └────────────────────┼────────────────────┘</span><br><span class="line">                               │ gather + merge</span><br><span class="line">                    ┌──────────▼──────────┐</span><br><span class="line">                    │    Ranking Service   │</span><br><span class="line">                    │   BM25 + PageRank    │</span><br><span class="line">                    │   + ML Ranking Model │</span><br><span class="line">                    └──────────┬──────────┘</span><br><span class="line">                               │</span><br><span class="line">                        ┌──────▼──────┐</span><br><span class="line">                        │  Top-10 结果 │</span><br><span class="line">                        └─────────────┘</span><br><span class="line"></span><br><span class="line">后台流水线：</span><br><span class="line">[Crawler] → [Raw Storage] → [Indexer (MapReduce)] → [Index Shards]</span><br><span class="line">                                    ↑</span><br><span class="line">                             [Link Graph] → [PageRank 计算]</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="6-面试要点总结"><a href="#6-面试要点总结" class="headerlink" title="6. 面试要点总结"></a>6. 面试要点总结</h2><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>关键决策</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>爬虫</td>
+<td>URL 优先级队列 + Bloom Filter 去重 + 礼貌性限速</td>
+</tr>
+<tr>
+<td>存储</td>
+<td>原始页面用对象存储，索引用定制分布式存储</td>
+</tr>
+<tr>
+<td>索引</td>
+<td>倒排索引 + Doc 分片 + 跳表加速 AND 查询</td>
+</tr>
+<tr>
+<td>排序</td>
+<td>两阶段（粗排 BM25 + 精排 ML）</td>
+</tr>
+<tr>
+<td>新鲜度</td>
+<td>Delta Index 增量更新 + 分级爬取策略</td>
+</tr>
+<tr>
+<td>扩展性</td>
+<td>Shard 水平扩展，Region 独立部署</td>
+</tr>
+<tr>
+<td>延迟</td>
+<td>缓存 + 超时熔断 + scatter-gather 并发</td>
+</tr>
+</tbody></table>
+<p>搜索系统的设计精髓在于：<strong>用空间换时间</strong>（倒排索引、缓存）、<strong>用并行换延迟</strong>（scatter-gather）、<strong>用分层换精度</strong>（粗排 + 精排）。真实的 Google 在每个环节都有数十年的工程积累，但核心架构思路与此相通。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="http://infolab.stanford.edu/~backrub/google.html">Google: The Anatomy of a Large-Scale Hypertextual Web Search Engine</a></li>
+<li><a target="_blank" rel="noopener" href="https://googleblog.blogspot.com/2010/06/our-new-search-index-caffeine.html">Google Caffeine 增量索引</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables">BM25 Explained</a></li>
+<li>Designing Data-Intensive Applications — Chapter 3</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" rel="tag"># 系统设计</a>
+              <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" rel="tag"># 分布式系统</a>
+              <a href="/tags/%E6%90%9C%E7%B4%A2%E5%BC%95%E6%93%8E/" rel="tag"># 搜索引擎</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2024/03/07/2024-03-06%20IOCost%20model%20impact%20cpu%20soft%20lockup/" rel="prev" title="">
+                  <i class="fa fa-angle-left"></i> 
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">John Doe</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
