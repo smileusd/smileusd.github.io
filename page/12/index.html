@@ -143,18 +143,18 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">123</span>
+          <span class="site-state-item-count">124</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
           <a href="/categories/">
-        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-count">7</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
           <a href="/tags/">
-        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-count">19</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
@@ -388,6 +388,132 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
 
 <p>所以重启大法好…</p>
 <p>但是真正原因没搞清楚, 待更新.</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-06-14-qos-in-k8s/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="undefined | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2024/03/10/2018-06-14-qos-in-k8s/" class="post-title-link" itemprop="url">qos-in-k8s</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+
+      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">Edited on</span>
+      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <p>​    一直感觉对kubernetes中的qos是一个盲点, 借着复习下scheduler的一些资源调度策略来学习下k8s中的qos策略, 然后再辐射到一般性的qos策略.</p>
+<h3 id="动机"><a href="#动机" class="headerlink" title="动机:"></a>动机:</h3><p>k8s 用非常简单的方式分配资源. 用户能够指定容器的资源限制. 比如一个用户能够指定某个container 只能使用1GB的内存. scheduler通过资源限制去调度容器. 如果某个节点的内存只有4GB, 那个一个有5Gb请求的容器就将不能调度到这个节点. 目前, k8s不能保证容器在一个超卖的系统中运行稳定. </p>
+<p>目前的实现中, 如果用户指定limts给所有的container, 那么集群资源的利用率将会非常低下. 因为容器往往无法充分使用用户指定的那些资源. 一个可能的方式是不指定limits, 这样container就可以无限制的使用, 但是如果这些container无限制的使用资源, 就可能使得指定了limits的容器由于机器资源不够而被杀掉. 这是用户不愿意看到的, 他们希望自己指定了某个大小, 那么启动之后系统就应该保证这个容器的顺利运行. </p>
+<p>qos机制就是在节点资源超卖的环境下, 通过提供不同级别的保证来满足资源的需求. 容器可以用request请求一个最小资源, request与limit不同, container可以使用超过request的值. best-effort级别的container相当于request为0的container. Best-effort container只使用那些其他container没有使用的资源, 可以用于资源清理(这个没看懂). </p>
+<h3 id="Request-and-limits"><a href="#Request-and-limits" class="headerlink" title="Request and limits"></a>Request and limits</h3><p>对于每种资源, container可以指定request和limits, 0 &lt;&#x3D; request &lt;&#x3D; limit &lt;&#x3D; infinity. 如果container成功调度, 意味着container能够保证至少有request的值的资源. container不能超过limit的值. 而request 和 limit 如何执行要看资源是compressible还是incompressible.</p>
+<h4 id="Compressible-Resource-Guarantees"><a href="#Compressible-Resource-Guarantees" class="headerlink" title="Compressible Resource Guarantees"></a>Compressible Resource Guarantees</h4><ul>
+<li>目前只有cpu</li>
+<li>container至少得到request的cpu请求</li>
+<li>剩余的cpu会按照cpu request比例分配给container. 比如container A request 60%, container B request 30%. 假设两个container都尝试拿到更多的cpu, 那么剩余的10%将按照2:1的比例分配.</li>
+<li>如果超过limits, Containers 会被节流(不是被杀死).</li>
+</ul>
+<h4 id="Incompressible-Resouce-Guarantees"><a href="#Incompressible-Resouce-Guarantees" class="headerlink" title="Incompressible Resouce Guarantees"></a>Incompressible Resouce Guarantees</h4><ul>
+<li>目前只有内存. (我认为本地存储也在这一类)</li>
+<li>Containers能够得到request的大小, 如果超过这个大小, 它们可能会被杀掉(如果其他container需要内存), 但是如果containers消耗的少于request值, 他们不会被删除(除非系统任务或者daemonset需要更多的内存)</li>
+<li>Containers会被杀掉如果他们使用了超过limit的内存.</li>
+</ul>
+<h4 id="Kubelet-admission-策略"><a href="#Kubelet-admission-策略" class="headerlink" title="Kubelet admission 策略"></a>Kubelet admission 策略</h4><p>kubelet通过统计containers的request来确保系统资源不会被超载.</p>
+<h3 id="QoS-分级"><a href="#QoS-分级" class="headerlink" title="QoS 分级"></a>QoS 分级</h3><h4 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h4><p>k8s Qos 分成三个等级:</p>
+<ul>
+<li>Guaranteed</li>
+<li>Burstable</li>
+<li>BestEffort</li>
+</ul>
+<p>理论上QoS与limit, request应该是互不干扰的, 但实际上他们的联系非常紧密. QoS class不是自己设置的, 而是在创建pod的时候, 根据limit和request系统自动确认的.</p>
+<h4 id="Guaranteed"><a href="#Guaranteed" class="headerlink" title="Guaranteed"></a>Guaranteed</h4><p>这是级别最高的, 他的触发条件是:</p>
+<ul>
+<li>每个pod中container必须有内存的limit和request, 而且必须相同</li>
+<li>每个pod中cpu必须有内存的limit和request, 而且必须相同</li>
+</ul>
+<p>效果: 这些containers是最高优先级</p>
+<p>注意: 如果设置了limit没有设置request, 系统将会自动填充request跟limit相同.</p>
+<p>####Burstable </p>
+<p>这个的触发条件是:</p>
+<ul>
+<li>pod不满足Guaranteed</li>
+<li>pod中至少一个container有内存或者cpu的请求.</li>
+</ul>
+<p>效果: 能够保证request的请求, 但是不保证limit, 如果超出request请求的内存大小, 发生oom时可能会被杀死.</p>
+<h4 id="BestEffort"><a href="#BestEffort" class="headerlink" title="BestEffort"></a>BestEffort</h4><p>触发条件: 很明显, 没有指定任何request和limit或者值都是0就是BestEffort级别.</p>
+<p>效果: 这些containers没有请求资源保障, 会被认为是最低优先级的, 如果系统发生oom, 他们会被首先杀死. 他们只会使用集群中没有被使用的那部分资源.</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>所以k8s的qos主要是通过两方面: request,limit 和 qos class来实现的. 这两方面又有很多交叉的地方. 而且在面对不同的资源的时候, 他们的策略是不一样的.</p>
+<h3 id="Storage-QoS"><a href="#Storage-QoS" class="headerlink" title="Storage QoS"></a>Storage QoS</h3><p>由于k8s中没有关于存储的qos机制, 于是关于存储的qos, 查看了一些文档.</p>
 
       
     </div>
@@ -1122,95 +1248,6 @@ k8s node不同版本会有一些内置labels:<figure class="highlight plaintext"
 <ol start="2">
 <li><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">git rm --cached themes/next  </span><br><span class="line">git add themes/next</span><br></pre></td></tr></table></figure></li>
 </ol>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2024/03/10/2018-03-21-golang-initialize/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="smileusd">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="undefined | Hexo">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2024/03/10/2018-03-21-golang-initialize/" class="post-title-link" itemprop="url">golang 初始化顺序初探</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">Posted on</span>
-
-      <time title="Created: 2024-03-10 12:35:02" itemprop="dateCreated datePublished" datetime="2024-03-10T12:35:02+08:00">2024-03-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar-check"></i>
-      </span>
-      <span class="post-meta-item-text">Edited on</span>
-      <time title="Modified: 2026-06-10 17:17:29" itemprop="dateModified" datetime="2026-06-10T17:17:29+08:00">2026-06-10</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">In</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/Coding/" itemprop="url" rel="index"><span itemprop="name">Coding</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>写了一个简单的程序, 想通过外部环境变量传递给程序的全局变量, 这个全局变量又被另一个全局变量使用, 发现另一个变量无法改变, 然后发现一些有意思的golang程序初始化顺序, 需要稍微注意一下. </p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">&quot;fmt&quot;</span></span><br><span class="line">    <span class="string">&quot;flag&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">    <span class="comment">// 1</span></span><br><span class="line">    size  = flag.String(<span class="string">&quot;size&quot;</span>, <span class="string">&quot;3&quot;</span>, <span class="string">&quot;size&quot;</span>)</span><br><span class="line">    a = <span class="string">&quot;1&quot;</span></span><br><span class="line">    b = a + <span class="string">&quot;2&quot;</span></span><br><span class="line">    c = b + *size</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> &#123;</span><br><span class="line">    <span class="comment">// 2</span></span><br><span class="line">    fmt.Printf(<span class="string">&quot;%s,  %s, %s, %s \n&quot;</span>, a, b, c, *size)</span><br><span class="line">    a = <span class="string">&quot;2&quot;</span></span><br><span class="line">    b = a + <span class="string">&quot;2&quot;</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">    fmt.Printf(<span class="string">&quot;%s,  %s, %s, %s \n&quot;</span>, a, b, c, *size)</span><br><span class="line">    <span class="comment">// 3</span></span><br><span class="line">    flag.Parse()</span><br><span class="line">    fmt.Printf(<span class="string">&quot;%s,  %s, %s, %s \n&quot;</span>, a, b, c, *size)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>输出如下:</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">/home/shentao/.IdeaIC2016.1/config/plugins/Go/lib/dlv/linux/dlv --listen=localhost:34206 --headless=true exec &quot;/tmp/Build initializetest.go and rungo&quot; -- -size=10</span><br><span class="line">1,  12, 123, 3 </span><br><span class="line">2,  22, 123, 3 </span><br><span class="line">2,  22, 123, 10 </span><br></pre></td></tr></table></figure>
-<p>注释标记的是实际运行顺序, 先是变量的初始化, 此时size还没传入解析, 所以使用默认值”3”; 其次是调用init函数; 最后是main函数, main函数再进行flag.Parse(), 此时size改变, 但是其他变量不会再变.</p>
 
       
     </div>
