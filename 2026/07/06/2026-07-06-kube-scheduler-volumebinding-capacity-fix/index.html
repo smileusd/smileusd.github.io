@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"},"path":"/search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="在排查 local-dynamic StorageClass 导致的 Pod 调度异常时，逐步发现并修复了 volumebinding 插件中三个独立的容量检查 Bug。本文完整记录从现象、根因、日志实证到修复方案的全过程。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes volumebinding 调度插件容量检查修复全记录">
+<meta property="og:url" content="https://smileusd.github.io/2026/07/06/2026-07-06-kube-scheduler-volumebinding-capacity-fix/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="在排查 local-dynamic StorageClass 导致的 Pod 调度异常时，逐步发现并修复了 volumebinding 插件中三个独立的容量检查 Bug。本文完整记录从现象、根因、日志实证到修复方案的全过程。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-07-06T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-06T10:13:45.430Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Scheduler">
+<meta property="article:tag" content="Storage">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/07/06/2026-07-06-kube-scheduler-volumebinding-capacity-fix/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/07/06/2026-07-06-kube-scheduler-volumebinding-capacity-fix/","path":"2026/07/06/2026-07-06-kube-scheduler-volumebinding-capacity-fix/","title":"Kubernetes volumebinding 调度插件容量检查修复全记录"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Kubernetes volumebinding 调度插件容量检查修复全记录 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup"><div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close" role="button">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">问题背景</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%B9%E9%87%8F%E6%A3%80%E6%9F%A5%E6%9E%B6%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">容量检查架构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Bug-%E4%B8%80%EF%BC%9ApvCache-pod-walk-%E7%9A%84%E5%8F%8C%E9%87%8D%E5%8F%AF%E8%A7%81%E6%80%A7%E7%9B%B2%E5%8C%BA"><span class="nav-number">2.</span> <span class="nav-text">Bug 一：pvCache + pod-walk 的双重可见性盲区</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8E%9F%E5%A7%8B-getUsedCapacity-%E7%9A%84%E4%B8%A4%E4%B8%AA%E6%95%B0%E6%8D%AE%E6%9D%A5%E6%BA%90"><span class="nav-number">2.1.</span> <span class="nav-text">原始 getUsedCapacity 的两个数据来源</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8F%8C%E9%87%8D%E8%AE%A1%E7%AE%97%EF%BC%88Bug-A%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">双重计算（Bug A）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%BC%8F%E8%AE%A1%EF%BC%88Bug-B%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">漏计（Bug B）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E5%AE%9E%E8%AF%81%EF%BC%9Apod-10-%E4%B8%89%E6%AC%A1%E8%B0%83%E5%BA%A6"><span class="nav-number">2.4.</span> <span class="nav-text">日志实证：pod-10 三次调度</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BF%AE%E5%A4%8D%EF%BC%9A%E4%BB%A5-AnnSelectedNode-%E4%B8%BA%E5%8D%95%E4%B8%80%E5%AE%B9%E9%87%8F%E6%9D%A5%E6%BA%90"><span class="nav-number">2.5.</span> <span class="nav-text">修复：以 AnnSelectedNode 为单一容量来源</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Bug-%E4%BA%8C%EF%BC%9ARetain-%E7%AD%96%E7%95%A5-Released-PV-%E7%9A%84%E5%AE%B9%E9%87%8F%E6%BC%8F%E8%AE%A1"><span class="nav-number">3.</span> <span class="nav-text">Bug 二：Retain 策略 Released PV 的容量漏计</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Bug-%E4%B8%89%EF%BC%9AclassName-%E9%9D%9E%E7%A1%AE%E5%AE%9A%E6%80%A7%E6%9F%A5%E6%89%BE%E4%B8%8E-Provisioner-%E8%8C%83%E5%9B%B4%E7%9B%B2%E5%8C%BA"><span class="nav-number">4.</span> <span class="nav-text">Bug 三：className 非确定性查找与 Provisioner 范围盲区</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B9%E5%9B%A0%E4%B8%80%EF%BC%9Acontinue-%E8%80%8C%E9%9D%9E-break-%E5%AF%BC%E8%87%B4-className-%E9%9D%9E%E7%A1%AE%E5%AE%9A%E6%80%A7"><span class="nav-number">4.1.</span> <span class="nav-text">根因一：continue 而非 break 导致 className 非确定性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B9%E5%9B%A0%E4%BA%8C%EF%BC%9A%E5%A4%9A-StorageClass-%E5%85%B1%E4%BA%AB%E5%90%8C%E4%B8%80-Provisioner"><span class="nav-number">4.2.</span> <span class="nav-text">根因二：多 StorageClass 共享同一 Provisioner</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8E%8B%E6%B5%8B%E6%97%A5%E5%BF%97%E5%AE%9E%E8%AF%81%EF%BC%9AvolInCal-5-%E7%A7%92%E5%86%85%E9%AA%A4%E9%99%8D%E8%87%B3-0"><span class="nav-number">4.3.</span> <span class="nav-text">压测日志实证：volInCal 5 秒内骤降至 0</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BF%AE%E5%A4%8D%EF%BC%9A%E4%BB%A5-Provisioner-%E4%B8%BA%E8%8C%83%E5%9B%B4%E7%9A%84-classNamesForDriver-%E9%9B%86%E5%90%88"><span class="nav-number">4.4.</span> <span class="nav-text">修复：以 Provisioner 为范围的 classNamesForDriver 集合</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%87%BD%E6%95%B0%E7%AD%BE%E5%90%8D%E6%B8%85%E7%90%86"><span class="nav-number">4.5.</span> <span class="nav-text">函数签名清理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E4%B8%AA-Bug-%E7%9A%84%E4%BF%AE%E5%A4%8D%E6%80%BB%E8%A7%88"><span class="nav-number">5.</span> <span class="nav-text">三个 Bug 的修复总览</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BF%AE%E5%A4%8D%E5%90%8E%E7%9A%84%E5%85%B3%E9%94%AE%E6%97%A5%E5%BF%97%EF%BC%88klog-V-5-%EF%BC%89"><span class="nav-number">6.</span> <span class="nav-text">修复后的关键日志（klog.V(5)）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">7.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">126</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/07/06/2026-07-06-kube-scheduler-volumebinding-capacity-fix/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Kubernetes volumebinding 调度插件容量检查修复全记录 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes volumebinding 调度插件容量检查修复全记录
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-07-06 10:00:00 / Modified: 18:13:45" itemprop="dateCreated datePublished" datetime="2026-07-06T10:00:00+08:00">2026-07-06</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>在排查 <code>local-dynamic</code> StorageClass 导致的 Pod 调度异常时，逐步发现并修复了 <code>volumebinding</code> 插件中三个独立的容量检查 Bug。本文完整记录从现象、根因、日志实证到修复方案的全过程。</p>
+<span id="more"></span>
+
+<h2 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h2><p>在节点上同时创建多个 Pod + PVC（使用 <code>local-dynamic</code> StorageClass，节点容量恰好满足 N 个 PVC），出现两类互相矛盾的现象：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Warning  FailedScheduling  0/1111 nodes are available: 1 node(s) didn&#x27;t find</span><br><span class="line">         available persistent volumes to bind.</span><br><span class="line"></span><br><span class="line">Warning  ProvisioningFailed  node(s) didn&#x27;t have enough free storage</span><br></pre></td></tr></table></figure>
+
+<p>一个 Pod 被拒绝调度，另一个 Pod 被调度到节点后 Provisioner 报空间不足——同一个节点，调度器时而过于严格，时而过于宽松。</p>
+<h3 id="容量检查架构"><a href="#容量检查架构" class="headerlink" title="容量检查架构"></a>容量检查架构</h3><p><code>local-dynamic</code> 通过节点注解（而非标准 <code>CSIStorageCapacity</code> 对象）描述可用磁盘容量：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Node Annotation: csi.volume.kubernetes.io/kubernetes.io.csi.local</span><br><span class="line">Value: &#123;&quot;pool-ssd&quot;: &quot;107374182400&quot;&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Filter 阶段的容量检查调用链：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">FindPodVolumes</span><br><span class="line">  └─ checkVolumeSizeEnough(inlineVolumes, node, claimsToProvision, pods)</span><br><span class="line">       └─ checkNodeCapacity(driverVolumeSize, node, pods)</span><br><span class="line">            └─ getUsedCapacity(driverName, node, pods)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Bug-一：pvCache-pod-walk-的双重可见性盲区"><a href="#Bug-一：pvCache-pod-walk-的双重可见性盲区" class="headerlink" title="Bug 一：pvCache + pod-walk 的双重可见性盲区"></a>Bug 一：pvCache + pod-walk 的双重可见性盲区</h2><h3 id="原始-getUsedCapacity-的两个数据来源"><a href="#原始-getUsedCapacity-的两个数据来源" class="headerlink" title="原始 getUsedCapacity 的两个数据来源"></a>原始 <code>getUsedCapacity</code> 的两个数据来源</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 来源1：pvCache — 仅含已写入 API Server 并传播到 informer 的 PV</span></span><br><span class="line">pvs := b.pvCache.ListPVs(className)</span><br><span class="line"><span class="keyword">for</span> _, pv := <span class="keyword">range</span> pvs &#123;</span><br><span class="line">    <span class="keyword">if</span> pv.Labels[<span class="string">&quot;kubernetes.io/hostname&quot;</span>] == node.Name &#123;</span><br><span class="line">        usedCapacity += pv.Spec.Capacity[v1.ResourceStorage].Value()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 来源2：pod-walk — 仅含当前在 NodeInfo 中的 Pod 的未绑定 PVC</span></span><br><span class="line"><span class="keyword">for</span> _, pod := <span class="keyword">range</span> pods &#123;  <span class="comment">// pods = nodeInfo.GetPods()</span></span><br><span class="line">    pvc, _ := b.pvcCache.GetPVC(...)</span><br><span class="line">    <span class="keyword">if</span> pvc.Spec.VolumeName == <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">        usedCapacity += pvcRequestSize</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="双重计算（Bug-A）"><a href="#双重计算（Bug-A）" class="headerlink" title="双重计算（Bug A）"></a>双重计算（Bug A）</h3><p>Provisioner 创建 PV 后，PV controller 更新 PVC（设置 VolumeName）产生两个独立 informer 事件，无顺序保证：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">PV  informer: → pvCache 更新（先到）</span><br><span class="line">PVC informer: → pvc.VolumeName 更新（后到，延迟约 161ms）</span><br></pre></td></tr></table></figure>
+
+<p>在这 161ms 窗口内：</p>
+<ul>
+<li><code>pvCache.ListPVs()</code> 已能看到该 PV → 计入一次</li>
+<li><code>pvc.VolumeName==&quot;&quot;</code> 条件仍满足 → pod-walk 再计一次</li>
+<li><strong>同一个 PVC 贡献了两倍容量</strong> → Pod 被错误拒绝</li>
+</ul>
+<h3 id="漏计（Bug-B）"><a href="#漏计（Bug-B）" class="headerlink" title="漏计（Bug B）"></a>漏计（Bug B）</h3><p>PreBind 超时（<code>context deadline exceeded</code>）后：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">bindAPIUpdate()      → pvc.AnnSelectedNode=nodeX 写入 API（不可回滚）</span><br><span class="line">checkBindings()      → 超时</span><br><span class="line">handleBindingCycleError():</span><br><span class="line">  RevertAssumedPodVolumes() → 仅恢复内存 pvcCache，不回滚 API</span><br><span class="line">  ForgetPod()               → Pod 立即移出 NodeInfo（不等 TTL）</span><br></pre></td></tr></table></figure>
+
+<p>此后：</p>
+<ul>
+<li><strong>pod-walk</strong>：Pod 不在 NodeInfo → 不计</li>
+<li><strong>pvCache</strong>：Provisioner 失败，PV 从未创建 → 不计</li>
+<li>旧代码对这个 PVC 的 100G 预约<strong>完全不可见</strong></li>
+</ul>
+<h3 id="日志实证：pod-10-三次调度"><a href="#日志实证：pod-10-三次调度" class="headerlink" title="日志实证：pod-10 三次调度"></a>日志实证：pod-10 三次调度</h3><p>通过为 <code>getUsedCapacity</code> 添加诊断日志，捕获到 pvc-8 的精确时序：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">10:05:21.711  PV 进入 pvCache (phase=Pending)</span><br><span class="line">10:05:21.716  pvc-8.VolumeName=&quot;&quot; — pod-walk 仍计入</span><br><span class="line">              ╔══════════════════════════╗</span><br><span class="line">              ║  双重计算窗口（161ms）  ║</span><br><span class="line">              ╚══════════════════════════╝</span><br><span class="line">10:05:21.818  pod-10 Attempt 2 调度 → FAIL（恰好落在窗口内）</span><br><span class="line">10:05:21.872  pvc-8.VolumeName 更新到达 → 窗口关闭</span><br><span class="line">10:05:21.994  pod-10 Attempt 3 → PASS（容量检查通过）</span><br></pre></td></tr></table></figure>
+
+<h3 id="修复：以-AnnSelectedNode-为单一容量来源"><a href="#修复：以-AnnSelectedNode-为单一容量来源" class="headerlink" title="修复：以 AnnSelectedNode 为单一容量来源"></a>修复：以 <code>AnnSelectedNode</code> 为单一容量来源</h3><p><strong>任何携带 <code>AnnSelectedNode=nodeX</code> 的 PVC 都代表该节点上已预约的容量</strong>，无论 PV 是否存在、Pod 是否在 NodeInfo、informer 是否追上。</p>
+<p>在 <code>AssumeCache</code> 新增 <code>ListAll()</code> 跨 namespace 枚举，在 <code>PVCAssumeCache</code> 新增 <code>ListAllPVCs()</code>，重写 <code>getUsedCapacity</code> 主体：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 唯一来源：扫描 pvcCache 所有 AnnSelectedNode=node 的 PVC</span></span><br><span class="line"><span class="keyword">for</span> _, pvc := <span class="keyword">range</span> b.pvcCache.ListAllPVCs() &#123;</span><br><span class="line">    <span class="keyword">if</span> volume.GetPersistentVolumeClaimClass(pvc) != className &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">    <span class="keyword">if</span> pvc.Annotations[volume.AnnSelectedNode] != node.Name &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">    <span class="keyword">if</span> excludePVCKeys.Has(getPVCName(pvc)) &#123; <span class="keyword">continue</span> &#125;  <span class="comment">// 避免与 totalReqSize 重复</span></span><br><span class="line">    usedCapacity += roundedCapacity</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>excludePVCKeys</code> 包含当前调度请求的 PVC，防止与 <code>totalReqSize</code> 重复计算。</p>
+<hr>
+<h2 id="Bug-二：Retain-策略-Released-PV-的容量漏计"><a href="#Bug-二：Retain-策略-Released-PV-的容量漏计" class="headerlink" title="Bug 二：Retain 策略 Released PV 的容量漏计"></a>Bug 二：Retain 策略 Released PV 的容量漏计</h2><p><code>pvcCache.ListAllPVCs()</code> 扫描依赖 <code>AnnSelectedNode</code> 注解，但当 PVC 被删除后（<code>reclaimPolicy: Retain</code>），PV 进入 <code>Released</code> 阶段：</p>
+<ul>
+<li>PVC 已消失，<code>AnnSelectedNode</code> 随之消失</li>
+<li>PV 仍占用节点空间，但任何 PVC 来源的扫描都无法发现它</li>
+</ul>
+<p><strong>修复</strong>：在 Bug 一的修复基础上，增加第二遍 pvCache 扫描，专门针对 <code>phase==Released</code> 的 PV：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Released PV（Retain 策略，PVC 已删除但 PV 仍占用容量）</span></span><br><span class="line"><span class="keyword">for</span> className := <span class="keyword">range</span> classNamesForDriver &#123;</span><br><span class="line">    <span class="keyword">for</span> _, pv := <span class="keyword">range</span> b.pvCache.ListPVs(className) &#123;</span><br><span class="line">        <span class="keyword">if</span> pv.Status.Phase != v1.VolumeReleased &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">        <span class="keyword">if</span> pv.Labels[<span class="string">&quot;kubernetes.io/hostname&quot;</span>] != node.Name &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">        <span class="built_in">cap</span> := pv.Spec.Capacity[v1.ResourceStorage]</span><br><span class="line">        usedCapacity += <span class="built_in">cap</span>.Value()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这两个修复合并为单个 patch（<code>0099-volumebinding-fix-getUsedCapacity-capacity-reservation.patch</code>），应用于 v1.34.3。</p>
+<hr>
+<h2 id="Bug-三：className-非确定性查找与-Provisioner-范围盲区"><a href="#Bug-三：className-非确定性查找与-Provisioner-范围盲区" class="headerlink" title="Bug 三：className 非确定性查找与 Provisioner 范围盲区"></a>Bug 三：className 非确定性查找与 Provisioner 范围盲区</h2><p>在应用 0099 修复并进行更长时间的压测时，发现了另一个独立 Bug：<code>volInCal</code>（计入容量的 PVC&#x2F;PV 列表）在 5 秒内从 18 个条目骤降至 0，同时 <code>usedCapacity</code> 归零，导致调度器再次允许过量调度。</p>
+<h3 id="根因一：continue-而非-break-导致-className-非确定性"><a href="#根因一：continue-而非-break-导致-className-非确定性" class="headerlink" title="根因一：continue 而非 break 导致 className 非确定性"></a>根因一：<code>continue</code> 而非 <code>break</code> 导致 className 非确定性</h3><p>原始 <code>checkNodeCapacity</code> 查找 StorageClass 的代码：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> _, class := <span class="keyword">range</span> classList &#123;</span><br><span class="line">    <span class="keyword">if</span> class.Provisioner == driverName &#123;</span><br><span class="line">        className = class.Name</span><br><span class="line">        <span class="keyword">continue</span>  <span class="comment">// ← 错误！应该是 break</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用 <code>continue</code> 而非 <code>break</code>，每次匹配都会覆盖 <code>className</code>，最终 className 取决于 <strong>StorageClass 在列表中的最后位置</strong>——非确定性，随 etcd watch 顺序变化。</p>
+<h3 id="根因二：多-StorageClass-共享同一-Provisioner"><a href="#根因二：多-StorageClass-共享同一-Provisioner" class="headerlink" title="根因二：多 StorageClass 共享同一 Provisioner"></a>根因二：多 StorageClass 共享同一 Provisioner</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">local-dynamic-ssd   → Provisioner: kubernetes.io.csi.local</span><br><span class="line">local-dynamic-hdd   → Provisioner: kubernetes.io.csi.local</span><br></pre></td></tr></table></figure>
+
+<p>两个 StorageClass 共享同一个 Provisioner，从同一个物理节点的容量池分配空间。原始代码只用单个 <code>className</code> 查 pvCache：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">pvs := b.pvCache.ListPVs(className)  <span class="comment">// 只查一个 className！</span></span><br></pre></td></tr></table></figure>
+
+<p>如果 className 被错误地选为 <code>local-dynamic-hdd</code>，而实际的 PVC 使用 <code>local-dynamic-ssd</code>，则：</p>
+<ul>
+<li><code>pvCache.ListPVs(&quot;local-dynamic-hdd&quot;)</code> 返回空</li>
+<li><code>getUsedCapacity</code> 返回 0</li>
+<li>调度器认为节点空闲 → <strong>过量调度</strong></li>
+</ul>
+<h3 id="压测日志实证：volInCal-5-秒内骤降至-0"><a href="#压测日志实证：volInCal-5-秒内骤降至-0" class="headerlink" title="压测日志实证：volInCal 5 秒内骤降至 0"></a>压测日志实证：<code>volInCal</code> 5 秒内骤降至 0</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">T+0s   volInCal=[&quot;pvc-1/ns/stress-pvc-1&quot;, ..., &quot;ns/stress-pvc-9&quot;]  (18 entries)</span><br><span class="line">       usedCapacity=900GiB（正确）</span><br><span class="line"></span><br><span class="line">T+5s   delete_all 删除 stress deployments + PVCs</span><br><span class="line">       → NodeInfo 清空（stress Pod 移出）</span><br><span class="line">       → className 被错误选为 local-dynamic-hdd</span><br><span class="line"></span><br><span class="line">T+5s   volInCal=[]  (0 entries)</span><br><span class="line">       usedCapacity=0（错误！PV 仍在节点上）</span><br><span class="line">       → 新 Pod 被允许调度 → Provisioner 报 &quot;Not enough free space&quot;</span><br></pre></td></tr></table></figure>
+
+<p>两个触发因素同时发生：</p>
+<ol>
+<li>stress Pod 被删除 → NodeInfo 清空 → pod-walk 贡献归零</li>
+<li>className 翻转为错误的 StorageClass → <code>pvCache.ListPVs(wrongClass)</code> 返回 0</li>
+</ol>
+<h3 id="修复：以-Provisioner-为范围的-classNamesForDriver-集合"><a href="#修复：以-Provisioner-为范围的-classNamesForDriver-集合" class="headerlink" title="修复：以 Provisioner 为范围的 classNamesForDriver 集合"></a>修复：以 Provisioner 为范围的 classNamesForDriver 集合</h3><p>不再尝试确定一个 className，而是收集该 Provisioner 的<strong>所有</strong> StorageClass：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *volumeBinder)</span></span> getUsedCapacity(driverName <span class="type">string</span>, node *v1.Node,</span><br><span class="line">    pods []fwk.PodInfo) (usedCapacity <span class="type">int64</span>) &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 收集此 Provisioner 的所有 StorageClass</span></span><br><span class="line">    classList, err := b.classLister.List(labels.Everything())</span><br><span class="line">    classNamesForDriver := sets.New[<span class="type">string</span>]()</span><br><span class="line">    <span class="keyword">for</span> _, class := <span class="keyword">range</span> classList &#123;</span><br><span class="line">        <span class="keyword">if</span> class.Provisioner == driverName &#123;</span><br><span class="line">            classNamesForDriver.Insert(class.Name)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    klog.V(<span class="number">5</span>).InfoS(<span class="string">&quot;getUsedCapacity: collected StorageClasses for driver&quot;</span>,</span><br><span class="line">        <span class="string">&quot;driver&quot;</span>, driverName, <span class="string">&quot;node&quot;</span>, node.Name,</span><br><span class="line">        <span class="string">&quot;classNames&quot;</span>, classNamesForDriver.UnsortedList())</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 来源1：此 Provisioner 所有 StorageClass 的 PV</span></span><br><span class="line">    <span class="keyword">for</span> className := <span class="keyword">range</span> classNamesForDriver &#123;</span><br><span class="line">        <span class="keyword">for</span> _, pv := <span class="keyword">range</span> b.pvCache.ListPVs(className) &#123;</span><br><span class="line">            <span class="keyword">if</span> pv.Labels[<span class="string">&quot;kubernetes.io/hostname&quot;</span>] != node.Name &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">            <span class="built_in">cap</span> := pv.Spec.Capacity[v1.ResourceStorage]</span><br><span class="line">            usedCapacity += <span class="built_in">cap</span>.Value()</span><br><span class="line">            klog.V(<span class="number">5</span>).InfoS(<span class="string">&quot;getUsedCapacity: counted provisioned PV&quot;</span>,</span><br><span class="line">                <span class="string">&quot;driver&quot;</span>, driverName, <span class="string">&quot;node&quot;</span>, node.Name,</span><br><span class="line">                <span class="string">&quot;pv&quot;</span>, pv.Name, <span class="string">&quot;cap&quot;</span>, <span class="built_in">cap</span>.String(), <span class="string">&quot;runningTotal&quot;</span>, usedCapacity)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 来源2：NodeInfo pod-walk — 未绑定 PVC（任意 className 属于该 Provisioner）</span></span><br><span class="line">    <span class="keyword">for</span> _, pod := <span class="keyword">range</span> pods &#123;</span><br><span class="line">        <span class="keyword">if</span> pod.GetPod() == <span class="literal">nil</span> &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">        <span class="keyword">for</span> _, v := <span class="keyword">range</span> pod.GetPod().Spec.Volumes &#123;</span><br><span class="line">            <span class="keyword">if</span> v.PersistentVolumeClaim != <span class="literal">nil</span> &#123;</span><br><span class="line">                pvc, err := b.pvcCache.GetPVC(...)</span><br><span class="line">                <span class="keyword">if</span> err != <span class="literal">nil</span> &#123; <span class="keyword">continue</span> &#125;</span><br><span class="line">                pvcClassName := volume.GetPersistentVolumeClaimClass(pvc)</span><br><span class="line">                <span class="keyword">if</span> !classNamesForDriver.Has(pvcClassName) &#123; <span class="keyword">continue</span> &#125;  <span class="comment">// 按 Provisioner 过滤</span></span><br><span class="line">                <span class="keyword">if</span> pvc.Spec.VolumeName == <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">                    usedCapacity += roundedCapacity</span><br><span class="line">                    klog.V(<span class="number">5</span>).InfoS(<span class="string">&quot;getUsedCapacity: counted unbound PVC&quot;</span>,</span><br><span class="line">                        <span class="string">&quot;driver&quot;</span>, driverName, <span class="string">&quot;node&quot;</span>, node.Name,</span><br><span class="line">                        <span class="string">&quot;pvc&quot;</span>, klog.KObj(pvc), <span class="string">&quot;runningTotal&quot;</span>, usedCapacity)</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">else</span> <span class="keyword">if</span> v.CSI != <span class="literal">nil</span> &amp;&amp; v.CSI.Driver == driverName &#123;</span><br><span class="line">                <span class="comment">// 来源3：CSI Inline Volume</span></span><br><span class="line">                usedCapacity += inlineVolumeSize</span><br><span class="line">                klog.V(<span class="number">5</span>).InfoS(<span class="string">&quot;getUsedCapacity: counted CSI inline volume&quot;</span>, ...)</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    klog.V(<span class="number">5</span>).InfoS(<span class="string">&quot;getUsedCapacity: final result&quot;</span>,</span><br><span class="line">        <span class="string">&quot;driver&quot;</span>, driverName, <span class="string">&quot;node&quot;</span>, node.Name,</span><br><span class="line">        <span class="string">&quot;usedCapacity&quot;</span>, usedCapacity, <span class="string">&quot;volsInCalc&quot;</span>, volInCal)</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="函数签名清理"><a href="#函数签名清理" class="headerlink" title="函数签名清理"></a>函数签名清理</h3><p>原始代码为了输出调试日志，将 <code>*v1.Pod</code> 参数贯穿整个调用链：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 修复前（debug 残留参数）</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *volumeBinder)</span></span> getUsedCapacity(driverName <span class="type">string</span>, node *v1.Node,</span><br><span class="line">    requestedPod *v1.Pod, pods []fwk.PodInfo) (usedCapacity <span class="type">int64</span>)</span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *volumeBinder)</span></span> checkNodeCapacity(totalReqSizeMap <span class="keyword">map</span>[<span class="type">string</span>]<span class="type">int64</span>,</span><br><span class="line">    node *v1.Node, pod *v1.Pod, pods []fwk.PodInfo) (<span class="type">bool</span>, <span class="type">error</span>)</span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *volumeBinder)</span></span> checkVolumeSizeEnough(inlineVolumes []v1.Volume,</span><br><span class="line">    node *v1.Node, pvcs []*v1.PersistentVolumeClaim,</span><br><span class="line">    pod *v1.Pod, pods []fwk.PodInfo) (<span class="type">bool</span>, <span class="type">error</span>)</span><br></pre></td></tr></table></figure>
+
+<p>这些 <code>pod</code> 参数仅用于硬编码的条件日志：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> strings.Contains(requestedPod.Name, <span class="string">&quot;stress&quot;</span>) &amp;&amp;</span><br><span class="line">    node.Name == <span class="string">&quot;tess-node-2dq2t-tess908.sddz.ebay.com&quot;</span> &#123;</span><br><span class="line">    klog.V(<span class="number">1</span>).Infof(<span class="string">&quot;getUsedCapacity: ...&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>修复后移除所有 pod 参数，改为无条件 <code>klog.V(5).InfoS(...)</code> 日志：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 修复后（清洁签名 + 结构化日志）</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *volumeBinder)</span></span> getUsedCapacity(driverName <span class="type">string</span>, node *v1.Node,</span><br><span class="line">    pods []fwk.PodInfo) (usedCapacity <span class="type">int64</span>)</span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *volumeBinder)</span></span> checkNodeCapacity(totalReqSizeMap <span class="keyword">map</span>[<span class="type">string</span>]<span class="type">int64</span>,</span><br><span class="line">    node *v1.Node, pods []fwk.PodInfo) (<span class="type">bool</span>, <span class="type">error</span>)</span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *volumeBinder)</span></span> checkVolumeSizeEnough(inlineVolumes []v1.Volume,</span><br><span class="line">    node *v1.Node, pvcs []*v1.PersistentVolumeClaim,</span><br><span class="line">    pods []fwk.PodInfo) (<span class="type">bool</span>, <span class="type">error</span>)</span><br></pre></td></tr></table></figure>
+
+<p><code>checkNodeCapacity</code> 也加入了完整的容量决策日志：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">klog.V(<span class="number">5</span>).InfoS(<span class="string">&quot;checkNodeCapacity: capacity check&quot;</span>,</span><br><span class="line">    <span class="string">&quot;driver&quot;</span>, driverName, <span class="string">&quot;node&quot;</span>, node.Name,</span><br><span class="line">    <span class="string">&quot;nodeCapacity&quot;</span>, <span class="built_in">cap</span>,</span><br><span class="line">    <span class="string">&quot;oversellCapacity&quot;</span>, OversellRatio*<span class="built_in">cap</span>,</span><br><span class="line">    <span class="string">&quot;usedCapacity&quot;</span>, usedCapacity,</span><br><span class="line">    <span class="string">&quot;requestedSize&quot;</span>, totalReqSize,</span><br><span class="line">    <span class="string">&quot;totalRequestAndUsed&quot;</span>, totalReqSize+usedCapacity)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="三个-Bug-的修复总览"><a href="#三个-Bug-的修复总览" class="headerlink" title="三个 Bug 的修复总览"></a>三个 Bug 的修复总览</h2><table>
+<thead>
+<tr>
+<th>Bug</th>
+<th>根因</th>
+<th>现象</th>
+<th>修复</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Bug A</strong>（双重计算）</td>
+<td>PV informer 早于 PVC VolumeName informer 到达（实测 161ms）</td>
+<td>pod-10 在窗口内被错误拒绝</td>
+<td>改用 <code>AnnSelectedNode</code> 扫描为唯一来源（0099 patch）</td>
+</tr>
+<tr>
+<td><strong>Bug B</strong>（漏计）</td>
+<td>PreBind 超时后 ForgetPod，PV 未创建，双来源均不可见</td>
+<td>Provisioner 报 “Not enough free space”</td>
+<td>同上（0099 patch）</td>
+</tr>
+<tr>
+<td><strong>Released PV 漏计</strong></td>
+<td><code>AnnSelectedNode</code> 扫描无法发现已删除 PVC 对应的 Released PV</td>
+<td>Retain 策略下 PV 占用的空间不被计入</td>
+<td>增加 <code>phase==Released</code> PV 的专项扫描（0099 patch）</td>
+</tr>
+<tr>
+<td><strong>Bug C</strong>（className 非确定性）</td>
+<td>StorageClass 查找循环用 <code>continue</code> 而非 <code>break</code>；多 SC 共享 Provisioner</td>
+<td><code>volInCal</code> 骤降至 0，过量调度</td>
+<td>改用 <code>classNamesForDriver</code> 集合，按 Provisioner 范围扫描（v1.34.3 branch fix）</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="修复后的关键日志（klog-V-5-）"><a href="#修复后的关键日志（klog-V-5-）" class="headerlink" title="修复后的关键日志（klog.V(5)）"></a>修复后的关键日志（<code>klog.V(5)</code>）</h2><p>开启 <code>--v=5</code> 后，可在调度器日志中观察到完整的容量计算过程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"># getUsedCapacity 入口</span><br><span class="line">getUsedCapacity: collected StorageClasses for driver</span><br><span class="line">  driver=kubernetes.io.csi.local node=worker-1</span><br><span class="line">  classNames=[local-dynamic-ssd local-dynamic-hdd]</span><br><span class="line"></span><br><span class="line"># 逐 PV 计入</span><br><span class="line">getUsedCapacity: counted provisioned PV</span><br><span class="line">  driver=kubernetes.io.csi.local node=worker-1</span><br><span class="line">  pv=pvc-abc123 cap=100Gi runningTotal=107374182400</span><br><span class="line"></span><br><span class="line"># 逐 unbound PVC 计入</span><br><span class="line">getUsedCapacity: counted unbound PVC</span><br><span class="line">  driver=kubernetes.io.csi.local node=worker-1</span><br><span class="line">  pvc=default/stress-pvc-9 runningTotal=214748364800</span><br><span class="line"></span><br><span class="line"># 最终汇总</span><br><span class="line">getUsedCapacity: final result</span><br><span class="line">  driver=kubernetes.io.csi.local node=worker-1</span><br><span class="line">  usedCapacity=858993459200</span><br><span class="line">  volsInCalc=[pvc-abc123/default/stress-pvc-1 default/stress-pvc-9]</span><br><span class="line"></span><br><span class="line"># checkNodeCapacity 容量决策</span><br><span class="line">checkNodeCapacity: capacity check</span><br><span class="line">  driver=kubernetes.io.csi.local node=worker-1</span><br><span class="line">  nodeCapacity=1073741824000 oversellCapacity=1073741824000</span><br><span class="line">  usedCapacity=858993459200 requestedSize=107374182400</span><br><span class="line">  totalRequestAndUsed=966367641600</span><br><span class="line"></span><br><span class="line">checkNodeCapacity: node accepted, capacity sufficient</span><br><span class="line">  node=worker-1</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p><code>local-dynamic</code> PVC 调度异常（过量调度 + 错误拒绝）由多个独立 Bug 共同造成：</p>
+<ol>
+<li><p><strong>pvCache + pod-walk 的双来源缺陷</strong>（0099 patch）：PV informer 和 PVC informer 各自延迟，产生双重计算窗口；PreBind 失败后 ForgetPod 导致容量预约完全消失。修复：以 <code>AnnSelectedNode</code> 注解为单一可靠来源，彻底消除两个方向的竞态。</p>
+</li>
+<li><p><strong>Released PV 漏计</strong>（0099 patch）：Retain 策略下已删除 PVC 对应的 PV 仍占用节点空间，但 <code>AnnSelectedNode</code> 扫描无法发现。修复：增加专项 Released PV 扫描。</p>
+</li>
+<li><p><strong>className 非确定性 + Provisioner 范围盲区</strong>（v1.34.3 branch）：<code>continue</code> 而非 <code>break</code> 导致 className 被最后一个匹配的 StorageClass 覆盖；单 className 查询无法覆盖共享同一 Provisioner 的多个 StorageClass。修复：收集 <code>classNamesForDriver</code> 集合，所有来源统一按 Provisioner 范围过滤。</p>
+</li>
+</ol>
+<p>核心洞察：<strong>容量预约的真实范围是 Provisioner，而非 StorageClass</strong>。多个 StorageClass 可以共享同一个 Provisioner 和同一块物理存储池，必须将它们整体视为一个容量域。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Scheduler/" rel="tag"># Scheduler</a>
+              <a href="/tags/Storage/" rel="tag"># Storage</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/30/2026-06-30-payment-system-design/" rel="prev" title="系统设计：设计一个支付系统（支付宝/Stripe 级别）">
+                  <i class="fa fa-angle-left"></i> 系统设计：设计一个支付系统（支付宝/Stripe 级别）
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdn.bootcdn.net/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  <script src="https://cdn.bootcdn.net/ajax/libs/hexo-generator-searchdb/1.4.1/search.js" integrity="sha256-1kfA5uHPf65M5cphT2dvymhkuyHPQp5A53EGZOnOLmc=" crossorigin="anonymous"></script>
+<script src="/js/third-party/search/local-search.js"></script>
+
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdn.bootcdn.net/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
