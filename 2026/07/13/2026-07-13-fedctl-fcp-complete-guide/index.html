@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"},"path":"/search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="fedctl 是 eBay Tess 平台用于管理联邦控制平面（FCP, Federation Control Plane）的核心工具。本文从仓库结构出发，详细介绍 fedctl 的构建方式、使用方法、资源配置、权限要求以及控制平面的退役流程，帮助团队成员系统性地掌握 FCP 的运维体系。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="fedctl 完全指南：FCP 控制平面的构建、使用与运维">
+<meta property="og:url" content="https://smileusd.github.io/2026/07/13/2026-07-13-fedctl-fcp-complete-guide/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="fedctl 是 eBay Tess 平台用于管理联邦控制平面（FCP, Federation Control Plane）的核心工具。本文从仓库结构出发，详细介绍 fedctl 的构建方式、使用方法、资源配置、权限要求以及控制平面的退役流程，帮助团队成员系统性地掌握 FCP 的运维体系。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-07-13T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-13T09:06:12.031Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Cloud">
+<meta property="article:tag" content="DevOps">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/07/13/2026-07-13-fedctl-fcp-complete-guide/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/07/13/2026-07-13-fedctl-fcp-complete-guide/","path":"2026/07/13/2026-07-13-fedctl-fcp-complete-guide/","title":"fedctl 完全指南：FCP 控制平面的构建、使用与运维"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>fedctl 完全指南：FCP 控制平面的构建、使用与运维 | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup"><div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close" role="button">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E4%BB%93%E5%BA%93%E6%95%B4%E4%BD%93%E6%A1%86%E6%9E%B6%E4%B8%8E%E7%BB%93%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">一、仓库整体框架与结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#FCP-%E7%BB%84%E4%BB%B6%E6%9E%B6%E6%9E%84%E6%A6%82%E8%A7%88"><span class="nav-number">1.1.</span> <span class="nav-text">FCP 组件架构概览</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%A6%82%E4%BD%95%E6%9E%84%E5%BB%BA-fedctl"><span class="nav-number">2.</span> <span class="nav-text">二、如何构建 fedctl</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E5%BC%8F%E4%B8%80%EF%BC%9A%E7%9B%B4%E6%8E%A5%E4%B8%8B%E8%BD%BD%E9%A2%84%E7%BC%96%E8%AF%91%E4%BA%8C%E8%BF%9B%E5%88%B6"><span class="nav-number">2.1.</span> <span class="nav-text">方式一：直接下载预编译二进制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E5%BC%8F%E4%BA%8C%EF%BC%9A%E4%BB%8E%E6%BA%90%E7%A0%81%E6%9E%84%E5%BB%BA%EF%BC%88%E5%BC%80%E5%8F%91%E8%B0%83%E8%AF%95%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">方式二：从源码构建（开发调试）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E5%BC%8F%E4%B8%89%EF%BC%9A%E9%80%9A%E8%BF%87-Docker-%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%EF%BC%88%E6%9C%AC%E5%9C%B0%E6%B5%8B%E8%AF%95%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">方式三：通过 Docker 容器运行（本地测试）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9B%B4%E6%96%B0-fedctl-%E7%89%88%E6%9C%AC"><span class="nav-number">2.4.</span> <span class="nav-text">更新 fedctl 版本</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81fedctl-%E7%9A%84%E4%BD%BF%E7%94%A8%E6%96%B9%E5%BC%8F"><span class="nav-number">3.</span> <span class="nav-text">三、fedctl 的使用方式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E4%BD%BF%E7%94%A8%E6%A8%A1%E5%BC%8F"><span class="nav-number">3.1.</span> <span class="nav-text">核心使用模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BB%E8%A6%81%E5%AD%90%E5%91%BD%E4%BB%A4"><span class="nav-number">3.2.</span> <span class="nav-text">主要子命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%B8%E5%9E%8B%E5%8F%91%E5%B8%83%E6%B5%81%E7%A8%8B"><span class="nav-number">3.3.</span> <span class="nav-text">典型发布流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81fedctl-%E6%98%AF%E5%90%A6%E5%8C%85%E5%90%AB-Namespace-%E5%88%9B%E5%BB%BA%E4%B8%8E%E5%AE%B9%E9%87%8F%E5%88%86%E9%85%8D"><span class="nav-number">4.</span> <span class="nav-text">四、fedctl 是否包含 Namespace 创建与容量分配</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Namespace-%E5%88%9B%E5%BB%BA"><span class="nav-number">4.1.</span> <span class="nav-text">Namespace 创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%B9%E9%87%8F%E5%88%86%E9%85%8D%EF%BC%88Quota%EF%BC%89"><span class="nav-number">4.2.</span> <span class="nav-text">容量分配（Quota）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E7%BB%84%E4%BB%B6%E8%B5%84%E6%BA%90%E9%85%8D%E7%BD%AE%EF%BC%9ACPU-Memory%E3%80%81Label-Selector-%E4%B8%8E-Tolerations"><span class="nav-number">5.</span> <span class="nav-text">五、组件资源配置：CPU&#x2F;Memory、Label Selector 与 Tolerations</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#CPU-Memory-%E8%B5%84%E6%BA%90%E9%85%8D%E7%BD%AE"><span class="nav-number">5.1.</span> <span class="nav-text">CPU&#x2F;Memory 资源配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%89%AF%E6%9C%AC%E6%95%B0%E9%85%8D%E7%BD%AE"><span class="nav-number">5.2.</span> <span class="nav-text">副本数配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Template-Label-Selector"><span class="nav-number">5.3.</span> <span class="nav-text">Template Label Selector</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Tolerations-%E9%85%8D%E7%BD%AE"><span class="nav-number">5.4.</span> <span class="nav-text">Tolerations 配置</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%A6%82%E4%BD%95%E9%80%80%E5%BD%B9%EF%BC%88Decomm%EF%BC%89%E5%92%8C%E9%94%80%E6%AF%81%E4%B8%80%E4%B8%AA-FCP-Apiserver"><span class="nav-number">6.</span> <span class="nav-text">六、如何退役（Decomm）和销毁一个 FCP Apiserver</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%B8%80%EF%BC%9A%E7%A1%AE%E8%AE%A4%E5%81%A5%E5%BA%B7%E7%8A%B6%E6%80%81%E4%B8%8E%E5%A4%87%E4%BB%BD"><span class="nav-number">6.1.</span> <span class="nav-text">步骤一：确认健康状态与备份</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%BA%8C%EF%BC%9A%E4%BB%8E-cfg-toml-%E4%B8%AD%E7%BC%A9%E5%AE%B9%E7%BB%84%E4%BB%B6"><span class="nav-number">6.2.</span> <span class="nav-text">步骤二：从 cfg.toml 中缩容组件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%B8%89%EF%BC%9A%E6%B8%85%E7%90%86-fedctl-%E7%AE%A1%E7%90%86%E7%9A%84%E7%94%9F%E6%88%90%E7%89%A9%EF%BC%88Pruning%EF%BC%89"><span class="nav-number">6.3.</span> <span class="nav-text">步骤三：清理 fedctl 管理的生成物（Pruning）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E5%9B%9B%EF%BC%9A%E6%B8%85%E7%90%86-member-cluster-%E4%B8%AD%E7%9A%84%E8%B5%84%E6%BA%90"><span class="nav-number">6.4.</span> <span class="nav-text">步骤四：清理 member cluster 中的资源</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E4%BA%94%EF%BC%9A%E6%B8%85%E7%90%86-FCP-%E4%B8%AD%E7%9A%84-Cluster-%E5%AF%B9%E8%B1%A1%E4%B8%8E%E9%85%8D%E7%BD%AE"><span class="nav-number">6.5.</span> <span class="nav-text">步骤五：清理 FCP 中的 Cluster 对象与配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A5%E9%AA%A4%E5%85%AD%EF%BC%9A%E5%9B%9E%E6%BB%9A%E6%96%B9%E6%A1%88"><span class="nav-number">6.6.</span> <span class="nav-text">步骤六：回滚方案</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81fedctl-%E4%BD%BF%E7%94%A8%E6%89%80%E9%9C%80%E7%9A%84%E6%9D%83%E9%99%90"><span class="nav-number">7.</span> <span class="nav-text">七、fedctl 使用所需的权限</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%9F%BA%E6%9C%AC-FCP-Admin-%E6%9D%83%E9%99%90"><span class="nav-number">7.1.</span> <span class="nav-text">1. 基本 FCP Admin 权限</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Join-%E5%91%BD%E4%BB%A4%E7%9A%84%E7%89%B9%E6%AE%8A%E6%9D%83%E9%99%90"><span class="nav-number">7.2.</span> <span class="nav-text">2. Join 命令的特殊权限</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-git-crypt-%E8%A7%A3%E5%AF%86%E6%9D%83%E9%99%90"><span class="nav-number">7.3.</span> <span class="nav-text">3. git-crypt 解密权限</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-sig-security-%E6%9D%83%E9%99%90%EF%BC%88sync-controller-%E5%86%99%E5%85%A5%E6%9D%83%E9%99%90%EF%BC%89"><span class="nav-number">7.4.</span> <span class="nav-text">4. sig-security 权限（sync controller 写入权限）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-kubeconfig-%E8%AE%BF%E9%97%AE%E6%9D%83%E9%99%90"><span class="nav-number">7.5.</span> <span class="nav-text">5. kubeconfig 访问权限</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">8.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">131</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/07/13/2026-07-13-fedctl-fcp-complete-guide/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="fedctl 完全指南：FCP 控制平面的构建、使用与运维 | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          fedctl 完全指南：FCP 控制平面的构建、使用与运维
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-07-13 10:00:00 / Modified: 17:06:12" itemprop="dateCreated datePublished" datetime="2026-07-13T10:00:00+08:00">2026-07-13</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p><code>fedctl</code> 是 eBay Tess 平台用于管理联邦控制平面（FCP, Federation Control Plane）的核心工具。本文从仓库结构出发，详细介绍 fedctl 的构建方式、使用方法、资源配置、权限要求以及控制平面的退役流程，帮助团队成员系统性地掌握 FCP 的运维体系。</p>
+<span id="more"></span>
+
+<hr>
+<h2 id="一、仓库整体框架与结构"><a href="#一、仓库整体框架与结构" class="headerlink" title="一、仓库整体框架与结构"></a>一、仓库整体框架与结构</h2><p><code>fed-release</code> 仓库是 fedctl 工具的<strong>配置输入仓库</strong>，不包含 fedctl 的源代码（源码在 <code>github.corp.ebay.com/ebaytess/fedctl</code>）。仓库的作用是存放各个 FCP 实例的配置文件以及 fedctl 生成的 Kubernetes 对象 YAML 文件。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line">fed-release/</span><br><span class="line">├── BUILD.bazel           # Bazel 构建入口（顶层）</span><br><span class="line">├── WORKSPACE             # Bazel workspace 定义</span><br><span class="line">├── README.md             # 仓库说明文档</span><br><span class="line">├── pub.asc               # GPG 公钥（用于 git-crypt）</span><br><span class="line">├── hack/                 # 运维脚本集合</span><br><span class="line">│   ├── fedctl-run.sh     # 下载并执行 fedctl 的入口脚本</span><br><span class="line">│   ├── fedctl-bump.sh    # 更新 FEDCTL_VERSION 文件</span><br><span class="line">│   ├── fedctl-handle-merge.sh   # PR 合并后的流水线触发脚本</span><br><span class="line">│   ├── fedctl-apply-with-lease.sh</span><br><span class="line">│   ├── fedctl-global-join-with-lease.sh</span><br><span class="line">│   ├── lib.sh            # 公共 shell 函数库</span><br><span class="line">│   ├── drift/            # 镜像漂移检测脚本</span><br><span class="line">│   └── join/             # join 相关辅助脚本</span><br><span class="line">├── instances/            # 各控制平面实例配置目录</span><br><span class="line">│   ├── fcp/              # FCP（主联邦控制平面）实例</span><br><span class="line">│   │   ├── README.md</span><br><span class="line">│   │   ├── common/       # 跨实例共享配置（k8sclusters.json、证书等）</span><br><span class="line">│   │   ├── dev/          # fcp-dev 环境</span><br><span class="line">│   │   │   ├── cfg.toml        # 核心配置文件</span><br><span class="line">│   │   │   ├── FEDCTL_VERSION  # 当前使用的 fedctl 版本号</span><br><span class="line">│   │   │   ├── secrets/        # 加密的 kubeconfig / 证书等（git-crypt）</span><br><span class="line">│   │   │   ├── cm/             # ConfigMap 配置</span><br><span class="line">│   │   │   ├── health/         # 健康检查对象</span><br><span class="line">│   │   │   ├── flowschema/     # APF FlowSchema 配置</span><br><span class="line">│   │   │   ├── pdi/            # PDI assertion 对象</span><br><span class="line">│   │   │   ├── fcp-dev/        # 聚合器（aggregator）集群的生成产物 YAML</span><br><span class="line">│   │   │   ├── 130/            # host cluster 130 的生成产物 YAML</span><br><span class="line">│   │   │   └── 140/            # host cluster 140 的生成产物 YAML</span><br><span class="line">│   │   ├── preprod/</span><br><span class="line">│   │   ├── prod/</span><br><span class="line">│   │   └── soak-dev/</span><br><span class="line">│   ├── fcp-sddz/         # SDDZ 环境的 FCP 实例</span><br><span class="line">│   ├── apps/             # Apps 控制平面实例</span><br><span class="line">│   ├── tnet/             # TNet 控制平面实例</span><br><span class="line">│   └── tm/               # TM 控制平面实例</span><br><span class="line">└── runbooks/             # 运维手册</span><br><span class="line">    ├── design.md         # FCP 架构设计文档</span><br><span class="line">    ├── dev.md            # 开发环境搭建指南</span><br><span class="line">    ├── release.md        # 发布流程</span><br><span class="line">    ├── rbac.md           # 权限说明</span><br><span class="line">    ├── wrap-up.md        # 发布收尾步骤</span><br><span class="line">    └── ...（其他专项 runbook）</span><br></pre></td></tr></table></figure>
+
+<h3 id="FCP-组件架构概览"><a href="#FCP-组件架构概览" class="headerlink" title="FCP 组件架构概览"></a>FCP 组件架构概览</h3><p>FCP 是一个<strong>无节点、无 kubelet 的纯 API 控制平面</strong>，所有 FCP 组件以普通 <code>Deployment</code> 的形式运行在现有 Tess host cluster 中，并跨多个 host cluster 分布以实现 HA。核心组件包括：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>etcd</strong></td>
+<td>由定制化 etcd-operator 管理，支持多 host cluster 跨 AZ 部署</td>
+</tr>
+<tr>
+<td><strong>kube-apiserver</strong></td>
+<td>标准 K8s apiserver，禁用部分 API，启用聚合扩展</td>
+</tr>
+<tr>
+<td><strong>ebay-apiserver</strong></td>
+<td>自定义 Tess 扩展 apiserver，服务 Account&#x2F;Group 等自定义 API</td>
+</tr>
+<tr>
+<td><strong>admission-apiserver</strong></td>
+<td>准入 apiserver，负责所有 webhook 校验与变更</td>
+</tr>
+<tr>
+<td><strong>webhook</strong></td>
+<td>认证&#x2F;授权 webhook（Keystone token + TessRBAC）</td>
+</tr>
+<tr>
+<td><strong>kube-controller-manager</strong></td>
+<td>标准 controller-manager，大量 controller 已禁用</td>
+</tr>
+<tr>
+<td><strong>FCM（ebay-controller-manager）</strong></td>
+<td>Federation Controller Manager，包含 sync controller、account controller 等</td>
+</tr>
+<tr>
+<td><strong>FCM-AP</strong></td>
+<td>Access Point 相关 controller</td>
+</tr>
+<tr>
+<td><strong>FCM-ATC</strong></td>
+<td>流量控制相关 controller（Admin Traffic Control）</td>
+</tr>
+<tr>
+<td><strong>FCM-NSVC</strong></td>
+<td>NameService controller</td>
+</tr>
+<tr>
+<td><strong>audit-transformer</strong></td>
+<td>审计日志转换器</td>
+</tr>
+<tr>
+<td><strong>PSCP controller</strong></td>
+<td>安全策略同步 controller</td>
+</tr>
+</tbody></table>
+<p>上述所有 apiserver 组件（kube-apiserver、ebay-apiserver、admission-apiserver、webhook）共享同一个 Pod，通过 loopback 地址（<code>127.x.x.x</code>）互相通信，以减少网络开销。</p>
+<hr>
+<h2 id="二、如何构建-fedctl"><a href="#二、如何构建-fedctl" class="headerlink" title="二、如何构建 fedctl"></a>二、如何构建 fedctl</h2><p>fedctl 的源代码位于 <code>github.corp.ebay.com/ebaytess/fedctl</code>，<code>fed-release</code> 仓库本身<strong>不包含</strong> fedctl 的构建过程。</p>
+<h3 id="方式一：直接下载预编译二进制"><a href="#方式一：直接下载预编译二进制" class="headerlink" title="方式一：直接下载预编译二进制"></a>方式一：直接下载预编译二进制</h3><p>这是 CI&#x2F;CD 流水线（Tekton）使用的方式，由 <code>hack/fedctl-run.sh</code> 自动完成：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># fedctl-run.sh 的核心逻辑</span></span><br><span class="line">fedctl_version=$(<span class="built_in">cat</span> <span class="string">&quot;<span class="variable">$&#123;artifact_dir&#125;</span>/FEDCTL_VERSION&quot;</span>)</span><br><span class="line">bin=<span class="string">&quot;hack/cache/fedctl-<span class="variable">$&#123;fedctl_version&#125;</span>&quot;</span></span><br><span class="line"></span><br><span class="line">wget -O <span class="string">&quot;<span class="variable">$bin</span>&quot;</span> \</span><br><span class="line">  <span class="string">&quot;https://dl.tess.io/bin/fedctl?version=<span class="variable">$&#123;fedctl_version&#125;</span>&amp;platform=linux-amd64&quot;</span></span><br><span class="line"><span class="built_in">chmod</span> +x <span class="string">&quot;<span class="variable">$bin</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>每个实例目录下的 <code>FEDCTL_VERSION</code> 文件记录该实例使用的 fedctl 版本，例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">instances/fcp/dev/FEDCTL_VERSION</span><br></pre></td></tr></table></figure>
+
+<h3 id="方式二：从源码构建（开发调试）"><a href="#方式二：从源码构建（开发调试）" class="headerlink" title="方式二：从源码构建（开发调试）"></a>方式二：从源码构建（开发调试）</h3><p>在 <code>fedctl</code> 源码仓库中直接用 <code>go run</code> 运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">git <span class="built_in">clone</span> git@github.corp.ebay.com:ebaytess/fedctl.git</span><br><span class="line"><span class="built_in">cd</span> fedctl</span><br><span class="line">git checkout &lt;fedctl_tag&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 直接运行（无需编译）</span></span><br><span class="line">go run cmd/fedctl/main.go &lt;subcommand&gt; [flags]</span><br><span class="line"></span><br><span class="line"><span class="comment"># 或者编译后运行</span></span><br><span class="line">go build -o fedctl cmd/fedctl/main.go</span><br><span class="line">./fedctl &lt;subcommand&gt; [flags]</span><br></pre></td></tr></table></figure>
+
+<h3 id="方式三：通过-Docker-容器运行（本地测试）"><a href="#方式三：通过-Docker-容器运行（本地测试）" class="headerlink" title="方式三：通过 Docker 容器运行（本地测试）"></a>方式三：通过 Docker 容器运行（本地测试）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">docker run -v $(<span class="built_in">pwd</span>):/scratch/fed-release --<span class="built_in">rm</span> \</span><br><span class="line">  hub.tess.io/sig-core-cicd/fedctl-base:v0.2 \</span><br><span class="line">  bash -c <span class="string">&quot;OFFLINE=false \</span></span><br><span class="line"><span class="string">    INSTANCE_CFG=/scratch/fed-release/instances/fcp/dev/cfg.toml \</span></span><br><span class="line"><span class="string">    /scratch/fed-release/hack/fedctl-run.sh generate&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="更新-fedctl-版本"><a href="#更新-fedctl-版本" class="headerlink" title="更新 fedctl 版本"></a>更新 fedctl 版本</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 更新特定实例的 fedctl 版本</span></span><br><span class="line">INSTANCE_CFG=instances/fcp/dev/cfg.toml \</span><br><span class="line">  hack/fedctl-bump.sh &lt;new_version&gt;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="三、fedctl-的使用方式"><a href="#三、fedctl-的使用方式" class="headerlink" title="三、fedctl 的使用方式"></a>三、fedctl 的使用方式</h2><p>fedctl 的所有操作都通过<strong>子命令（subcommand）+ 配置文件（cfg.toml）</strong>驱动。</p>
+<h3 id="核心使用模式"><a href="#核心使用模式" class="headerlink" title="核心使用模式"></a>核心使用模式</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 推荐方式：通过 hack/fedctl-run.sh 调用</span></span><br><span class="line">INSTANCE_CFG=instances/fcp/dev/cfg.toml \</span><br><span class="line">  hack/fedctl-run.sh &lt;subcommand&gt; [extra flags]</span><br><span class="line"></span><br><span class="line"><span class="comment"># 等价的直接调用</span></span><br><span class="line">fedctl &lt;subcommand&gt; --config=instances/fcp/dev/cfg.toml [flags]</span><br></pre></td></tr></table></figure>
+
+<h3 id="主要子命令"><a href="#主要子命令" class="headerlink" title="主要子命令"></a>主要子命令</h3><table>
+<thead>
+<tr>
+<th>子命令</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>kubeconfig-builder</code></td>
+<td>为 FCP 生成 kubeconfig 文件</td>
+</tr>
+<tr>
+<td><code>etcd-init</code></td>
+<td>初始化&#x2F;更新 etcd 集群（通过 etcd-operator）</td>
+</tr>
+<tr>
+<td><code>apiserver-init</code></td>
+<td>初始化&#x2F;更新 apiserver、kube-controller-manager 等</td>
+</tr>
+<tr>
+<td><code>fcm-init</code></td>
+<td>初始化&#x2F;更新 Federation Controller Manager</td>
+</tr>
+<tr>
+<td><code>nsvc-init</code></td>
+<td>初始化&#x2F;更新 NameService controller</td>
+</tr>
+<tr>
+<td><code>join</code></td>
+<td>将单个 member cluster 加入 FCP</td>
+</tr>
+<tr>
+<td><code>join-all</code></td>
+<td>将所有 sync candidate clusters 加入 FCP</td>
+</tr>
+<tr>
+<td><code>assert-init</code></td>
+<td>初始化 assertion（端到端测试）框架</td>
+</tr>
+<tr>
+<td><code>health-init</code></td>
+<td>初始化健康检查 monitor</td>
+</tr>
+<tr>
+<td><code>install-pscp-controller</code></td>
+<td>部署 PSCP 安全策略 controller</td>
+</tr>
+<tr>
+<td><code>pdi-init</code></td>
+<td>初始化 PDI（Pre-Delivery Inspection）assertion</td>
+</tr>
+<tr>
+<td><code>generate</code></td>
+<td>仅生成 YAML 文件，不 apply（用于 offline&#x2F;dry-run）</td>
+</tr>
+<tr>
+<td><code>azkubeconfig-init</code></td>
+<td>为 AZ 控制平面生成 kubeconfig</td>
+</tr>
+</tbody></table>
+<h3 id="典型发布流程"><a href="#典型发布流程" class="headerlink" title="典型发布流程"></a>典型发布流程</h3><p><code>cfg.toml</code> 中通过 <code>subcommands</code> 字段定义按序执行的子命令列表：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">subcommands</span> = [</span><br><span class="line">    <span class="string">&quot;etcd-init&quot;</span>,</span><br><span class="line">    <span class="string">&quot;apiserver-init&quot;</span>,</span><br><span class="line">    <span class="string">&quot;fcm-init&quot;</span>,</span><br><span class="line">    <span class="string">&quot;nsvc-init&quot;</span>,</span><br><span class="line">    <span class="string">&quot;join-all&quot;</span>,</span><br><span class="line">    <span class="string">&quot;assert-init&quot;</span>,</span><br><span class="line">    <span class="string">&quot;health-init&quot;</span>,</span><br><span class="line">    <span class="string">&quot;install-pscp-controller&quot;</span>,</span><br><span class="line">    <span class="string">&quot;pdi-init&quot;</span>,</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<p>标准发布步骤（每个子命令先 dry-run，再正式 apply）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Step 1: 生成 kubeconfig</span></span><br><span class="line">go run cmd/fedctl/main.go kubeconfig-builder \</span><br><span class="line">  --config=<span class="variable">$&#123;config_toml&#125;</span> \</span><br><span class="line">  --kubeconfig=/tmp/fcp \</span><br><span class="line">  --artifact-dir=<span class="variable">$&#123;artifact_dir&#125;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Step 2~N: 每个子命令先 generate-only，再正式执行</span></span><br><span class="line"><span class="keyword">for</span> cmd <span class="keyword">in</span> etcd-init apiserver-init fcm-init join-all; <span class="keyword">do</span></span><br><span class="line">  go run cmd/fedctl/main.go <span class="variable">$&#123;cmd&#125;</span> \</span><br><span class="line">    --config=<span class="variable">$&#123;config_toml&#125;</span> \</span><br><span class="line">    --artifact-dir=<span class="variable">$&#123;artifact_dir&#125;</span> \</span><br><span class="line">    --kubeconfig=/tmp/fcp \</span><br><span class="line">    --generate-only   <span class="comment"># 先 dry-run</span></span><br><span class="line"></span><br><span class="line">  go run cmd/fedctl/main.go <span class="variable">$&#123;cmd&#125;</span> \</span><br><span class="line">    --config=<span class="variable">$&#123;config_toml&#125;</span> \</span><br><span class="line">    --artifact-dir=<span class="variable">$&#123;artifact_dir&#125;</span> \</span><br><span class="line">    --kubeconfig=/tmp/fcp   <span class="comment"># 正式 apply</span></span><br><span class="line"><span class="keyword">done</span></span><br></pre></td></tr></table></figure>
+
+<p><code>--generate-only</code> 标志只生成 YAML 文件到 <code>artifact_dir</code>，不实际 apply 到集群，用于审查变更内容。</p>
+<hr>
+<h2 id="四、fedctl-是否包含-Namespace-创建与容量分配"><a href="#四、fedctl-是否包含-Namespace-创建与容量分配" class="headerlink" title="四、fedctl 是否包含 Namespace 创建与容量分配"></a>四、fedctl 是否包含 Namespace 创建与容量分配</h2><h3 id="Namespace-创建"><a href="#Namespace-创建" class="headerlink" title="Namespace 创建"></a>Namespace 创建</h3><p><strong>fedctl 本身负责在 host cluster 创建 FCP 相关的 Namespace</strong>（如 <code>fcp-dev</code>、<code>member-fcp-dev</code>），这些 Namespace 通过 <code>cfg.toml</code> 中的以下参数控制：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">federation-name</span> = <span class="string">&quot;fcp-dev&quot;</span></span><br><span class="line"><span class="attr">namespace-annotations</span> = <span class="string">&quot;application.tess.io/name=fcp,environment.tess.io/name=dev,identity.alpha.tess.io/default-posixuser=true&quot;</span></span><br><span class="line"><span class="attr">namespace-labels</span> = <span class="string">&quot;account.tess.io/name=fcp&quot;</span></span><br><span class="line"><span class="attr">cluster-namespace</span> = <span class="string">&quot;member-fcp-dev&quot;</span>   <span class="comment"># member cluster 上的 namespace</span></span><br></pre></td></tr></table></figure>
+
+<p>但<strong>FCP 作为 API 层使用的上游 Namespace</strong>（即 FCP 在父 FCP 中注册自身所需的 Account&#x2F;Group&#x2F;Namespace）需要<strong>手动提前创建</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在父 FCP（host cluster 所在的 FCP）中手动创建</span></span><br><span class="line">kubectl apply -f - &lt;&lt;<span class="string">EOF</span></span><br><span class="line"><span class="string">apiVersion: identity.tess.io/v1alpha1</span></span><br><span class="line"><span class="string">kind: Group</span></span><br><span class="line"><span class="string">metadata:</span></span><br><span class="line"><span class="string">  name: $&#123;tess_group&#125;</span></span><br><span class="line"><span class="string">---</span></span><br><span class="line"><span class="string">apiVersion: identity.tess.io/v1alpha1</span></span><br><span class="line"><span class="string">kind: Account</span></span><br><span class="line"><span class="string">metadata:</span></span><br><span class="line"><span class="string">  name: $&#123;tess_acct&#125;</span></span><br><span class="line"><span class="string">---</span></span><br><span class="line"><span class="string">apiVersion: v1</span></span><br><span class="line"><span class="string">kind: Namespace</span></span><br><span class="line"><span class="string">metadata:</span></span><br><span class="line"><span class="string">  name: $&#123;federation_name&#125;</span></span><br><span class="line"><span class="string">  annotations:</span></span><br><span class="line"><span class="string">    application.tess.io/name: $&#123;tess_app&#125;</span></span><br><span class="line"><span class="string">    environment.tess.io/name: $&#123;real_tess_env&#125;</span></span><br><span class="line"><span class="string">  labels:</span></span><br><span class="line"><span class="string">    account.tess.io/name: $&#123;tess_acct&#125;</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="容量分配（Quota）"><a href="#容量分配（Quota）" class="headerlink" title="容量分配（Quota）"></a>容量分配（Quota）</h3><p><strong>fedctl 不负责配额分配</strong>，配额需要在运行 fedctl 之前通过 <a target="_blank" rel="noopener" href="http://go/arq">http://go/arq</a> 手动申请。</p>
+<p>需要为以下 Namespace 申请配额：</p>
+<p><strong><code>&lt;fcp-name&gt;</code> namespace（运行 apiserver&#x2F;etcd 的主 namespace）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>Quota 类型</th>
+<th>资源</th>
+<th>参考值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>best-effort-pods</td>
+<td>pods</td>
+<td>7</td>
+</tr>
+<tr>
+<td>object-counts</td>
+<td>configmaps</td>
+<td>1</td>
+</tr>
+<tr>
+<td>object-counts</td>
+<td>secrets</td>
+<td>18</td>
+</tr>
+<tr>
+<td>object-counts</td>
+<td>services</td>
+<td>3</td>
+</tr>
+<tr>
+<td>object-counts</td>
+<td>loadbalancer services</td>
+<td>1</td>
+</tr>
+<tr>
+<td>object-counts</td>
+<td>nodeport services</td>
+<td>1</td>
+</tr>
+</tbody></table>
+<p><strong><code>&lt;fcp-name&gt;-fcm</code> namespace（运行 FCM 的 namespace）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>Quota 类型</th>
+<th>资源</th>
+<th>参考值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>best-effort-pods</td>
+<td>pods</td>
+<td>2</td>
+</tr>
+<tr>
+<td>object-counts</td>
+<td>configmaps</td>
+<td>1</td>
+</tr>
+<tr>
+<td>object-counts</td>
+<td>secrets</td>
+<td>4</td>
+</tr>
+</tbody></table>
+<p>实际生产所需配额需根据副本数计算：<code>etcd × 副本数 + apiserver × 副本数 + kube-controller-manager + fcm + fcm-ap + ...</code></p>
+<hr>
+<h2 id="五、组件资源配置：CPU-Memory、Label-Selector-与-Tolerations"><a href="#五、组件资源配置：CPU-Memory、Label-Selector-与-Tolerations" class="headerlink" title="五、组件资源配置：CPU&#x2F;Memory、Label Selector 与 Tolerations"></a>五、组件资源配置：CPU&#x2F;Memory、Label Selector 与 Tolerations</h2><p>所有组件的资源配置均在各实例的 <code>cfg.toml</code> 中统一管理，fedctl 将这些参数渲染为 Deployment YAML 后 apply 到集群。</p>
+<h3 id="CPU-Memory-资源配置"><a href="#CPU-Memory-资源配置" class="headerlink" title="CPU&#x2F;Memory 资源配置"></a>CPU&#x2F;Memory 资源配置</h3><p>以 <code>fcp-dev</code> 的 <code>cfg.toml</code> 为例，各组件配置键的命名规律为 <code>&lt;component&gt;-cpu-request</code>、<code>&lt;component&gt;-memory-limit</code> 等：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># etcd</span></span><br><span class="line"><span class="attr">etcd-cpu-limit</span> = <span class="string">&quot;12&quot;</span></span><br><span class="line"><span class="attr">etcd-cpu-request</span> = <span class="string">&quot;4&quot;</span></span><br><span class="line"><span class="attr">etcd-memory-limit</span> = <span class="string">&quot;60Gi&quot;</span></span><br><span class="line"><span class="attr">etcd-memory-request</span> = <span class="string">&quot;10Gi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># etcd（events 专用集群）</span></span><br><span class="line"><span class="attr">etcd-events-cpu-limit</span> = <span class="string">&quot;3&quot;</span></span><br><span class="line"><span class="attr">etcd-events-cpu-request</span> = <span class="string">&quot;1&quot;</span></span><br><span class="line"><span class="attr">etcd-events-memory-limit</span> = <span class="string">&quot;10Gi&quot;</span></span><br><span class="line"><span class="attr">etcd-events-memory-request</span> = <span class="string">&quot;3Gi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># apiserver（kube-apiserver 容器）</span></span><br><span class="line"><span class="attr">apiserver-cpu-limit</span> = <span class="string">&quot;16&quot;</span></span><br><span class="line"><span class="attr">apiserver-cpu-request</span> = <span class="string">&quot;2&quot;</span></span><br><span class="line"><span class="attr">apiserver-memory-limit</span> = <span class="string">&quot;150G&quot;</span></span><br><span class="line"><span class="attr">apiserver-memory-request</span> = <span class="string">&quot;80G&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># ebay-apiserver 容器</span></span><br><span class="line"><span class="attr">ebay-cpu-limit</span> = <span class="string">&quot;12&quot;</span></span><br><span class="line"><span class="attr">ebay-cpu-request</span> = <span class="string">&quot;1&quot;</span></span><br><span class="line"><span class="attr">ebay-memory-limit</span> = <span class="string">&quot;120G&quot;</span></span><br><span class="line"><span class="attr">ebay-memory-request</span> = <span class="string">&quot;60G&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># webhook 容器</span></span><br><span class="line"><span class="attr">webhook-cpu-limit</span> = <span class="string">&quot;1&quot;</span></span><br><span class="line"><span class="attr">webhook-cpu-request</span> = <span class="string">&quot;100m&quot;</span></span><br><span class="line"><span class="attr">webhook-memory-limit</span> = <span class="string">&quot;20G&quot;</span></span><br><span class="line"><span class="attr">webhook-memory-request</span> = <span class="string">&quot;4G&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># admission-apiserver 容器</span></span><br><span class="line"><span class="attr">admission-cpu-limit</span> = <span class="string">&quot;4&quot;</span></span><br><span class="line"><span class="attr">admission-cpu-request</span> = <span class="string">&quot;50m&quot;</span></span><br><span class="line"><span class="attr">admission-memory-limit</span> = <span class="string">&quot;80G&quot;</span></span><br><span class="line"><span class="attr">admission-memory-request</span> = <span class="string">&quot;20G&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># proxy sidecar</span></span><br><span class="line"><span class="attr">proxy-sidecar-cpu-limit</span> = <span class="string">&quot;0.5&quot;</span></span><br><span class="line"><span class="attr">proxy-sidecar-cpu-request</span> = <span class="string">&quot;10m&quot;</span></span><br><span class="line"><span class="attr">proxy-sidecar-memory-limit</span> = <span class="string">&quot;200M&quot;</span></span><br><span class="line"><span class="attr">proxy-sidecar-memory-request</span> = <span class="string">&quot;50M&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># FCM（TFC sync controller 主控）</span></span><br><span class="line"><span class="attr">tfc-cpu-request</span> = <span class="number">3</span></span><br><span class="line"><span class="attr">tfc-memory-request</span> = <span class="string">&quot;12Gi&quot;</span></span><br><span class="line"><span class="attr">tfc-cpu-limit</span> = <span class="number">8</span></span><br><span class="line"><span class="attr">tfc-memory-limit</span> = <span class="string">&quot;115Gi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># FCM-AP（AccessPoint controller）— 有 fed、az、cluster 三类部署</span></span><br><span class="line"><span class="attr">fed-ap-cpu-request</span> = <span class="number">4</span></span><br><span class="line"><span class="attr">fed-ap-memory-request</span> = <span class="string">&quot;4Gi&quot;</span></span><br><span class="line"><span class="attr">fed-ap-cpu-limit</span> = <span class="number">20</span></span><br><span class="line"><span class="attr">fed-ap-memory-limit</span> = <span class="string">&quot;16Gi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="attr">az-ap-cpu-request</span> = <span class="number">1</span></span><br><span class="line"><span class="attr">az-ap-memory-request</span> = <span class="string">&quot;4Gi&quot;</span></span><br><span class="line"><span class="attr">az-ap-cpu-limit</span> = <span class="number">8</span></span><br><span class="line"><span class="attr">az-ap-memory-limit</span> = <span class="string">&quot;16Gi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="attr">cluster-ap-cpu-request</span> = <span class="number">4</span></span><br><span class="line"><span class="attr">cluster-ap-memory-request</span> = <span class="string">&quot;8Gi&quot;</span></span><br><span class="line"><span class="attr">cluster-ap-cpu-limit</span> = <span class="number">20</span></span><br><span class="line"><span class="attr">cluster-ap-memory-limit</span> = <span class="string">&quot;48Gi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># FCM-ATC（Admin Traffic Control）</span></span><br><span class="line"><span class="attr">fcm-atc-cpu-request</span> = <span class="number">2</span></span><br><span class="line"><span class="attr">fcm-atc-memory-request</span> = <span class="string">&quot;3Gi&quot;</span></span><br><span class="line"><span class="attr">fcm-atc-cpu-limit</span> = <span class="number">6</span></span><br><span class="line"><span class="attr">fcm-atc-memory-limit</span> = <span class="string">&quot;9Gi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># FCM-NSVC（NameService）</span></span><br><span class="line"><span class="attr">fcm-nsvc-cpu-request</span> = <span class="number">8</span></span><br><span class="line"><span class="attr">fcm-nsvc-memory-request</span> = <span class="string">&quot;4Gi&quot;</span></span><br><span class="line"><span class="attr">fcm-nsvc-cpu-limit</span> = <span class="number">20</span></span><br><span class="line"><span class="attr">fcm-nsvc-memory-limit</span> = <span class="string">&quot;100Gi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># audit-transformer</span></span><br><span class="line"><span class="attr">audit-transformer-cpu-limit</span> = <span class="string">&quot;3&quot;</span></span><br><span class="line"><span class="attr">audit-transformer-cpu-request</span> = <span class="string">&quot;50m&quot;</span></span><br><span class="line"><span class="attr">audit-transformer-memory-limit</span> = <span class="string">&quot;8Gi&quot;</span></span><br><span class="line"><span class="attr">audit-transformer-memory-request</span> = <span class="string">&quot;50Mi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># in-cluster TFC（在 member cluster 内运行）</span></span><br><span class="line"><span class="attr">tfc-in-cluster-cpu-request</span> = <span class="string">&quot;500m&quot;</span></span><br><span class="line"><span class="attr">tfc-in-cluster-memory-request</span> = <span class="string">&quot;1Gi&quot;</span></span><br><span class="line"><span class="attr">tfc-in-cluster-cpu-limit</span> = <span class="number">1</span></span><br><span class="line"><span class="attr">tfc-in-cluster-memory-limit</span> = <span class="string">&quot;4Gi&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># AIM（Application Instance Manager）</span></span><br><span class="line"><span class="attr">aim-cpu-request</span> = <span class="number">1</span></span><br><span class="line"><span class="attr">aim-cpu-limit</span> = <span class="number">2</span></span><br><span class="line"><span class="attr">aim-memory-request</span> = <span class="string">&quot;3Gi&quot;</span></span><br><span class="line"><span class="attr">aim-memory-limit</span> = <span class="string">&quot;6Gi&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="副本数配置"><a href="#副本数配置" class="headerlink" title="副本数配置"></a>副本数配置</h3><p>副本数按 host cluster 维度分别指定，格式为 <code>&lt;cluster_id&gt;=&lt;count&gt;</code>：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># apiserver 在两个 host cluster 各跑 4 个副本</span></span><br><span class="line"><span class="attr">apiserver-replicas</span> = <span class="string">&quot;130=4,140=4&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># etcd 的 host cluster 副本分布</span></span><br><span class="line"><span class="attr">host-cluster-replicas</span> = <span class="string">&quot;130=3,140=4&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># FCM 副本</span></span><br><span class="line"><span class="attr">fcm-replicas</span> = <span class="string">&quot;130=1,140=1&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># controller-manager</span></span><br><span class="line"><span class="attr">controller-manager-replicas</span> = <span class="string">&quot;130=1,140=1&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="Template-Label-Selector"><a href="#Template-Label-Selector" class="headerlink" title="Template Label Selector"></a>Template Label Selector</h3><p>fedctl 通过 <code>deployment-labels</code> 和 <code>pod-labels</code> 参数为各组件的 Deployment 和 Pod 注入 label，用于 health monitor 和其他控制器的选择器：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">deployment-labels</span> = <span class="string">&quot;fcm=applicationinstance.tess.io/name=fcp-ebay-controller-manager-dev,\</span></span><br><span class="line"><span class="string">controller-manager=applicationinstance.tess.io/name=fcp-controller-manager-dev,\</span></span><br><span class="line"><span class="string">apiserver=application.tess.io/name=fcp-apiserver\\,applicationinstance.tess.io/name=fcp-apiserver-dev,\</span></span><br><span class="line"><span class="string">etcd-operator=application.tess.io/name=fcp-etcd\\,applicationinstance.tess.io/name=fcp-etcd-dev&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="attr">pod-labels</span> = <span class="string">&quot;fcm=applicationinstance.tess.io/name=fcp-ebay-controller-manager-dev,...&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>格式为 <code>&lt;component&gt;=&lt;label-key&gt;=&lt;label-value&gt;</code>，多个 label 间用 <code>\\,</code> 分隔（转义逗号）。</p>
+<p>健康检查 label selector 通过独立参数配置：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># apiserver health monitor 标签</span></span><br><span class="line"><span class="attr">apiserver-healthmonitor-labels</span> = <span class="string">&quot;apiserver-release=controlplane&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># AP 健康检查标签</span></span><br><span class="line"><span class="attr">ap-healthmonitor-labels</span> = <span class="string">&quot;ap-fed-release=canary&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 整体健康检查（pre/post check 均使用）</span></span><br><span class="line"><span class="attr">health-monitor-labels</span> = <span class="string">&quot;master@fcp-dev:apiserver-release=controlplane,ap-fed-release=canary&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="Tolerations-配置"><a href="#Tolerations-配置" class="headerlink" title="Tolerations 配置"></a>Tolerations 配置</h3><p>Tolerations 在 <code>cfg.toml</code> 中统一配置，应用于所有 FCP 组件的 Pod：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 允许调度到 highmem 节点（但不强制）</span></span><br><span class="line"><span class="attr">tolerations</span> = <span class="string">&quot;dedicated=highmem:NoSchedule&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>格式为 <code>&lt;key&gt;=&lt;value&gt;:&lt;effect&gt;</code>，如需强制调度到特定节点，配合 <code>node-selector</code> 使用：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 可选：强制调度到 highmem 节点</span></span><br><span class="line"><span class="comment"># node-selector = &quot;dedicated=highmem&quot;</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="六、如何退役（Decomm）和销毁一个-FCP-Apiserver"><a href="#六、如何退役（Decomm）和销毁一个-FCP-Apiserver" class="headerlink" title="六、如何退役（Decomm）和销毁一个 FCP Apiserver"></a>六、如何退役（Decomm）和销毁一个 FCP Apiserver</h2><p>目前 <code>fed-release</code> 仓库中没有专用的”一键退役”命令，FCP apiserver 的退役是一个<strong>手动分步骤</strong>的过程。</p>
+<h3 id="步骤一：确认健康状态与备份"><a href="#步骤一：确认健康状态与备份" class="headerlink" title="步骤一：确认健康状态与备份"></a>步骤一：确认健康状态与备份</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 确认 etcd 数据已有最新备份</span></span><br><span class="line"><span class="comment"># 检查 etcd 备份配置（如 S3）</span></span><br><span class="line">etcd-operator-backup-s3-bucket = <span class="string">&quot;fcp-dev-2&quot;</span></span><br><span class="line">etcd-operator-backup-max-backups = <span class="string">&quot;288&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="步骤二：从-cfg-toml-中缩容组件"><a href="#步骤二：从-cfg-toml-中缩容组件" class="headerlink" title="步骤二：从 cfg.toml 中缩容组件"></a>步骤二：从 cfg.toml 中缩容组件</h3><p>将 apiserver 副本数归零，然后重新运行 <code>apiserver-init</code>：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在 cfg.toml 中将所有副本数设为 0</span></span><br><span class="line"><span class="attr">apiserver-replicas</span> = <span class="string">&quot;130=0,140=0&quot;</span></span><br><span class="line"><span class="attr">controller-manager-replicas</span> = <span class="string">&quot;130=0,140=0&quot;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">go run cmd/fedctl/main.go apiserver-init \</span><br><span class="line">  --config=<span class="variable">$&#123;config_toml&#125;</span> \</span><br><span class="line">  --artifact-dir=<span class="variable">$&#123;artifact_dir&#125;</span> \</span><br><span class="line">  --kubeconfig=/tmp/fcp</span><br></pre></td></tr></table></figure>
+
+<h3 id="步骤三：清理-fedctl-管理的生成物（Pruning）"><a href="#步骤三：清理-fedctl-管理的生成物（Pruning）" class="headerlink" title="步骤三：清理 fedctl 管理的生成物（Pruning）"></a>步骤三：清理 fedctl 管理的生成物（Pruning）</h3><p>fedctl 使用 <code>kubectl apply</code> 语义，不会自动删除旧对象。需要手动找出并删除过期对象：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 找出超过发布时间窗口的旧文件（以 120 分钟为例）</span></span><br><span class="line"><span class="built_in">cd</span> <span class="variable">$&#123;artifact_dir&#125;</span></span><br><span class="line">find . -<span class="built_in">type</span> f -mmin +120 -<span class="built_in">ls</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 根据文件名构造 kubectl delete 命令</span></span><br><span class="line"><span class="comment"># 文件名格式：./&lt;cluster&gt;/[&lt;apigroup&gt;-]&lt;apiversion&gt;-&lt;kind&gt;-&lt;namespace&gt;-&lt;name&gt;.yaml</span></span><br><span class="line">kubectl --kubeconfig=<span class="variable">$&#123;kubeconfig&#125;</span> --context=&lt;context&gt; \</span><br><span class="line">  [-n &lt;namespace&gt;] delete &lt;kind&gt; &lt;name&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 确认后删除旧文件</span></span><br><span class="line">find . -<span class="built_in">type</span> f -mmin +120 -delete</span><br></pre></td></tr></table></figure>
+
+<h3 id="步骤四：清理-member-cluster-中的资源"><a href="#步骤四：清理-member-cluster-中的资源" class="headerlink" title="步骤四：清理 member cluster 中的资源"></a>步骤四：清理 member cluster 中的资源</h3><p>对于每个已 join 的 member cluster，需要删除 fedctl 在其中创建的资源（ServiceAccount、ClusterRoleBinding、Deployment 等）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 对每个 member cluster 执行</span></span><br><span class="line">kubectl --kubeconfig=<span class="variable">$&#123;kubeconfig&#125;</span> --context=&lt;cluster_id&gt; \</span><br><span class="line">  -n member-fcp-dev delete deploy fcm fcm-ap fcm-ap-canary</span><br><span class="line">kubectl --kubeconfig=<span class="variable">$&#123;kubeconfig&#125;</span> --context=&lt;cluster_id&gt; \</span><br><span class="line">  delete clusterrolebinding fed-member-fcp-dev:fcm</span><br></pre></td></tr></table></figure>
+
+<h3 id="步骤五：清理-FCP-中的-Cluster-对象与配置"><a href="#步骤五：清理-FCP-中的-Cluster-对象与配置" class="headerlink" title="步骤五：清理 FCP 中的 Cluster 对象与配置"></a>步骤五：清理 FCP 中的 Cluster 对象与配置</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 从 sync-candidate-contexts 中移除该集群</span></span><br><span class="line">vi instances/fcp/<span class="variable">$&#123;FCP_INSTANCE&#125;</span>/cfg.toml</span><br><span class="line"><span class="comment"># 删除 sync-candidate-contexts 中对应的 cluster id</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 重新运行 join-all 以更新配置</span></span><br><span class="line">go run cmd/fedctl/main.go join-all \</span><br><span class="line">  --config=<span class="variable">$&#123;config_toml&#125;</span> \</span><br><span class="line">  --artifact-dir=<span class="variable">$&#123;artifact_dir&#125;</span> \</span><br><span class="line">  --kubeconfig=/tmp/fcp</span><br></pre></td></tr></table></figure>
+
+<h3 id="步骤六：回滚方案"><a href="#步骤六：回滚方案" class="headerlink" title="步骤六：回滚方案"></a>步骤六：回滚方案</h3><p>如果退役过程出现问题，简单回滚方式是<strong>还原 cfg.toml 并重新运行发布流程</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">git revert HEAD  <span class="comment"># 或手动还原 cfg.toml</span></span><br><span class="line">go run cmd/fedctl/main.go etcd-init --config=... --kubeconfig=...</span><br><span class="line">go run cmd/fedctl/main.go apiserver-init --config=... --kubeconfig=...</span><br><span class="line"><span class="comment"># ...依次恢复</span></span><br></pre></td></tr></table></figure>
+
+<p>极端情况（数据损坏）可从 etcd 备份恢复，参考 <code>runbooks/etcd-backup-and-restore.md</code>。</p>
+<hr>
+<h2 id="七、fedctl-使用所需的权限"><a href="#七、fedctl-使用所需的权限" class="headerlink" title="七、fedctl 使用所需的权限"></a>七、fedctl 使用所需的权限</h2><h3 id="1-基本-FCP-Admin-权限"><a href="#1-基本-FCP-Admin-权限" class="headerlink" title="1. 基本 FCP Admin 权限"></a>1. 基本 FCP Admin 权限</h3><p>运行 fedctl 的用户或 CI 服务账号需要是 FCP admin group 成员：</p>
+<figure class="highlight toml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># cfg.toml 中定义的 admin 用户/组</span></span><br><span class="line"><span class="attr">admin-users</span> = [ <span class="string">&quot;group:fcp_admin&quot;</span>, <span class="string">&quot;l=qa+ou=sig-core-cicd-dev,o=sig-core-cicd,dc=tess,dc=ebay,dc=com&quot;</span> ]</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-Join-命令的特殊权限"><a href="#2-Join-命令的特殊权限" class="headerlink" title="2. Join 命令的特殊权限"></a>2. Join 命令的特殊权限</h3><p><code>join</code> 子命令需要在 member cluster 中拥有 impersonation 权限，这通过 <strong>sig-security</strong> 仓库的 PR 申请：</p>
+<blockquote>
+<p>参考 <a target="_blank" rel="noopener" href="https://github.corp.ebay.com/tess/sig-security/pull/268">sig-security#268</a> 格式提交 PR，合并后等待约 10 分钟生效。</p>
+</blockquote>
+<h3 id="3-git-crypt-解密权限"><a href="#3-git-crypt-解密权限" class="headerlink" title="3. git-crypt 解密权限"></a>3. git-crypt 解密权限</h3><p><code>fed-release</code> 仓库使用 <code>git-crypt</code> 加密 <code>secrets/</code> 目录下的敏感文件（kubeconfig、证书、云服务凭据等）。需要请现有协作者将你的 GPG 公钥添加到仓库：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 新用户：生成密钥对并导出公钥</span></span><br><span class="line">gpg --gen-key</span><br><span class="line">gpg --<span class="built_in">export</span> --armor your@email.com &gt; pub.asc</span><br><span class="line"></span><br><span class="line"><span class="comment"># 现有协作者：导入并添加新用户</span></span><br><span class="line">gpg --import pub.asc</span><br><span class="line">git-crypt add-gpg-user --trusted new-user@ebay.com</span><br><span class="line"></span><br><span class="line"><span class="comment"># 解锁仓库</span></span><br><span class="line">git-crypt unlock</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-sig-security-权限（sync-controller-写入权限）"><a href="#4-sig-security-权限（sync-controller-写入权限）" class="headerlink" title="4. sig-security 权限（sync controller 写入权限）"></a>4. sig-security 权限（sync controller 写入权限）</h3><p>sync controller 在 member cluster 中变更资源需要特殊授权，通过 sig-security 仓库管理：</p>
+<blockquote>
+<p>参考 <a target="_blank" rel="noopener" href="https://github.corp.ebay.com/tess/sig-security/pull/3284">sig-security#3284</a> 格式申请。</p>
+</blockquote>
+<h3 id="5-kubeconfig-访问权限"><a href="#5-kubeconfig-访问权限" class="headerlink" title="5. kubeconfig 访问权限"></a>5. kubeconfig 访问权限</h3><p>fedctl 通过 <code>secrets/kubeconfig</code> 访问 host cluster 和 member cluster，该 kubeconfig 中的 ServiceAccount token 需要具备以下权限：</p>
+<ul>
+<li>host cluster：在 FCP namespace 内创建&#x2F;更新 Deployment、ConfigMap、Secret、Service 等</li>
+<li>member cluster：通过 <code>cd</code> 或 <code>continuous-deployment</code> ServiceAccount 访问（具备 namespace-admin ClusterRole）</li>
+</ul>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><table>
+<thead>
+<tr>
+<th>主题</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>构建</strong></td>
+<td>下载预编译二进制（生产）或 <code>go run</code>（开发），版本由 <code>FEDCTL_VERSION</code> 文件管理</td>
+</tr>
+<tr>
+<td><strong>使用</strong></td>
+<td>子命令 + cfg.toml 驱动，建议先 <code>--generate-only</code> 审查再正式 apply</td>
+</tr>
+<tr>
+<td><strong>Namespace</strong></td>
+<td>fedctl 负责 host&#x2F;member cluster 的 FCP namespace；父 FCP 中的账号体系需手动创建</td>
+</tr>
+<tr>
+<td><strong>容量分配</strong></td>
+<td>fedctl 不管理 Quota，需提前通过 go&#x2F;arq 申请</td>
+</tr>
+<tr>
+<td><strong>资源配置</strong></td>
+<td>所有 CPU&#x2F;Memory&#x2F;副本数均在 cfg.toml 中配置，label selector 通过 <code>deployment-labels</code> 设置</td>
+</tr>
+<tr>
+<td><strong>退役</strong></td>
+<td>无专用命令，需手动缩容 → 清理生成物 → 清理 member cluster → 提 PR 删除配置</td>
+</tr>
+<tr>
+<td><strong>权限</strong></td>
+<td>需要 FCP admin group 成员身份 + git-crypt 解密权限 + sig-security 申请（join&#x2F;sync）</td>
+</tr>
+</tbody></table>
+<p><code>fedctl</code> 将复杂的多集群控制平面编排抽象为声明式配置，通过 <code>cfg.toml</code> 单文件驱动整个 FCP 生命周期管理，配合 Tekton 流水线实现全自动化发布，是 eBay Tess 平台控制平面运维体系的核心。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Cloud/" rel="tag"># Cloud</a>
+              <a href="/tags/DevOps/" rel="tag"># DevOps</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/08/2026-07-08-virtlet-kata-kubevirt-comparison/" rel="prev" title="Virtlet、Kata Containers 与 KubeVirt 核心原理对比">
+                  <i class="fa fa-angle-left"></i> Virtlet、Kata Containers 与 KubeVirt 核心原理对比
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdn.bootcdn.net/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  <script src="https://cdn.bootcdn.net/ajax/libs/hexo-generator-searchdb/1.4.1/search.js" integrity="sha256-1kfA5uHPf65M5cphT2dvymhkuyHPQp5A53EGZOnOLmc=" crossorigin="anonymous"></script>
+<script src="/js/third-party/search/local-search.js"></script>
+
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdn.bootcdn.net/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
