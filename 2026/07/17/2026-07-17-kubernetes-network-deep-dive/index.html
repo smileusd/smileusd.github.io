@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"},"path":"/search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Kubernetes networking is often described as “simple” in its model but complex in its implementation. Once you look under the hood, you’ll find multiple independent components—CNI plugins, kube-proxy,">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes Network Deep Dive - CoreDNS, kube-proxy, and Istio Working Together">
+<meta property="og:url" content="https://smileusd.github.io/2026/07/17/2026-07-17-kubernetes-network-deep-dive/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Kubernetes networking is often described as “simple” in its model but complex in its implementation. Once you look under the hood, you’ll find multiple independent components—CNI plugins, kube-proxy,">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-07-17T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-17T05:41:42.749Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Networking">
+<meta property="article:tag" content="Istio">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/07/17/2026-07-17-kubernetes-network-deep-dive/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/07/17/2026-07-17-kubernetes-network-deep-dive/","path":"2026/07/17/2026-07-17-kubernetes-network-deep-dive/","title":"Kubernetes Network Deep Dive - CoreDNS, kube-proxy, and Istio Working Together"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Kubernetes Network Deep Dive - CoreDNS, kube-proxy, and Istio Working Together | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup"><div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close" role="button">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#The-Kubernetes-Network-Model"><span class="nav-number">1.</span> <span class="nav-text">The Kubernetes Network Model</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#kube-proxy-Making-Services-Work"><span class="nav-number">2.</span> <span class="nav-text">kube-proxy: Making Services Work</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#iptables-Mode-default"><span class="nav-number">2.1.</span> <span class="nav-text">iptables Mode (default)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#IPVS-Mode"><span class="nav-number">2.2.</span> <span class="nav-text">IPVS Mode</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NodePort-and-LoadBalancer"><span class="nav-number">2.3.</span> <span class="nav-text">NodePort and LoadBalancer</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#CoreDNS-Service-Discovery"><span class="nav-number">3.</span> <span class="nav-text">CoreDNS: Service Discovery</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#How-CoreDNS-Serves-K8s-DNS"><span class="nav-number">3.1.</span> <span class="nav-text">How CoreDNS Serves K8s DNS</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#KubeDNS-vs-CoreDNS"><span class="nav-number">3.2.</span> <span class="nav-text">KubeDNS vs CoreDNS</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#The-ndots-5-Problem"><span class="nav-number">3.3.</span> <span class="nav-text">The ndots:5 Problem</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Putting-It-Together-Full-Network-Flow"><span class="nav-number">4.</span> <span class="nav-text">Putting It Together: Full Network Flow</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Istio-The-Service-Mesh-Layer"><span class="nav-number">5.</span> <span class="nav-text">Istio: The Service Mesh Layer</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Architecture"><span class="nav-number">5.1.</span> <span class="nav-text">Architecture</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Traffic-Interception-via-iptables"><span class="nav-number">5.2.</span> <span class="nav-text">Traffic Interception via iptables</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#What-Envoy-Does"><span class="nav-number">5.3.</span> <span class="nav-text">What Envoy Does</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Istio-kube-proxy-Do-They-Conflict"><span class="nav-number">5.4.</span> <span class="nav-text">Istio + kube-proxy: Do They Conflict?</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Full-Flow-with-Istio"><span class="nav-number">5.5.</span> <span class="nav-text">Full Flow with Istio</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Component-Summary"><span class="nav-number">6.</span> <span class="nav-text">Component Summary</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Common-Troubleshooting-Patterns"><span class="nav-number">7.</span> <span class="nav-text">Common Troubleshooting Patterns</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Summary"><span class="nav-number">8.</span> <span class="nav-text">Summary</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">131</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">23</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/07/17/2026-07-17-kubernetes-network-deep-dive/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Kubernetes Network Deep Dive - CoreDNS, kube-proxy, and Istio Working Together | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes Network Deep Dive - CoreDNS, kube-proxy, and Istio Working Together
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-07-17 10:00:00 / Modified: 13:41:42" itemprop="dateCreated datePublished" datetime="2026-07-17T10:00:00+08:00">2026-07-17</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>Kubernetes networking is often described as “simple” in its model but complex in its implementation. Once you look under the hood, you’ll find multiple independent components—CNI plugins, kube-proxy, CoreDNS, and optionally a service mesh like Istio—all cooperating to make a Pod-to-Service call work transparently. This post builds a mental model of how they fit together and traces a real request through the entire stack.</p>
+<span id="more"></span>
+
+<h2 id="The-Kubernetes-Network-Model"><a href="#The-Kubernetes-Network-Model" class="headerlink" title="The Kubernetes Network Model"></a>The Kubernetes Network Model</h2><p>Before diving into individual components, the fundamental contract K8s networking must fulfill:</p>
+<ol>
+<li><strong>Every Pod gets a unique cluster-wide IP</strong> — no NAT between Pods on the same cluster.</li>
+<li><strong>Pods can reach any other Pod by IP</strong> — across nodes, without knowing which node they’re on.</li>
+<li><strong>Agents on a node</strong> (kubelet, kube-proxy) can reach all Pods on that node.</li>
+</ol>
+<p>This contract is intentionally underspecified — Kubernetes doesn’t implement it; it delegates to a <strong>CNI plugin</strong> (Flannel, Calico, Cilium, etc.). The plugin is responsible for:</p>
+<ul>
+<li>Assigning IP addresses to Pods from a per-node subnet (e.g., <code>10.244.1.0/24</code>)</li>
+<li>Programming routes&#x2F;tunnels so traffic between nodes is forwarded correctly</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">Node A (10.244.1.0/24)          Node B (10.244.2.0/24)</span><br><span class="line">┌─────────────────────────┐     ┌─────────────────────────┐</span><br><span class="line">│  Pod-A (10.244.1.5)     │     │  Pod-B (10.244.2.7)     │</span><br><span class="line">│    eth0 ─── veth ──┐    │     │    eth0 ─── veth ──┐    │</span><br><span class="line">│                   cbr0  │     │                   cbr0  │</span><br><span class="line">│                    │    │     │                    │    │</span><br><span class="line">│               eth0(node)│────▶│               eth0(node)│</span><br><span class="line">└─────────────────────────┘     └─────────────────────────┘</span><br><span class="line">        (VXLAN/BGP/host-gw route programmed by CNI)</span><br></pre></td></tr></table></figure>
+
+<p>Pod-to-Pod traffic stays at L3. The CNI plugin ensures that <code>10.244.1.5 → 10.244.2.7</code> is routable without NAT.</p>
+<hr>
+<h2 id="kube-proxy-Making-Services-Work"><a href="#kube-proxy-Making-Services-Work" class="headerlink" title="kube-proxy: Making Services Work"></a>kube-proxy: Making Services Work</h2><p>A <strong>Service</strong> is a stable virtual IP (ClusterIP) that load-balances to a dynamic set of Pod endpoints. Pods come and go; the Service IP stays fixed. kube-proxy bridges this gap by watching the API server for Service and Endpoints objects and translating the virtual ClusterIP into real Pod IPs.</p>
+<h3 id="iptables-Mode-default"><a href="#iptables-Mode-default" class="headerlink" title="iptables Mode (default)"></a>iptables Mode (default)</h3><p>For each Service, kube-proxy writes iptables rules in the <code>PREROUTING</code> and <code>OUTPUT</code> chains via <code>KUBE-SERVICES</code>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">PREROUTING → KUBE-SERVICES</span><br><span class="line">  → match dst=ClusterIP:port</span><br><span class="line">    → KUBE-SVC-XXXXX (per-service chain)</span><br><span class="line">      → KUBE-SEP-AAA (30% probability) → DNAT to Pod-1 IP:port</span><br><span class="line">      → KUBE-SEP-BBB (50% probability) → DNAT to Pod-2 IP:port</span><br><span class="line">      → KUBE-SEP-CCC (100% remainder)  → DNAT to Pod-3 IP:port</span><br></pre></td></tr></table></figure>
+
+<p>The kernel handles the DNAT transparently — the application sends to <code>ClusterIP:port</code>, and by the time the packet leaves the host’s network stack it’s already been rewritten to the chosen Pod’s IP. The return path is handled via conntrack (SNAT on the way back to restore the original source).</p>
+<p><strong>Limitation</strong>: iptables rule count grows O(n) with endpoint count. A service with 1000 endpoints means 1000+ rules evaluated sequentially. For large clusters this creates latency and rule management overhead.</p>
+<h3 id="IPVS-Mode"><a href="#IPVS-Mode" class="headerlink" title="IPVS Mode"></a>IPVS Mode</h3><p>IPVS (IP Virtual Server) is a kernel-level L4 load balancer designed for exactly this use case. kube-proxy in IPVS mode:</p>
+<ol>
+<li>Creates a virtual server (<code>ipvsadm -A</code>) for each ClusterIP:port</li>
+<li>Adds real servers (<code>ipvsadm -a</code>) for each endpoint</li>
+<li>Uses iptables only for hairpin&#x2F;masquerade rules, not for the core load-balancing</li>
+</ol>
+<p>IPVS uses hash tables — O(1) lookup regardless of endpoint count. It also supports richer algorithms: round-robin, least-connection, source-hash (for session affinity without iptables conntrack).</p>
+<h3 id="NodePort-and-LoadBalancer"><a href="#NodePort-and-LoadBalancer" class="headerlink" title="NodePort and LoadBalancer"></a>NodePort and LoadBalancer</h3><p>These extend the same mechanism:</p>
+<ul>
+<li><strong>NodePort</strong>: kube-proxy adds rules to accept traffic on a fixed port on <em>every</em> node’s <code>eth0</code>, then DNAT to the service’s endpoints (on any node).</li>
+<li><strong>LoadBalancer</strong>: Same as NodePort, but an external cloud LB (or MetalLB) distributes traffic to node:NodePort first.</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">External → Cloud LB → Node:30080 (any node)</span><br><span class="line">                          ↓ iptables/IPVS</span><br><span class="line">                       Pod endpoint (any node)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="CoreDNS-Service-Discovery"><a href="#CoreDNS-Service-Discovery" class="headerlink" title="CoreDNS: Service Discovery"></a>CoreDNS: Service Discovery</h2><p>kube-proxy deals with the <em>routing</em> half of the problem. But how does a client know the ClusterIP to begin with? That’s CoreDNS’s job.</p>
+<h3 id="How-CoreDNS-Serves-K8s-DNS"><a href="#How-CoreDNS-Serves-K8s-DNS" class="headerlink" title="How CoreDNS Serves K8s DNS"></a>How CoreDNS Serves K8s DNS</h3><p>CoreDNS runs as a Deployment in <code>kube-system</code> behind a Service (typically <code>10.96.0.10</code>). Every Pod’s <code>/etc/resolv.conf</code> is set by kubelet to point to this address:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">nameserver 10.96.0.10</span><br><span class="line">search default.svc.cluster.local svc.cluster.local cluster.local</span><br><span class="line">options ndots:5</span><br></pre></td></tr></table></figure>
+
+<p>When your app does <code>http://my-svc/api</code>, the resolver expands it:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">my-svc → my-svc.default.svc.cluster.local (search domain applied)</span><br></pre></td></tr></table></figure>
+
+<p>CoreDNS uses the <strong>kubernetes plugin</strong> to serve records from the API server (it watches Services and Endpoints via the API):</p>
+<table>
+<thead>
+<tr>
+<th>Query type</th>
+<th>Example query</th>
+<th>Response</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A (ClusterIP)</td>
+<td><code>my-svc.default.svc.cluster.local</code></td>
+<td>ClusterIP (e.g., <code>10.96.1.50</code>)</td>
+</tr>
+<tr>
+<td>SRV</td>
+<td><code>_http._tcp.my-svc.default.svc.cluster.local</code></td>
+<td>port + FQDN</td>
+</tr>
+<tr>
+<td>A (Headless)</td>
+<td><code>my-headless.default.svc.cluster.local</code></td>
+<td>All endpoint Pod IPs</td>
+</tr>
+<tr>
+<td>A (Pod)</td>
+<td><code>10-244-1-5.default.pod.cluster.local</code></td>
+<td><code>10.244.1.5</code></td>
+</tr>
+</tbody></table>
+<p><strong>Headless Services</strong> (<code>clusterIP: None</code>) are special — CoreDNS returns the actual Pod IPs rather than a ClusterIP, enabling client-side load balancing (used by StatefulSets for stable DNS names per Pod like <code>redis-0.redis.default.svc.cluster.local</code>).</p>
+<h3 id="KubeDNS-vs-CoreDNS"><a href="#KubeDNS-vs-CoreDNS" class="headerlink" title="KubeDNS vs CoreDNS"></a>KubeDNS vs CoreDNS</h3><p>KubeDNS (the original) was a three-container sidecar: <code>kubedns</code>, <code>dnsmasq</code> (cache), <code>sidecar</code> (health&#x2F;metrics). It had known memory leak issues and the dnsmasq cache layer introduced bugs. CoreDNS replaced it in K8s 1.11 (GA 1.13) as a single Go binary that’s plugin-driven, easier to configure, and more stable.</p>
+<h3 id="The-ndots-5-Problem"><a href="#The-ndots-5-Problem" class="headerlink" title="The ndots:5 Problem"></a>The <code>ndots:5</code> Problem</h3><p>The default <code>ndots:5</code> means: if a hostname has fewer than 5 dots, try all search domains before the bare name. For a query to <code>www.google.com</code> (3 dots), the resolver tries:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">www.google.com.default.svc.cluster.local  → NXDOMAIN</span><br><span class="line">www.google.com.svc.cluster.local          → NXDOMAIN</span><br><span class="line">www.google.com.cluster.local              → NXDOMAIN</span><br><span class="line">www.google.com.                           → answer</span><br></pre></td></tr></table></figure>
+
+<p>This causes 3 unnecessary DNS round-trips on every external lookup. Solutions:</p>
+<ul>
+<li>Use FQDNs with trailing dot in app config: <code>www.google.com.</code></li>
+<li>Set <code>dnsConfig.options[ndots: 2]</code> on latency-sensitive Pods</li>
+<li>Use NodeLocal DNSCache (a DaemonSet that caches locally to avoid crossing to CoreDNS every time)</li>
+</ul>
+<hr>
+<h2 id="Putting-It-Together-Full-Network-Flow"><a href="#Putting-It-Together-Full-Network-Flow" class="headerlink" title="Putting It Together: Full Network Flow"></a>Putting It Together: Full Network Flow</h2><p>Let’s trace a request from Pod-A calling <code>http://backend-svc:8080/api</code>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">Pod-A                    kube-proxy               CoreDNS</span><br><span class="line">  │                      (iptables/IPVS)            │</span><br><span class="line">  │─── DNS query ────────────────────────────────────▶│</span><br><span class="line">  │    &quot;backend-svc.default.svc.cluster.local&quot;        │</span><br><span class="line">  │◀── A record: 10.96.1.50 ─────────────────────────│</span><br><span class="line">  │</span><br><span class="line">  │─── TCP SYN dst=10.96.1.50:8080 ──▶ (kernel netfilter)</span><br><span class="line">  │                      │               DNAT: 10.96.1.50:8080</span><br><span class="line">  │                      │             → 10.244.2.7:8080 (Pod-B)</span><br><span class="line">  │</span><br><span class="line">  │─────────────────────────────────────────────────────▶ Pod-B</span><br><span class="line">  │                                          (via CNI routing)</span><br><span class="line">  │◀────────────────────────────────────────────────────  response</span><br><span class="line">  │                      │               un-DNAT via conntrack</span><br><span class="line">  │◀── response from 10.96.1.50:8080 (appears to come from ClusterIP)</span><br></pre></td></tr></table></figure>
+
+<p><strong>Key insight</strong>: CoreDNS gives you the ClusterIP. kube-proxy DNAT’s the ClusterIP to a real Pod. The CNI plugin routes the rewritten packet between nodes. The application sees none of this — it talks to a stable ClusterIP.</p>
+<hr>
+<h2 id="Istio-The-Service-Mesh-Layer"><a href="#Istio-The-Service-Mesh-Layer" class="headerlink" title="Istio: The Service Mesh Layer"></a>Istio: The Service Mesh Layer</h2><p>kube-proxy + CoreDNS provide basic connectivity and discovery. Istio adds <strong>observability, traffic management, and security</strong> — without changing application code — by intercepting traffic at the sidecar level.</p>
+<h3 id="Architecture"><a href="#Architecture" class="headerlink" title="Architecture"></a>Architecture</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  Istio Control Plane (istiod)                       │</span><br><span class="line">│  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │</span><br><span class="line">│  │  Pilot   │  │  Citadel │  │    Galley         │  │</span><br><span class="line">│  │(xDS API) │  │  (certs) │  │  (config valid.)  │  │</span><br><span class="line">│  └──────────┘  └──────────┘  └──────────────────┘  │</span><br><span class="line">└─────────────────────────────────────────────────────┘</span><br><span class="line">         ▲  xDS (LDS/RDS/CDS/EDS)  ▲</span><br><span class="line">         │                         │</span><br><span class="line">┌────────┴──────────┐   ┌──────────┴──────────┐</span><br><span class="line">│  Pod-A            │   │  Pod-B              │</span><br><span class="line">│  ┌─────────────┐  │   │  ┌─────────────┐   │</span><br><span class="line">│  │ App process │  │   │  │ App process │   │</span><br><span class="line">│  └──────┬──────┘  │   │  └──────┬──────┘   │</span><br><span class="line">│    iptables redir │   │    iptables redir   │</span><br><span class="line">│  ┌──────▼──────┐  │   │  ┌──────▼──────┐   │</span><br><span class="line">│  │Envoy sidecar│  │   │  │Envoy sidecar│   │</span><br><span class="line">│  └─────────────┘  │   │  └─────────────┘   │</span><br><span class="line">└───────────────────┘   └────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<h3 id="Traffic-Interception-via-iptables"><a href="#Traffic-Interception-via-iptables" class="headerlink" title="Traffic Interception via iptables"></a>Traffic Interception via iptables</h3><p>When Istio injects a sidecar, an init container (<code>istio-init</code>) runs first and adds iptables rules in the Pod’s network namespace:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Redirect all outbound traffic to Envoy (port 15001)</span></span><br><span class="line">iptables -t nat -A OUTPUT -p tcp -j REDIRECT --to-port 15001</span><br><span class="line"></span><br><span class="line"><span class="comment"># Redirect all inbound traffic to Envoy (port 15006)</span></span><br><span class="line">iptables -t nat -A PREROUTING -p tcp -j REDIRECT --to-port 15006</span><br><span class="line"></span><br><span class="line"><span class="comment"># Except: Envoy&#x27;s own traffic (uid 1337), DNS (port 53)</span></span><br><span class="line">iptables -t nat -A OUTPUT -m owner --uid-owner 1337 -j RETURN</span><br></pre></td></tr></table></figure>
+
+<p>The application has no idea it’s talking through Envoy. Envoy runs as user 1337, which is excluded from the redirect rules — otherwise it would create an infinite loop.</p>
+<h3 id="What-Envoy-Does"><a href="#What-Envoy-Does" class="headerlink" title="What Envoy Does"></a>What Envoy Does</h3><p>Envoy receives the original destination address via <code>SO_ORIGINAL_DST</code> (the kernel preserves it through REDIRECT). It then:</p>
+<ol>
+<li><strong>Outbound</strong>: Looks up the destination in its config (received from istiod via xDS), applies load balancing, circuit breaking, retries, mutual TLS, and forwards to the actual upstream.</li>
+<li><strong>Inbound</strong>: Validates mTLS certs, applies rate limits&#x2F;authz policies, then forwards to the local app.</li>
+</ol>
+<p>The xDS protocol is how istiod pushes config to Envoy:</p>
+<ul>
+<li><strong>LDS</strong> (Listener Discovery Service): “listen on port 15001 for outbound”</li>
+<li><strong>RDS</strong> (Route Discovery Service): “route <code>/api</code> to cluster <code>backend-svc</code>“</li>
+<li><strong>CDS</strong> (Cluster Discovery Service): “cluster <code>backend-svc</code> has these endpoints”</li>
+<li><strong>EDS</strong> (Endpoint Discovery Service): “endpoints are <code>10.244.1.5:8080</code>, <code>10.244.2.7:8080</code>“</li>
+</ul>
+<h3 id="Istio-kube-proxy-Do-They-Conflict"><a href="#Istio-kube-proxy-Do-They-Conflict" class="headerlink" title="Istio + kube-proxy: Do They Conflict?"></a>Istio + kube-proxy: Do They Conflict?</h3><p><strong>Istio bypasses kube-proxy for service routing.</strong> Here’s why:</p>
+<ul>
+<li>kube-proxy DNAT’s ClusterIP → Pod IP at the <em>node</em> level (before the packet enters the Pod)</li>
+<li>Istio’s Envoy intercepts traffic <em>inside</em> the Pod’s network namespace</li>
+</ul>
+<p>By the time Envoy sees the traffic, kube-proxy has already rewritten the destination if it matched a Service IP. <strong>But</strong> Istio’s EDS gives Envoy the actual endpoint IPs directly — so Envoy can connect directly to Pod IPs, bypassing kube-proxy’s load balancing entirely.</p>
+<p>In practice:</p>
+<ul>
+<li>kube-proxy is still needed for non-sidecar traffic (DaemonSets without injection, system components)</li>
+<li>Istio replaces kube-proxy’s load balancing <em>for meshed traffic</em></li>
+<li>Cilium + Istio can be configured to disable kube-proxy entirely (eBPF handles the rest)</li>
+</ul>
+<h3 id="Full-Flow-with-Istio"><a href="#Full-Flow-with-Istio" class="headerlink" title="Full Flow with Istio"></a>Full Flow with Istio</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">Pod-A app                  Pod-A Envoy             istiod</span><br><span class="line">  │                             │                    │</span><br><span class="line">  │─ connect to ClusterIP ──────▶ (intercept)        │</span><br><span class="line">  │                             │─ xDS lookup ───────▶</span><br><span class="line">  │                             │◀ endpoints ─────────</span><br><span class="line">  │                             │</span><br><span class="line">  │                             │─── mTLS handshake ────────▶ Pod-B Envoy</span><br><span class="line">  │                             │    (cert from istiod/Citadel)    │</span><br><span class="line">  │                             │─── request (encrypted) ─────────▶│</span><br><span class="line">  │                             │                             │─▶ Pod-B app</span><br><span class="line">  │                             │◀── response (encrypted) ────│</span><br><span class="line">  │◀── response ────────────────│</span><br></pre></td></tr></table></figure>
+
+<p>CoreDNS still provides the initial ClusterIP resolution. But Envoy uses the Pod IPs from EDS rather than the ClusterIP for the actual TCP connection.</p>
+<hr>
+<h2 id="Component-Summary"><a href="#Component-Summary" class="headerlink" title="Component Summary"></a>Component Summary</h2><table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Layer</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>CNI Plugin</strong></td>
+<td>L3 (IP routing)</td>
+<td>Pod IP allocation, cross-node routing</td>
+</tr>
+<tr>
+<td><strong>kube-proxy</strong></td>
+<td>L4 (iptables&#x2F;IPVS)</td>
+<td>ClusterIP→Pod DNAT, NodePort, LoadBalancer</td>
+</tr>
+<tr>
+<td><strong>CoreDNS</strong></td>
+<td>DNS (L7)</td>
+<td>Service name → ClusterIP resolution</td>
+</tr>
+<tr>
+<td><strong>Istio&#x2F;Envoy</strong></td>
+<td>L7 (sidecar proxy)</td>
+<td>mTLS, observability, traffic management, direct endpoint routing</td>
+</tr>
+</tbody></table>
+<p>They are designed to compose — you can run all four simultaneously. The typical layering:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">App request</span><br><span class="line">  → CoreDNS (name → IP)</span><br><span class="line">  → [Envoy outbound intercept if Istio present]</span><br><span class="line">  → [kube-proxy DNAT if no Istio, or for non-meshed traffic]</span><br><span class="line">  → CNI routing (cross-node packet delivery)</span><br><span class="line">  → [Envoy inbound intercept if Istio present]</span><br><span class="line">  → Destination app</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Common-Troubleshooting-Patterns"><a href="#Common-Troubleshooting-Patterns" class="headerlink" title="Common Troubleshooting Patterns"></a>Common Troubleshooting Patterns</h2><p><strong>DNS not resolving inside Pod</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">kubectl <span class="built_in">exec</span> -it &lt;pod&gt; -- nslookup kubernetes.default</span><br><span class="line"><span class="comment"># Check resolv.conf</span></span><br><span class="line">kubectl <span class="built_in">exec</span> -it &lt;pod&gt; -- <span class="built_in">cat</span> /etc/resolv.conf</span><br><span class="line"><span class="comment"># Check CoreDNS pods</span></span><br><span class="line">kubectl -n kube-system get pods -l k8s-app=kube-dns</span><br><span class="line">kubectl -n kube-system logs -l k8s-app=kube-dns</span><br></pre></td></tr></table></figure>
+
+<p><strong>Service ClusterIP unreachable</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Check if kube-proxy is running on the node</span></span><br><span class="line">kubectl -n kube-system get pods -l k8s-app=kube-proxy</span><br><span class="line"><span class="comment"># Verify iptables rules</span></span><br><span class="line">iptables -t nat -L KUBE-SERVICES | grep &lt;service-ip&gt;</span><br><span class="line"><span class="comment"># Check endpoints exist</span></span><br><span class="line">kubectl get endpoints &lt;svc-name&gt;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Istio traffic not flowing</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Check sidecar injection</span></span><br><span class="line">kubectl get pod &lt;pod&gt; -o jsonpath=<span class="string">&#x27;&#123;.spec.containers[*].name&#125;&#x27;</span></span><br><span class="line"><span class="comment"># Check Envoy config</span></span><br><span class="line">istioctl proxy-config clusters &lt;pod&gt;</span><br><span class="line">istioctl proxy-config listeners &lt;pod&gt;</span><br><span class="line"><span class="comment"># Check mTLS mode</span></span><br><span class="line">istioctl authn tls-check &lt;pod&gt; &lt;service&gt;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Summary"><a href="#Summary" class="headerlink" title="Summary"></a>Summary</h2><p>Kubernetes networking is a layered system where each component has a clear, narrow responsibility:</p>
+<ul>
+<li><strong>CNI</strong> ensures every Pod is routable by IP across nodes — the physical fabric.</li>
+<li><strong>kube-proxy</strong> virtualizes Services as stable IPs via kernel DNAT — the L4 load balancer.</li>
+<li><strong>CoreDNS</strong> translates human-readable names to ClusterIPs — the directory service.</li>
+<li><strong>Istio&#x2F;Envoy</strong> adds L7 intelligence, security, and observability by intercepting traffic inside each Pod — the application-aware overlay.</li>
+</ul>
+<p>Understanding where each component operates and how they hand off to each other makes debugging network issues far less mysterious. The key insight: a single Pod-to-Service call crosses all four layers, each doing its part invisibly.</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Networking/" rel="tag"># Networking</a>
+              <a href="/tags/Istio/" rel="tag"># Istio</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/08/2026-07-08-virtlet-kata-kubevirt-comparison/" rel="prev" title="Virtlet、Kata Containers 与 KubeVirt 核心原理对比">
+                  <i class="fa fa-angle-left"></i> Virtlet、Kata Containers 与 KubeVirt 核心原理对比
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdn.bootcdn.net/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  <script src="https://cdn.bootcdn.net/ajax/libs/hexo-generator-searchdb/1.4.1/search.js" integrity="sha256-1kfA5uHPf65M5cphT2dvymhkuyHPQp5A53EGZOnOLmc=" crossorigin="anonymous"></script>
+<script src="/js/third-party/search/local-search.js"></script>
+
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdn.bootcdn.net/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
