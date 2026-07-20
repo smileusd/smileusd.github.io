@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha256-wiz7ZSCn/btzhjKDQBms9Hx4sSeUYsDrTLg7roPstac=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"smileusd.github.io","root":"/","images":"/images","scheme":"Muse","darkmode":false,"version":"8.19.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"},"path":"/search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}}</script><script src="/js/config.js"></script>
+
+    <meta name="description" content="Setting up a Kubernetes cluster on AWS involves far more than just clicking “Create Cluster” in the EKS console. IAM roles, VPC topology, security groups, node groups, and storage classes all need to">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AWS Configuration for Setting Up a Kubernetes Cluster - EKS Deep Dive">
+<meta property="og:url" content="https://smileusd.github.io/2026/07/20/2026-07-20-aws-kubernetes-cluster-setup/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Setting up a Kubernetes cluster on AWS involves far more than just clicking “Create Cluster” in the EKS console. IAM roles, VPC topology, security groups, node groups, and storage classes all need to">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-07-20T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-20T06:49:07.088Z">
+<meta property="article:author" content="smileusd">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Cloud">
+<meta property="article:tag" content="AWS">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://smileusd.github.io/2026/07/20/2026-07-20-aws-kubernetes-cluster-setup/">
+
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"https://smileusd.github.io/2026/07/20/2026-07-20-aws-kubernetes-cluster-setup/","path":"2026/07/20/2026-07-20-aws-kubernetes-cluster-setup/","title":"AWS Configuration for Setting Up a Kubernetes Cluster - EKS Deep Dive"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>AWS Configuration for Setting Up a Kubernetes Cluster - EKS Deep Dive | Hexo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Hexo</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup"><div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close" role="button">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Overview-What-EKS-Manages-vs-What-You-Manage"><span class="nav-number">1.</span> <span class="nav-text">Overview: What EKS Manages vs What You Manage</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-VPC-Design"><span class="nav-number">2.</span> <span class="nav-text">1. VPC Design</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Subnet-Layout"><span class="nav-number">2.1.</span> <span class="nav-text">Subnet Layout</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#VPC-CNI-IP-Exhaustion"><span class="nav-number">2.2.</span> <span class="nav-text">VPC CNI IP Exhaustion</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-IAM-Roles"><span class="nav-number">3.</span> <span class="nav-text">2. IAM Roles</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2a-EKS-Cluster-Role-Control-Plane"><span class="nav-number">3.1.</span> <span class="nav-text">2a. EKS Cluster Role (Control Plane)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2b-Node-Group-Role-EC2-Worker-Nodes"><span class="nav-number">3.2.</span> <span class="nav-text">2b. Node Group Role (EC2 Worker Nodes)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2c-IRSA-%E2%80%94-IAM-Roles-for-Service-Accounts-Pod-Level-Permissions"><span class="nav-number">3.3.</span> <span class="nav-text">2c. IRSA — IAM Roles for Service Accounts (Pod-Level Permissions)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-EKS-Cluster-Configuration"><span class="nav-number">4.</span> <span class="nav-text">3. EKS Cluster Configuration</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Cluster-Endpoint-Access-Modes"><span class="nav-number">4.1.</span> <span class="nav-text">Cluster Endpoint Access Modes</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-Security-Groups"><span class="nav-number">5.</span> <span class="nav-text">4. Security Groups</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Managed-Node-Groups"><span class="nav-number">6.</span> <span class="nav-text">5. Managed Node Groups</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Launch-Template-for-Custom-Configuration"><span class="nav-number">6.1.</span> <span class="nav-text">Launch Template for Custom Configuration</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-EKS-Add-ons"><span class="nav-number">7.</span> <span class="nav-text">6. EKS Add-ons</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#EBS-CSI-Driver-IRSA"><span class="nav-number">7.1.</span> <span class="nav-text">EBS CSI Driver IRSA</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-StorageClasses"><span class="nav-number">8.</span> <span class="nav-text">7. StorageClasses</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-aws-auth-ConfigMap-%E2%80%94-Node-and-User-Access"><span class="nav-number">9.</span> <span class="nav-text">8. aws-auth ConfigMap — Node and User Access</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-Cluster-Autoscaler"><span class="nav-number">10.</span> <span class="nav-text">9. Cluster Autoscaler</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-AWS-Load-Balancer-Controller"><span class="nav-number">11.</span> <span class="nav-text">10. AWS Load Balancer Controller</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Common-Gotchas"><span class="nav-number">12.</span> <span class="nav-text">Common Gotchas</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Minimal-Quickstart-Checklist"><span class="nav-number">13.</span> <span class="nav-text">Minimal Quickstart Checklist</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">smileusd</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">133</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">26</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://smileusd.github.io/2026/07/20/2026-07-20-aws-kubernetes-cluster-setup/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="smileusd">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="AWS Configuration for Setting Up a Kubernetes Cluster - EKS Deep Dive | Hexo">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AWS Configuration for Setting Up a Kubernetes Cluster - EKS Deep Dive
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2026-07-20 10:00:00 / Modified: 14:49:07" itemprop="dateCreated datePublished" datetime="2026-07-20T10:00:00+08:00">2026-07-20</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">In</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Cloud/" itemprop="url" rel="index"><span itemprop="name">Cloud</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>Setting up a Kubernetes cluster on AWS involves far more than just clicking “Create Cluster” in the EKS console. IAM roles, VPC topology, security groups, node groups, and storage classes all need to be wired together correctly. This post walks through every AWS-specific configuration decision you’ll encounter when building a production-grade EKS cluster.</p>
+<span id="more"></span>
+
+<h2 id="Overview-What-EKS-Manages-vs-What-You-Manage"><a href="#Overview-What-EKS-Manages-vs-What-You-Manage" class="headerlink" title="Overview: What EKS Manages vs What You Manage"></a>Overview: What EKS Manages vs What You Manage</h2><p>EKS is a managed control plane. AWS runs the API server, etcd, scheduler, and controller manager across multiple AZs. You are responsible for:</p>
+<ul>
+<li><strong>VPC and networking</strong> — subnets, route tables, NAT gateways, security groups</li>
+<li><strong>Node groups</strong> — EC2 instances (managed or self-managed) that run your workloads</li>
+<li><strong>IAM</strong> — roles for the control plane, nodes, and pods (IRSA)</li>
+<li><strong>Add-ons</strong> — CoreDNS, kube-proxy, VPC CNI, EBS&#x2F;EFS CSI drivers</li>
+<li><strong>Storage</strong> — StorageClasses backed by EBS or EFS</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────────────┐</span><br><span class="line">│  AWS Managed (EKS Control Plane)                        │</span><br><span class="line">│  ┌────────────┐  ┌──────────┐  ┌──────────────────────┐│</span><br><span class="line">│  │ API Server  │  │  etcd    │  │ Controller Manager   ││</span><br><span class="line">│  │ (HA, 3 AZ) │  │ (HA, 3AZ)│  │ Scheduler            ││</span><br><span class="line">│  └────────────┘  └──────────┘  └──────────────────────┘│</span><br><span class="line">└─────────────────────────────────────────────────────────┘</span><br><span class="line">         │ kubectl / kubeconfig</span><br><span class="line">┌────────┴────────────────────────────────────────────────┐</span><br><span class="line">│  Your VPC (Customer Managed)                            │</span><br><span class="line">│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │</span><br><span class="line">│  │  Node Group │  │  Node Group │  │  Fargate     │     │</span><br><span class="line">│  │  (us-east-1a)│  │ (us-east-1b)│  │  Profile    │     │</span><br><span class="line">│  └─────────────┘  └─────────────┘  └─────────────┘     │</span><br><span class="line">└─────────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="1-VPC-Design"><a href="#1-VPC-Design" class="headerlink" title="1. VPC Design"></a>1. VPC Design</h2><p>The VPC is the most critical foundational decision — it’s hard to change later.</p>
+<h3 id="Subnet-Layout"><a href="#Subnet-Layout" class="headerlink" title="Subnet Layout"></a>Subnet Layout</h3><p>EKS requires at minimum two subnets in different AZs. The recommended layout for production:</p>
+<table>
+<thead>
+<tr>
+<th>Subnet Type</th>
+<th>Purpose</th>
+<th>Typical CIDR</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Public</strong></td>
+<td>Load balancers, NAT gateway EIPs</td>
+<td><code>/24</code> per AZ</td>
+</tr>
+<tr>
+<td><strong>Private</strong></td>
+<td>Worker nodes, pods</td>
+<td><code>/19</code> or <code>/18</code> per AZ</td>
+</tr>
+<tr>
+<td><strong>Intra</strong> (optional)</td>
+<td>RDS, ElastiCache (no internet)</td>
+<td><code>/24</code> per AZ</td>
+</tr>
+</tbody></table>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"># terraform/vpc.tf</span><br><span class="line">module &quot;vpc&quot; &#123;</span><br><span class="line">  source  = &quot;terraform-aws-modules/vpc/aws&quot;</span><br><span class="line">  version = &quot;~&gt; 5.0&quot;</span><br><span class="line"></span><br><span class="line">  name = &quot;my-eks-vpc&quot;</span><br><span class="line">  cidr = &quot;10.0.0.0/16&quot;</span><br><span class="line"></span><br><span class="line">  azs             = [&quot;us-east-1a&quot;, &quot;us-east-1b&quot;, &quot;us-east-1c&quot;]</span><br><span class="line">  private_subnets = [&quot;10.0.1.0/19&quot;, &quot;10.0.33.0/19&quot;, &quot;10.0.65.0/19&quot;]</span><br><span class="line">  public_subnets  = [&quot;10.0.100.0/24&quot;, &quot;10.0.101.0/24&quot;, &quot;10.0.102.0/24&quot;]</span><br><span class="line"></span><br><span class="line">  enable_nat_gateway     = true</span><br><span class="line">  single_nat_gateway     = false   # true = cheaper, false = HA</span><br><span class="line">  one_nat_gateway_per_az = true</span><br><span class="line"></span><br><span class="line">  # CRITICAL: These tags are required for EKS to discover subnets</span><br><span class="line">  # and for the AWS Load Balancer Controller to provision ALBs/NLBs</span><br><span class="line">  public_subnet_tags = &#123;</span><br><span class="line">    &quot;kubernetes.io/cluster/my-cluster&quot; = &quot;shared&quot;</span><br><span class="line">    &quot;kubernetes.io/role/elb&quot;           = &quot;1&quot;</span><br><span class="line">  &#125;</span><br><span class="line">  private_subnet_tags = &#123;</span><br><span class="line">    &quot;kubernetes.io/cluster/my-cluster&quot; = &quot;shared&quot;</span><br><span class="line">    &quot;kubernetes.io/role/internal-elb&quot;  = &quot;1&quot;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Why subnet tags matter:</strong> The AWS Load Balancer Controller reads these tags to know which subnets to place internet-facing vs internal load balancers in. Without them, <code>Service: LoadBalancer</code> and <code>Ingress</code> resources will fail to provision.</p>
+<h3 id="VPC-CNI-IP-Exhaustion"><a href="#VPC-CNI-IP-Exhaustion" class="headerlink" title="VPC CNI IP Exhaustion"></a>VPC CNI IP Exhaustion</h3><p>The default AWS VPC CNI assigns each Pod a real VPC IP from your subnet (not an overlay). A <code>m5.large</code> supports up to 29 pods (3 ENIs × 10 IPs each, minus 1 primary per ENI). Plan your subnet sizes accordingly:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Nodes × max-pods-per-node &lt; available IPs in private subnets</span><br></pre></td></tr></table></figure>
+
+<p>For large clusters, enable <strong>prefix delegation</strong> to get <code>/28</code> prefixes per ENI slot (16× more IPs):</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">kubectl <span class="built_in">set</span> <span class="built_in">env</span> daemonset aws-node -n kube-system ENABLE_PREFIX_DELEGATION=<span class="literal">true</span></span><br><span class="line">kubectl <span class="built_in">set</span> <span class="built_in">env</span> daemonset aws-node -n kube-system WARM_PREFIX_TARGET=1</span><br></pre></td></tr></table></figure>
+
+<p>Or use a <strong>custom networking</strong> mode where pods use a secondary CIDR (e.g., <code>&lt;IP_ADDRESS&gt;/10</code>) entirely separate from node IPs, avoiding subnet exhaustion.</p>
+<hr>
+<h2 id="2-IAM-Roles"><a href="#2-IAM-Roles" class="headerlink" title="2. IAM Roles"></a>2. IAM Roles</h2><p>EKS requires three distinct IAM role types. Mixing them up is the #1 source of permission errors.</p>
+<h3 id="2a-EKS-Cluster-Role-Control-Plane"><a href="#2a-EKS-Cluster-Role-Control-Plane" class="headerlink" title="2a. EKS Cluster Role (Control Plane)"></a>2a. EKS Cluster Role (Control Plane)</h3><p>This role is assumed by the EKS service itself to call EC2, ELB, and CloudWatch APIs on your behalf.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">resource &quot;aws_iam_role&quot; &quot;eks_cluster_role&quot; &#123;</span><br><span class="line">  name = &quot;eks-cluster-role&quot;</span><br><span class="line"></span><br><span class="line">  assume_role_policy = jsonencode(&#123;</span><br><span class="line">    Version = &quot;2012-10-17&quot;</span><br><span class="line">    Statement = [&#123;</span><br><span class="line">      Action    = &quot;sts:AssumeRole&quot;</span><br><span class="line">      Effect    = &quot;Allow&quot;</span><br><span class="line">      Principal = &#123; Service = &quot;eks.amazonaws.com&quot; &#125;</span><br><span class="line">    &#125;]</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">resource &quot;aws_iam_role_policy_attachment&quot; &quot;eks_cluster_policy&quot; &#123;</span><br><span class="line">  role       = aws_iam_role.eks_cluster_role.name</span><br><span class="line">  policy_arn = &quot;arn:aws:iam::aws:policy/AmazonEKSClusterPolicy&quot;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2b-Node-Group-Role-EC2-Worker-Nodes"><a href="#2b-Node-Group-Role-EC2-Worker-Nodes" class="headerlink" title="2b. Node Group Role (EC2 Worker Nodes)"></a>2b. Node Group Role (EC2 Worker Nodes)</h3><p>Every EC2 node needs an instance profile with permissions to join the cluster, pull ECR images, and report metrics:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">resource &quot;aws_iam_role&quot; &quot;eks_node_role&quot; &#123;</span><br><span class="line">  name = &quot;eks-node-role&quot;</span><br><span class="line"></span><br><span class="line">  assume_role_policy = jsonencode(&#123;</span><br><span class="line">    Version = &quot;2012-10-17&quot;</span><br><span class="line">    Statement = [&#123;</span><br><span class="line">      Action    = &quot;sts:AssumeRole&quot;</span><br><span class="line">      Effect    = &quot;Allow&quot;</span><br><span class="line">      Principal = &#123; Service = &quot;ec2.amazonaws.com&quot; &#125;</span><br><span class="line">    &#125;]</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"># Required managed policies for nodes</span><br><span class="line">resource &quot;aws_iam_role_policy_attachment&quot; &quot;node_policies&quot; &#123;</span><br><span class="line">  for_each = toset([</span><br><span class="line">    &quot;arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy&quot;,</span><br><span class="line">    &quot;arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy&quot;,     # VPC CNI</span><br><span class="line">    &quot;arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly&quot;,</span><br><span class="line">    &quot;arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy&quot;, # optional: metrics</span><br><span class="line">  ])</span><br><span class="line">  role       = aws_iam_role.eks_node_role.name</span><br><span class="line">  policy_arn = each.value</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2c-IRSA-—-IAM-Roles-for-Service-Accounts-Pod-Level-Permissions"><a href="#2c-IRSA-—-IAM-Roles-for-Service-Accounts-Pod-Level-Permissions" class="headerlink" title="2c. IRSA — IAM Roles for Service Accounts (Pod-Level Permissions)"></a>2c. IRSA — IAM Roles for Service Accounts (Pod-Level Permissions)</h3><p><strong>Never</strong> give your node role broad S3&#x2F;DynamoDB&#x2F;Secrets access. Instead, use IRSA to bind an IAM role directly to a Kubernetes ServiceAccount. Pods using that ServiceAccount get temporary credentials via the OIDC token.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"># Step 1: Create OIDC provider for the cluster</span><br><span class="line">data &quot;tls_certificate&quot; &quot;eks&quot; &#123;</span><br><span class="line">  url = aws_eks_cluster.main.identity[0].oidc[0].issuer</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">resource &quot;aws_iam_openid_connect_provider&quot; &quot;eks&quot; &#123;</span><br><span class="line">  client_id_list  = [&quot;sts.amazonaws.com&quot;]</span><br><span class="line">  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]</span><br><span class="line">  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"># Step 2: Create IAM role with OIDC trust policy</span><br><span class="line">locals &#123;</span><br><span class="line">  oidc_provider = replace(aws_iam_openid_connect_provider.eks.url, &quot;https://&quot;, &quot;&quot;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">resource &quot;aws_iam_role&quot; &quot;s3_reader&quot; &#123;</span><br><span class="line">  name = &quot;eks-s3-reader&quot;</span><br><span class="line"></span><br><span class="line">  assume_role_policy = jsonencode(&#123;</span><br><span class="line">    Version = &quot;2012-10-17&quot;</span><br><span class="line">    Statement = [&#123;</span><br><span class="line">      Effect    = &quot;Allow&quot;</span><br><span class="line">      Action    = &quot;sts:AssumeRoleWithWebIdentity&quot;</span><br><span class="line">      Principal = &#123; Federated = aws_iam_openid_connect_provider.eks.arn &#125;</span><br><span class="line">      Condition = &#123;</span><br><span class="line">        StringEquals = &#123;</span><br><span class="line">          &quot;$&#123;local.oidc_provider&#125;:aud&quot; = &quot;sts.amazonaws.com&quot;</span><br><span class="line">          &quot;$&#123;local.oidc_provider&#125;:sub&quot; = &quot;system:serviceaccount:my-namespace:my-service-account&quot;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;]</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"># Step 3: Annotate the Kubernetes ServiceAccount</span><br><span class="line"># kubectl annotate serviceaccount my-service-account \</span><br><span class="line">#   -n my-namespace \</span><br><span class="line">#   eks.amazonaws.com/role-arn=arn:aws:iam::ACCOUNT:role/eks-s3-reader</span><br></pre></td></tr></table></figure>
+
+<p>The annotation tells the EKS pod identity webhook to inject <code>AWS_ROLE_ARN</code> and <code>AWS_WEB_IDENTITY_TOKEN_FILE</code> env vars into matching pods, which the AWS SDK picks up automatically.</p>
+<hr>
+<h2 id="3-EKS-Cluster-Configuration"><a href="#3-EKS-Cluster-Configuration" class="headerlink" title="3. EKS Cluster Configuration"></a>3. EKS Cluster Configuration</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">resource &quot;aws_eks_cluster&quot; &quot;main&quot; &#123;</span><br><span class="line">  name     = &quot;my-cluster&quot;</span><br><span class="line">  role_arn = aws_iam_role.eks_cluster_role.arn</span><br><span class="line">  version  = &quot;1.30&quot;</span><br><span class="line"></span><br><span class="line">  vpc_config &#123;</span><br><span class="line">    subnet_ids              = module.vpc.private_subnets</span><br><span class="line">    endpoint_private_access = true</span><br><span class="line">    endpoint_public_access  = true   # set false for fully private clusters</span><br><span class="line">    public_access_cidrs     = [&quot;YOUR_OFFICE_IP/32&quot;]  # restrict public endpoint</span><br><span class="line">    security_group_ids      = [aws_security_group.cluster_additional.id]</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  # Enables envelope encryption of K8s Secrets with KMS</span><br><span class="line">  encryption_config &#123;</span><br><span class="line">    provider &#123;</span><br><span class="line">      key_arn = aws_kms_key.eks.arn</span><br><span class="line">    &#125;</span><br><span class="line">    resources = [&quot;secrets&quot;]</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  # Ship control plane logs to CloudWatch</span><br><span class="line">  enabled_cluster_log_types = [&quot;api&quot;, &quot;audit&quot;, &quot;authenticator&quot;, &quot;controllerManager&quot;, &quot;scheduler&quot;]</span><br><span class="line"></span><br><span class="line">  depends_on = [aws_iam_role_policy_attachment.eks_cluster_policy]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Cluster-Endpoint-Access-Modes"><a href="#Cluster-Endpoint-Access-Modes" class="headerlink" title="Cluster Endpoint Access Modes"></a>Cluster Endpoint Access Modes</h3><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th><code>endpoint_public_access</code></th>
+<th><code>endpoint_private_access</code></th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Public only</td>
+<td><code>true</code></td>
+<td><code>false</code></td>
+<td>Dev&#x2F;test, simple setup</td>
+</tr>
+<tr>
+<td>Public + Private</td>
+<td><code>true</code></td>
+<td><code>true</code></td>
+<td>Most production clusters</td>
+</tr>
+<tr>
+<td>Private only</td>
+<td><code>false</code></td>
+<td><code>true</code></td>
+<td>Air-gapped, high security</td>
+</tr>
+</tbody></table>
+<p>For private-only, kubectl traffic must originate from within the VPC (VPN, bastion, or AWS SSM).</p>
+<hr>
+<h2 id="4-Security-Groups"><a href="#4-Security-Groups" class="headerlink" title="4. Security Groups"></a>4. Security Groups</h2><p>EKS creates a cluster security group automatically, but you often need additional rules.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"># Additional SG attached to the cluster (control plane)</span><br><span class="line">resource &quot;aws_security_group&quot; &quot;cluster_additional&quot; &#123;</span><br><span class="line">  name   = &quot;eks-cluster-additional&quot;</span><br><span class="line">  vpc_id = module.vpc.vpc_id</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"># Node security group</span><br><span class="line">resource &quot;aws_security_group&quot; &quot;nodes&quot; &#123;</span><br><span class="line">  name   = &quot;eks-nodes&quot;</span><br><span class="line">  vpc_id = module.vpc.vpc_id</span><br><span class="line"></span><br><span class="line">  # Nodes communicate with each other (all ports)</span><br><span class="line">  ingress &#123;</span><br><span class="line">    from_port = 0</span><br><span class="line">    to_port   = 0</span><br><span class="line">    protocol  = &quot;-1&quot;</span><br><span class="line">    self      = true</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  # Control plane → nodes (webhook calls, metrics)</span><br><span class="line">  ingress &#123;</span><br><span class="line">    from_port       = 443</span><br><span class="line">    to_port         = 443</span><br><span class="line">    protocol        = &quot;tcp&quot;</span><br><span class="line">    security_groups = [aws_eks_cluster.main.vpc_config[0].cluster_security_group_id]</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  ingress &#123;</span><br><span class="line">    from_port       = 1025</span><br><span class="line">    to_port         = 65535</span><br><span class="line">    protocol        = &quot;tcp&quot;</span><br><span class="line">    security_groups = [aws_eks_cluster.main.vpc_config[0].cluster_security_group_id]</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  # All outbound</span><br><span class="line">  egress &#123;</span><br><span class="line">    from_port   = 0</span><br><span class="line">    to_port     = 0</span><br><span class="line">    protocol    = &quot;-1&quot;</span><br><span class="line">    cidr_blocks = [&quot;0.0.0.0/0&quot;]</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Critical ports to know:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Direction</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>443</td>
+<td>Control plane → nodes</td>
+<td>Webhook admission, exec&#x2F;logs</td>
+</tr>
+<tr>
+<td>10250</td>
+<td>Control plane → nodes</td>
+<td>Kubelet API</td>
+</tr>
+<tr>
+<td>4443</td>
+<td>Control plane → nodes</td>
+<td>Metrics server</td>
+</tr>
+<tr>
+<td>53 (UDP&#x2F;TCP)</td>
+<td>Nodes → nodes</td>
+<td>CoreDNS</td>
+</tr>
+<tr>
+<td>All</td>
+<td>Node ↔ node</td>
+<td>Pod-to-Pod (VPC CNI, no overlay)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="5-Managed-Node-Groups"><a href="#5-Managed-Node-Groups" class="headerlink" title="5. Managed Node Groups"></a>5. Managed Node Groups</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">resource &quot;aws_eks_node_group&quot; &quot;main&quot; &#123;</span><br><span class="line">  cluster_name    = aws_eks_cluster.main.name</span><br><span class="line">  node_group_name = &quot;main-ng&quot;</span><br><span class="line">  node_role_arn   = aws_iam_role.eks_node_role.arn</span><br><span class="line">  subnet_ids      = module.vpc.private_subnets</span><br><span class="line"></span><br><span class="line">  instance_types = [&quot;m5.xlarge&quot;]   # or [&quot;m5.xlarge&quot;, &quot;m5a.xlarge&quot;] for flexibility</span><br><span class="line">  capacity_type  = &quot;ON_DEMAND&quot;     # or &quot;SPOT&quot; for cost savings (non-critical)</span><br><span class="line">  ami_type       = &quot;AL2_x86_64&quot;   # Amazon Linux 2; or AL2023_x86_64_STANDARD</span><br><span class="line"></span><br><span class="line">  scaling_config &#123;</span><br><span class="line">    min_size     = 2</span><br><span class="line">    max_size     = 10</span><br><span class="line">    desired_size = 3</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  update_config &#123;</span><br><span class="line">    max_unavailable_percentage = 33  # rolling update: at most 1/3 nodes down</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  # Use launch template for custom AMI, user data, or extra EBS volumes</span><br><span class="line">  launch_template &#123;</span><br><span class="line">    id      = aws_launch_template.eks_node.id</span><br><span class="line">    version = aws_launch_template.eks_node.latest_version</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  labels = &#123;</span><br><span class="line">    role = &quot;general&quot;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  taint &#123;</span><br><span class="line">    key    = &quot;dedicated&quot;</span><br><span class="line">    value  = &quot;gpu&quot;</span><br><span class="line">    effect = &quot;NO_SCHEDULE&quot;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  depends_on = [aws_iam_role_policy_attachment.node_policies]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Launch-Template-for-Custom-Configuration"><a href="#Launch-Template-for-Custom-Configuration" class="headerlink" title="Launch Template for Custom Configuration"></a>Launch Template for Custom Configuration</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">resource &quot;aws_launch_template&quot; &quot;eks_node&quot; &#123;</span><br><span class="line">  name_prefix   = &quot;eks-node-&quot;</span><br><span class="line">  instance_type = &quot;m5.xlarge&quot;</span><br><span class="line"></span><br><span class="line">  block_device_mappings &#123;</span><br><span class="line">    device_name = &quot;/dev/xvda&quot;</span><br><span class="line">    ebs &#123;</span><br><span class="line">      volume_size           = 100</span><br><span class="line">      volume_type           = &quot;gp3&quot;</span><br><span class="line">      iops                  = 3000</span><br><span class="line">      throughput            = 125</span><br><span class="line">      encrypted             = true</span><br><span class="line">      kms_key_id            = aws_kms_key.ebs.arn</span><br><span class="line">      delete_on_termination = true</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  # Custom kubelet arguments via user data (AL2)</span><br><span class="line">  user_data = base64encode(&lt;&lt;-EOF</span><br><span class="line">    #!/bin/bash</span><br><span class="line">    /etc/eks/bootstrap.sh my-cluster \</span><br><span class="line">      --kubelet-extra-args &#x27;--max-pods=110 --node-labels=eks.amazonaws.com/nodegroup=main-ng&#x27; \</span><br><span class="line">      --b64-cluster-ca &#x27;$&#123;aws_eks_cluster.main.certificate_authority[0].data&#125;&#x27; \</span><br><span class="line">      --apiserver-endpoint &#x27;$&#123;aws_eks_cluster.main.endpoint&#125;&#x27;</span><br><span class="line">  EOF</span><br><span class="line">  )</span><br><span class="line"></span><br><span class="line">  metadata_options &#123;</span><br><span class="line">    http_endpoint               = &quot;enabled&quot;</span><br><span class="line">    http_tokens                 = &quot;required&quot;   # IMDSv2 only — disables IMDSv1</span><br><span class="line">    http_put_response_hop_limit = 1</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  tag_specifications &#123;</span><br><span class="line">    resource_type = &quot;instance&quot;</span><br><span class="line">    tags = &#123; Name = &quot;eks-node&quot; &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>http_tokens = required</code></strong> (IMDSv2) is a critical security setting — it prevents container escape attacks that steal the node’s instance role via IMDS.</p>
+<hr>
+<h2 id="6-EKS-Add-ons"><a href="#6-EKS-Add-ons" class="headerlink" title="6. EKS Add-ons"></a>6. EKS Add-ons</h2><p>Manage core cluster components as EKS-native add-ons (instead of self-managed Helm charts) so AWS handles version upgrades:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">locals &#123;</span><br><span class="line">  addons = &#123;</span><br><span class="line">    &quot;vpc-cni&quot;            = &quot;v1.18.1-eksbuild.1&quot;</span><br><span class="line">    &quot;coredns&quot;            = &quot;v1.11.1-eksbuild.9&quot;</span><br><span class="line">    &quot;kube-proxy&quot;         = &quot;v1.30.0-eksbuild.3&quot;</span><br><span class="line">    &quot;aws-ebs-csi-driver&quot; = &quot;v1.31.0-eksbuild.1&quot;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">resource &quot;aws_eks_addon&quot; &quot;addons&quot; &#123;</span><br><span class="line">  for_each = local.addons</span><br><span class="line"></span><br><span class="line">  cluster_name             = aws_eks_cluster.main.name</span><br><span class="line">  addon_name               = each.key</span><br><span class="line">  addon_version            = each.value</span><br><span class="line">  resolve_conflicts_on_update = &quot;OVERWRITE&quot;</span><br><span class="line"></span><br><span class="line">  # EBS CSI driver needs IRSA</span><br><span class="line">  service_account_role_arn = each.key == &quot;aws-ebs-csi-driver&quot; ? aws_iam_role.ebs_csi.arn : null</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="EBS-CSI-Driver-IRSA"><a href="#EBS-CSI-Driver-IRSA" class="headerlink" title="EBS CSI Driver IRSA"></a>EBS CSI Driver IRSA</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">resource &quot;aws_iam_role&quot; &quot;ebs_csi&quot; &#123;</span><br><span class="line">  name = &quot;eks-ebs-csi-driver&quot;</span><br><span class="line"></span><br><span class="line">  assume_role_policy = jsonencode(&#123;</span><br><span class="line">    Version = &quot;2012-10-17&quot;</span><br><span class="line">    Statement = [&#123;</span><br><span class="line">      Effect    = &quot;Allow&quot;</span><br><span class="line">      Action    = &quot;sts:AssumeRoleWithWebIdentity&quot;</span><br><span class="line">      Principal = &#123; Federated = aws_iam_openid_connect_provider.eks.arn &#125;</span><br><span class="line">      Condition = &#123;</span><br><span class="line">        StringEquals = &#123;</span><br><span class="line">          &quot;$&#123;local.oidc_provider&#125;:sub&quot; = &quot;system:serviceaccount:kube-system:ebs-csi-controller-sa&quot;</span><br><span class="line">          &quot;$&#123;local.oidc_provider&#125;:aud&quot; = &quot;sts.amazonaws.com&quot;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;]</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">resource &quot;aws_iam_role_policy_attachment&quot; &quot;ebs_csi&quot; &#123;</span><br><span class="line">  role       = aws_iam_role.ebs_csi.name</span><br><span class="line">  policy_arn = &quot;arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy&quot;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="7-StorageClasses"><a href="#7-StorageClasses" class="headerlink" title="7. StorageClasses"></a>7. StorageClasses</h2><p>After installing the EBS CSI driver, create StorageClasses:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Default StorageClass — gp3 (better price/performance than gp2)</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">storage.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">StorageClass</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">gp3</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">storageclass.kubernetes.io/is-default-class:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line"><span class="attr">provisioner:</span> <span class="string">ebs.csi.aws.com</span></span><br><span class="line"><span class="attr">volumeBindingMode:</span> <span class="string">WaitForFirstConsumer</span>   <span class="comment"># waits for Pod scheduling before provisioning</span></span><br><span class="line"><span class="attr">reclaimPolicy:</span> <span class="string">Delete</span></span><br><span class="line"><span class="attr">allowVolumeExpansion:</span> <span class="literal">true</span></span><br><span class="line"><span class="attr">parameters:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">gp3</span></span><br><span class="line">  <span class="attr">iops:</span> <span class="string">&quot;3000&quot;</span></span><br><span class="line">  <span class="attr">throughput:</span> <span class="string">&quot;125&quot;</span></span><br><span class="line">  <span class="attr">encrypted:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">  <span class="attr">kmsKeyId:</span> <span class="string">&quot;arn:aws:kms:us-east-1:ACCOUNT:key/KEY-ID&quot;</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="comment"># High-performance StorageClass for databases</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">storage.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">StorageClass</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">io2-high-perf</span></span><br><span class="line"><span class="attr">provisioner:</span> <span class="string">ebs.csi.aws.com</span></span><br><span class="line"><span class="attr">volumeBindingMode:</span> <span class="string">WaitForFirstConsumer</span></span><br><span class="line"><span class="attr">parameters:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">io2</span></span><br><span class="line">  <span class="attr">iops:</span> <span class="string">&quot;16000&quot;</span></span><br><span class="line">  <span class="attr">encrypted:</span> <span class="string">&quot;true&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong><code>WaitForFirstConsumer</code></strong> is important in multi-AZ clusters — it delays EBS volume creation until a Pod is scheduled, ensuring the volume is created in the same AZ as the node.</p>
+<hr>
+<h2 id="8-aws-auth-ConfigMap-—-Node-and-User-Access"><a href="#8-aws-auth-ConfigMap-—-Node-and-User-Access" class="headerlink" title="8. aws-auth ConfigMap — Node and User Access"></a>8. aws-auth ConfigMap — Node and User Access</h2><p>EKS uses the <code>aws-auth</code> ConfigMap in <code>kube-system</code> to map IAM roles&#x2F;users to Kubernetes RBAC identities:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ConfigMap</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">aws-auth</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">kube-system</span></span><br><span class="line"><span class="attr">data:</span></span><br><span class="line">  <span class="attr">mapRoles:</span> <span class="string">|</span></span><br><span class="line"><span class="string">    # Worker nodes (required — without this, nodes cannot join)</span></span><br><span class="line"><span class="string">    - rolearn: arn:aws:iam::ACCOUNT:role/eks-node-role</span></span><br><span class="line"><span class="string">      username: system:node:&#123;&#123;EC2PrivateDNSName&#125;&#125;</span></span><br><span class="line"><span class="string">      groups:</span></span><br><span class="line"><span class="string">        - system:bootstrappers</span></span><br><span class="line"><span class="string">        - system:nodes</span></span><br><span class="line"><span class="string"></span></span><br><span class="line">    <span class="comment"># Allow a CI/CD role to deploy</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">rolearn:</span> <span class="string">arn:aws:iam::ACCOUNT:role/github-actions-role</span></span><br><span class="line">      <span class="attr">username:</span> <span class="string">github-actions</span></span><br><span class="line">      <span class="attr">groups:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">deployers</span>   <span class="comment"># bound to a ClusterRoleBinding</span></span><br><span class="line"></span><br><span class="line">  <span class="attr">mapUsers:</span> <span class="string">|</span></span><br><span class="line"><span class="string">    # Individual developer access</span></span><br><span class="line"><span class="string">    - userarn: arn:aws:iam::ACCOUNT:user/alice</span></span><br><span class="line"><span class="string">      username: alice</span></span><br><span class="line"><span class="string">      groups:</span></span><br><span class="line"><span class="string">        - system:masters   # cluster-admin</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>Important:</strong> The node role entry must be present before nodes can register. If you see nodes stuck in <code>NotReady</code> with <code>Unauthorized</code> errors in kubelet logs, this mapping is missing.</p>
+<hr>
+<h2 id="9-Cluster-Autoscaler"><a href="#9-Cluster-Autoscaler" class="headerlink" title="9. Cluster Autoscaler"></a>9. Cluster Autoscaler</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"># IRSA for Cluster Autoscaler</span><br><span class="line">resource &quot;aws_iam_role&quot; &quot;cluster_autoscaler&quot; &#123;</span><br><span class="line">  name = &quot;eks-cluster-autoscaler&quot;</span><br><span class="line">  assume_role_policy = jsonencode(&#123;</span><br><span class="line">    Version = &quot;2012-10-17&quot;</span><br><span class="line">    Statement = [&#123;</span><br><span class="line">      Effect    = &quot;Allow&quot;</span><br><span class="line">      Action    = &quot;sts:AssumeRoleWithWebIdentity&quot;</span><br><span class="line">      Principal = &#123; Federated = aws_iam_openid_connect_provider.eks.arn &#125;</span><br><span class="line">      Condition = &#123;</span><br><span class="line">        StringEquals = &#123;</span><br><span class="line">          &quot;$&#123;local.oidc_provider&#125;:sub&quot; = &quot;system:serviceaccount:kube-system:cluster-autoscaler&quot;</span><br><span class="line">          &quot;$&#123;local.oidc_provider&#125;:aud&quot; = &quot;sts.amazonaws.com&quot;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;]</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">resource &quot;aws_iam_role_policy&quot; &quot;cluster_autoscaler&quot; &#123;</span><br><span class="line">  name = &quot;cluster-autoscaler&quot;</span><br><span class="line">  role = aws_iam_role.cluster_autoscaler.id</span><br><span class="line"></span><br><span class="line">  policy = jsonencode(&#123;</span><br><span class="line">    Version = &quot;2012-10-17&quot;</span><br><span class="line">    Statement = [&#123;</span><br><span class="line">      Effect = &quot;Allow&quot;</span><br><span class="line">      Action = [</span><br><span class="line">        &quot;autoscaling:DescribeAutoScalingGroups&quot;,</span><br><span class="line">        &quot;autoscaling:DescribeAutoScalingInstances&quot;,</span><br><span class="line">        &quot;autoscaling:DescribeLaunchConfigurations&quot;,</span><br><span class="line">        &quot;autoscaling:DescribeScalingActivities&quot;,</span><br><span class="line">        &quot;autoscaling:DescribeTags&quot;,</span><br><span class="line">        &quot;autoscaling:SetDesiredCapacity&quot;,</span><br><span class="line">        &quot;autoscaling:TerminateInstanceInAutoScalingGroup&quot;,</span><br><span class="line">        &quot;ec2:DescribeImages&quot;,</span><br><span class="line">        &quot;ec2:DescribeInstanceTypes&quot;,</span><br><span class="line">        &quot;ec2:DescribeLaunchTemplateVersions&quot;,</span><br><span class="line">        &quot;ec2:GetInstanceTypesFromInstanceRequirements&quot;,</span><br><span class="line">        &quot;eks:DescribeNodegroup&quot;</span><br><span class="line">      ]</span><br><span class="line">      Resource = &quot;*&quot;</span><br><span class="line">    &#125;]</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Node group ASG tags required for Cluster Autoscaler discovery:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">resource &quot;aws_autoscaling_group_tag&quot; &quot;ca_tags&quot; &#123;</span><br><span class="line">  for_each = &#123;</span><br><span class="line">    &quot;k8s.io/cluster-autoscaler/enabled&quot;      = &quot;true&quot;</span><br><span class="line">    &quot;k8s.io/cluster-autoscaler/my-cluster&quot;   = &quot;owned&quot;</span><br><span class="line">  &#125;</span><br><span class="line">  autoscaling_group_name = aws_eks_node_group.main.resources[0].autoscaling_groups[0].name</span><br><span class="line">  tag &#123;</span><br><span class="line">    key                 = each.key</span><br><span class="line">    value               = each.value</span><br><span class="line">    propagate_at_launch = false</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="10-AWS-Load-Balancer-Controller"><a href="#10-AWS-Load-Balancer-Controller" class="headerlink" title="10. AWS Load Balancer Controller"></a>10. AWS Load Balancer Controller</h2><p>Replace the legacy in-tree cloud controller with the AWS Load Balancer Controller for ALB (Ingress) and NLB (Service) support:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">resource &quot;aws_iam_role&quot; &quot;aws_lb_controller&quot; &#123;</span><br><span class="line">  name = &quot;eks-aws-lb-controller&quot;</span><br><span class="line">  assume_role_policy = jsonencode(&#123;</span><br><span class="line">    Version = &quot;2012-10-17&quot;</span><br><span class="line">    Statement = [&#123;</span><br><span class="line">      Effect    = &quot;Allow&quot;</span><br><span class="line">      Action    = &quot;sts:AssumeRoleWithWebIdentity&quot;</span><br><span class="line">      Principal = &#123; Federated = aws_iam_openid_connect_provider.eks.arn &#125;</span><br><span class="line">      Condition = &#123;</span><br><span class="line">        StringEquals = &#123;</span><br><span class="line">          &quot;$&#123;local.oidc_provider&#125;:sub&quot; = &quot;system:serviceaccount:kube-system:aws-load-balancer-controller&quot;</span><br><span class="line">          &quot;$&#123;local.oidc_provider&#125;:aud&quot; = &quot;sts.amazonaws.com&quot;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;]</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br><span class="line"># Policy: download from https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json</span><br></pre></td></tr></table></figure>
+
+<p>Install via Helm:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">helm repo add eks https://aws.github.io/eks-charts</span><br><span class="line">helm install aws-load-balancer-controller eks/aws-load-balancer-controller \</span><br><span class="line">  -n kube-system \</span><br><span class="line">  --<span class="built_in">set</span> clusterName=my-cluster \</span><br><span class="line">  --<span class="built_in">set</span> serviceAccount.annotations.<span class="string">&quot;eks\.amazonaws\.com/role-arn&quot;</span>=arn:aws:iam::ACCOUNT:role/eks-aws-lb-controller \</span><br><span class="line">  --<span class="built_in">set</span> region=us-east-1 \</span><br><span class="line">  --<span class="built_in">set</span> vpcId=vpc-XXXXXXXX</span><br></pre></td></tr></table></figure>
+
+<p>Ingress annotation to use ALB:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Ingress</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">kubernetes.io/ingress.class:</span> <span class="string">alb</span></span><br><span class="line">    <span class="attr">alb.ingress.kubernetes.io/scheme:</span> <span class="string">internet-facing</span></span><br><span class="line">    <span class="attr">alb.ingress.kubernetes.io/target-type:</span> <span class="string">ip</span>   <span class="comment"># routes directly to Pod IPs (no NodePort hop)</span></span><br><span class="line">    <span class="attr">alb.ingress.kubernetes.io/certificate-arn:</span> <span class="string">arn:aws:acm:us-east-1:ACCOUNT:certificate/CERT-ID</span></span><br><span class="line">    <span class="attr">alb.ingress.kubernetes.io/listen-ports:</span> <span class="string">&#x27;[&#123;&quot;HTTPS&quot;: 443&#125;]&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Common-Gotchas"><a href="#Common-Gotchas" class="headerlink" title="Common Gotchas"></a>Common Gotchas</h2><table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Root Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Nodes <code>NotReady</code></td>
+<td>Missing <code>aws-auth</code> node role mapping</td>
+<td>Add node role to <code>aws-auth</code> ConfigMap</td>
+</tr>
+<tr>
+<td>ALB not provisioning</td>
+<td>Missing subnet tags</td>
+<td>Add <code>kubernetes.io/role/elb</code> tag to public subnets</td>
+</tr>
+<tr>
+<td>EBS volume in wrong AZ</td>
+<td>StorageClass uses <code>Immediate</code> binding</td>
+<td>Switch to <code>WaitForFirstConsumer</code></td>
+</tr>
+<tr>
+<td>Pod can’t access S3</td>
+<td>Node role used instead of IRSA</td>
+<td>Create IRSA role + annotate ServiceAccount</td>
+</tr>
+<tr>
+<td>IMDSv1 access from container</td>
+<td><code>http_tokens</code> not set to <code>required</code></td>
+<td>Set <code>metadata_options.http_tokens = &quot;required&quot;</code></td>
+</tr>
+<tr>
+<td>IP exhaustion on nodes</td>
+<td>Default VPC CNI, dense clusters</td>
+<td>Enable prefix delegation or custom networking</td>
+</tr>
+<tr>
+<td>Cluster Autoscaler not scaling</td>
+<td>Missing ASG tags</td>
+<td>Add <code>k8s.io/cluster-autoscaler/enabled</code> tags</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="Minimal-Quickstart-Checklist"><a href="#Minimal-Quickstart-Checklist" class="headerlink" title="Minimal Quickstart Checklist"></a>Minimal Quickstart Checklist</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">□ VPC with public/private subnets across 3 AZs</span><br><span class="line">□ Subnet tags for ELB discovery</span><br><span class="line">□ EKS cluster role with AmazonEKSClusterPolicy</span><br><span class="line">□ Node role with WorkerNode + CNI + ECR policies</span><br><span class="line">□ EKS cluster with private endpoint + KMS encryption</span><br><span class="line">□ Managed node group with IMDSv2 enforced</span><br><span class="line">□ aws-auth ConfigMap with node role mapping</span><br><span class="line">□ OIDC provider created for IRSA</span><br><span class="line">□ EBS CSI driver add-on with IRSA role</span><br><span class="line">□ gp3 StorageClass as default (WaitForFirstConsumer)</span><br><span class="line">□ CoreDNS + kube-proxy + VPC CNI add-ons managed</span><br><span class="line">□ Cluster Autoscaler with IRSA + ASG tags</span><br><span class="line">□ AWS Load Balancer Controller installed</span><br></pre></td></tr></table></figure>
+
+<p>Getting these right from day one saves significant pain during scaling and security audits.</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Cloud/" rel="tag"># Cloud</a>
+              <a href="/tags/AWS/" rel="tag"># AWS</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/17/2026-07-17-kubernetes-network-deep-dive/" rel="prev" title="Kubernetes Network Deep Dive - CoreDNS, kube-proxy, and Istio Working Together">
+                  <i class="fa fa-angle-left"></i> Kubernetes Network Deep Dive - CoreDNS, kube-proxy, and Istio Working Together
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/20/2026-07-20-prow-images-tessops-k8s-cluster-setup/" rel="next" title="Prow-Images & TessOps Deep Dive - Building and Configuring Kubernetes Clusters">
+                  Prow-Images & TessOps Deep Dive - Building and Configuring Kubernetes Clusters <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">smileusd</span>
+  </div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+  
+  <script src="https://cdn.bootcdn.net/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous"></script>
+<script src="/js/comments.js"></script><script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/schemes/muse.js"></script><script src="/js/next-boot.js"></script>
+
+  <script src="https://cdn.bootcdn.net/ajax/libs/hexo-generator-searchdb/1.4.1/search.js" integrity="sha256-1kfA5uHPf65M5cphT2dvymhkuyHPQp5A53EGZOnOLmc=" crossorigin="anonymous"></script>
+<script src="/js/third-party/search/local-search.js"></script>
+
+
+  <script class="next-config" data-name="mermaid" type="application/json">{"enable":true,"theme":{"light":"default","dark":"dark"},"js":{"url":"https://cdn.bootcdn.net/ajax/libs/mermaid/10.7.0/mermaid.min.js","integrity":"sha256-TtLOdUA8mstPoO6sGvHIGx2ceXrrX4KgIItO06XOn8A="}}</script>
+  <script src="/js/third-party/tags/mermaid.js"></script>
+
+
+
+
+
+  
+
+
+
+
+
+</body>
+</html>
